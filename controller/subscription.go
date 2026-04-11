@@ -151,12 +151,27 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	req.Plan.ModelRestrictMode = model.NormalizeSubscriptionModelRestrictMode(req.Plan.ModelRestrictMode)
+	if req.Plan.ModelRestrictMode == "group" && req.Plan.UpgradeGroup == "" {
+		common.ApiErrorMsg(c, "按模型组限制时必须配置升级分组")
+		return
+	}
+	allowedModelsJSON, err := model.NormalizeAllowedModelsJSON(req.Plan.AllowedModels)
+	if err != nil {
+		common.ApiErrorMsg(c, "允许模型格式错误")
+		return
+	}
+	req.Plan.AllowedModels = allowedModelsJSON
+	if req.Plan.DailyQuotaLimit < 0 || req.Plan.WeeklyQuotaLimit < 0 || req.Plan.MonthlyQuotaLimit < 0 {
+		common.ApiErrorMsg(c, "窗口限额不能为负数")
+		return
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
-	err := model.DB.Create(&req.Plan).Error
+	err = model.DB.Create(&req.Plan).Error
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -214,13 +229,28 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	req.Plan.ModelRestrictMode = model.NormalizeSubscriptionModelRestrictMode(req.Plan.ModelRestrictMode)
+	if req.Plan.ModelRestrictMode == "group" && req.Plan.UpgradeGroup == "" {
+		common.ApiErrorMsg(c, "按模型组限制时必须配置升级分组")
+		return
+	}
+	allowedModelsJSON, err := model.NormalizeAllowedModelsJSON(req.Plan.AllowedModels)
+	if err != nil {
+		common.ApiErrorMsg(c, "允许模型格式错误")
+		return
+	}
+	req.Plan.AllowedModels = allowedModelsJSON
+	if req.Plan.DailyQuotaLimit < 0 || req.Plan.WeeklyQuotaLimit < 0 || req.Plan.MonthlyQuotaLimit < 0 {
+		common.ApiErrorMsg(c, "窗口限额不能为负数")
+		return
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
 
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
 			"title":                      req.Plan.Title,
@@ -236,6 +266,11 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"creem_product_id":           req.Plan.CreemProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
+			"model_restrict_mode":        req.Plan.ModelRestrictMode,
+			"allowed_models":             req.Plan.AllowedModels,
+			"daily_quota_limit":          req.Plan.DailyQuotaLimit,
+			"weekly_quota_limit":         req.Plan.WeeklyQuotaLimit,
+			"monthly_quota_limit":        req.Plan.MonthlyQuotaLimit,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,

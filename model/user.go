@@ -399,36 +399,7 @@ func (user *User) Insert(inviterId int) error {
 	if result.Error != nil {
 		return result.Error
 	}
-
-	// 用户创建成功后，根据角色初始化边栏配置
-	// 需要重新获取用户以确保有正确的ID和Role
-	var createdUser User
-	if err := DB.Where("username = ?", user.Username).First(&createdUser).Error; err == nil {
-		// 生成基于角色的默认边栏配置
-		defaultSidebarConfig := generateDefaultSidebarConfigForRole(createdUser.Role)
-		if defaultSidebarConfig != "" {
-			currentSetting := createdUser.GetSetting()
-			currentSetting.SidebarModules = defaultSidebarConfig
-			createdUser.SetSetting(currentSetting)
-			createdUser.Update(false)
-			common.SysLog(fmt.Sprintf("为新用户 %s (角色: %d) 初始化边栏配置", createdUser.Username, createdUser.Role))
-		}
-	}
-
-	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
-	}
-	if inviterId != 0 {
-		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
-		}
-		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
-			_ = inviteUser(inviterId)
-		}
-	}
+	user.finalizeNewUserCreation(inviterId)
 	return nil
 }
 
@@ -463,6 +434,10 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 // FinalizeOAuthUserCreation performs post-transaction tasks for OAuth user creation.
 // This should be called after the transaction commits successfully.
 func (user *User) FinalizeOAuthUserCreation(inviterId int) {
+	user.finalizeNewUserCreation(inviterId)
+}
+
+func (user *User) finalizeNewUserCreation(inviterId int) {
 	// 用户创建成功后，根据角色初始化边栏配置
 	var createdUser User
 	if err := DB.Where("id = ?", user.Id).First(&createdUser).Error; err == nil {
@@ -475,6 +450,7 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 			common.SysLog(fmt.Sprintf("为新用户 %s (角色: %d) 初始化边栏配置", createdUser.Username, createdUser.Role))
 		}
 	}
+	AssignDefaultSubscriptionsToNewUser(user.Id)
 
 	if common.QuotaForNewUser > 0 {
 		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
