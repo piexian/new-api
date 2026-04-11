@@ -119,7 +119,15 @@ const SubscriptionPlansCard = ({
     }
   };
 
-  const getRequiredQuota = (plan) => {
+  const getRequiredQuota = (planRecord) => {
+    const requiredQuotaFromApi = Number(planRecord?.required_quota);
+    if (
+      Number.isFinite(requiredQuotaFromApi) &&
+      requiredQuotaFromApi >= 0
+    ) {
+      return requiredQuotaFromApi;
+    }
+    const plan = planRecord?.plan;
     const priceAmount = Number(plan?.price_amount || 0);
     const quotaUnit = Number(quotaPerUnit || 0);
     if (priceAmount <= 0 || quotaUnit <= 0) {
@@ -133,7 +141,7 @@ const SubscriptionPlansCard = ({
     if (!plan?.id) {
       return;
     }
-    const requiredQuota = getRequiredQuota(plan);
+    const requiredQuota = getRequiredQuota(planRecord);
     const currentWalletQuota = Number(walletQuota || 0);
     if (requiredQuota > currentWalletQuota) {
       showError(

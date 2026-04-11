@@ -739,7 +739,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := common.GetTimestamp()
+	nowUnix := GetDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -779,8 +779,8 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		NextResetTime: nextReset,
 		UpgradeGroup:  upgradeGroup,
 		PrevUserGroup: prevGroup,
-		CreatedAt:     common.GetTimestamp(),
-		UpdatedAt:     common.GetTimestamp(),
+		CreatedAt:     nowUnix,
+		UpdatedAt:     nowUnix,
 	}
 	if err := tx.Create(sub).Error; err != nil {
 		return nil, err
@@ -802,6 +802,10 @@ func calcSubscriptionPlanRequiredQuota(plan *SubscriptionPlan) (int, error) {
 		return 0, errors.New("invalid required quota")
 	}
 	return int(requiredQuota.IntPart()), nil
+}
+
+func GetSubscriptionPlanRequiredQuota(plan *SubscriptionPlan) (int, error) {
+	return calcSubscriptionPlanRequiredQuota(plan)
 }
 
 func WalletPurchaseSubscription(userId int, planId int) (*SubscriptionOrder, error) {
@@ -1366,6 +1370,22 @@ func (r *SubscriptionPreConsumeRecord) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+func fillSubscriptionPreConsumeResultTx(tx *gorm.DB, result *SubscriptionPreConsumeResult, record *SubscriptionPreConsumeRecord) error {
+	if tx == nil || result == nil || record == nil {
+		return errors.New("invalid pre-consume result args")
+	}
+	var sub UserSubscription
+	if err := tx.Where("id = ?", record.UserSubscriptionId).First(&sub).Error; err != nil {
+		return err
+	}
+	result.UserSubscriptionId = sub.Id
+	result.PreConsumed = record.PreConsumed
+	result.AmountTotal = sub.AmountTotal
+	result.AmountUsedBefore = sub.AmountUsed
+	result.AmountUsedAfter = sub.AmountUsed
+	return nil
+}
+
 func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64) error {
 	if tx == nil || sub == nil || plan == nil {
 		return errors.New("invalid reset args")
@@ -1427,16 +1447,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			if existing.Status == "refunded" {
 				return errors.New("subscription pre-consume already refunded")
 			}
-			var sub UserSubscription
-			if err := tx.Where("id = ?", existing.UserSubscriptionId).First(&sub).Error; err != nil {
-				return err
-			}
-			returnValue.UserSubscriptionId = sub.Id
-			returnValue.PreConsumed = existing.PreConsumed
-			returnValue.AmountTotal = sub.AmountTotal
-			returnValue.AmountUsedBefore = sub.AmountUsed
-			returnValue.AmountUsedAfter = sub.AmountUsed
-			return nil
+			return fillSubscriptionPreConsumeResultTx(tx, returnValue, &existing)
 		}
 
 		var subs []UserSubscription
@@ -1454,22 +1465,31 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			var plan *SubscriptionPlan
 			if sub.PlanId > 0 {
 				loadedPlan, planErr := getSubscriptionPlanByIdTx(tx, sub.PlanId)
-				if planErr == nil && loadedPlan != nil {
-					plan = loadedPlan
-					if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
+				if planErr != nil {
+					if errors.Is(planErr, gorm.ErrRecordNotFound) {
+						common.SysLog(fmt.Sprintf("skip subscription pre-consume due missing plan: sub_id=%d, plan_id=%d", sub.Id, sub.PlanId))
+						continue
+					}
+					return planErr
+				}
+				if loadedPlan == nil {
+					common.SysLog(fmt.Sprintf("skip subscription pre-consume due nil plan: sub_id=%d, plan_id=%d", sub.Id, sub.PlanId))
+					continue
+				}
+				plan = loadedPlan
+				if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
+					return err
+				}
+				if !isSubscriptionModelAllowed(plan, modelName) {
+					continue
+				}
+				if prepareSubscriptionQuotaWindows(&sub, plan, now) {
+					if err := tx.Save(&sub).Error; err != nil {
 						return err
 					}
-					if !isSubscriptionModelAllowed(plan, modelName) {
-						continue
-					}
-					if prepareSubscriptionQuotaWindows(&sub, plan, now) {
-						if err := tx.Save(&sub).Error; err != nil {
-							return err
-						}
-					}
-					if exceedsSubscriptionQuotaWindows(&sub, plan, amount) {
-						continue
-					}
+				}
+				if exceedsSubscriptionQuotaWindows(&sub, plan, amount) {
+					continue
 				}
 			}
 			usedBefore := sub.AmountUsed
@@ -1492,12 +1512,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 					if dup.Status == "refunded" {
 						return errors.New("subscription pre-consume already refunded")
 					}
-					returnValue.UserSubscriptionId = sub.Id
-					returnValue.PreConsumed = dup.PreConsumed
-					returnValue.AmountTotal = sub.AmountTotal
-					returnValue.AmountUsedBefore = sub.AmountUsed
-					returnValue.AmountUsedAfter = sub.AmountUsed
-					return nil
+					return fillSubscriptionPreConsumeResultTx(tx, returnValue, &dup)
 				}
 				return err
 			}
@@ -1639,8 +1654,8 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 	if delta == 0 {
 		return nil
 	}
-	now := common.GetTimestamp()
 	return DB.Transaction(func(tx *gorm.DB) error {
+		now := GetDBTimestampTx(tx)
 		var sub UserSubscription
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").
 			Where("id = ?", userSubscriptionId).
@@ -1650,15 +1665,23 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		var plan *SubscriptionPlan
 		if sub.PlanId > 0 {
 			loadedPlan, planErr := getSubscriptionPlanByIdTx(tx, sub.PlanId)
-			if planErr == nil && loadedPlan != nil {
-				plan = loadedPlan
-				if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
-					return err
+			if planErr != nil {
+				if errors.Is(planErr, gorm.ErrRecordNotFound) {
+					common.SysLog(fmt.Sprintf("subscription post-consume failed due missing plan: sub_id=%d, plan_id=%d", sub.Id, sub.PlanId))
 				}
-				if prepareSubscriptionQuotaWindows(&sub, plan, now) {
-					if err := tx.Save(&sub).Error; err != nil {
-						return err
-					}
+				return planErr
+			}
+			if loadedPlan == nil {
+				common.SysLog(fmt.Sprintf("subscription post-consume failed due nil plan: sub_id=%d, plan_id=%d", sub.Id, sub.PlanId))
+				return errors.New("subscription plan is nil")
+			}
+			plan = loadedPlan
+			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
+				return err
+			}
+			if prepareSubscriptionQuotaWindows(&sub, plan, now) {
+				if err := tx.Save(&sub).Error; err != nil {
+					return err
 				}
 			}
 		}

@@ -14,11 +14,27 @@ import (
 // ---- Shared types ----
 
 type SubscriptionPlanDTO struct {
-	Plan model.SubscriptionPlan `json:"plan"`
+	Plan          model.SubscriptionPlan `json:"plan"`
+	RequiredQuota int                    `json:"required_quota"`
 }
 
 type BillingPreferenceRequest struct {
 	BillingPreference string `json:"billing_preference"`
+}
+
+func buildSubscriptionPlanDTOs(plans []model.SubscriptionPlan) ([]SubscriptionPlanDTO, error) {
+	result := make([]SubscriptionPlanDTO, 0, len(plans))
+	for _, p := range plans {
+		requiredQuota, err := model.GetSubscriptionPlanRequiredQuota(&p)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, SubscriptionPlanDTO{
+			Plan:          p,
+			RequiredQuota: requiredQuota,
+		})
+	}
+	return result, nil
 }
 
 // ---- User APIs ----
@@ -29,11 +45,10 @@ func GetSubscriptionPlans(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	result := make([]SubscriptionPlanDTO, 0, len(plans))
-	for _, p := range plans {
-		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
-		})
+	result, err := buildSubscriptionPlanDTOs(plans)
+	if err != nil {
+		common.ApiError(c, err)
+		return
 	}
 	common.ApiSuccess(c, result)
 }
@@ -94,11 +109,10 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	result := make([]SubscriptionPlanDTO, 0, len(plans))
-	for _, p := range plans {
-		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
-		})
+	result, err := buildSubscriptionPlanDTOs(plans)
+	if err != nil {
+		common.ApiError(c, err)
+		return
 	}
 	common.ApiSuccess(c, result)
 }

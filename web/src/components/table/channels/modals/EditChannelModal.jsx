@@ -127,7 +127,7 @@ const PARAM_OVERRIDE_OPERATIONS_TEMPLATE = {
   ],
 };
 
-const DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
+const DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
 const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan';
 const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL =
   'glm-coding-plan-international';
@@ -419,10 +419,10 @@ const EditChannelModal = (props) => {
   const initialModelsRef = useRef([]);
   const initialModelMappingRef = useRef('');
   const initialStatusCodeMappingRef = useRef('');
-  const doubaoCodingPlanDeprecationMessage =
-    'Doubao Coding Plan 不再允许新增。根据火山方舟文档，Coding 套餐额度仅适用于 AI Coding 产品内调用，不适用于单独 API 调用；在非 AI Coding 产品中使用对应的 Base URL 和 API Key 可能被视为违规，并可能导致订阅停用或账号封禁。';
+  const doubaoCodingPlanRiskMessage =
+    'Doubao Coding Plan 风险提示：根据火山方舟文档，Coding 套餐额度仅适用于 AI Coding 产品内调用，不适用于单独 API 调用；在非 AI Coding 产品中使用对应的 Base URL 和 API Key 可能被视为违规，并可能导致订阅停用或账号封禁。';
   const doubaoCodingPlanOptionLabel = (
-    <Tooltip content={doubaoCodingPlanDeprecationMessage} position='left'>
+    <Tooltip content={doubaoCodingPlanRiskMessage} position='left'>
       <span className='inline-flex items-center gap-2'>
         <span>Doubao Coding Plan</span>
       </span>
@@ -3433,7 +3433,7 @@ const EditChannelModal = (props) => {
                                   'https://ark.ap-southeast.bytepluses.com',
                               },
                               {
-                                value: DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL,
+                                value: DOUBAO_CODING_PLAN_BASE_URL,
                                 label: doubaoCodingPlanOptionLabel,
                               },
                             ]}
