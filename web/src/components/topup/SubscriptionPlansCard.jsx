@@ -23,6 +23,7 @@ import {
   Button,
   Card,
   Divider,
+  Modal,
   Select,
   Skeleton,
   Space,
@@ -82,6 +83,9 @@ const SubscriptionPlansCard = ({
   activeSubscriptions = [],
   allSubscriptions = [],
   reloadSubscriptionSelf,
+  walletQuota = 0,
+  quotaPerUnit = 0,
+  reloadUserQuota,
   withCard = true,
 }) => {
   const [open, setOpen] = useState(false);
@@ -89,6 +93,7 @@ const SubscriptionPlansCard = ({
   const [paying, setPaying] = useState(false);
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [walletPayingPlanId, setWalletPayingPlanId] = useState(null);
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
 
@@ -108,9 +113,88 @@ const SubscriptionPlansCard = ({
     setRefreshing(true);
     try {
       await reloadSubscriptionSelf?.();
+      await reloadUserQuota?.();
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const getRequiredQuota = (planRecord) => {
+    const requiredQuotaFromApi = Number(planRecord?.required_quota);
+    if (
+      Number.isFinite(requiredQuotaFromApi) &&
+      requiredQuotaFromApi >= 0
+    ) {
+      return requiredQuotaFromApi;
+    }
+    const plan = planRecord?.plan;
+    const priceAmount = Number(plan?.price_amount || 0);
+    const quotaUnit = Number(quotaPerUnit || 0);
+    if (priceAmount <= 0 || quotaUnit <= 0) {
+      return 0;
+    }
+    return Math.max(0, Math.round(priceAmount * quotaUnit));
+  };
+
+  const payWallet = (planRecord) => {
+    const plan = planRecord?.plan;
+    if (!plan?.id) {
+      return;
+    }
+    const requiredQuota = getRequiredQuota(planRecord);
+    const currentWalletQuota = Number(walletQuota || 0);
+    if (requiredQuota > currentWalletQuota) {
+      showError(
+        t('余额不足，当前余额 {{current}}，所需 {{required}}', {
+          current: renderQuota(currentWalletQuota),
+          required: renderQuota(requiredQuota),
+        }),
+      );
+      return;
+    }
+    Modal.confirm({
+      title: t('确认余额购买订阅'),
+      content: (
+        <div style={{ lineHeight: '1.8' }}>
+          <p>
+            <Text>{t('套餐')}：</Text>
+            <Text strong>{plan.title || t('订阅套餐')}</Text>
+          </p>
+          <p>
+            <Text>{t('当前余额')}：</Text>
+            <Text strong>{renderQuota(currentWalletQuota)}</Text>
+          </p>
+          <p>
+            <Text>{t('本次扣减')}：</Text>
+            <Text strong>{renderQuota(requiredQuota)}</Text>
+          </p>
+          {requiredQuota === 0 && (
+            <Text type='tertiary'>
+              {t('该套餐价格为 0，本次不会扣减钱包余额，但会创建订阅订单记录')}
+            </Text>
+          )}
+        </div>
+      ),
+      onOk: async () => {
+        setWalletPayingPlanId(plan.id);
+        try {
+          const res = await API.post('/api/subscription/wallet/pay', {
+            plan_id: plan.id,
+          });
+          if (res.data?.success) {
+            showSuccess(t('余额购买成功'));
+            await reloadSubscriptionSelf?.();
+            await reloadUserQuota?.();
+          } else {
+            showError(res.data?.message || t('余额购买失败'));
+          }
+        } catch (error) {
+          showError(t('余额购买失败'));
+        } finally {
+          setWalletPayingPlanId(null);
+        }
+      },
+    });
   };
 
   const payStripe = async () => {
@@ -251,6 +335,78 @@ const SubscriptionPlansCard = ({
     return Math.round((used / total) * 100);
   };
 
+  const parseAllowedModels = (value) => {
+    if (typeof value !== 'string' || value.trim() === '') {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(value);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      return parsed
+        .map((item) => String(item || '').trim())
+        .filter(Boolean);
+    } catch (error) {
+      return [];
+    }
+  };
+
+  const getModelRestrictionMeta = (plan) => {
+    const mode = plan?.model_restrict_mode || '';
+    if (!mode) {
+      return null;
+    }
+    if (mode === 'group') {
+      const upgradeGroup = String(plan?.upgrade_group || '').trim();
+      return {
+        label: upgradeGroup
+          ? `${t('模型限制')}: ${t('按分组')} (${upgradeGroup})`
+          : `${t('模型限制')}: ${t('按分组')}`,
+        tooltip: upgradeGroup
+          ? t('仅允许使用升级分组当前可用的模型')
+          : t('仅允许使用升级分组当前可用的模型'),
+      };
+    }
+    const allowedModels = parseAllowedModels(plan?.allowed_models);
+    const modeLabel = t('自定义模型限制');
+    const countSuffix = allowedModels.length > 0 ? ` (${allowedModels.length})` : '';
+    return {
+      label: `${t('模型限制')}: ${modeLabel}${countSuffix}`,
+      tooltip:
+        allowedModels.length > 0
+          ? allowedModels.join(', ')
+          : t('当前未配置允许模型'),
+    };
+  };
+
+  const getQuotaWindowItems = (plan, subscription) => {
+    const definitions = [
+      {
+        label: t('日限额'),
+        limit: Number(plan?.daily_quota_limit || 0),
+        used: Number(subscription?.daily_window_used || 0),
+      },
+      {
+        label: t('周限额'),
+        limit: Number(plan?.weekly_quota_limit || 0),
+        used: Number(subscription?.weekly_window_used || 0),
+      },
+      {
+        label: t('月限额'),
+        limit: Number(plan?.monthly_quota_limit || 0),
+        used: Number(subscription?.monthly_window_used || 0),
+      },
+    ];
+    return definitions
+      .filter((item) => item.limit > 0)
+      .map((item) => ({
+        label: subscription
+          ? `${item.label}: ${renderQuota(item.used)}/${renderQuota(item.limit)}`
+          : `${item.label}: ${renderQuota(item.limit)}`,
+      }));
+  };
+
   const cardContent = (
     <>
       {/* 卡片头部 */}
@@ -388,7 +544,9 @@ const SubscriptionPlansCard = ({
                         ? Math.max(0, totalAmount - usedAmount)
                         : 0;
                     const planTitle =
-                      planTitleMap.get(subscription?.plan_id) || '';
+                      sub?.plan?.title ||
+                      planTitleMap.get(subscription?.plan_id) ||
+                      '';
                     const remainDays = getRemainingDays(sub);
                     const usagePercent = getUsagePercent(sub);
                     const now = Date.now() / 1000;
@@ -396,6 +554,12 @@ const SubscriptionPlansCard = ({
                     const isCancelled = subscription?.status === 'cancelled';
                     const isActive =
                       subscription?.status === 'active' && !isExpired;
+                    const planInfo = sub?.plan;
+                    const modelRestrictionMeta = getModelRestrictionMeta(planInfo);
+                    const windowUsageItems = getQuotaWindowItems(
+                      planInfo,
+                      subscription,
+                    );
 
                     return (
                       <div key={subscription?.id || subIndex}>
@@ -463,6 +627,21 @@ const SubscriptionPlansCard = ({
                             </span>
                           )}
                         </div>
+                        {modelRestrictionMeta && (
+                          <div className='text-xs text-gray-500 mb-2'>
+                            <Tooltip content={modelRestrictionMeta.tooltip}>
+                              <span>{modelRestrictionMeta.label}</span>
+                            </Tooltip>
+                          </div>
+                        )}
+                        {windowUsageItems.map((item) => (
+                          <div
+                            key={`${subscription?.id || subIndex}-${item.label}`}
+                            className='text-xs text-gray-500 mb-2'
+                          >
+                            {item.label}
+                          </div>
+                        ))}
                         {!isLast && <Divider margin={12} />}
                       </div>
                     );
@@ -490,7 +669,10 @@ const SubscriptionPlansCard = ({
                 );
                 const isPopular = index === 0 && plans.length > 1;
                 const limit = Number(plan?.max_purchase_per_user || 0);
+                const hasOnlinePurchase =
+                  enableOnlineTopUp || enableStripeTopUp || enableCreemTopUp;
                 const limitLabel = limit > 0 ? `${t('限购')} ${limit}` : null;
+                const modelRestrictionMeta = getModelRestrictionMeta(plan);
                 const totalLabel =
                   totalAmount > 0
                     ? `${t('总额度')}: ${renderQuota(totalAmount)}`
@@ -502,6 +684,7 @@ const SubscriptionPlansCard = ({
                   formatSubscriptionResetPeriod(plan, t) === t('不重置')
                     ? null
                     : `${t('额度重置')}: ${formatSubscriptionResetPeriod(plan, t)}`;
+                const windowLimitItems = getQuotaWindowItems(plan);
                 const planBenefits = [
                   {
                     label: `${t('有效期')}: ${formatSubscriptionDuration(plan, t)}`,
@@ -514,6 +697,13 @@ const SubscriptionPlansCard = ({
                       }
                     : { label: totalLabel },
                   limitLabel ? { label: limitLabel } : null,
+                  modelRestrictionMeta
+                    ? {
+                        label: modelRestrictionMeta.label,
+                        tooltip: modelRestrictionMeta.tooltip,
+                      }
+                    : null,
+                  ...windowLimitItems,
                   upgradeLabel ? { label: upgradeLabel } : null,
                 ].filter(Boolean);
 
@@ -608,17 +798,36 @@ const SubscriptionPlansCard = ({
                             ? t('已达到购买上限') + ` (${count}/${limit})`
                             : '';
                           const buttonEl = (
-                            <Button
-                              theme='outline'
-                              type='primary'
-                              block
-                              disabled={reached}
-                              onClick={() => {
-                                if (!reached) openBuy(p);
-                              }}
-                            >
-                              {reached ? t('已达上限') : t('立即订阅')}
-                            </Button>
+                            <div className='flex flex-col gap-2'>
+                              <Button
+                                type='primary'
+                                block
+                                loading={walletPayingPlanId === p?.plan?.id}
+                                disabled={reached}
+                                onClick={() => {
+                                  if (!reached) payWallet(p);
+                                }}
+                              >
+                                {reached
+                                  ? t('已达上限')
+                                  : Number(plan?.price_amount || 0) > 0
+                                    ? t('余额购买')
+                                    : t('0 元领取')}
+                              </Button>
+                              {hasOnlinePurchase && (
+                                <Button
+                                  theme='outline'
+                                  type='primary'
+                                  block
+                                  disabled={reached}
+                                  onClick={() => {
+                                    if (!reached) openBuy(p);
+                                  }}
+                                >
+                                  {reached ? t('已达上限') : t('在线订阅')}
+                                </Button>
+                              )}
+                            </div>
                           );
                           return reached ? (
                             <Tooltip content={tip} position='top'>

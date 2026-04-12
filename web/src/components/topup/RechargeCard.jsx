@@ -97,6 +97,9 @@ const RechargeCard = ({
   activeSubscriptions = [],
   allSubscriptions = [],
   reloadSubscriptionSelf,
+  walletQuota = 0,
+  quotaPerUnit = 0,
+  reloadUserQuota,
 }) => {
   const onlineFormApiRef = useRef(null);
   const redeemFormApiRef = useRef(null);
@@ -666,6 +669,9 @@ const RechargeCard = ({
                 activeSubscriptions={activeSubscriptions}
                 allSubscriptions={allSubscriptions}
                 reloadSubscriptionSelf={reloadSubscriptionSelf}
+                walletQuota={walletQuota}
+                quotaPerUnit={quotaPerUnit}
+                reloadUserQuota={reloadUserQuota}
                 withCard={false}
               />
             </div>

@@ -127,7 +127,10 @@ const PARAM_OVERRIDE_OPERATIONS_TEMPLATE = {
   ],
 };
 
-const DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
+const DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
+const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan';
+const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL =
+  'glm-coding-plan-international';
 
 // 支持并且已适配通过接口获取模型列表的渠道类型
 const MODEL_FETCHABLE_TYPES = new Set([
@@ -193,6 +196,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    use_responses_api: false,
     system_prompt: '',
     system_prompt_override: false,
     settings: '',
@@ -415,12 +419,10 @@ const EditChannelModal = (props) => {
   const initialModelsRef = useRef([]);
   const initialModelMappingRef = useRef('');
   const initialStatusCodeMappingRef = useRef('');
-  const doubaoCodingPlanDeprecationMessage =
-    'Doubao Coding Plan 不再允许新增。根据火山方舟文档，Coding 套餐额度仅适用于 AI Coding 产品内调用，不适用于单独 API 调用；在非 AI Coding 产品中使用对应的 Base URL 和 API Key 可能被视为违规，并可能导致订阅停用或账号封禁。';
-  const canKeepDeprecatedDoubaoCodingPlan =
-    initialBaseUrlRef.current === DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL;
+  const doubaoCodingPlanRiskMessage =
+    'Doubao Coding Plan 风险提示：根据火山方舟文档，Coding 套餐额度仅适用于 AI Coding 产品内调用，不适用于单独 API 调用；在非 AI Coding 产品中使用对应的 Base URL 和 API Key 可能被视为违规，并可能导致订阅停用或账号封禁。';
   const doubaoCodingPlanOptionLabel = (
-    <Tooltip content={doubaoCodingPlanDeprecationMessage} position='left'>
+    <Tooltip content={doubaoCodingPlanRiskMessage} position='left'>
       <span className='inline-flex items-center gap-2'>
         <span>Doubao Coding Plan</span>
       </span>
@@ -497,6 +499,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    use_responses_api: false,
     system_prompt: '',
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
@@ -653,6 +656,13 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://ark.cn-beijing.volces.com',
+          }));
+          break;
+        case 26:
+          localModels = getChannelModels(value);
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: '',
           }));
           break;
         default:
@@ -848,6 +858,7 @@ const EditChannelModal = (props) => {
           data.proxy = parsedSettings.proxy || '';
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
+          data.use_responses_api = parsedSettings.use_responses_api === true;
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
@@ -857,6 +868,7 @@ const EditChannelModal = (props) => {
           data.thinking_to_content = false;
           data.proxy = '';
           data.pass_through_body_enabled = false;
+          data.use_responses_api = false;
           data.system_prompt = '';
           data.system_prompt_override = false;
         }
@@ -865,6 +877,7 @@ const EditChannelModal = (props) => {
         data.thinking_to_content = false;
         data.proxy = '';
         data.pass_through_body_enabled = false;
+        data.use_responses_api = false;
         data.system_prompt = '';
         data.system_prompt_override = false;
       }
@@ -971,6 +984,7 @@ const EditChannelModal = (props) => {
         thinking_to_content: data.thinking_to_content,
         proxy: data.proxy,
         pass_through_body_enabled: data.pass_through_body_enabled,
+        use_responses_api: data.use_responses_api || false,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
@@ -1360,6 +1374,7 @@ const EditChannelModal = (props) => {
       thinking_to_content: false,
       proxy: '',
       pass_through_body_enabled: false,
+      use_responses_api: false,
       system_prompt: '',
       system_prompt_override: false,
     });
@@ -1730,6 +1745,7 @@ const EditChannelModal = (props) => {
       thinking_to_content: localInputs.thinking_to_content || false,
       proxy: localInputs.proxy || '',
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
+      use_responses_api: localInputs.use_responses_api === true,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
     };
@@ -1810,6 +1826,7 @@ const EditChannelModal = (props) => {
     delete localInputs.thinking_to_content;
     delete localInputs.proxy;
     delete localInputs.pass_through_body_enabled;
+    delete localInputs.use_responses_api;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
     delete localInputs.is_enterprise_account;
@@ -2492,6 +2509,10 @@ const EditChannelModal = (props) => {
 
                   {inputs.type === 14 && (
                     <Form.Switch field='claude_beta_query' label={t('Claude 强制 beta=true')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelOtherSettingsChange('claude_beta_query', value)} extraText={t('开启后，该渠道请求 Claude 时将强制追加 ?beta=true（无需客户端手动传参）')} />
+                  )}
+
+                  {inputs.type === 1 && (
+                    <Form.Switch field='use_responses_api' label={t('Responses API 模式')} checkedText={t('开')} uncheckedText={t('关')} onChange={(value) => handleChannelSettingsChange('use_responses_api', value)} extraText={t('开启后，该渠道的 /v1/chat/completions 请求将自动转换为 Responses API 处理')} />
                   )}
 
                   {inputs.type === 1 && (
@@ -3334,6 +3355,7 @@ const EditChannelModal = (props) => {
                         inputs.type !== 8 &&
                         inputs.type !== 22 &&
                         inputs.type !== 36 &&
+                        inputs.type !== 26 &&
                         (inputs.type !== 45 || doubaoApiEditUnlocked) && (
                           <div>
                             <Form.Input
@@ -3411,15 +3433,64 @@ const EditChannelModal = (props) => {
                                   'https://ark.ap-southeast.bytepluses.com',
                               },
                               {
-                                value: DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL,
+                                value: DOUBAO_CODING_PLAN_BASE_URL,
                                 label: doubaoCodingPlanOptionLabel,
-                                disabled: !canKeepDeprecatedDoubaoCodingPlan,
                               },
                             ]}
                             defaultValue='https://ark.cn-beijing.volces.com'
                             disabled={isIonetLocked}
                           />
                         </div>
+                      )}
+
+                      {inputs.type === 26 && (
+                        <>
+                          <div>
+                            <Form.Select
+                              field='base_url'
+                              label={t('API地址')}
+                              placeholder={t('请选择API地址')}
+                              onChange={(value) =>
+                                handleInputChange('base_url', value)
+                              }
+                              optionList={[
+                                {
+                                  value: '',
+                                  label: t('默认智谱地址'),
+                                },
+                                {
+                                  value: ZHIPU_CODING_PLAN_BASE_URL,
+                                  label: ZHIPU_CODING_PLAN_BASE_URL,
+                                },
+                                {
+                                  value:
+                                    ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL,
+                                  label:
+                                    ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL,
+                                },
+                              ]}
+                              disabled={isIonetLocked}
+                            />
+                          </div>
+                          <Banner
+                            type='info'
+                            description={
+                              <div>
+                                <div>
+                                  {t(
+                                    '该渠道支持 OpenAI 与 Claude 双端点：/v1/chat/completions 走 OpenAI 兼容接口，/v1/messages 走 Claude 兼容接口。',
+                                  )}
+                                </div>
+                                <div className='mt-1'>
+                                  {t(
+                                    'Coding Plan 额度仅适用于对应编码工具场景，选择特殊地址后将按智谱官方 Coding Plan 规则请求上游。',
+                                  )}
+                                </div>
+                              </div>
+                            }
+                            className='!rounded-lg mt-2'
+                          />
+                        </>
                       )}
                     </div>
                   )}

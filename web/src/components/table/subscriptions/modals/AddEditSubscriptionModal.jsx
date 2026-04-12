@@ -64,6 +64,29 @@ const resetPeriodOptions = [
   { value: 'custom', label: '自定义(秒)' },
 ];
 
+const modelRestrictModeOptions = [
+  { value: '', label: '不限模型' },
+  { value: 'group', label: '按模型组限制' },
+  { value: 'custom', label: '按自定义模型限制' },
+];
+
+const parseAllowedModels = (value) => {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+  } catch (error) {
+    return [];
+  }
+};
+
 const AddEditSubscriptionModal = ({
   visible,
   handleClose,
@@ -94,6 +117,11 @@ const AddEditSubscriptionModal = ({
     sort_order: 0,
     max_purchase_per_user: 0,
     total_amount: 0,
+    model_restrict_mode: '',
+    allowed_models: [],
+    daily_quota_limit: 0,
+    weekly_quota_limit: 0,
+    monthly_quota_limit: 0,
     upgrade_group: '',
     stripe_price_id: '',
     creem_product_id: '',
@@ -119,6 +147,17 @@ const AddEditSubscriptionModal = ({
       max_purchase_per_user: Number(p.max_purchase_per_user || 0),
       total_amount: Number(
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
+      ),
+      model_restrict_mode: p.model_restrict_mode || '',
+      allowed_models: parseAllowedModels(p.allowed_models),
+      daily_quota_limit: Number(
+        quotaToDisplayAmount(p.daily_quota_limit || 0).toFixed(2),
+      ),
+      weekly_quota_limit: Number(
+        quotaToDisplayAmount(p.weekly_quota_limit || 0).toFixed(2),
+      ),
+      monthly_quota_limit: Number(
+        quotaToDisplayAmount(p.monthly_quota_limit || 0).toFixed(2),
       ),
       upgrade_group: p.upgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
@@ -163,6 +202,11 @@ const AddEditSubscriptionModal = ({
           sort_order: Number(values.sort_order || 0),
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
+          model_restrict_mode: values.model_restrict_mode || '',
+          allowed_models: JSON.stringify(values.allowed_models || []),
+          daily_quota_limit: displayAmountToQuota(values.daily_quota_limit),
+          weekly_quota_limit: displayAmountToQuota(values.weekly_quota_limit),
+          monthly_quota_limit: displayAmountToQuota(values.monthly_quota_limit),
           upgrade_group: values.upgrade_group || '',
         },
       };
@@ -376,6 +420,117 @@ const AddEditSubscriptionModal = ({
                         field='enabled'
                         label={t('启用状态')}
                         size='large'
+                      />
+                    </Col>
+                  </Row>
+                </Card>
+
+                <Card className='!rounded-2xl shadow-sm border-0 mb-4'>
+                  <div className='flex items-center mb-2'>
+                    <Avatar
+                      size='small'
+                      color='cyan'
+                      className='mr-2 shadow-md'
+                    >
+                      <RefreshCw size={16} />
+                    </Avatar>
+                    <div>
+                      <Text className='text-lg font-medium'>
+                        {t('模型与窗口限制')}
+                      </Text>
+                      <div className='text-xs text-gray-600'>
+                        {t('限制套餐可用模型，以及日/周/月额度窗口')}
+                      </div>
+                    </div>
+                  </div>
+
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Select
+                        field='model_restrict_mode'
+                        label={t('模型限制模式')}
+                        extraText={
+                          values.model_restrict_mode === 'group'
+                            ? t('按升级分组当前可用模型自动判定')
+                            : undefined
+                        }
+                      >
+                        {modelRestrictModeOptions.map((option) => (
+                          <Select.Option key={option.value} value={option.value}>
+                            {t(option.label)}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+                    <Col span={12}>
+                      <Form.TagInput
+                        field='allowed_models'
+                        label={t('允许模型')}
+                        addOnBlur
+                        disabled={values.model_restrict_mode !== 'custom'}
+                        placeholder={
+                          values.model_restrict_mode === 'custom'
+                            ? t('输入模型名或前缀*，例如 gpt-4o 或 claude-*')
+                            : t('仅自定义模型限制模式需要填写')
+                        }
+                        extraText={
+                          values.model_restrict_mode === 'group'
+                            ? t('group 模式会直接使用升级分组当前可用的模型，这里无需填写')
+                            : t(
+                                '支持精确匹配和 prefix* 前缀匹配；留空表示当前模式下没有可用模型',
+                              )
+                        }
+                        onChange={(items) => {
+                          if (!formApiRef.current) return;
+                          const normalized = [
+                            ...new Set(
+                              (items || []).flatMap((item) =>
+                                String(item || '')
+                                  .split(',')
+                                  .map((part) => part.trim())
+                                  .filter(Boolean),
+                              ),
+                            ),
+                          ];
+                          formApiRef.current.setValue('allowed_models', normalized);
+                        }}
+                      />
+                    </Col>
+
+                    <Col span={8}>
+                      <Form.InputNumber
+                        field='daily_quota_limit'
+                        label={t('日限额')}
+                        min={0}
+                        precision={2}
+                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                          values.daily_quota_limit,
+                        )}`}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Form.InputNumber
+                        field='weekly_quota_limit'
+                        label={t('周限额')}
+                        min={0}
+                        precision={2}
+                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                          values.weekly_quota_limit,
+                        )}`}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <Form.InputNumber
+                        field='monthly_quota_limit'
+                        label={t('月限额')}
+                        min={0}
+                        precision={2}
+                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                          values.monthly_quota_limit,
+                        )}`}
+                        style={{ width: '100%' }}
                       />
                     </Col>
                   </Row>

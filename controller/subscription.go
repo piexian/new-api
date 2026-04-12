@@ -14,11 +14,27 @@ import (
 // ---- Shared types ----
 
 type SubscriptionPlanDTO struct {
-	Plan model.SubscriptionPlan `json:"plan"`
+	Plan          model.SubscriptionPlan `json:"plan"`
+	RequiredQuota int                    `json:"required_quota"`
 }
 
 type BillingPreferenceRequest struct {
 	BillingPreference string `json:"billing_preference"`
+}
+
+func buildSubscriptionPlanDTOs(plans []model.SubscriptionPlan) ([]SubscriptionPlanDTO, error) {
+	result := make([]SubscriptionPlanDTO, 0, len(plans))
+	for _, p := range plans {
+		requiredQuota, err := model.GetSubscriptionPlanRequiredQuota(&p)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, SubscriptionPlanDTO{
+			Plan:          p,
+			RequiredQuota: requiredQuota,
+		})
+	}
+	return result, nil
 }
 
 // ---- User APIs ----
@@ -29,11 +45,10 @@ func GetSubscriptionPlans(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	result := make([]SubscriptionPlanDTO, 0, len(plans))
-	for _, p := range plans {
-		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
-		})
+	result, err := buildSubscriptionPlanDTOs(plans)
+	if err != nil {
+		common.ApiError(c, err)
+		return
 	}
 	common.ApiSuccess(c, result)
 }
@@ -94,11 +109,10 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	result := make([]SubscriptionPlanDTO, 0, len(plans))
-	for _, p := range plans {
-		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
-		})
+	result, err := buildSubscriptionPlanDTOs(plans)
+	if err != nil {
+		common.ApiError(c, err)
+		return
 	}
 	common.ApiSuccess(c, result)
 }
@@ -151,12 +165,27 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	req.Plan.ModelRestrictMode = model.NormalizeSubscriptionModelRestrictMode(req.Plan.ModelRestrictMode)
+	if req.Plan.ModelRestrictMode == "group" && req.Plan.UpgradeGroup == "" {
+		common.ApiErrorMsg(c, "按模型组限制时必须配置升级分组")
+		return
+	}
+	allowedModelsJSON, err := model.NormalizeAllowedModelsJSON(req.Plan.AllowedModels)
+	if err != nil {
+		common.ApiErrorMsg(c, "允许模型格式错误")
+		return
+	}
+	req.Plan.AllowedModels = allowedModelsJSON
+	if req.Plan.DailyQuotaLimit < 0 || req.Plan.WeeklyQuotaLimit < 0 || req.Plan.MonthlyQuotaLimit < 0 {
+		common.ApiErrorMsg(c, "窗口限额不能为负数")
+		return
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
-	err := model.DB.Create(&req.Plan).Error
+	err = model.DB.Create(&req.Plan).Error
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -214,13 +243,28 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			return
 		}
 	}
+	req.Plan.ModelRestrictMode = model.NormalizeSubscriptionModelRestrictMode(req.Plan.ModelRestrictMode)
+	if req.Plan.ModelRestrictMode == "group" && req.Plan.UpgradeGroup == "" {
+		common.ApiErrorMsg(c, "按模型组限制时必须配置升级分组")
+		return
+	}
+	allowedModelsJSON, err := model.NormalizeAllowedModelsJSON(req.Plan.AllowedModels)
+	if err != nil {
+		common.ApiErrorMsg(c, "允许模型格式错误")
+		return
+	}
+	req.Plan.AllowedModels = allowedModelsJSON
+	if req.Plan.DailyQuotaLimit < 0 || req.Plan.WeeklyQuotaLimit < 0 || req.Plan.MonthlyQuotaLimit < 0 {
+		common.ApiErrorMsg(c, "窗口限额不能为负数")
+		return
+	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
 	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
 
-	err := model.DB.Transaction(func(tx *gorm.DB) error {
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
 		updateMap := map[string]interface{}{
 			"title":                      req.Plan.Title,
@@ -236,6 +280,11 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"creem_product_id":           req.Plan.CreemProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
+			"model_restrict_mode":        req.Plan.ModelRestrictMode,
+			"allowed_models":             req.Plan.AllowedModels,
+			"daily_quota_limit":          req.Plan.DailyQuotaLimit,
+			"weekly_quota_limit":         req.Plan.WeeklyQuotaLimit,
+			"monthly_quota_limit":        req.Plan.MonthlyQuotaLimit,
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,

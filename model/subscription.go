@@ -10,7 +10,10 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/cachex"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/hot"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -33,8 +36,9 @@ const (
 )
 
 var (
-	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
-	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
+	ErrSubscriptionOrderNotFound        = errors.New("subscription order not found")
+	ErrSubscriptionOrderStatusInvalid   = errors.New("subscription order status invalid")
+	ErrSubscriptionWalletQuotaNotEnough = errors.New("wallet quota not enough")
 )
 
 const (
@@ -169,7 +173,12 @@ type SubscriptionPlan struct {
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 
 	// Total quota (amount in quota units, 0 = unlimited)
-	TotalAmount int64 `json:"total_amount" gorm:"type:bigint;not null;default:0"`
+	TotalAmount       int64  `json:"total_amount" gorm:"type:bigint;not null;default:0"`
+	ModelRestrictMode string `json:"model_restrict_mode" gorm:"type:varchar(16);default:''"`
+	AllowedModels     string `json:"allowed_models" gorm:"type:text"`
+	DailyQuotaLimit   int64  `json:"daily_quota_limit" gorm:"type:bigint;not null;default:0"`
+	WeeklyQuotaLimit  int64  `json:"weekly_quota_limit" gorm:"type:bigint;not null;default:0"`
+	MonthlyQuotaLimit int64  `json:"monthly_quota_limit" gorm:"type:bigint;not null;default:0"`
 
 	// Quota reset period for plan
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
@@ -247,8 +256,14 @@ type UserSubscription struct {
 	LastResetTime int64 `json:"last_reset_time" gorm:"type:bigint;default:0"`
 	NextResetTime int64 `json:"next_reset_time" gorm:"type:bigint;default:0;index"`
 
-	UpgradeGroup  string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
-	PrevUserGroup string `json:"prev_user_group" gorm:"type:varchar(64);default:''"`
+	UpgradeGroup       string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
+	PrevUserGroup      string `json:"prev_user_group" gorm:"type:varchar(64);default:''"`
+	DailyWindowStart   int64  `json:"daily_window_start" gorm:"type:bigint;default:0"`
+	DailyWindowUsed    int64  `json:"daily_window_used" gorm:"type:bigint;not null;default:0"`
+	WeeklyWindowStart  int64  `json:"weekly_window_start" gorm:"type:bigint;default:0"`
+	WeeklyWindowUsed   int64  `json:"weekly_window_used" gorm:"type:bigint;not null;default:0"`
+	MonthlyWindowStart int64  `json:"monthly_window_start" gorm:"type:bigint;default:0"`
+	MonthlyWindowUsed  int64  `json:"monthly_window_used" gorm:"type:bigint;not null;default:0"`
 
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
@@ -268,6 +283,267 @@ func (s *UserSubscription) BeforeUpdate(tx *gorm.DB) error {
 
 type SubscriptionSummary struct {
 	Subscription *UserSubscription `json:"subscription"`
+	Plan         *SubscriptionPlan `json:"plan,omitempty"`
+}
+
+type defaultSubscriptionPlanAssignment struct {
+	PlanId int `json:"plan_id"`
+}
+
+const (
+	subscriptionDailyWindowSeconds   int64 = 24 * 3600
+	subscriptionWeeklyWindowSeconds  int64 = 7 * 24 * 3600
+	subscriptionMonthlyWindowSeconds int64 = 30 * 24 * 3600
+)
+
+func NormalizeSubscriptionModelRestrictMode(mode string) string {
+	switch strings.TrimSpace(mode) {
+	case "group", "custom":
+		return strings.TrimSpace(mode)
+	default:
+		return ""
+	}
+}
+
+func parseAllowedModels(raw string) ([]string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return []string{}, nil
+	}
+	var allowed []string
+	if err := common.UnmarshalJsonStr(trimmed, &allowed); err != nil {
+		return nil, err
+	}
+	normalized := make([]string, 0, len(allowed))
+	seen := make(map[string]struct{}, len(allowed))
+	for _, item := range allowed {
+		model := strings.TrimSpace(item)
+		if model == "" {
+			continue
+		}
+		if _, ok := seen[model]; ok {
+			continue
+		}
+		seen[model] = struct{}{}
+		normalized = append(normalized, model)
+	}
+	return normalized, nil
+}
+
+func NormalizeAllowedModelsJSON(raw string) (string, error) {
+	allowed, err := parseAllowedModels(raw)
+	if err != nil {
+		return "", err
+	}
+	data, err := common.Marshal(allowed)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func parseDefaultSubscriptionPlanAssignments(raw string) ([]defaultSubscriptionPlanAssignment, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		trimmed = "[]"
+	}
+	var assignments []defaultSubscriptionPlanAssignment
+	if err := common.UnmarshalJsonStr(trimmed, &assignments); err != nil {
+		return nil, err
+	}
+	normalized := make([]defaultSubscriptionPlanAssignment, 0, len(assignments))
+	seen := make(map[int]struct{}, len(assignments))
+	for _, assignment := range assignments {
+		if assignment.PlanId <= 0 {
+			return nil, fmt.Errorf("invalid plan_id: %d", assignment.PlanId)
+		}
+		if _, ok := seen[assignment.PlanId]; ok {
+			return nil, fmt.Errorf("duplicate plan_id: %d", assignment.PlanId)
+		}
+		seen[assignment.PlanId] = struct{}{}
+		normalized = append(normalized, defaultSubscriptionPlanAssignment{PlanId: assignment.PlanId})
+	}
+	return normalized, nil
+}
+
+func NormalizeDefaultSubscriptionPlansJSON(raw string) (string, error) {
+	assignments, err := parseDefaultSubscriptionPlanAssignments(raw)
+	if err != nil {
+		return "", err
+	}
+	for _, assignment := range assignments {
+		plan, err := GetSubscriptionPlanById(assignment.PlanId)
+		if err != nil {
+			return "", fmt.Errorf("plan_id=%d does not exist", assignment.PlanId)
+		}
+		if !plan.Enabled {
+			return "", fmt.Errorf("plan_id=%d is disabled", assignment.PlanId)
+		}
+	}
+	data, err := common.Marshal(assignments)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func getSubscriptionUsableGroups(userGroup string) map[string]string {
+	groupsCopy := setting.GetUserUsableGroupsCopy()
+	if userGroup == "" {
+		return groupsCopy
+	}
+	if specialSettings, ok := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.Get(userGroup); ok {
+		for specialGroup, desc := range specialSettings {
+			if strings.HasPrefix(specialGroup, "-:") {
+				delete(groupsCopy, strings.TrimPrefix(specialGroup, "-:"))
+				continue
+			}
+			if strings.HasPrefix(specialGroup, "+:") {
+				groupsCopy[strings.TrimPrefix(specialGroup, "+:")] = desc
+				continue
+			}
+			groupsCopy[specialGroup] = desc
+		}
+	}
+	if _, ok := groupsCopy[userGroup]; !ok {
+		groupsCopy[userGroup] = "用户分组"
+	}
+	return groupsCopy
+}
+
+func isSubscriptionGroupModelAllowed(plan *SubscriptionPlan, modelName string) bool {
+	if plan == nil {
+		return false
+	}
+	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
+	if upgradeGroup == "" {
+		return false
+	}
+	modelGroups := GetModelEnableGroups(strings.TrimSpace(modelName))
+	if len(modelGroups) == 0 {
+		return false
+	}
+	usableGroups := getSubscriptionUsableGroups(upgradeGroup)
+	for _, group := range modelGroups {
+		if group == "all" {
+			return true
+		}
+		if _, ok := usableGroups[group]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func isSubscriptionModelAllowed(plan *SubscriptionPlan, modelName string) bool {
+	if plan == nil {
+		return false
+	}
+	switch NormalizeSubscriptionModelRestrictMode(plan.ModelRestrictMode) {
+	case "":
+		return true
+	case "group":
+		return isSubscriptionGroupModelAllowed(plan, modelName)
+	case "custom":
+		modelName = strings.TrimSpace(modelName)
+		if modelName == "" {
+			return false
+		}
+		allowed, err := parseAllowedModels(plan.AllowedModels)
+		if err != nil || len(allowed) == 0 {
+			return false
+		}
+		for _, pattern := range allowed {
+			if strings.HasSuffix(pattern, "*") {
+				prefix := strings.TrimSuffix(pattern, "*")
+				if prefix == "" || strings.HasPrefix(modelName, prefix) {
+					return true
+				}
+				continue
+			}
+			if modelName == pattern {
+				return true
+			}
+		}
+		return false
+	default:
+		return true
+	}
+}
+
+func maybeResetSubscriptionQuotaWindow(start *int64, used *int64, limit int64, now int64, windowSeconds int64) bool {
+	if start == nil || used == nil || limit <= 0 {
+		return false
+	}
+	originalStart := *start
+	originalUsed := *used
+	if *used < 0 {
+		*used = 0
+	}
+	if *start <= 0 {
+		*start = now
+	} else if now-*start >= windowSeconds {
+		*start = now
+		*used = 0
+	}
+	return *start != originalStart || *used != originalUsed
+}
+
+func prepareSubscriptionQuotaWindows(sub *UserSubscription, plan *SubscriptionPlan, now int64) bool {
+	if sub == nil || plan == nil {
+		return false
+	}
+	changed := false
+	if maybeResetSubscriptionQuotaWindow(&sub.DailyWindowStart, &sub.DailyWindowUsed, plan.DailyQuotaLimit, now, subscriptionDailyWindowSeconds) {
+		changed = true
+	}
+	if maybeResetSubscriptionQuotaWindow(&sub.WeeklyWindowStart, &sub.WeeklyWindowUsed, plan.WeeklyQuotaLimit, now, subscriptionWeeklyWindowSeconds) {
+		changed = true
+	}
+	if maybeResetSubscriptionQuotaWindow(&sub.MonthlyWindowStart, &sub.MonthlyWindowUsed, plan.MonthlyQuotaLimit, now, subscriptionMonthlyWindowSeconds) {
+		changed = true
+	}
+	return changed
+}
+
+func exceedsSubscriptionQuotaWindows(sub *UserSubscription, plan *SubscriptionPlan, amount int64) bool {
+	if sub == nil || plan == nil {
+		return true
+	}
+	if plan.DailyQuotaLimit > 0 && sub.DailyWindowUsed+amount > plan.DailyQuotaLimit {
+		return true
+	}
+	if plan.WeeklyQuotaLimit > 0 && sub.WeeklyWindowUsed+amount > plan.WeeklyQuotaLimit {
+		return true
+	}
+	if plan.MonthlyQuotaLimit > 0 && sub.MonthlyWindowUsed+amount > plan.MonthlyQuotaLimit {
+		return true
+	}
+	return false
+}
+
+func applySubscriptionQuotaWindowDelta(sub *UserSubscription, plan *SubscriptionPlan, delta int64) {
+	if sub == nil || plan == nil || delta == 0 {
+		return
+	}
+	if plan.DailyQuotaLimit > 0 {
+		sub.DailyWindowUsed += delta
+		if sub.DailyWindowUsed < 0 {
+			sub.DailyWindowUsed = 0
+		}
+	}
+	if plan.WeeklyQuotaLimit > 0 {
+		sub.WeeklyWindowUsed += delta
+		if sub.WeeklyWindowUsed < 0 {
+			sub.WeeklyWindowUsed = 0
+		}
+	}
+	if plan.MonthlyQuotaLimit > 0 {
+		sub.MonthlyWindowUsed += delta
+		if sub.MonthlyWindowUsed < 0 {
+			sub.MonthlyWindowUsed = 0
+		}
+	}
 }
 
 func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
@@ -392,8 +668,16 @@ func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	if tx == nil {
 		tx = DB
 	}
+	groupCol := commonGroupCol
+	if strings.TrimSpace(groupCol) == "" {
+		if common.UsingPostgreSQL {
+			groupCol = `"group"`
+		} else {
+			groupCol = "`group`"
+		}
+	}
 	var group string
-	if err := tx.Model(&User{}).Where("id = ?", userId).Select(commonGroupCol).Find(&group).Error; err != nil {
+	if err := tx.Model(&User{}).Where("id = ?", userId).Select(groupCol).Find(&group).Error; err != nil {
 		return "", err
 	}
 	return group, nil
@@ -444,7 +728,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
 	}
-	if plan.MaxPurchasePerUser > 0 {
+	if source != "auto" && plan.MaxPurchasePerUser > 0 {
 		var count int64
 		if err := tx.Model(&UserSubscription{}).
 			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
@@ -455,7 +739,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := GetDBTimestampTx(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -495,13 +779,177 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		NextResetTime: nextReset,
 		UpgradeGroup:  upgradeGroup,
 		PrevUserGroup: prevGroup,
-		CreatedAt:     common.GetTimestamp(),
-		UpdatedAt:     common.GetTimestamp(),
+		CreatedAt:     nowUnix,
+		UpdatedAt:     nowUnix,
 	}
 	if err := tx.Create(sub).Error; err != nil {
 		return nil, err
 	}
 	return sub, nil
+}
+
+func calcSubscriptionPlanRequiredQuota(plan *SubscriptionPlan) (int, error) {
+	if plan == nil {
+		return 0, errors.New("plan is nil")
+	}
+	if plan.PriceAmount <= 0 {
+		return 0, nil
+	}
+	requiredQuota := decimal.NewFromFloat(plan.PriceAmount).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+		Round(0)
+	if requiredQuota.IsNegative() {
+		return 0, errors.New("invalid required quota")
+	}
+	return int(requiredQuota.IntPart()), nil
+}
+
+func GetSubscriptionPlanRequiredQuota(plan *SubscriptionPlan) (int, error) {
+	return calcSubscriptionPlanRequiredQuota(plan)
+}
+
+func WalletPurchaseSubscription(userId int, planId int) (*SubscriptionOrder, error) {
+	if userId <= 0 || planId <= 0 {
+		return nil, errors.New("invalid userId or planId")
+	}
+	now := common.GetTimestamp()
+	tradeNo := fmt.Sprintf("sub-wallet-%d-%d-%s", userId, time.Now().UnixMilli(), common.GetRandomString(6))
+	var order *SubscriptionOrder
+	remainingQuota := -1
+	requiredQuota := 0
+	upgradeGroup := ""
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		plan, err := getSubscriptionPlanByIdTx(tx, planId)
+		if err != nil {
+			return err
+		}
+		if !plan.Enabled {
+			return errors.New("套餐未启用")
+		}
+		requiredQuota, err = calcSubscriptionPlanRequiredQuota(plan)
+		if err != nil {
+			return err
+		}
+		if plan.MaxPurchasePerUser > 0 {
+			var count int64
+			if err := tx.Model(&UserSubscription{}).
+				Where("user_id = ? AND plan_id = ?", userId, plan.Id).
+				Count(&count).Error; err != nil {
+				return err
+			}
+			if count >= int64(plan.MaxPurchasePerUser) {
+				return errors.New("已达到该套餐购买上限")
+			}
+		}
+		if requiredQuota > 0 {
+			var user User
+			if err := tx.Set("gorm:query_option", "FOR UPDATE").
+				Select("id", "quota").
+				Where("id = ?", userId).
+				First(&user).Error; err != nil {
+				return err
+			}
+			if user.Quota < requiredQuota {
+				return ErrSubscriptionWalletQuotaNotEnough
+			}
+			remainingQuota = user.Quota - requiredQuota
+			if err := tx.Model(&User{}).
+				Where("id = ?", userId).
+				Update("quota", remainingQuota).Error; err != nil {
+				return err
+			}
+		}
+		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "wallet"); err != nil {
+			return err
+		}
+		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+		order = &SubscriptionOrder{
+			UserId:        userId,
+			PlanId:        plan.Id,
+			Money:         plan.PriceAmount,
+			TradeNo:       tradeNo,
+			PaymentMethod: "wallet",
+			Status:        common.TopUpStatusSuccess,
+			CreateTime:    now,
+			CompleteTime:  now,
+		}
+		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
+		return upsertSubscriptionTopUpTx(tx, order)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if requiredQuota > 0 && remainingQuota >= 0 {
+		if err := updateUserQuotaCache(userId, remainingQuota); err != nil {
+			common.SysLog(fmt.Sprintf("failed to update user quota cache after wallet subscription purchase: user_id=%d, error=%v", userId, err))
+		}
+	}
+	if upgradeGroup != "" {
+		if err := UpdateUserGroupCache(userId, upgradeGroup); err != nil {
+			common.SysLog(fmt.Sprintf("failed to update user group cache after wallet subscription purchase: user_id=%d, group=%s, error=%v", userId, upgradeGroup, err))
+		}
+	}
+	return order, nil
+}
+
+func AssignDefaultSubscriptionsToNewUser(userId int) {
+	if userId <= 0 {
+		return
+	}
+	assignments, err := parseDefaultSubscriptionPlanAssignments(common.DefaultSubscriptionPlans)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to parse DefaultSubscriptionPlans: user_id=%d, error=%v", userId, err))
+		return
+	}
+	if len(assignments) == 0 {
+		return
+	}
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Select("id").
+			Where("id = ?", userId).
+			First(&user).Error; err != nil {
+			return err
+		}
+		for _, assignment := range assignments {
+			var autoCount int64
+			if err := tx.Model(&UserSubscription{}).
+				Where("user_id = ? AND plan_id = ? AND source = ?", userId, assignment.PlanId, "auto").
+				Count(&autoCount).Error; err != nil {
+				common.SysLog(fmt.Sprintf("failed to check auto subscription grant: user_id=%d, plan_id=%d, error=%v", userId, assignment.PlanId, err))
+				continue
+			}
+			if autoCount > 0 {
+				continue
+			}
+			plan, err := getSubscriptionPlanByIdTx(tx, assignment.PlanId)
+			if err != nil {
+				common.SysLog(fmt.Sprintf("failed to load auto subscription plan: user_id=%d, plan_id=%d, error=%v", userId, assignment.PlanId, err))
+				continue
+			}
+			if !plan.Enabled {
+				common.SysLog(fmt.Sprintf("skip disabled auto subscription plan: user_id=%d, plan_id=%d", userId, assignment.PlanId))
+				continue
+			}
+			if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "auto"); err != nil {
+				common.SysLog(fmt.Sprintf("failed to auto assign subscription: user_id=%d, plan_id=%d, error=%v", userId, assignment.PlanId, err))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to finalize auto subscriptions: user_id=%d, error=%v", userId, err))
+		return
+	}
+	currentGroup, err := getUserGroupByIdTx(nil, userId)
+	if err == nil && currentGroup != "" {
+		if err := UpdateUserGroupCache(userId, currentGroup); err != nil {
+			common.SysLog(fmt.Sprintf("failed to update user group cache after auto subscriptions: user_id=%d, group=%s, error=%v", userId, currentGroup, err))
+		}
+	}
 }
 
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.
@@ -704,8 +1152,14 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 	result := make([]SubscriptionSummary, 0, len(subs))
 	for _, sub := range subs {
 		subCopy := sub
+		var planCopy *SubscriptionPlan
+		if plan, err := getSubscriptionPlanByIdTx(nil, sub.PlanId); err == nil && plan != nil {
+			planValue := *plan
+			planCopy = &planValue
+		}
 		result = append(result, SubscriptionSummary{
 			Subscription: &subCopy,
+			Plan:         planCopy,
 		})
 	}
 	return result
@@ -916,6 +1370,22 @@ func (r *SubscriptionPreConsumeRecord) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
+func fillSubscriptionPreConsumeResultTx(tx *gorm.DB, result *SubscriptionPreConsumeResult, record *SubscriptionPreConsumeRecord) error {
+	if tx == nil || result == nil || record == nil {
+		return errors.New("invalid pre-consume result args")
+	}
+	var sub UserSubscription
+	if err := tx.Where("id = ?", record.UserSubscriptionId).First(&sub).Error; err != nil {
+		return err
+	}
+	result.UserSubscriptionId = sub.Id
+	result.PreConsumed = record.PreConsumed
+	result.AmountTotal = sub.AmountTotal
+	result.AmountUsedBefore = sub.AmountUsed
+	result.AmountUsedAfter = sub.AmountUsed
+	return nil
+}
+
 func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64) error {
 	if tx == nil || sub == nil || plan == nil {
 		return errors.New("invalid reset args")
@@ -977,16 +1447,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			if existing.Status == "refunded" {
 				return errors.New("subscription pre-consume already refunded")
 			}
-			var sub UserSubscription
-			if err := tx.Where("id = ?", existing.UserSubscriptionId).First(&sub).Error; err != nil {
-				return err
-			}
-			returnValue.UserSubscriptionId = sub.Id
-			returnValue.PreConsumed = existing.PreConsumed
-			returnValue.AmountTotal = sub.AmountTotal
-			returnValue.AmountUsedBefore = sub.AmountUsed
-			returnValue.AmountUsedAfter = sub.AmountUsed
-			return nil
+			return fillSubscriptionPreConsumeResultTx(tx, returnValue, &existing)
 		}
 
 		var subs []UserSubscription
@@ -1001,12 +1462,35 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		}
 		for _, candidate := range subs {
 			sub := candidate
-			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
-			if err != nil {
-				return err
-			}
-			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
-				return err
+			var plan *SubscriptionPlan
+			if sub.PlanId > 0 {
+				loadedPlan, planErr := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+				if planErr != nil {
+					if errors.Is(planErr, gorm.ErrRecordNotFound) {
+						common.SysLog(fmt.Sprintf("skip subscription pre-consume due missing plan: sub_id=%d, plan_id=%d", sub.Id, sub.PlanId))
+						continue
+					}
+					return planErr
+				}
+				if loadedPlan == nil {
+					common.SysLog(fmt.Sprintf("skip subscription pre-consume due nil plan: sub_id=%d, plan_id=%d", sub.Id, sub.PlanId))
+					continue
+				}
+				plan = loadedPlan
+				if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
+					return err
+				}
+				if !isSubscriptionModelAllowed(plan, modelName) {
+					continue
+				}
+				if prepareSubscriptionQuotaWindows(&sub, plan, now) {
+					if err := tx.Save(&sub).Error; err != nil {
+						return err
+					}
+				}
+				if exceedsSubscriptionQuotaWindows(&sub, plan, amount) {
+					continue
+				}
 			}
 			usedBefore := sub.AmountUsed
 			if sub.AmountTotal > 0 {
@@ -1028,16 +1512,14 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 					if dup.Status == "refunded" {
 						return errors.New("subscription pre-consume already refunded")
 					}
-					returnValue.UserSubscriptionId = sub.Id
-					returnValue.PreConsumed = dup.PreConsumed
-					returnValue.AmountTotal = sub.AmountTotal
-					returnValue.AmountUsedBefore = sub.AmountUsed
-					returnValue.AmountUsedAfter = sub.AmountUsed
-					return nil
+					return fillSubscriptionPreConsumeResultTx(tx, returnValue, &dup)
 				}
 				return err
 			}
 			sub.AmountUsed += amount
+			if plan != nil {
+				applySubscriptionQuotaWindowDelta(&sub, plan, amount)
+			}
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}
@@ -1173,20 +1655,50 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		return nil
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
+		now := GetDBTimestampTx(tx)
 		var sub UserSubscription
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").
 			Where("id = ?", userSubscriptionId).
 			First(&sub).Error; err != nil {
 			return err
 		}
+		var plan *SubscriptionPlan
+		if sub.PlanId > 0 {
+			loadedPlan, planErr := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+			if planErr != nil {
+				if errors.Is(planErr, gorm.ErrRecordNotFound) {
+					common.SysLog(fmt.Sprintf("subscription post-consume failed due missing plan: sub_id=%d, plan_id=%d", sub.Id, sub.PlanId))
+				}
+				return planErr
+			}
+			if loadedPlan == nil {
+				common.SysLog(fmt.Sprintf("subscription post-consume failed due nil plan: sub_id=%d, plan_id=%d", sub.Id, sub.PlanId))
+				return errors.New("subscription plan is nil")
+			}
+			plan = loadedPlan
+			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
+				return err
+			}
+			if prepareSubscriptionQuotaWindows(&sub, plan, now) {
+				if err := tx.Save(&sub).Error; err != nil {
+					return err
+				}
+			}
+		}
 		newUsed := sub.AmountUsed + delta
 		if newUsed < 0 {
 			newUsed = 0
+		}
+		if plan != nil && delta > 0 && exceedsSubscriptionQuotaWindows(&sub, plan, delta) {
+			return errors.New("subscription window quota exceeded")
 		}
 		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
 			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
 		}
 		sub.AmountUsed = newUsed
+		if plan != nil {
+			applySubscriptionQuotaWindowDelta(&sub, plan, delta)
+		}
 		return tx.Save(&sub).Error
 	})
 }

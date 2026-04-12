@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin, Tag } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import {
   compareObjects,
@@ -31,8 +31,12 @@ import {
 export default function SettingsCreditLimit(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [subscriptionPlanOptions, setSubscriptionPlanOptions] = useState([]);
+  const [selectedDefaultPlanIds, setSelectedDefaultPlanIds] = useState([]);
   const [inputs, setInputs] = useState({
     QuotaForNewUser: '',
+    DefaultSubscriptionPlans: '[]',
     PreConsumedQuota: '',
     QuotaForInviter: '',
     QuotaForInvitee: '',
@@ -40,6 +44,63 @@ export default function SettingsCreditLimit(props) {
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
+
+  const parseDefaultSubscriptionPlans = (value) => {
+    const raw = String(value || '').trim();
+    if (!raw) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+      return parsed
+        .map((item) => Number(item?.plan_id || 0))
+        .filter((planId) => Number.isInteger(planId) && planId > 0);
+    } catch {
+      return [];
+    }
+  };
+
+  const serializeDefaultSubscriptionPlans = (planIds) =>
+    JSON.stringify(
+      Array.from(
+        new Set(
+          (planIds || [])
+            .map((planId) => Number(planId))
+            .filter((planId) => Number.isInteger(planId) && planId > 0),
+        ),
+      ).map((planId) => ({ plan_id: planId })),
+    );
+
+  const loadSubscriptionPlans = async () => {
+    setPlansLoading(true);
+    try {
+      const res = await API.get('/api/subscription/admin/plans');
+      if (res.data?.success) {
+        const optionList = (res.data.data || []).map((item) => {
+          const plan = item?.plan || {};
+          const priceAmount = Number(plan.price_amount || 0);
+          return {
+            value: plan.id,
+            label:
+              plan.title && plan.title.trim()
+                ? `${plan.title} (${priceAmount.toFixed(2)} USD)`
+                : `#${plan.id} (${priceAmount.toFixed(2)} USD)`,
+            disabled: !plan.enabled,
+          };
+        });
+        setSubscriptionPlanOptions(optionList);
+      } else {
+        showError(res.data?.message || t('订阅套餐加载失败'));
+      }
+    } catch {
+      showError(t('订阅套餐加载失败'));
+    } finally {
+      setPlansLoading(false);
+    }
+  };
 
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow);
@@ -77,6 +138,10 @@ export default function SettingsCreditLimit(props) {
   }
 
   useEffect(() => {
+    loadSubscriptionPlans();
+  }, []);
+
+  useEffect(() => {
     const currentInputs = {};
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
@@ -85,8 +150,12 @@ export default function SettingsCreditLimit(props) {
     }
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
+    setSelectedDefaultPlanIds(
+      parseDefaultSubscriptionPlans(currentInputs.DefaultSubscriptionPlans),
+    );
     refForm.current.setValues(currentInputs);
   }, [props.options]);
+
   return (
     <>
       <Spin spinning={loading}>
@@ -165,6 +234,45 @@ export default function SettingsCreditLimit(props) {
                     })
                   }
                 />
+              </Col>
+              <Col xs={24} sm={24} md={16} lg={16} xl={18}>
+                <Form.Select
+                  field='DefaultSubscriptionPlans'
+                  label={t('新用户默认订阅套餐')}
+                  placeholder={t('可选，注册成功后自动发放所选套餐')}
+                  optionList={subscriptionPlanOptions}
+                  value={selectedDefaultPlanIds}
+                  onChange={(value) => {
+                    const nextPlanIds = Array.isArray(value) ? value : [];
+                    setSelectedDefaultPlanIds(nextPlanIds);
+                    setInputs({
+                      ...inputs,
+                      DefaultSubscriptionPlans:
+                        serializeDefaultSubscriptionPlans(nextPlanIds),
+                    });
+                  }}
+                  loading={plansLoading}
+                  multiple
+                  filter
+                  showClear
+                  extraText={t(
+                    '仅对新创建用户生效，不会给已有用户补发。内部仍以 JSON 数组格式存储。',
+                  )}
+                />
+                {selectedDefaultPlanIds.length > 0 && (
+                  <div className='mt-2 flex flex-wrap gap-2'>
+                    {selectedDefaultPlanIds.map((planId) => {
+                      const matchedPlan = subscriptionPlanOptions.find(
+                        (option) => Number(option.value) === Number(planId),
+                      );
+                      return (
+                        <Tag key={planId} color='blue' size='small'>
+                          {matchedPlan?.label || `#${planId}`}
+                        </Tag>
+                      );
+                    })}
+                  </div>
+                )}
               </Col>
             </Row>
             <Row>
