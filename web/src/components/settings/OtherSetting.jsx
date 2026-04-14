@@ -66,11 +66,17 @@ const OtherSetting = () => {
       });
       const { success, message } = res.data;
       if (!success) {
-        throw new Error(message || '更新失败');
+        showError(message || t('更新失败'));
+        return false;
       }
 
       setInputs((inputs) => ({ ...inputs, [key]: value }));
-      return res.data;
+      return true;
+    } catch (error) {
+      if (error?.name !== 'AxiosError') {
+        showError(error?.message || t('更新失败'));
+      }
+      return false;
     } finally {
       setLoading(false);
     }
@@ -96,32 +102,28 @@ const OtherSetting = () => {
   const formAPISettingGeneral = useRef();
   // 通用设置 - Notice
   const submitNotice = async () => {
+    setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: true }));
     try {
-      setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: true }));
-      await updateOption('Notice', inputs.Notice);
+      const updated = await updateOption('Notice', inputs.Notice);
+      if (!updated) return;
       showSuccess(t('公告已更新'));
-    } catch (error) {
-      console.error(t('公告更新失败'), error);
-      showError(t('公告更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: false }));
     }
   };
   // 通用设置 - UserAgreement
   const submitUserAgreement = async () => {
+    setLoadingInput((loadingInput) => ({
+      ...loadingInput,
+      [LEGAL_USER_AGREEMENT_KEY]: true,
+    }));
     try {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        [LEGAL_USER_AGREEMENT_KEY]: true,
-      }));
-      await updateOption(
+      const updated = await updateOption(
         LEGAL_USER_AGREEMENT_KEY,
         inputs[LEGAL_USER_AGREEMENT_KEY],
       );
+      if (!updated) return;
       showSuccess(t('用户协议已更新'));
-    } catch (error) {
-      console.error(t('用户协议更新失败'), error);
-      showError(t('用户协议更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
@@ -131,19 +133,17 @@ const OtherSetting = () => {
   };
   // 通用设置 - PrivacyPolicy
   const submitPrivacyPolicy = async () => {
+    setLoadingInput((loadingInput) => ({
+      ...loadingInput,
+      [LEGAL_PRIVACY_POLICY_KEY]: true,
+    }));
     try {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        [LEGAL_PRIVACY_POLICY_KEY]: true,
-      }));
-      await updateOption(
+      const updated = await updateOption(
         LEGAL_PRIVACY_POLICY_KEY,
         inputs[LEGAL_PRIVACY_POLICY_KEY],
       );
+      if (!updated) return;
       showSuccess(t('隐私政策已更新'));
-    } catch (error) {
-      console.error(t('隐私政策更新失败'), error);
-      showError(t('隐私政策更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
@@ -155,16 +155,14 @@ const OtherSetting = () => {
   const formAPIPersonalization = useRef();
   //  个性化设置 - SystemName
   const submitSystemName = async () => {
+    setLoadingInput((loadingInput) => ({
+      ...loadingInput,
+      SystemName: true,
+    }));
     try {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        SystemName: true,
-      }));
-      await updateOption('SystemName', inputs.SystemName);
+      const updated = await updateOption('SystemName', inputs.SystemName);
+      if (!updated) return;
       showSuccess(t('系统名称已更新'));
-    } catch (error) {
-      console.error(t('系统名称更新失败'), error);
-      showError(t('系统名称更新失败'));
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
@@ -175,29 +173,25 @@ const OtherSetting = () => {
 
   // 个性化设置 - Logo
   const submitLogo = async () => {
+    setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: true }));
     try {
-      setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: true }));
-      await updateOption('Logo', inputs.Logo);
+      const updated = await updateOption('Logo', inputs.Logo);
+      if (!updated) return;
       showSuccess('Logo 已更新');
-    } catch (error) {
-      console.error('Logo 更新失败', error);
-      showError('Logo 更新失败');
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Logo: false }));
     }
   };
   // 个性化设置 - 首页内容
   const submitOption = async (key) => {
+    setLoadingInput((loadingInput) => ({
+      ...loadingInput,
+      HomePageContent: true,
+    }));
     try {
-      setLoadingInput((loadingInput) => ({
-        ...loadingInput,
-        HomePageContent: true,
-      }));
-      await updateOption(key, inputs[key]);
+      const updated = await updateOption(key, inputs[key]);
+      if (!updated) return;
       showSuccess('首页内容已更新');
-    } catch (error) {
-      console.error('首页内容更新失败', error);
-      showError('首页内容更新失败');
     } finally {
       setLoadingInput((loadingInput) => ({
         ...loadingInput,
@@ -207,26 +201,22 @@ const OtherSetting = () => {
   };
   // 个性化设置 - 关于
   const submitAbout = async () => {
+    setLoadingInput((loadingInput) => ({ ...loadingInput, About: true }));
     try {
-      setLoadingInput((loadingInput) => ({ ...loadingInput, About: true }));
-      await updateOption('About', inputs.About);
+      const updated = await updateOption('About', inputs.About);
+      if (!updated) return;
       showSuccess('关于内容已更新');
-    } catch (error) {
-      console.error('关于内容更新失败', error);
-      showError('关于内容更新失败');
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, About: false }));
     }
   };
   // 个性化设置 - 页脚
   const submitFooter = async () => {
+    setLoadingInput((loadingInput) => ({ ...loadingInput, Footer: true }));
     try {
-      setLoadingInput((loadingInput) => ({ ...loadingInput, Footer: true }));
-      await updateOption('Footer', inputs.Footer);
+      const updated = await updateOption('Footer', inputs.Footer);
+      if (!updated) return;
       showSuccess('页脚内容已更新');
-    } catch (error) {
-      console.error('页脚内容更新失败', error);
-      showError('页脚内容更新失败');
     } finally {
       setLoadingInput((loadingInput) => ({ ...loadingInput, Footer: false }));
     }

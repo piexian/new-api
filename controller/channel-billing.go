@@ -170,6 +170,11 @@ func GetResponseBody(method, url string, channel *model.Channel, headers http.He
 	return body, nil
 }
 
+func persistChannelBalance(channel *model.Channel, balance float64) (float64, error) {
+	channel.UpdateBalance(balance)
+	return balance, nil
+}
+
 func updateChannelCloseAIBalance(channel *model.Channel) (float64, error) {
 	url := fmt.Sprintf("%s/dashboard/billing/credit_grants", channel.GetBaseURL())
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
@@ -182,8 +187,7 @@ func updateChannelCloseAIBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(response.TotalAvailable)
-	return response.TotalAvailable, nil
+	return persistChannelBalance(channel, response.TotalAvailable)
 }
 
 func updateChannelOpenAISBBalance(channel *model.Channel) (float64, error) {
@@ -204,8 +208,7 @@ func updateChannelOpenAISBBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return persistChannelBalance(channel, balance)
 }
 
 func updateChannelAIProxyBalance(channel *model.Channel) (float64, error) {
@@ -224,8 +227,7 @@ func updateChannelAIProxyBalance(channel *model.Channel) (float64, error) {
 	if !response.Success {
 		return 0, fmt.Errorf("code: %d, message: %s", response.ErrorCode, response.Message)
 	}
-	channel.UpdateBalance(response.Data.TotalPoints)
-	return response.Data.TotalPoints, nil
+	return persistChannelBalance(channel, response.Data.TotalPoints)
 }
 
 func updateChannelAPI2GPTBalance(channel *model.Channel) (float64, error) {
@@ -240,8 +242,7 @@ func updateChannelAPI2GPTBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(response.TotalRemaining)
-	return response.TotalRemaining, nil
+	return persistChannelBalance(channel, response.TotalRemaining)
 }
 
 func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
@@ -262,8 +263,7 @@ func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return persistChannelBalance(channel, balance)
 }
 
 func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
@@ -291,8 +291,7 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return persistChannelBalance(channel, balance)
 }
 
 func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
@@ -306,8 +305,7 @@ func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(response.TotalAvailable)
-	return response.TotalAvailable, nil
+	return persistChannelBalance(channel, response.TotalAvailable)
 }
 
 func updateChannelOpenRouterBalance(channel *model.Channel) (float64, error) {
@@ -322,8 +320,7 @@ func updateChannelOpenRouterBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	balance := response.Data.TotalCredits - response.Data.TotalUsage
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return persistChannelBalance(channel, balance)
 }
 
 func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
@@ -356,8 +353,7 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	}
 	availableBalanceCny := response.Data.AvailableBalance
 	availableBalanceUsd := decimal.NewFromFloat(availableBalanceCny).Div(decimal.NewFromFloat(operation_setting.Price)).InexactFloat64()
-	channel.UpdateBalance(availableBalanceUsd)
-	return availableBalanceUsd, nil
+	return persistChannelBalance(channel, availableBalanceUsd)
 }
 
 func parsePoeCurrentBalance(body []byte) (float64, error) {
@@ -379,8 +375,7 @@ func updateChannelPoeBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return persistChannelBalance(channel, balance)
 }
 
 func updateChannelBalance(channel *model.Channel) (float64, error) {
@@ -446,8 +441,7 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	balance := subscription.HardLimitUSD - usage.TotalUsage/100
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return persistChannelBalance(channel, balance)
 }
 
 func UpdateChannelBalance(c *gin.Context) {

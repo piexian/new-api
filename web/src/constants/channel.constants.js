@@ -17,6 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+export const CHANNEL_TYPE_MINIMAX = 35;
+export const CHANNEL_TYPE_CODEX = 57;
+
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
   {
@@ -113,7 +116,7 @@ export const CHANNEL_OPTIONS = [
   { value: 19, color: 'blue', label: '360 智脑' },
   { value: 23, color: 'teal', label: '腾讯混元' },
   { value: 31, color: 'green', label: '零一万物' },
-  { value: 35, color: 'green', label: 'MiniMax' },
+  { value: CHANNEL_TYPE_MINIMAX, color: 'green', label: 'MiniMax' },
   { value: 37, color: 'teal', label: 'Dify' },
   { value: 38, color: 'blue', label: 'Jina' },
   { value: 40, color: 'purple', label: 'SiliconCloud' },
@@ -187,7 +190,7 @@ export const CHANNEL_OPTIONS = [
     label: 'Replicate',
   },
   {
-    value: 57,
+    value: CHANNEL_TYPE_CODEX,
     color: 'blue',
     label: 'Codex (OpenAI OAuth)',
   },

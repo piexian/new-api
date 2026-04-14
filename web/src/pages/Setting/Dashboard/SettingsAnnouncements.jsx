@@ -284,17 +284,16 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       return;
     }
 
+    const normalizedPublishDate = normalizePublishDate(
+      announcementForm.publishDate,
+    );
+    if (!normalizedPublishDate) {
+      showError('公告发布时间格式无效');
+      return;
+    }
+
     try {
       setModalLoading(true);
-
-      // 将publishDate转换为ISO字符串保存
-      const normalizedPublishDate = normalizePublishDate(
-        announcementForm.publishDate,
-      );
-      if (!normalizedPublishDate) {
-        showError('公告发布时间格式无效');
-        return;
-      }
 
       const formData = {
         ...announcementForm,

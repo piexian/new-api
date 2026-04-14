@@ -41,6 +41,8 @@ import {
 } from '../../../helpers';
 import {
   CHANNEL_OPTIONS,
+  CHANNEL_TYPE_CODEX,
+  CHANNEL_TYPE_MINIMAX,
   MODEL_FETCHABLE_CHANNEL_TYPES,
 } from '../../../constants';
 import { parseUpstreamUpdateMeta } from '../../../hooks/channels/upstreamUpdateUtils';
@@ -529,8 +531,8 @@ export const getChannelsColumns = ({
       dataIndex: 'expired_time',
       render: (text, record, index) => {
         if (record.children === undefined) {
-          const isCodexChannel = record.type === 57;
-          const isMiniMaxChannel = record.type === 35;
+          const isCodexChannel = record.type === CHANNEL_TYPE_CODEX;
+          const isMiniMaxChannel = record.type === CHANNEL_TYPE_MINIMAX;
           return (
             <div>
               <Space spacing={1}>
