@@ -386,6 +386,8 @@ export function getChannelIcon(channelType) {
       return <SiliconCloud.Color size={iconSize} />;
     case 42: // Mistral AI
       return <Mistral.Color size={iconSize} />;
+    case 58: // Kilo Gateway
+      return <OpenRouter size={iconSize} />;
     case 45: // 字节火山方舟、豆包通用
       return <Doubao.Color size={iconSize} />;
     case 48: // xAI

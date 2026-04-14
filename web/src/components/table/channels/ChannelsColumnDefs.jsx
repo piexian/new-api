@@ -308,6 +308,7 @@ export const getChannelsColumns = ({
   t,
   COLUMN_KEYS,
   updateChannelBalance,
+  openMiniMaxTokenPlanUsage,
   manageChannel,
   manageTag,
   submitTagEdit,
@@ -528,6 +529,8 @@ export const getChannelsColumns = ({
       dataIndex: 'expired_time',
       render: (text, record, index) => {
         if (record.children === undefined) {
+          const isCodexChannel = record.type === 57;
+          const isMiniMaxChannel = record.type === 35;
           return (
             <div>
               <Space spacing={1}>
@@ -538,8 +541,13 @@ export const getChannelsColumns = ({
                 </Tooltip>
                 <Tooltip
                   content={
-                    record.type === 57
+                    isCodexChannel
                       ? t('查看 Codex 帐号信息与用量')
+                      : isMiniMaxChannel
+                        ? t('剩余额度') +
+                          ': ' +
+                          renderQuotaWithAmount(record.balance) +
+                          t('，另可点击 Token Plan 查看订阅窗口')
                       : t('剩余额度') +
                         ': ' +
                         renderQuotaWithAmount(record.balance) +
@@ -547,17 +555,30 @@ export const getChannelsColumns = ({
                   }
                 >
                   <Tag
-                    color={record.type === 57 ? 'light-blue' : 'white'}
-                    type={record.type === 57 ? 'light' : 'ghost'}
+                    color={isCodexChannel ? 'light-blue' : 'white'}
+                    type={isCodexChannel ? 'light' : 'ghost'}
                     shape='circle'
-                    className={record.type === 57 ? 'cursor-pointer' : ''}
+                    className={isCodexChannel ? 'cursor-pointer' : ''}
                     onClick={() => updateChannelBalance(record)}
                   >
-                    {record.type === 57
+                    {isCodexChannel
                       ? t('帐号信息')
                       : renderQuotaWithAmount(record.balance)}
                   </Tag>
                 </Tooltip>
+                {isMiniMaxChannel && (
+                  <Tooltip content={t('查询 MiniMax Token Plan 用量与额度窗口')}>
+                    <Tag
+                      color='cyan'
+                      type='light'
+                      shape='circle'
+                      className='cursor-pointer'
+                      onClick={() => openMiniMaxTokenPlanUsage(record)}
+                    >
+                      {t('Token Plan')}
+                    </Tag>
+                  </Tooltip>
+                )}
               </Space>
             </div>
           );

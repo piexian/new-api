@@ -1,9 +1,15 @@
 package openaicompat
 
-import "github.com/QuantumNous/new-api/setting/model_setting"
+import (
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/model_setting"
+)
 
 func ShouldChatCompletionsUseResponsesPolicy(policy model_setting.ChatCompletionsToResponsesPolicy, channelID int, channelType int, model string) bool {
 	if !policy.IsChannelEnabled(channelID, channelType) {
+		return false
+	}
+	if common.IsOpenAIResponseCompactModel(model) {
 		return false
 	}
 	return matchAnyRegex(policy.ModelPatterns, model)

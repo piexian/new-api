@@ -118,6 +118,7 @@ export const CHANNEL_OPTIONS = [
   { value: 38, color: 'blue', label: 'Jina' },
   { value: 40, color: 'purple', label: 'SiliconCloud' },
   { value: 42, color: 'blue', label: 'Mistral AI' },
+  { value: 58, color: 'green', label: 'Kilo Gateway' },
   { value: 8, color: 'pink', label: '自定义渠道' },
   {
     value: 22,
@@ -193,7 +194,7 @@ export const CHANNEL_OPTIONS = [
 
 // Channel types that support upstream model list fetching in UI.
 export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
-  1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
+  1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43, 58,
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;

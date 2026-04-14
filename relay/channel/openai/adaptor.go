@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/ai360"
+	"github.com/QuantumNous/new-api/relay/channel/kilo"
 	"github.com/QuantumNous/new-api/relay/channel/lingyiwanwu"
 
 	//"github.com/QuantumNous/new-api/relay/channel/minimax"
@@ -52,6 +53,18 @@ func parseReasoningEffortFromModelSuffix(model string) (string, string) {
 		}
 	}
 	return "", model
+}
+
+func kiloRequestURLPath(info *relaycommon.RelayInfo) string {
+	if (info.RelayFormat == types.RelayFormatClaude || info.RelayFormat == types.RelayFormatGemini) &&
+		info.RelayMode != relayconstant.RelayModeResponses &&
+		info.RelayMode != relayconstant.RelayModeResponsesCompact {
+		return "/chat/completions"
+	}
+	if strings.HasPrefix(info.RequestURLPath, "/v1") {
+		return strings.TrimPrefix(info.RequestURLPath, "/v1")
+	}
+	return info.RequestURLPath
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
@@ -165,6 +178,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			requestURL = fmt.Sprintf("/openai/realtime?deployment=%s&api-version=%s", model_, apiVersion)
 		}
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, requestURL, info.ChannelType), nil
+	case constant.ChannelTypeKilo:
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, kiloRequestURLPath(info), info.ChannelType), nil
 	//case constant.ChannelTypeMiniMax:
 	//	return minimax.GetRequestURL(info)
 	case constant.ChannelTypeCustom:
@@ -655,6 +670,8 @@ func (a *Adaptor) GetModelList() []string {
 		return xinference.ModelList
 	case constant.ChannelTypeOpenRouter:
 		return openrouter.ModelList
+	case constant.ChannelTypeKilo:
+		return kilo.ModelList
 	default:
 		return ModelList
 	}
@@ -672,6 +689,8 @@ func (a *Adaptor) GetChannelName() string {
 		return xinference.ChannelName
 	case constant.ChannelTypeOpenRouter:
 		return openrouter.ChannelName
+	case constant.ChannelTypeKilo:
+		return kilo.ChannelName
 	default:
 		return ChannelName
 	}

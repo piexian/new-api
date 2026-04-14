@@ -39,6 +39,7 @@ import { useChannelUpstreamUpdates } from './useChannelUpstreamUpdates';
 import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
+import { openMiniMaxUsageModal } from '../../components/table/channels/modals/MiniMaxUsageModal';
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -782,6 +783,13 @@ export const useChannelsData = () => {
     }
   };
 
+  const openMiniMaxTokenPlanUsage = (record) => {
+    openMiniMaxUsageModal({
+      t,
+      record,
+    });
+  };
+
   const fixChannelsAbilities = async () => {
     const res = await API.post(`/api/channel/fix`);
     const { success, message, data } = res.data;
@@ -1231,6 +1239,7 @@ export const useChannelsData = () => {
     deleteAllDisabledChannels,
     updateAllChannelsBalance,
     updateChannelBalance,
+    openMiniMaxTokenPlanUsage,
     fixChannelsAbilities,
     checkOllamaVersion,
     testChannel,

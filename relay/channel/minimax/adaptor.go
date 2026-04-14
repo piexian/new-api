@@ -11,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
-	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
@@ -133,8 +132,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		adaptor := claude.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)
 	default:
-		adaptor := openai.Adaptor{}
-		return adaptor.DoResponse(c, resp, info)
+		return handleChatCompletionResponse(c, resp, info)
 	}
 }
 
