@@ -22,7 +22,7 @@ import { Modal, Tag, Typography, Avatar } from '@douyinfe/semi-ui';
 import { copy, showSuccess } from './utils';
 import { MOBILE_BREAKPOINT } from '../hooks/common/useIsMobile';
 import { visit } from 'unist-util-visit';
-import * as LobeIcons from '@lobehub/icons';
+import * as LobeIcons from '@lobehub/icons/es/icons';
 import {
   OpenAI,
   Claude,
@@ -42,6 +42,7 @@ import {
   Yi,
   Jina,
   Mistral,
+  KiloCode,
   XAI,
   Ollama,
   Doubao,
@@ -56,7 +57,7 @@ import {
   Jimeng,
   Perplexity,
   Replicate,
-} from '@lobehub/icons';
+} from '@lobehub/icons/es/icons';
 
 import {
   LayoutDashboard,
@@ -387,7 +388,7 @@ export function getChannelIcon(channelType) {
     case 42: // Mistral AI
       return <Mistral.Color size={iconSize} />;
     case 58: // Kilo Gateway
-      return <OpenRouter size={iconSize} />;
+      return <KiloCode size={iconSize} />;
     case 45: // 字节火山方舟、豆包通用
       return <Doubao.Color size={iconSize} />;
     case 48: // xAI

@@ -1,6 +1,7 @@
 package common
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -32,5 +33,32 @@ func TestGetEndpointTypesByChannelTypeForKilo(t *testing.T) {
 	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeKilo, "gpt-5")
 	if len(endpoints) != 1 || endpoints[0] != constant.EndpointTypeOpenAI {
 		t.Fatalf("expected kilo channel to expose only chat completions endpoint, got %#v", endpoints)
+	}
+}
+
+func TestGetEndpointTypesByChannelTypeForPoeClaudeModel(t *testing.T) {
+	t.Parallel()
+
+	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypePoe, "Claude-Sonnet-4.6")
+	want := []constant.EndpointType{
+		constant.EndpointTypeAnthropic,
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+	}
+	if !reflect.DeepEqual(endpoints, want) {
+		t.Fatalf("expected Poe Claude model endpoints %#v, got %#v", want, endpoints)
+	}
+}
+
+func TestGetEndpointTypesByChannelTypeForPoeNonClaudeModel(t *testing.T) {
+	t.Parallel()
+
+	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypePoe, "GPT-5.4")
+	want := []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+	}
+	if !reflect.DeepEqual(endpoints, want) {
+		t.Fatalf("expected Poe non-Claude model endpoints %#v, got %#v", want, endpoints)
 	}
 }
