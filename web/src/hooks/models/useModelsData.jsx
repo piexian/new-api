@@ -23,6 +23,11 @@ import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 
+const EMPTY_SEARCH_FILTERS = {
+  searchKeyword: '',
+  searchVendor: '',
+};
+
 export const useModelsData = () => {
   const { t } = useTranslation();
   const [compactMode, setCompactMode] = useTableCompactMode('models');
@@ -34,6 +39,7 @@ export const useModelsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [searching, setSearching] = useState(false);
   const [modelCount, setModelCount] = useState(0);
+  const [appliedSearch, setAppliedSearch] = useState(EMPTY_SEARCH_FILTERS);
 
   // Modal states
   const [showEdit, setShowEdit] = useState(false);
@@ -54,10 +60,7 @@ export const useModelsData = () => {
   };
 
   // Form initial values
-  const formInitValues = {
-    searchKeyword: '',
-    searchVendor: '',
-  };
+  const formInitValues = EMPTY_SEARCH_FILTERS;
 
   // ---------- helpers ----------
   // Safely extract array items from API payload
@@ -71,6 +74,33 @@ export const useModelsData = () => {
 
   // Get form values helper function
   const getFormValues = () => formApi?.getValues() || formInitValues;
+
+  const normalizeSearchFilters = (filters = EMPTY_SEARCH_FILTERS) => ({
+    searchKeyword: String(filters.searchKeyword || '').trim(),
+    searchVendor: String(filters.searchVendor || '').trim(),
+  });
+
+  const hasActiveSearch = (filters = EMPTY_SEARCH_FILTERS) => {
+    const normalized = normalizeSearchFilters(filters);
+    return (
+      normalized.searchKeyword !== '' || normalized.searchVendor !== ''
+    );
+  };
+
+  const applyListData = (data, fallbackPage) => {
+    const newPageData = extractItems(data);
+    setActivePage(data.page || fallbackPage);
+    setModelCount(data.total || newPageData.length);
+    setModelFormat(newPageData);
+
+    if (data.vendor_counts) {
+      const sumAll = Object.values(data.vendor_counts).reduce(
+        (acc, v) => acc + v,
+        0,
+      );
+      setVendorCounts({ ...data.vendor_counts, all: sumAll });
+    }
+  };
 
   // Close edit modal
   const closeEdit = () => {
@@ -136,18 +166,7 @@ export const useModelsData = () => {
       const res = await API.get(url);
       const { success, message, data } = res.data;
       if (success) {
-        const newPageData = extractItems(data);
-        setActivePage(data.page || page);
-        setModelCount(data.total || newPageData.length);
-        setModelFormat(newPageData);
-
-        if (data.vendor_counts) {
-          const sumAll = Object.values(data.vendor_counts).reduce(
-            (acc, v) => acc + v,
-            0,
-          );
-          setVendorCounts({ ...data.vendor_counts, all: sumAll });
-        }
+        applyListData(data, page);
       } else {
         showError(message);
         setModels([]);
@@ -160,9 +179,50 @@ export const useModelsData = () => {
     setLoading(false);
   };
 
+  const loadSearchModels = async (
+    searchFilters,
+    page = 1,
+    size = pageSize,
+  ) => {
+    setLoading(true);
+    try {
+      const normalized = normalizeSearchFilters(searchFilters);
+      const keyword = encodeURIComponent(normalized.searchKeyword);
+      const vendor = encodeURIComponent(normalized.searchVendor);
+      const res = await API.get(
+        `/api/models/search?keyword=${keyword}&vendor=${vendor}&p=${page}&page_size=${size}`,
+      );
+      const { success, message, data } = res.data;
+      if (success) {
+        applyListData(data, page);
+      } else {
+        showError(message);
+        setModels([]);
+      }
+    } catch (error) {
+      console.error(error);
+      showError(t('搜索模型失败'));
+      setModels([]);
+    }
+    setLoading(false);
+  };
+
+  const loadCurrentModels = async (
+    page = 1,
+    size = pageSize,
+    vendorKey = activeVendorKey,
+    searchFilters = appliedSearch,
+  ) => {
+    if (hasActiveSearch(searchFilters)) {
+      await loadSearchModels(searchFilters, page, size);
+      return;
+    }
+    await loadModels(page, size, vendorKey);
+  };
+
   // Refresh data
   const refresh = async (page = activePage) => {
-    await loadModels(page, pageSize);
+    await loadCurrentModels(page, pageSize);
   };
 
   // Sync upstream models/vendors for missing models only
@@ -251,43 +311,16 @@ export const useModelsData = () => {
   };
 
   // Search models with keyword and vendor
-  const searchModels = async () => {
-    const { searchKeyword = '', searchVendor = '' } = getFormValues();
-
-    if (searchKeyword === '' && searchVendor === '') {
-      // If keyword is blank, load models instead
-      await loadModels(1, pageSize);
-      return;
-    }
-
+  const searchModels = async (rawFilters = getFormValues()) => {
+    const nextSearch = normalizeSearchFilters(rawFilters);
+    setAppliedSearch(nextSearch);
+    setActivePage(1);
     setSearching(true);
     try {
-      const res = await API.get(
-        `/api/models/search?keyword=${searchKeyword}&vendor=${searchVendor}&p=1&page_size=${pageSize}`,
-      );
-      const { success, message, data } = res.data;
-      if (success) {
-        const newPageData = extractItems(data);
-        setActivePage(data.page || 1);
-        setModelCount(data.total || newPageData.length);
-        setModelFormat(newPageData);
-        if (data.vendor_counts) {
-          const sumAll = Object.values(data.vendor_counts).reduce(
-            (acc, v) => acc + v,
-            0,
-          );
-          setVendorCounts({ ...data.vendor_counts, all: sumAll });
-        }
-      } else {
-        showError(message);
-        setModels([]);
-      }
-    } catch (error) {
-      console.error(error);
-      showError(t('搜索模型失败'));
-      setModels([]);
+      await loadCurrentModels(1, pageSize, activeVendorKey, nextSearch);
+    } finally {
+      setSearching(false);
     }
-    setSearching(false);
   };
 
   // Manage model (enable/disable/delete)
@@ -330,7 +363,14 @@ export const useModelsData = () => {
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
-    loadModels(page, pageSize, activeVendorKey);
+    loadCurrentModels(page, pageSize);
+  };
+
+  const handleVendorChange = (vendorKey) => {
+    formApi?.setValues(EMPTY_SEARCH_FILTERS);
+    setAppliedSearch(EMPTY_SEARCH_FILTERS);
+    setActivePage(1);
+    setActiveVendorKey(vendorKey);
   };
 
   // Reload models when activeVendorKey changes
@@ -342,7 +382,7 @@ export const useModelsData = () => {
   const handlePageSizeChange = async (size) => {
     setPageSize(size);
     setActivePage(1);
-    await loadModels(1, size, activeVendorKey);
+    await loadCurrentModels(1, size);
   };
 
   // Handle row click and styling
@@ -476,6 +516,7 @@ export const useModelsData = () => {
     vendorCounts,
     activeVendorKey,
     setActiveVendorKey,
+    handleVendorChange,
     showAddVendor,
     setShowAddVendor,
     showEditVendor,
