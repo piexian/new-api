@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1482,13 +1483,17 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if err != nil {
 			return err
 		}
+		type preConsumeCandidate struct {
+			sub           UserSubscription
+			plan          *SubscriptionPlan
+			planSortOrder int
+		}
+
+		candidates := make([]preConsumeCandidate, 0, len(subs))
 		for _, candidate := range subs {
 			sub := candidate
-			subscriptionUserGroup := strings.TrimSpace(sub.PrevUserGroup)
-			if subscriptionUserGroup == "" {
-				subscriptionUserGroup = currentUserGroup
-			}
 			var plan *SubscriptionPlan
+			planSortOrder := 0
 			if sub.PlanId > 0 {
 				loadedPlan, planErr := getSubscriptionPlanByIdTx(tx, sub.PlanId)
 				if planErr != nil {
@@ -1503,12 +1508,41 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 					continue
 				}
 				plan = loadedPlan
+				planSortOrder = plan.SortOrder
+			}
+			candidates = append(candidates, preConsumeCandidate{
+				sub:           sub,
+				plan:          plan,
+				planSortOrder: planSortOrder,
+			})
+		}
+
+		sort.SliceStable(candidates, func(i, j int) bool {
+			left := candidates[i]
+			right := candidates[j]
+			if left.planSortOrder != right.planSortOrder {
+				return left.planSortOrder > right.planSortOrder
+			}
+			if left.sub.EndTime != right.sub.EndTime {
+				return left.sub.EndTime < right.sub.EndTime
+			}
+			return left.sub.Id < right.sub.Id
+		})
+
+		for _, candidate := range candidates {
+			sub := candidate.sub
+			plan := candidate.plan
+			subscriptionUserGroup := strings.TrimSpace(sub.PrevUserGroup)
+			if subscriptionUserGroup == "" {
+				subscriptionUserGroup = currentUserGroup
+			}
+			if plan != nil {
 				if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 					return err
 				}
-					if !isSubscriptionModelAllowed(plan, modelName, subscriptionUserGroup) {
-						continue
-					}
+				if !isSubscriptionModelAllowed(plan, modelName, subscriptionUserGroup) {
+					continue
+				}
 				if prepareSubscriptionQuotaWindows(&sub, plan, now) {
 					if err := tx.Save(&sub).Error; err != nil {
 						return err

@@ -63,10 +63,10 @@ func newBillingTestContext() *gin.Context {
 
 func newSubscriptionRelayInfo(userId int, requestId string, preference string) *relaycommon.RelayInfo {
 	return &relaycommon.RelayInfo{
-		UserId:         userId,
-		RequestId:      requestId,
+		UserId:          userId,
+		RequestId:       requestId,
 		OriginModelName: "gpt-4o",
-		IsPlayground:   true,
+		IsPlayground:    true,
 		UserSetting: dto.UserSetting{
 			BillingPreference: preference,
 		},
