@@ -118,6 +118,7 @@ const AddEditSubscriptionModal = ({
     max_purchase_per_user: 0,
     total_amount: 0,
     model_restrict_mode: '',
+    model_restrict_group: '',
     allowed_models: [],
     daily_quota_limit: 0,
     weekly_quota_limit: 0,
@@ -149,6 +150,7 @@ const AddEditSubscriptionModal = ({
         quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
       ),
       model_restrict_mode: p.model_restrict_mode || '',
+      model_restrict_group: p.model_restrict_group || '',
       allowed_models: parseAllowedModels(p.allowed_models),
       daily_quota_limit: Number(
         quotaToDisplayAmount(p.daily_quota_limit || 0).toFixed(2),
@@ -203,6 +205,10 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           model_restrict_mode: values.model_restrict_mode || '',
+          model_restrict_group:
+            values.model_restrict_mode === 'group'
+              ? values.model_restrict_group || ''
+              : '',
           allowed_models: JSON.stringify(values.allowed_models || []),
           daily_quota_limit: displayAmountToQuota(values.daily_quota_limit),
           weekly_quota_limit: displayAmountToQuota(values.weekly_quota_limit),
@@ -451,7 +457,9 @@ const AddEditSubscriptionModal = ({
                         label={t('模型限制模式')}
                         extraText={
                           values.model_restrict_mode === 'group'
-                            ? t('按升级分组当前可用模型自动判定')
+                            ? t(
+                                '按限制分组、升级分组或当前用户分组自动判定可用模型',
+                              )
                             : undefined
                         }
                       >
@@ -463,6 +471,36 @@ const AddEditSubscriptionModal = ({
                       </Form.Select>
                     </Col>
                     <Col span={12}>
+                      <Form.Select
+                        field='model_restrict_group'
+                        label={t('模型限制分组')}
+                        showClear
+                        loading={groupLoading}
+                        disabled={values.model_restrict_mode !== 'group'}
+                        placeholder={
+                          values.model_restrict_mode === 'group'
+                            ? t('留空时自动使用升级分组或当前用户分组')
+                            : t('仅按模型组限制模式可选')
+                        }
+                        extraText={
+                          values.model_restrict_mode === 'group'
+                            ? values.model_restrict_group
+                              ? t('选中后只允许该分组可用模型')
+                              : t(
+                                  '留空时优先使用升级分组；套餐不升级时按当前用户分组判定',
+                                )
+                            : undefined
+                        }
+                      >
+                        <Select.Option value=''>{t('自动判定')}</Select.Option>
+                        {(groupOptions || []).map((g) => (
+                          <Select.Option key={g} value={g}>
+                            {g}
+                          </Select.Option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+                    <Col span={24}>
                       <Form.TagInput
                         field='allowed_models'
                         label={t('允许模型')}
@@ -475,7 +513,9 @@ const AddEditSubscriptionModal = ({
                         }
                         extraText={
                           values.model_restrict_mode === 'group'
-                            ? t('group 模式会直接使用升级分组当前可用的模型，这里无需填写')
+                            ? t(
+                                'group 模式会按限制分组、升级分组、当前用户分组的顺序自动判定，这里无需填写',
+                              )
                             : t(
                                 '支持精确匹配和 prefix* 前缀匹配；留空表示当前模式下没有可用模型',
                               )

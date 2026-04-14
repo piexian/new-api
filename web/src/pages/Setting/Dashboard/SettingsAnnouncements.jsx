@@ -83,6 +83,17 @@ const SettingsAnnouncements = ({ options, refresh }) => {
     { value: 'error', label: t('错误') },
   ];
 
+  const normalizePublishDate = (value) => {
+    if (!value) return '';
+
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? '' : value.toISOString();
+    }
+
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
+  };
+
   const getTypeColor = (type) => {
     const colorMap = {
       default: 'grey',
@@ -277,9 +288,17 @@ const SettingsAnnouncements = ({ options, refresh }) => {
       setModalLoading(true);
 
       // 将publishDate转换为ISO字符串保存
+      const normalizedPublishDate = normalizePublishDate(
+        announcementForm.publishDate,
+      );
+      if (!normalizedPublishDate) {
+        showError('公告发布时间格式无效');
+        return;
+      }
+
       const formData = {
         ...announcementForm,
-        publishDate: announcementForm.publishDate.toISOString(),
+        publishDate: normalizedPublishDate,
       };
 
       let newList;

@@ -173,12 +173,13 @@ type SubscriptionPlan struct {
 	UpgradeGroup string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 
 	// Total quota (amount in quota units, 0 = unlimited)
-	TotalAmount       int64  `json:"total_amount" gorm:"type:bigint;not null;default:0"`
-	ModelRestrictMode string `json:"model_restrict_mode" gorm:"type:varchar(16);default:''"`
-	AllowedModels     string `json:"allowed_models" gorm:"type:text"`
-	DailyQuotaLimit   int64  `json:"daily_quota_limit" gorm:"type:bigint;not null;default:0"`
-	WeeklyQuotaLimit  int64  `json:"weekly_quota_limit" gorm:"type:bigint;not null;default:0"`
-	MonthlyQuotaLimit int64  `json:"monthly_quota_limit" gorm:"type:bigint;not null;default:0"`
+	TotalAmount        int64  `json:"total_amount" gorm:"type:bigint;not null;default:0"`
+	ModelRestrictMode  string `json:"model_restrict_mode" gorm:"type:varchar(16);default:''"`
+	ModelRestrictGroup string `json:"model_restrict_group" gorm:"type:varchar(64);default:''"`
+	AllowedModels      string `json:"allowed_models" gorm:"type:text"`
+	DailyQuotaLimit    int64  `json:"daily_quota_limit" gorm:"type:bigint;not null;default:0"`
+	WeeklyQuotaLimit   int64  `json:"weekly_quota_limit" gorm:"type:bigint;not null;default:0"`
+	MonthlyQuotaLimit  int64  `json:"monthly_quota_limit" gorm:"type:bigint;not null;default:0"`
 
 	// Quota reset period for plan
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
@@ -411,31 +412,48 @@ func getSubscriptionUsableGroups(userGroup string) map[string]string {
 	return groupsCopy
 }
 
-func isSubscriptionGroupModelAllowed(plan *SubscriptionPlan, modelName string) bool {
+func resolveSubscriptionModelRestrictGroup(plan *SubscriptionPlan, userGroup string) string {
 	if plan == nil {
+		return ""
+	}
+	if restrictGroup := strings.TrimSpace(plan.ModelRestrictGroup); restrictGroup != "" {
+		return restrictGroup
+	}
+	if upgradeGroup := strings.TrimSpace(plan.UpgradeGroup); upgradeGroup != "" {
+		return upgradeGroup
+	}
+	return strings.TrimSpace(userGroup)
+}
+
+func isModelEnabledForGroup(modelGroups []string, targetGroup string) bool {
+	targetGroup = strings.TrimSpace(targetGroup)
+	if targetGroup == "" || len(modelGroups) == 0 {
 		return false
 	}
-	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
-	if upgradeGroup == "" {
-		return false
-	}
-	modelGroups := GetModelEnableGroups(strings.TrimSpace(modelName))
-	if len(modelGroups) == 0 {
-		return false
-	}
-	usableGroups := getSubscriptionUsableGroups(upgradeGroup)
 	for _, group := range modelGroups {
 		if group == "all" {
 			return true
 		}
-		if _, ok := usableGroups[group]; ok {
+		if strings.TrimSpace(group) == targetGroup {
 			return true
 		}
 	}
 	return false
 }
 
-func isSubscriptionModelAllowed(plan *SubscriptionPlan, modelName string) bool {
+func isSubscriptionGroupModelAllowed(plan *SubscriptionPlan, modelName string, userGroup string) bool {
+	if plan == nil {
+		return false
+	}
+	targetGroup := resolveSubscriptionModelRestrictGroup(plan, userGroup)
+	if targetGroup == "" {
+		return false
+	}
+	modelGroups := GetModelEnableGroups(strings.TrimSpace(modelName))
+	return isModelEnabledForGroup(modelGroups, targetGroup)
+}
+
+func isSubscriptionModelAllowed(plan *SubscriptionPlan, modelName string, userGroup string) bool {
 	if plan == nil {
 		return false
 	}
@@ -443,7 +461,7 @@ func isSubscriptionModelAllowed(plan *SubscriptionPlan, modelName string) bool {
 	case "":
 		return true
 	case "group":
-		return isSubscriptionGroupModelAllowed(plan, modelName)
+		return isSubscriptionGroupModelAllowed(plan, modelName, userGroup)
 	case "custom":
 		modelName = strings.TrimSpace(modelName)
 		if modelName == "" {
@@ -751,13 +769,13 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if nextReset > 0 {
 		lastReset = now.Unix()
 	}
+	currentGroup, err := getUserGroupByIdTx(tx, userId)
+	if err != nil {
+		return nil, err
+	}
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
-	prevGroup := ""
+	prevGroup := currentGroup
 	if upgradeGroup != "" {
-		currentGroup, err := getUserGroupByIdTx(tx, userId)
-		if err != nil {
-			return nil, err
-		}
 		if currentGroup != upgradeGroup {
 			prevGroup = currentGroup
 			if err := tx.Model(&User{}).Where("id = ?", userId).
@@ -1460,8 +1478,16 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
+		currentUserGroup, err := getUserGroupByIdTx(tx, userId)
+		if err != nil {
+			return err
+		}
 		for _, candidate := range subs {
 			sub := candidate
+			subscriptionUserGroup := strings.TrimSpace(sub.PrevUserGroup)
+			if subscriptionUserGroup == "" {
+				subscriptionUserGroup = currentUserGroup
+			}
 			var plan *SubscriptionPlan
 			if sub.PlanId > 0 {
 				loadedPlan, planErr := getSubscriptionPlanByIdTx(tx, sub.PlanId)
@@ -1480,9 +1506,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 					return err
 				}
-				if !isSubscriptionModelAllowed(plan, modelName) {
-					continue
-				}
+					if !isSubscriptionModelAllowed(plan, modelName, subscriptionUserGroup) {
+						continue
+					}
 				if prepareSubscriptionQuotaWindows(&sub, plan, now) {
 					if err := tx.Save(&sub).Error; err != nil {
 						return err
