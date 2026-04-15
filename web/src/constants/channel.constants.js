@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 export const CHANNEL_TYPE_MINIMAX = 35;
 export const CHANNEL_TYPE_CODEX = 57;
+export const CHANNEL_TYPE_ZHIPU_V4 = 26;
 
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },

@@ -108,6 +108,11 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		}
 		requestBody = common.ReaderOnly(storage)
 	} else {
+		if (info.ChannelType == constant.ChannelTypeZhipu ||
+			info.ChannelType == constant.ChannelTypeZhipu_v4) &&
+			common.IsClaudeCompatibleModel(info.UpstreamModelName) {
+			applySystemPromptIfNeeded(c, info, request)
+		}
 		convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())

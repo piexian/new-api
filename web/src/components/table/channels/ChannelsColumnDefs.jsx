@@ -43,6 +43,7 @@ import {
   CHANNEL_OPTIONS,
   CHANNEL_TYPE_CODEX,
   CHANNEL_TYPE_MINIMAX,
+  CHANNEL_TYPE_ZHIPU_V4,
   MODEL_FETCHABLE_CHANNEL_TYPES,
 } from '../../../constants';
 import { parseUpstreamUpdateMeta } from '../../../hooks/channels/upstreamUpdateUtils';
@@ -52,6 +53,26 @@ import {
   IconAlertTriangle,
 } from '@douyinfe/semi-icons';
 import { FaRandom } from 'react-icons/fa';
+
+const ZHIPU_CODING_PLAN_BASE_URLS = new Set([
+  'glm-coding-plan',
+  'glm-coding-plan-international',
+  'https://open.bigmodel.cn/api/anthropic',
+  'https://open.bigmodel.cn/api/coding/paas/v4',
+  'https://api.z.ai/api/anthropic',
+  'https://api.z.ai/api/coding/paas/v4',
+]);
+
+const isZhipuCodingPlanChannel = (record) => {
+  if (!record || record.children !== undefined) {
+    return false;
+  }
+  const baseURL = String(record.base_url || '').trim();
+  return (
+    record.type === CHANNEL_TYPE_ZHIPU_V4 &&
+    ZHIPU_CODING_PLAN_BASE_URLS.has(baseURL)
+  );
+};
 
 // Render functions
 const renderType = (type, record = {}, t) => {
@@ -311,6 +332,7 @@ export const getChannelsColumns = ({
   COLUMN_KEYS,
   updateChannelBalance,
   openMiniMaxTokenPlanUsage,
+  openZhipuCodingPlanUsage,
   manageChannel,
   manageTag,
   submitTagEdit,
@@ -533,6 +555,7 @@ export const getChannelsColumns = ({
         if (record.children === undefined) {
           const isCodexChannel = record.type === CHANNEL_TYPE_CODEX;
           const isMiniMaxChannel = record.type === CHANNEL_TYPE_MINIMAX;
+          const isZhipuPlanChannel = isZhipuCodingPlanChannel(record);
           return (
             <div>
               <Space spacing={1}>
@@ -550,10 +573,15 @@ export const getChannelsColumns = ({
                           ': ' +
                           renderQuotaWithAmount(record.balance) +
                           t('，另可点击 Token Plan 查看订阅窗口')
-                      : t('剩余额度') +
-                        ': ' +
-                        renderQuotaWithAmount(record.balance) +
-                        t('，点击更新')
+                        : isZhipuPlanChannel
+                          ? t('剩余额度') +
+                            ': ' +
+                            renderQuotaWithAmount(record.balance) +
+                            t('，另可点击 Coding Plan 查看额度窗口')
+                          : t('剩余额度') +
+                            ': ' +
+                            renderQuotaWithAmount(record.balance) +
+                            t('，点击更新')
                   }
                 >
                   <Tag
@@ -569,7 +597,9 @@ export const getChannelsColumns = ({
                   </Tag>
                 </Tooltip>
                 {isMiniMaxChannel && (
-                  <Tooltip content={t('查询 MiniMax Token Plan 用量与额度窗口')}>
+                  <Tooltip
+                    content={t('查询 MiniMax Token Plan 用量与额度窗口')}
+                  >
                     <Tag
                       color='cyan'
                       type='light'
@@ -578,6 +608,19 @@ export const getChannelsColumns = ({
                       onClick={() => openMiniMaxTokenPlanUsage(record)}
                     >
                       {t('Token Plan')}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {isZhipuPlanChannel && (
+                  <Tooltip content={t('查询智谱 Coding Plan 额度窗口')}>
+                    <Tag
+                      color='blue'
+                      type='light'
+                      shape='circle'
+                      className='cursor-pointer'
+                      onClick={() => openZhipuCodingPlanUsage(record)}
+                    >
+                      {t('Coding Plan')}
                     </Tag>
                   </Tooltip>
                 )}

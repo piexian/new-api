@@ -6,8 +6,8 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 )
 
-func isPoeAnthropicCompatibleModel(modelName string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(modelName)), "claude")
+func IsClaudeCompatibleModel(modelName string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(modelName)), "claude-")
 }
 
 // GetEndpointTypesByChannelType 获取渠道最优先端点类型（所有的渠道都支持 OpenAI 端点）
@@ -30,10 +30,15 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 	//	endpointTypes = []constant.EndpointType{constant.EndpointTypeJimeng}
 	case constant.ChannelTypeAws:
 		fallthrough
-	case constant.ChannelTypeZhipu_v4:
-		fallthrough
 	case constant.ChannelTypeAnthropic:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAI}
+	case constant.ChannelTypeZhipu:
+		fallthrough
+	case constant.ChannelTypeZhipu_v4:
+		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
+		if IsClaudeCompatibleModel(modelName) {
+			endpointTypes = append([]constant.EndpointType{constant.EndpointTypeAnthropic}, endpointTypes...)
+		}
 	case constant.ChannelTypeVertexAi:
 		fallthrough
 	case constant.ChannelTypeGemini:
@@ -44,7 +49,7 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 			break
 		}
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
-		if isPoeAnthropicCompatibleModel(modelName) {
+		if IsClaudeCompatibleModel(modelName) {
 			endpointTypes = append([]constant.EndpointType{constant.EndpointTypeAnthropic}, endpointTypes...)
 		}
 	case constant.ChannelTypeOpenRouter, constant.ChannelTypeKilo: // 只支持 OpenAI 端点
