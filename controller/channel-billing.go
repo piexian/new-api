@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	poechannel "github.com/QuantumNous/new-api/relay/channel/poe"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -121,6 +121,10 @@ type OpenRouterCreditResponse struct {
 	} `json:"data"`
 }
 
+type PoeCurrentBalanceResponse struct {
+	CurrentPointBalance int64 `json:"current_point_balance"`
+}
+
 // GetAuthHeader get auth header
 func GetAuthHeader(token string) http.Header {
 	h := http.Header{}
@@ -166,6 +170,11 @@ func GetResponseBody(method, url string, channel *model.Channel, headers http.He
 	return body, nil
 }
 
+func persistChannelBalance(channel *model.Channel, balance float64) (float64, error) {
+	channel.UpdateBalance(balance)
+	return balance, nil
+}
+
 func updateChannelCloseAIBalance(channel *model.Channel) (float64, error) {
 	url := fmt.Sprintf("%s/dashboard/billing/credit_grants", channel.GetBaseURL())
 	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
@@ -174,12 +183,11 @@ func updateChannelCloseAIBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := OpenAICreditGrants{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(response.TotalAvailable)
-	return response.TotalAvailable, nil
+	return persistChannelBalance(channel, response.TotalAvailable)
 }
 
 func updateChannelOpenAISBBalance(channel *model.Channel) (float64, error) {
@@ -189,7 +197,7 @@ func updateChannelOpenAISBBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := OpenAISBUsageResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -200,8 +208,7 @@ func updateChannelOpenAISBBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return persistChannelBalance(channel, balance)
 }
 
 func updateChannelAIProxyBalance(channel *model.Channel) (float64, error) {
@@ -213,15 +220,14 @@ func updateChannelAIProxyBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := AIProxyUserOverviewResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
 	if !response.Success {
 		return 0, fmt.Errorf("code: %d, message: %s", response.ErrorCode, response.Message)
 	}
-	channel.UpdateBalance(response.Data.TotalPoints)
-	return response.Data.TotalPoints, nil
+	return persistChannelBalance(channel, response.Data.TotalPoints)
 }
 
 func updateChannelAPI2GPTBalance(channel *model.Channel) (float64, error) {
@@ -232,12 +238,11 @@ func updateChannelAPI2GPTBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := API2GPTUsageResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(response.TotalRemaining)
-	return response.TotalRemaining, nil
+	return persistChannelBalance(channel, response.TotalRemaining)
 }
 
 func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
@@ -247,7 +252,7 @@ func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := SiliconFlowUsageResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -258,8 +263,7 @@ func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return persistChannelBalance(channel, balance)
 }
 
 func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
@@ -269,7 +273,7 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := DeepSeekUsageResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -287,8 +291,7 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return persistChannelBalance(channel, balance)
 }
 
 func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
@@ -298,12 +301,11 @@ func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := APGC2DGPTUsageResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
-	channel.UpdateBalance(response.TotalAvailable)
-	return response.TotalAvailable, nil
+	return persistChannelBalance(channel, response.TotalAvailable)
 }
 
 func updateChannelOpenRouterBalance(channel *model.Channel) (float64, error) {
@@ -313,13 +315,12 @@ func updateChannelOpenRouterBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	response := OpenRouterCreditResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
 	balance := response.Data.TotalCredits - response.Data.TotalUsage
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return persistChannelBalance(channel, balance)
 }
 
 func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
@@ -343,7 +344,7 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	}
 
 	response := MoonshotBalanceResponse{}
-	err = json.Unmarshal(body, &response)
+	err = common.Unmarshal(body, &response)
 	if err != nil {
 		return 0, err
 	}
@@ -352,8 +353,29 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	}
 	availableBalanceCny := response.Data.AvailableBalance
 	availableBalanceUsd := decimal.NewFromFloat(availableBalanceCny).Div(decimal.NewFromFloat(operation_setting.Price)).InexactFloat64()
-	channel.UpdateBalance(availableBalanceUsd)
-	return availableBalanceUsd, nil
+	return persistChannelBalance(channel, availableBalanceUsd)
+}
+
+func parsePoeCurrentBalance(body []byte) (float64, error) {
+	response := PoeCurrentBalanceResponse{}
+	if err := common.Unmarshal(body, &response); err != nil {
+		return 0, err
+	}
+	return float64(response.CurrentPointBalance), nil
+}
+
+func updateChannelPoeBalance(channel *model.Channel) (float64, error) {
+	baseURL := poechannel.NormalizeBaseURL(channel.GetBaseURL())
+	url := fmt.Sprintf("%s/usage/current_balance", baseURL)
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	if err != nil {
+		return 0, err
+	}
+	balance, err := parsePoeCurrentBalance(body)
+	if err != nil {
+		return 0, err
+	}
+	return persistChannelBalance(channel, balance)
 }
 
 func updateChannelBalance(channel *model.Channel) (float64, error) {
@@ -386,6 +408,8 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 		return updateChannelOpenRouterBalance(channel)
 	case constant.ChannelTypeMoonshot:
 		return updateChannelMoonshotBalance(channel)
+	case constant.ChannelTypePoe:
+		return updateChannelPoeBalance(channel)
 	default:
 		return 0, errors.New("尚未实现")
 	}
@@ -396,7 +420,7 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	subscription := OpenAISubscriptionResponse{}
-	err = json.Unmarshal(body, &subscription)
+	err = common.Unmarshal(body, &subscription)
 	if err != nil {
 		return 0, err
 	}
@@ -412,13 +436,12 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 		return 0, err
 	}
 	usage := OpenAIUsageResponse{}
-	err = json.Unmarshal(body, &usage)
+	err = common.Unmarshal(body, &usage)
 	if err != nil {
 		return 0, err
 	}
 	balance := subscription.HardLimitUSD - usage.TotalUsage/100
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return persistChannelBalance(channel, balance)
 }
 
 func UpdateChannelBalance(c *gin.Context) {

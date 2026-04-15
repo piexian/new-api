@@ -146,8 +146,20 @@ const renderDuration = (text, record, t) => {
   return <Text type='secondary'>{formatDuration(record?.plan, t)}</Text>;
 };
 
+const normalizeEnabled = (value) => {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1';
+  }
+  if (typeof value === 'number') {
+    return value === 1;
+  }
+  return value === true;
+};
+
 const renderEnabled = (text, record, t) => {
-  return text ? (
+  const isEnabled = normalizeEnabled(record?.plan?.enabled);
+  return isEnabled ? (
     <Tag
       color='white'
       shape='circle'
@@ -229,7 +241,7 @@ const renderPaymentConfig = (text, record, t, enableEpay) => {
 };
 
 const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
-  const isEnabled = record?.plan?.enabled;
+  const isEnabled = normalizeEnabled(record?.plan?.enabled);
 
   const handleToggle = () => {
     if (isEnabled) {

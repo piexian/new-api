@@ -1,9 +1,21 @@
 package common
 
-import "github.com/QuantumNous/new-api/constant"
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/constant"
+)
+
+func isPoeAnthropicCompatibleModel(modelName string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(modelName)), "claude")
+}
 
 // GetEndpointTypesByChannelType 获取渠道最优先端点类型（所有的渠道都支持 OpenAI 端点）
 func GetEndpointTypesByChannelType(channelType int, modelName string) []constant.EndpointType {
+	if IsOpenAIResponseCompactModel(modelName) {
+		return []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact}
+	}
+
 	var endpointTypes []constant.EndpointType
 	switch channelType {
 	case constant.ChannelTypeJina:
@@ -26,7 +38,16 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		fallthrough
 	case constant.ChannelTypeGemini:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeGemini, constant.EndpointTypeOpenAI}
-	case constant.ChannelTypeOpenRouter: // OpenRouter 只支持 OpenAI 端点
+	case constant.ChannelTypePoe:
+		if IsOpenAIResponseOnlyModel(modelName) {
+			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIResponse}
+			break
+		}
+		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
+		if isPoeAnthropicCompatibleModel(modelName) {
+			endpointTypes = append([]constant.EndpointType{constant.EndpointTypeAnthropic}, endpointTypes...)
+		}
+	case constant.ChannelTypeOpenRouter, constant.ChannelTypeKilo: // 只支持 OpenAI 端点
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
 	case constant.ChannelTypeXai:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}

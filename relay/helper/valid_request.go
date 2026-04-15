@@ -125,6 +125,9 @@ func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest
 	if request.Input == nil {
 		return nil, errors.New("input is required")
 	}
+	if common.IsOpenAIResponseCompactModel(request.Model) {
+		return nil, fmt.Errorf("model %q must be used with /v1/responses/compact", request.Model)
+	}
 	return request, nil
 }
 
@@ -266,6 +269,9 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 	}
 	if textRequest.Model == "" {
 		return nil, errors.New("model is required")
+	}
+	if common.IsOpenAIResponseCompactModel(textRequest.Model) {
+		return nil, fmt.Errorf("model %q must be used with /v1/responses/compact", textRequest.Model)
 	}
 	if textRequest.WebSearchOptions != nil {
 		if textRequest.WebSearchOptions.SearchContextSize != "" {

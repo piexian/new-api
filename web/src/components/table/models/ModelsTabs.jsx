@@ -25,23 +25,19 @@ import { API } from '../../../helpers';
 
 const ModelsTabs = ({
   activeVendorKey,
-  setActiveVendorKey,
+  handleVendorChange,
   vendorCounts,
   vendors,
-  loadModels,
   activePage,
-  pageSize,
-  setActivePage,
   setShowAddVendor,
   setShowEditVendor,
   setEditingVendor,
   loadVendors,
+  refresh,
   t,
 }) => {
   const handleTabChange = (key) => {
-    setActiveVendorKey(key);
-    setActivePage(1);
-    loadModels(1, pageSize, key);
+    handleVendorChange(key);
   };
 
   const handleEditVendor = (vendor, e) => {
@@ -58,10 +54,9 @@ const ModelsTabs = ({
         showSuccess(t('供应商删除成功'));
         // 如果删除的是当前选中的供应商，切换到"全部"
         if (activeVendorKey === String(vendor.id)) {
-          setActiveVendorKey('all');
-          loadModels(1, pageSize, 'all');
+          handleVendorChange('all');
         } else {
-          loadModels(activePage, pageSize, activeVendorKey);
+          refresh(activePage);
         }
         loadVendors(); // 重新加载供应商列表
       } else {

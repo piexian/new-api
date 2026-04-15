@@ -194,7 +194,14 @@ export const createApiCalls = {
    */
   viewChannelKey: (channelId) => async () => {
     // 新系统中，验证已通过中间件处理，直接调用 API 即可
-    const response = await API.post(`/api/channel/${channelId}/key`, {});
+    const response = await API.post(
+      `/api/channel/${channelId}/key`,
+      {},
+      {
+        // 该接口的 403 是安全验证流程的一部分，不应先弹出通用错误 toast。
+        skipErrorHandler: true,
+      },
+    );
     return response.data;
   },
 

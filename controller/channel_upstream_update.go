@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	"github.com/QuantumNous/new-api/relay/channel/poe"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -244,6 +245,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
 	}
+	if channel.Type == constant.ChannelTypePoe {
+		baseURL = poe.NormalizeBaseURL(baseURL)
+	}
 
 	if channel.Type == constant.ChannelTypeOllama {
 		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])
@@ -291,6 +295,8 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		} else {
 			url = fmt.Sprintf("%s/v1/models", baseURL)
 		}
+	case constant.ChannelTypeKilo:
+		url = fmt.Sprintf("%s/models", baseURL)
 	default:
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}

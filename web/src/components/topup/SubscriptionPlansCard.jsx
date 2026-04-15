@@ -358,14 +358,18 @@ const SubscriptionPlansCard = ({
       return null;
     }
     if (mode === 'group') {
+      const restrictGroup = String(plan?.model_restrict_group || '').trim();
       const upgradeGroup = String(plan?.upgrade_group || '').trim();
+      const displayGroup = restrictGroup || upgradeGroup;
       return {
-        label: upgradeGroup
-          ? `${t('模型限制')}: ${t('按分组')} (${upgradeGroup})`
+        label: displayGroup
+          ? `${t('模型限制')}: ${t('按分组')} (${displayGroup})`
           : `${t('模型限制')}: ${t('按分组')}`,
-        tooltip: upgradeGroup
-          ? t('仅允许使用升级分组当前可用的模型')
-          : t('仅允许使用升级分组当前可用的模型'),
+        tooltip: restrictGroup
+          ? t('仅允许使用所选限制分组可用的模型')
+          : upgradeGroup
+            ? t('未单独指定限制分组时，使用升级分组可用的模型')
+            : t('未单独指定限制分组时，按当前用户分组可用模型自动判定'),
       };
     }
     const allowedModels = parseAllowedModels(plan?.allowed_models);

@@ -2,6 +2,8 @@ package common
 
 import "strings"
 
+const openAICompactModelSuffix = "-openai-compact"
+
 var (
 	// OpenAIResponseOnlyModels is a list of models that are only available for OpenAI responses.
 	OpenAIResponseOnlyModels = []string{
@@ -33,6 +35,10 @@ func IsOpenAIResponseOnlyModel(modelName string) bool {
 		}
 	}
 	return false
+}
+
+func IsOpenAIResponseCompactModel(modelName string) bool {
+	return strings.HasSuffix(strings.TrimSpace(modelName), openAICompactModelSuffix)
 }
 
 func IsImageGenerationModel(modelName string) bool {

@@ -16,6 +16,7 @@ import (
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	"github.com/QuantumNous/new-api/relay/channel/poe"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -989,6 +990,9 @@ func FetchModels(c *gin.Context) {
 	if baseURL == "" {
 		baseURL = constant.ChannelBaseURLs[req.Type]
 	}
+	if req.Type == constant.ChannelTypePoe {
+		baseURL = poe.NormalizeBaseURL(baseURL)
+	}
 
 	// remove line breaks and extra spaces.
 	key := strings.TrimSpace(req.Key)
@@ -1035,6 +1039,9 @@ func FetchModels(c *gin.Context) {
 
 	client := &http.Client{}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
+	if req.Type == constant.ChannelTypeKilo {
+		url = fmt.Sprintf("%s/models", baseURL)
+	}
 
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {

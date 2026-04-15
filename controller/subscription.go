@@ -166,9 +166,15 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		}
 	}
 	req.Plan.ModelRestrictMode = model.NormalizeSubscriptionModelRestrictMode(req.Plan.ModelRestrictMode)
-	if req.Plan.ModelRestrictMode == "group" && req.Plan.UpgradeGroup == "" {
-		common.ApiErrorMsg(c, "按模型组限制时必须配置升级分组")
-		return
+	req.Plan.ModelRestrictGroup = strings.TrimSpace(req.Plan.ModelRestrictGroup)
+	if req.Plan.ModelRestrictMode != "group" {
+		req.Plan.ModelRestrictGroup = ""
+	}
+	if req.Plan.ModelRestrictGroup != "" {
+		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.ModelRestrictGroup]; !ok {
+			common.ApiErrorMsg(c, "模型限制分组不存在")
+			return
+		}
 	}
 	allowedModelsJSON, err := model.NormalizeAllowedModelsJSON(req.Plan.AllowedModels)
 	if err != nil {
@@ -244,9 +250,15 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		}
 	}
 	req.Plan.ModelRestrictMode = model.NormalizeSubscriptionModelRestrictMode(req.Plan.ModelRestrictMode)
-	if req.Plan.ModelRestrictMode == "group" && req.Plan.UpgradeGroup == "" {
-		common.ApiErrorMsg(c, "按模型组限制时必须配置升级分组")
-		return
+	req.Plan.ModelRestrictGroup = strings.TrimSpace(req.Plan.ModelRestrictGroup)
+	if req.Plan.ModelRestrictMode != "group" {
+		req.Plan.ModelRestrictGroup = ""
+	}
+	if req.Plan.ModelRestrictGroup != "" {
+		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.ModelRestrictGroup]; !ok {
+			common.ApiErrorMsg(c, "模型限制分组不存在")
+			return
+		}
 	}
 	allowedModelsJSON, err := model.NormalizeAllowedModelsJSON(req.Plan.AllowedModels)
 	if err != nil {
@@ -281,6 +293,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
 			"model_restrict_mode":        req.Plan.ModelRestrictMode,
+			"model_restrict_group":       req.Plan.ModelRestrictGroup,
 			"allowed_models":             req.Plan.AllowedModels,
 			"daily_quota_limit":          req.Plan.DailyQuotaLimit,
 			"weekly_quota_limit":         req.Plan.WeeklyQuotaLimit,

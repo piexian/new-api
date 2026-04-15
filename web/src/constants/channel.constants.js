@@ -17,6 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+export const CHANNEL_TYPE_MINIMAX = 35;
+export const CHANNEL_TYPE_CODEX = 57;
+
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
   {
@@ -113,11 +116,13 @@ export const CHANNEL_OPTIONS = [
   { value: 19, color: 'blue', label: '360 智脑' },
   { value: 23, color: 'teal', label: '腾讯混元' },
   { value: 31, color: 'green', label: '零一万物' },
-  { value: 35, color: 'green', label: 'MiniMax' },
+  { value: CHANNEL_TYPE_MINIMAX, color: 'green', label: 'MiniMax' },
   { value: 37, color: 'teal', label: 'Dify' },
   { value: 38, color: 'blue', label: 'Jina' },
   { value: 40, color: 'purple', label: 'SiliconCloud' },
   { value: 42, color: 'blue', label: 'Mistral AI' },
+  { value: 58, color: 'green', label: 'Kilo Gateway' },
+  { value: 59, color: 'purple', label: 'Poe' },
   { value: 8, color: 'pink', label: '自定义渠道' },
   {
     value: 22,
@@ -185,7 +190,7 @@ export const CHANNEL_OPTIONS = [
     label: 'Replicate',
   },
   {
-    value: 57,
+    value: CHANNEL_TYPE_CODEX,
     color: 'blue',
     label: 'Codex (OpenAI OAuth)',
   },
@@ -193,7 +198,7 @@ export const CHANNEL_OPTIONS = [
 
 // Channel types that support upstream model list fetching in UI.
 export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
-  1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
+  1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43, 58, 59,
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;

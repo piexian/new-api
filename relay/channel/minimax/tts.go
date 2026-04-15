@@ -1,16 +1,21 @@
 package minimax
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -172,23 +177,101 @@ func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 }
 
 func handleChatCompletionResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if resp == nil || resp.Body == nil {
+		return nil, types.NewOpenAIError(errors.New("invalid minimax response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	if strings.HasPrefix(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") {
+		adaptor := openai.Adaptor{}
+		return adaptor.DoResponse(c, resp, info)
+	}
+
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
-		return nil, types.NewErrorWithStatusCode(
-			errors.New("failed to read minimax response"),
+		return nil, types.NewOpenAIError(
+			fmt.Errorf("failed to read minimax response: %w", readErr),
 			types.ErrorCodeReadResponseBodyFailed,
 			http.StatusInternalServerError,
 		)
 	}
-	defer resp.Body.Close()
-
-	// Set response headers
-	for key, values := range resp.Header {
-		for _, value := range values {
-			c.Header(key, value)
-		}
+	service.CloseResponseBodyGracefully(resp)
+	if len(bytes.TrimSpace(body)) == 0 {
+		return nil, types.NewOpenAIError(
+			errors.New("minimax returned empty response body"),
+			types.ErrorCodeEmptyResponse,
+			http.StatusInternalServerError,
+		)
 	}
 
-	c.Data(resp.StatusCode, "application/json", body)
-	return nil, nil
+	var minimaxResp struct {
+		BaseResp MiniMaxBaseResp `json:"base_resp"`
+	}
+	if unmarshalErr := common.Unmarshal(body, &minimaxResp); unmarshalErr == nil && minimaxResp.BaseResp.StatusCode != 0 {
+		return nil, types.WithOpenAIError(types.OpenAIError{
+			Message: miniMaxStatusMessage(minimaxResp.BaseResp.StatusCode, minimaxResp.BaseResp.StatusMsg),
+			Type:    "minimax_error",
+			Code:    fmt.Sprintf("%d", minimaxResp.BaseResp.StatusCode),
+		}, miniMaxHTTPStatusCode(minimaxResp.BaseResp.StatusCode, resp.StatusCode))
+	}
+
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	usage, err = openai.OpenaiHandler(c, info, resp)
+	if err != nil && err.StatusCode == http.StatusOK {
+		if statusCode := miniMaxHTTPStatusFromAny(err.ToOpenAIError().Code, resp.StatusCode); statusCode != http.StatusOK {
+			err.StatusCode = statusCode
+		}
+	}
+	return usage, err
+}
+
+func miniMaxStatusMessage(statusCode int64, statusMsg string) string {
+	if statusMsg != "" {
+		return statusMsg
+	}
+	return fmt.Sprintf("minimax error: %d", statusCode)
+}
+
+func miniMaxHTTPStatusCode(statusCode int64, fallback int) int {
+	if statusCode >= 100 && statusCode <= 599 {
+		return int(statusCode)
+	}
+	switch statusCode {
+	case 1000, 1024:
+		return http.StatusInternalServerError
+	case 1001:
+		return http.StatusGatewayTimeout
+	case 1002, 1041, 2045, 2056:
+		return http.StatusTooManyRequests
+	case 1004, 2049:
+		return http.StatusUnauthorized
+	case 1008:
+		return http.StatusPaymentRequired
+	case 1026, 1027, 1039, 1042, 1043, 1044, 2013, 20132, 2037, 2039, 2048:
+		return http.StatusBadRequest
+	case 1033:
+		return http.StatusBadGateway
+	case 2038, 2042:
+		return http.StatusForbidden
+	}
+	if fallback >= 100 && fallback <= 599 && fallback != http.StatusOK {
+		return fallback
+	}
+	return http.StatusBadRequest
+}
+
+func miniMaxHTTPStatusFromAny(code any, fallback int) int {
+	switch v := code.(type) {
+	case int:
+		return miniMaxHTTPStatusCode(int64(v), fallback)
+	case int32:
+		return miniMaxHTTPStatusCode(int64(v), fallback)
+	case int64:
+		return miniMaxHTTPStatusCode(v, fallback)
+	case float64:
+		return miniMaxHTTPStatusCode(int64(v), fallback)
+	case string:
+		if parsed, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return miniMaxHTTPStatusCode(parsed, fallback)
+		}
+	}
+	return fallback
 }

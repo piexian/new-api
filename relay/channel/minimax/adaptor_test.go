@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -117,6 +118,118 @@ func TestDoResponseForImageGeneration(t *testing.T) {
 	}
 	if strings.Contains(body, `"image_urls"`) {
 		t.Fatalf("response body = %s, should not expose raw MiniMax image_urls payload", body)
+	}
+}
+
+func TestDoResponseForChatCompletionsMapsMiniMaxBaseRespError(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeChatCompletions,
+		RelayFormat: types.RelayFormatOpenAI,
+		IsStream:    true,
+		StartTime:   time.Unix(1700000000, 0),
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+	}
+	resp.Header.Set("Content-Type", "application/json")
+	resp.Body = ioNopCloser(`{"base_resp":{"status_code":2056,"status_msg":"usage limit exceeded (2056)"}}`)
+
+	adaptor := &Adaptor{}
+	usage, err := adaptor.DoResponse(c, resp, info)
+	if err == nil {
+		t.Fatalf("DoResponse returned nil error")
+	}
+	if usage != nil {
+		t.Fatalf("DoResponse returned unexpected usage: %#v", usage)
+	}
+	if err.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("StatusCode = %d, want %d", err.StatusCode, http.StatusTooManyRequests)
+	}
+	if err.ToOpenAIError().Message != "usage limit exceeded (2056)" {
+		t.Fatalf("message = %q, want %q", err.ToOpenAIError().Message, "usage limit exceeded (2056)")
+	}
+}
+
+func TestDoResponseForChatCompletionsRejectsEmptyBody(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeChatCompletions,
+		RelayFormat: types.RelayFormatOpenAI,
+		IsStream:    true,
+		StartTime:   time.Unix(1700000000, 0),
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+	}
+	resp.Header.Set("Content-Type", "application/json")
+	resp.Body = ioNopCloser(``)
+
+	adaptor := &Adaptor{}
+	usage, err := adaptor.DoResponse(c, resp, info)
+	if err == nil {
+		t.Fatalf("DoResponse returned nil error")
+	}
+	if usage != nil {
+		t.Fatalf("DoResponse returned unexpected usage: %#v", usage)
+	}
+	if err.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("StatusCode = %d, want %d", err.StatusCode, http.StatusInternalServerError)
+	}
+	if err.GetErrorCode() != types.ErrorCodeEmptyResponse {
+		t.Fatalf("ErrorCode = %q, want %q", err.GetErrorCode(), types.ErrorCodeEmptyResponse)
+	}
+}
+
+func TestDoResponseForChatCompletionsPassesOpenAIJSONBody(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "minimax-m2.7",
+		StartTime:       time.Unix(1700000000, 0),
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "minimax-m2.7",
+		},
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+	}
+	resp.Header.Set("Content-Type", "application/json")
+	resp.Body = ioNopCloser(`{"id":"chatcmpl-1","object":"chat.completion","created":1700000000,"model":"minimax-m2.7","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`)
+
+	adaptor := &Adaptor{}
+	usage, err := adaptor.DoResponse(c, resp, info)
+	if err != nil {
+		t.Fatalf("DoResponse returned error: %v", err)
+	}
+	if usage == nil {
+		t.Fatalf("DoResponse returned nil usage")
+	}
+	if usage.(*dto.Usage).TotalTokens != 2 {
+		t.Fatalf("TotalTokens = %d, want 2", usage.(*dto.Usage).TotalTokens)
+	}
+	body := recorder.Body.String()
+	if !strings.Contains(body, `"content":"hello"`) {
+		t.Fatalf("response body = %s, want assistant content", body)
 	}
 }
 
