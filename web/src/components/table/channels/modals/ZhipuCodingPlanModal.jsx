@@ -133,80 +133,113 @@ const KeyPager = ({
   onNext,
   onJump,
 }) => {
+  const handleChannelKeyJumpKeyDown = (event, onConfirmJump) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      onConfirmJump();
+    }
+  };
+
+  const ChannelKeyPager = ({
+    currentKeyIndex: pagerCurrentKeyIndex,
+    jumpKeyNumber: pagerJumpKeyNumber,
+    keyCount: pagerKeyCount,
+    keyMeta: pagerKeyMeta,
+    loading: pagerLoading,
+    onJump: pagerOnJump,
+    onNext: pagerOnNext,
+    onPrev: pagerOnPrev,
+    payload: pagerPayload,
+    setJumpKeyNumber: setPagerJumpKeyNumber,
+    t: pagerT,
+  }) => {
+    const handleJumpKeyDown = useCallback(
+      (event) => handleChannelKeyJumpKeyDown(event, pagerOnJump),
+      [pagerOnJump],
+    );
+
+    return (
+      <div className='flex flex-col gap-3 rounded-lg border border-semi-color-border bg-semi-color-bg-0 p-3 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='flex flex-wrap items-center gap-2'>
+          <Button
+            size='small'
+            theme='outline'
+            onClick={pagerOnPrev}
+            disabled={pagerLoading || pagerCurrentKeyIndex <= 0}
+          >
+            {pagerT('上一页')}
+          </Button>
+          <Tag color='blue' type='light'>
+            {pagerPayload?.key_label || `Key #${pagerCurrentKeyIndex + 1}`}
+          </Tag>
+          <Tag color={pagerKeyMeta.color} type='light'>
+            {pagerKeyMeta.label}
+          </Tag>
+          <Text type='tertiary' size='small'>
+            {pagerT('第 {{current}} / {{total}} 个密钥', {
+              current: pagerCurrentKeyIndex + 1,
+              total: pagerKeyCount,
+            })}
+          </Text>
+          {pagerPayload?.disabled_reason && (
+            <Text type='danger' size='small'>
+              {pagerT('原因')}: {pagerPayload.disabled_reason}
+            </Text>
+          )}
+        </div>
+        <div className='flex flex-wrap items-center gap-2'>
+          <InputNumber
+            min={1}
+            max={pagerKeyCount}
+            value={pagerJumpKeyNumber}
+            size='small'
+            disabled={pagerLoading}
+            style={{ width: 112 }}
+            placeholder={pagerT('密钥编号')}
+            onChange={(value) => setPagerJumpKeyNumber(value)}
+            onKeyDown={handleJumpKeyDown}
+          />
+          <Button
+            size='small'
+            theme='outline'
+            onClick={pagerOnJump}
+            disabled={pagerLoading}
+          >
+            {pagerT('跳转')}
+          </Button>
+          <Button
+            size='small'
+            theme='outline'
+            onClick={pagerOnNext}
+            disabled={pagerLoading || pagerCurrentKeyIndex >= pagerKeyCount - 1}
+          >
+            {pagerT('下一页')}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   const keyCount = Math.max(Number(payload?.key_count || 1), 1);
   if (keyCount <= 1) {
     return null;
   }
   const keyMeta = resolveKeyStatusMeta(payload, t);
-  const handleJumpKeyDown = useCallback(
-    (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        onJump();
-      }
-    },
-    [onJump],
-  );
 
   return (
-    <div className='flex flex-col gap-3 rounded-lg border border-semi-color-border bg-semi-color-bg-0 p-3 sm:flex-row sm:items-center sm:justify-between'>
-      <div className='flex flex-wrap items-center gap-2'>
-        <Button
-          size='small'
-          theme='outline'
-          onClick={onPrev}
-          disabled={loading || currentKeyIndex <= 0}
-        >
-          {t('上一页')}
-        </Button>
-        <Tag color='blue' type='light'>
-          {payload?.key_label || `Key #${currentKeyIndex + 1}`}
-        </Tag>
-        <Tag color={keyMeta.color} type='light'>
-          {keyMeta.label}
-        </Tag>
-        <Text type='tertiary' size='small'>
-          {t('第 {{current}} / {{total}} 个密钥', {
-            current: currentKeyIndex + 1,
-            total: keyCount,
-          })}
-        </Text>
-        {payload?.disabled_reason && (
-          <Text type='danger' size='small'>
-            {t('原因')}: {payload.disabled_reason}
-          </Text>
-        )}
-      </div>
-      <div className='flex flex-wrap items-center gap-2'>
-        <InputNumber
-          min={1}
-          max={keyCount}
-          value={jumpKeyNumber}
-          size='small'
-          disabled={loading}
-          style={{ width: 112 }}
-          placeholder={t('密钥编号')}
-          onChange={(value) => setJumpKeyNumber(value)}
-          onKeyDown={handleJumpKeyDown}
-        />
-        <Button
-          size='small'
-          theme='outline'
-          onClick={onJump}
-          disabled={loading}
-        >
-          {t('跳转')}
-        </Button>
-        <Button
-          size='small'
-          theme='outline'
-          onClick={onNext}
-          disabled={loading || currentKeyIndex >= keyCount - 1}
-        >
-          {t('下一页')}
-        </Button>
-      </div>
-    </div>
+    <ChannelKeyPager
+      currentKeyIndex={currentKeyIndex}
+      jumpKeyNumber={jumpKeyNumber}
+      keyCount={keyCount}
+      keyMeta={keyMeta}
+      loading={loading}
+      onJump={onJump}
+      onNext={onNext}
+      onPrev={onPrev}
+      payload={payload}
+      setJumpKeyNumber={setJumpKeyNumber}
+      t={t}
+    />
   );
 };
 
