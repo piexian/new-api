@@ -54,24 +54,30 @@ import {
 } from '@douyinfe/semi-icons';
 import { FaRandom } from 'react-icons/fa';
 
-const ZHIPU_CODING_PLAN_BASE_URLS = new Set([
+const ZHIPU_CODING_PLAN_SPECIAL_KEYS = new Set([
   'glm-coding-plan',
   'glm-coding-plan-international',
-  'https://open.bigmodel.cn/api/anthropic',
-  'https://open.bigmodel.cn/api/coding/paas/v4',
-  'https://api.z.ai/api/anthropic',
-  'https://api.z.ai/api/coding/paas/v4',
 ]);
+
+const ZHIPU_CODING_PLAN_DOMAINS = [
+  'api.z.ai',
+  'open.bigmodel.cn',
+  'www.bigmodel.cn',
+];
 
 const isZhipuCodingPlanChannel = (record) => {
   if (!record || record.children !== undefined) {
     return false;
   }
+  if (record.type !== CHANNEL_TYPE_ZHIPU_V4) {
+    return false;
+  }
   const baseURL = String(record.base_url || '').trim();
-  return (
-    record.type === CHANNEL_TYPE_ZHIPU_V4 &&
-    ZHIPU_CODING_PLAN_BASE_URLS.has(baseURL)
-  );
+  if (ZHIPU_CODING_PLAN_SPECIAL_KEYS.has(baseURL)) {
+    return true;
+  }
+  const lower = baseURL.toLowerCase().replace(/\/+$/, '');
+  return ZHIPU_CODING_PLAN_DOMAINS.some((domain) => lower.includes(domain));
 };
 
 // Render functions
