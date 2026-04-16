@@ -1,7 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Button,
   Collapse,
+  InputNumber,
   Modal,
   Progress,
   Spin,
@@ -92,16 +99,11 @@ const resolveCurrentWindowLabel = (startTime, endTime, t) => {
   return t('当前窗口');
 };
 
-const resolveWindowQuota = ({
-  total,
-  remaining,
-  upstreamUsageCount,
-}) => {
+const resolveWindowQuota = ({ total, remaining, upstreamUsageCount }) => {
   const totalValue = toNumber(total);
   // MiniMax coding_plan/remains 的 usage_count 实际表示“剩余次数”，
   // 不是“已使用次数”，需要由 total - remaining 反推出 used。
-  const remainingValue =
-    toNumber(remaining) ?? toNumber(upstreamUsageCount);
+  const remainingValue = toNumber(remaining) ?? toNumber(upstreamUsageCount);
   const usedValue =
     totalValue != null && remainingValue != null
       ? Math.max(totalValue - remainingValue, 0)
@@ -150,7 +152,9 @@ const buildWindow = ({
   }
 
   const percent =
-    total != null && total > 0 && used != null ? toIntegerPercent((used / total) * 100) : 0;
+    total != null && total > 0 && used != null
+      ? toIntegerPercent((used / total) * 100)
+      : 0;
 
   return {
     key,
@@ -285,12 +289,116 @@ const MetaBlock = ({ label, value }) => {
   return (
     <div className='min-w-0 rounded-lg border border-semi-color-border bg-semi-color-bg-0 p-3'>
       <div className='mb-1 text-xs text-semi-color-text-2'>{label}</div>
-      <div className='min-w-0 break-all text-sm text-semi-color-text-0'>{value}</div>
+      <div className='min-w-0 break-all text-sm text-semi-color-text-0'>
+        {value}
+      </div>
     </div>
   );
 };
 
-const MiniMaxUsageView = ({ t, record, payload, onRefresh }) => {
+const resolveKeyStatusMeta = (payload, t) => {
+  const status = Number(payload?.key_status);
+  if (status === 2) {
+    return { color: 'red', label: t('已禁用') };
+  }
+  return { color: 'green', label: t('启用') };
+};
+
+const KeyPager = ({
+  t,
+  payload,
+  loading,
+  currentKeyIndex,
+  jumpKeyNumber,
+  setJumpKeyNumber,
+  onPrev,
+  onNext,
+  onJump,
+}) => {
+  const keyCount = Math.max(Number(payload?.key_count || 1), 1);
+  if (keyCount <= 1) {
+    return null;
+  }
+  const keyMeta = resolveKeyStatusMeta(payload, t);
+  const handleJumpKeyDown = useCallback(
+    (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        onJump();
+      }
+    },
+    [onJump],
+  );
+
+  return (
+    <div className='flex flex-col gap-3 rounded-lg border border-semi-color-border bg-semi-color-bg-0 p-3 sm:flex-row sm:items-center sm:justify-between'>
+      <div className='flex flex-wrap items-center gap-2'>
+        <Button
+          size='small'
+          theme='outline'
+          onClick={onPrev}
+          disabled={loading || currentKeyIndex <= 0}
+        >
+          {t('上一页')}
+        </Button>
+        <Tag color='blue' type='light'>
+          {payload?.key_label || `Key #${currentKeyIndex + 1}`}
+        </Tag>
+        <Tag color={keyMeta.color} type='light'>
+          {keyMeta.label}
+        </Tag>
+        <Text type='tertiary' size='small'>
+          {t('第 {{current}} / {{total}} 个密钥', {
+            current: currentKeyIndex + 1,
+            total: keyCount,
+          })}
+        </Text>
+        {payload?.disabled_reason && (
+          <Text type='danger' size='small'>
+            {t('原因')}: {payload.disabled_reason}
+          </Text>
+        )}
+      </div>
+      <div className='flex flex-wrap items-center gap-2'>
+        <InputNumber
+          min={1}
+          max={keyCount}
+          value={jumpKeyNumber}
+          size='small'
+          disabled={loading}
+          style={{ width: 112 }}
+          placeholder={t('密钥编号')}
+          onChange={(value) => setJumpKeyNumber(value)}
+          onKeyDown={handleJumpKeyDown}
+        />
+        <Button
+          size='small'
+          theme='outline'
+          onClick={onJump}
+          disabled={loading}
+        >
+          {t('跳转')}
+        </Button>
+        <Button
+          size='small'
+          theme='outline'
+          onClick={onNext}
+          disabled={loading || currentKeyIndex >= keyCount - 1}
+        >
+          {t('下一页')}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+const MiniMaxUsageView = ({
+  t,
+  record,
+  payload,
+  onRefresh,
+  compact = false,
+}) => {
   const upstreamData =
     payload?.data && typeof payload.data === 'object' ? payload.data : null;
   const modelRemains = Array.isArray(upstreamData?.model_remains)
@@ -317,22 +425,24 @@ const MiniMaxUsageView = ({ t, record, payload, onRefresh }) => {
 
   return (
     <div className='flex flex-col gap-4 pr-1'>
-      <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
-        <div className='min-w-0 break-all text-xs text-semi-color-text-2'>
-          {t('渠道：')}
-          {record?.name || '-'} ({t('编号：')}
-          {record?.id || '-'})
+      {!compact && (
+        <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+          <div className='min-w-0 break-all text-xs text-semi-color-text-2'>
+            {t('渠道：')}
+            {record?.name || '-'} ({t('编号：')}
+            {record?.id || '-'})
+          </div>
+          <Button
+            type='primary'
+            theme='outline'
+            size='small'
+            onClick={onRefresh}
+            className='self-start'
+          >
+            {t('刷新')}
+          </Button>
         </div>
-        <Button
-          type='primary'
-          theme='outline'
-          size='small'
-          onClick={onRefresh}
-          className='self-start'
-        >
-          {t('刷新')}
-        </Button>
-      </div>
+      )}
 
       {!payload?.success && (
         <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600'>
@@ -341,11 +451,11 @@ const MiniMaxUsageView = ({ t, record, payload, onRefresh }) => {
       )}
 
       <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-        <MetaBlock label={t('上游状态')} value={payload?.upstream_status ?? '-'} />
         <MetaBlock
-          label={t('请求地址')}
-          value={payload?.request_url || '-'}
+          label={t('上游状态')}
+          value={payload?.upstream_status ?? '-'}
         />
+        <MetaBlock label={t('请求地址')} value={payload?.request_url || '-'} />
         <MetaBlock
           label={t('业务状态')}
           value={
@@ -374,7 +484,9 @@ const MiniMaxUsageView = ({ t, record, payload, onRefresh }) => {
           ))
         ) : (
           <div className='rounded-lg border border-semi-color-border bg-semi-color-bg-0 px-4 py-6 text-sm text-semi-color-text-2'>
-            {t('当前未解析到可用额度窗口，可能不是 Token Plan Key，或上游接口字段已变化。')}
+            {t(
+              '当前未解析到可用额度窗口，可能不是 Token Plan Key，或上游接口字段已变化。',
+            )}
           </div>
         )}
         {unavailableModels.length > 0 && (
@@ -407,38 +519,56 @@ const MiniMaxUsageView = ({ t, record, payload, onRefresh }) => {
 const MiniMaxUsageLoader = ({ t, record, initialPayload }) => {
   const [loading, setLoading] = useState(!initialPayload);
   const [payload, setPayload] = useState(initialPayload ?? null);
+  const [currentKeyIndex, setCurrentKeyIndex] = useState(
+    Number(initialPayload?.key_index ?? 0),
+  );
+  const [jumpKeyNumber, setJumpKeyNumber] = useState(
+    Number(initialPayload?.key_index ?? 0) + 1,
+  );
   const hasShownErrorRef = useRef(false);
   const mountedRef = useRef(true);
   const recordId = record?.id;
 
-  const fetchUsage = useCallback(async () => {
-    if (!recordId) {
-      if (mountedRef.current) setPayload(null);
-      return;
-    }
+  const fetchUsage = useCallback(
+    async (requestedKeyIndex) => {
+      if (!recordId) {
+        if (mountedRef.current) setPayload(null);
+        return;
+      }
 
-    if (mountedRef.current) setLoading(true);
-    try {
-      const res = await API.get(`/api/channel/${recordId}/minimax/usage`, {
-        skipErrorHandler: true,
-      });
-      if (!mountedRef.current) return;
-      setPayload(res?.data ?? null);
-      if (!res?.data?.success && !hasShownErrorRef.current) {
-        hasShownErrorRef.current = true;
-        showError(t('获取 MiniMax Token Plan 用量失败'));
+      if (mountedRef.current) setLoading(true);
+      try {
+        const query = `?key_index=${Math.max(Number(requestedKeyIndex || 0), 0)}`;
+        const res = await API.get(
+          `/api/channel/${recordId}/minimax/usage${query}`,
+          {
+            skipErrorHandler: true,
+          },
+        );
+        if (!mountedRef.current) return;
+        setPayload(res?.data ?? null);
+        const resolvedKeyIndex = Number(
+          res?.data?.key_index ?? requestedKeyIndex ?? 0,
+        );
+        setCurrentKeyIndex(resolvedKeyIndex);
+        setJumpKeyNumber(resolvedKeyIndex + 1);
+        if (!res?.data?.success && !hasShownErrorRef.current) {
+          hasShownErrorRef.current = true;
+          showError(t('获取 MiniMax Token Plan 用量失败'));
+        }
+      } catch (error) {
+        if (!mountedRef.current) return;
+        if (!hasShownErrorRef.current) {
+          hasShownErrorRef.current = true;
+          showError(t('获取 MiniMax Token Plan 用量失败'));
+        }
+        setPayload({ success: false, message: String(error) });
+      } finally {
+        if (mountedRef.current) setLoading(false);
       }
-    } catch (error) {
-      if (!mountedRef.current) return;
-      if (!hasShownErrorRef.current) {
-        hasShownErrorRef.current = true;
-        showError(t('获取 MiniMax Token Plan 用量失败'));
-      }
-      setPayload({ success: false, message: String(error) });
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
-  }, [recordId, t]);
+    },
+    [recordId, t],
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -448,9 +578,56 @@ const MiniMaxUsageLoader = ({ t, record, initialPayload }) => {
   }, []);
 
   useEffect(() => {
-    if (initialPayload) return;
-    fetchUsage().catch(() => {});
-  }, [fetchUsage, initialPayload]);
+    const initialIndex = Number(initialPayload?.key_index ?? 0);
+    setCurrentKeyIndex(initialIndex);
+    setJumpKeyNumber(initialIndex + 1);
+    if (initialPayload) {
+      setPayload(initialPayload);
+      setLoading(false);
+    } else {
+      setPayload(null);
+    }
+    hasShownErrorRef.current = false;
+  }, [initialPayload, recordId]);
+
+  useEffect(() => {
+    if (
+      initialPayload &&
+      Number(initialPayload?.key_index ?? 0) === currentKeyIndex
+    ) {
+      return;
+    }
+    fetchUsage(currentKeyIndex).catch(() => {});
+  }, [currentKeyIndex, fetchUsage, initialPayload]);
+
+  const handlePrev = useCallback(() => {
+    if (loading) {
+      return;
+    }
+    setCurrentKeyIndex((value) => Math.max(value - 1, 0));
+  }, [loading]);
+
+  const handleNext = useCallback(() => {
+    if (loading) {
+      return;
+    }
+    const keyCount = Math.max(Number(payload?.key_count || 1), 1);
+    setCurrentKeyIndex((value) => Math.min(value + 1, keyCount - 1));
+  }, [loading, payload?.key_count]);
+
+  const handleJump = useCallback(() => {
+    if (loading) {
+      return;
+    }
+    const keyCount = Math.max(Number(payload?.key_count || 1), 1);
+    const requested = Number(jumpKeyNumber);
+    if (!Number.isFinite(requested) || requested < 1) {
+      return;
+    }
+    const targetIndex =
+      Math.min(Math.max(Math.floor(requested), 1), keyCount) - 1;
+    setCurrentKeyIndex(targetIndex);
+  }, [jumpKeyNumber, loading, payload?.key_count]);
 
   if (loading) {
     return (
@@ -465,7 +642,12 @@ const MiniMaxUsageLoader = ({ t, record, initialPayload }) => {
       <div className='flex flex-col gap-3'>
         <Text type='danger'>{t('获取 MiniMax Token Plan 用量失败')}</Text>
         <div className='flex justify-end'>
-          <Button size='small' type='primary' theme='outline' onClick={fetchUsage}>
+          <Button
+            size='small'
+            type='primary'
+            theme='outline'
+            onClick={() => fetchUsage(currentKeyIndex)}
+          >
             {t('刷新')}
           </Button>
         </div>
@@ -474,12 +656,25 @@ const MiniMaxUsageLoader = ({ t, record, initialPayload }) => {
   }
 
   return (
-    <MiniMaxUsageView
-      t={t}
-      record={record}
-      payload={payload}
-      onRefresh={fetchUsage}
-    />
+    <div className='flex flex-col gap-4'>
+      <KeyPager
+        t={t}
+        payload={payload}
+        loading={loading}
+        currentKeyIndex={currentKeyIndex}
+        jumpKeyNumber={jumpKeyNumber}
+        setJumpKeyNumber={setJumpKeyNumber}
+        onPrev={handlePrev}
+        onNext={handleNext}
+        onJump={handleJump}
+      />
+      <MiniMaxUsageView
+        t={t}
+        record={record}
+        payload={payload}
+        onRefresh={() => fetchUsage(currentKeyIndex)}
+      />
+    </div>
   );
 };
 

@@ -44,8 +44,10 @@ func GetMiniMaxChannelUsage(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not MiniMax"})
 		return
 	}
-	if ch.ChannelInfo.IsMultiKey {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "multi-key channel is not supported"})
+
+	keySelection, err := resolveChannelUsageKeySelection(ch, c.Query("key_index"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 
@@ -58,7 +60,7 @@ func GetMiniMaxChannelUsage(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
-	statusCode, body, requestURL, err := fetchMiniMaxTokenPlanUsage(ctx, client, ch)
+	statusCode, body, requestURL, err := fetchMiniMaxTokenPlanUsage(ctx, client, ch, keySelection.Key)
 	if err != nil {
 		common.SysError("failed to fetch minimax token plan usage: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{
@@ -68,14 +70,29 @@ func GetMiniMaxChannelUsage(c *gin.Context) {
 		return
 	}
 
-	var payload any
+	payload, success, message := parseMiniMaxUsageResponse(statusCode, body)
+	c.JSON(http.StatusOK, gin.H{
+		"success":         success,
+		"message":         message,
+		"multi_key":       ch.ChannelInfo.IsMultiKey,
+		"key_index":       keySelection.KeyIndex,
+		"key_count":       keySelection.KeyCount,
+		"key_label":       keySelection.KeyLabel,
+		"key_status":      keySelection.KeyStatus,
+		"disabled_reason": keySelection.DisabledReason,
+		"disabled_time":   keySelection.DisabledTime,
+		"upstream_status": statusCode,
+		"request_url":     requestURL,
+		"data":            payload,
+	})
+}
+
+func parseMiniMaxUsageResponse(statusCode int, body []byte) (payload any, success bool, message string) {
 	if common.Unmarshal(body, &payload) != nil {
 		payload = string(body)
 	}
 
-	success := statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices
-	message := ""
-
+	success = statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices
 	var envelope miniMaxUsageEnvelope
 	if common.Unmarshal(body, &envelope) == nil && envelope.BaseResp.StatusCode != 0 {
 		success = false
@@ -87,24 +104,17 @@ func GetMiniMaxChannelUsage(c *gin.Context) {
 	if !success && message == "" {
 		message = fmt.Sprintf("upstream status: %d", statusCode)
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success":         success,
-		"message":         message,
-		"upstream_status": statusCode,
-		"request_url":     requestURL,
-		"data":            payload,
-	})
+	return payload, success, message
 }
 
-func fetchMiniMaxTokenPlanUsage(ctx context.Context, client *http.Client, channel *model.Channel) (statusCode int, body []byte, requestURL string, err error) {
+func fetchMiniMaxTokenPlanUsage(ctx context.Context, client *http.Client, channel *model.Channel, apiKey string) (statusCode int, body []byte, requestURL string, err error) {
 	var lastErr error
 	var lastStatusCode int
 	var lastBody []byte
 	var lastRequestURL string
 
 	for _, candidateURL := range miniMaxTokenPlanRequestURLs(channel) {
-		statusCode, body, err = doMiniMaxTokenPlanUsageRequest(ctx, client, candidateURL, strings.TrimSpace(channel.Key))
+		statusCode, body, err = doMiniMaxTokenPlanUsageRequest(ctx, client, candidateURL, apiKey)
 		if err != nil {
 			lastErr = err
 			continue

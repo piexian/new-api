@@ -46,6 +46,7 @@ const ChannelsTable = (channelsData) => {
     // Column functions and data
     updateChannelBalance,
     openMiniMaxTokenPlanUsage,
+    openZhipuCodingPlanUsage,
     manageChannel,
     manageTag,
     submitTagEdit,
@@ -73,6 +74,7 @@ const ChannelsTable = (channelsData) => {
       COLUMN_KEYS,
       updateChannelBalance,
       openMiniMaxTokenPlanUsage,
+      openZhipuCodingPlanUsage,
       manageChannel,
       manageTag,
       submitTagEdit,
@@ -98,6 +100,7 @@ const ChannelsTable = (channelsData) => {
     COLUMN_KEYS,
     updateChannelBalance,
     openMiniMaxTokenPlanUsage,
+    openZhipuCodingPlanUsage,
     manageChannel,
     manageTag,
     submitTagEdit,

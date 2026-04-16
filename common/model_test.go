@@ -62,3 +62,28 @@ func TestGetEndpointTypesByChannelTypeForPoeNonClaudeModel(t *testing.T) {
 		t.Fatalf("expected Poe non-Claude model endpoints %#v, got %#v", want, endpoints)
 	}
 }
+
+func TestGetEndpointTypesByChannelTypeForZhipuClaudeModel(t *testing.T) {
+	t.Parallel()
+
+	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeZhipu, "claude-3-7-sonnet")
+	want := []constant.EndpointType{
+		constant.EndpointTypeAnthropic,
+		constant.EndpointTypeOpenAI,
+	}
+	if !reflect.DeepEqual(endpoints, want) {
+		t.Fatalf("expected Zhipu Claude model endpoints %#v, got %#v", want, endpoints)
+	}
+}
+
+func TestGetEndpointTypesByChannelTypeForZhipuNonClaudeModel(t *testing.T) {
+	t.Parallel()
+
+	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeZhipu, "glm-4-plus")
+	want := []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+	}
+	if !reflect.DeepEqual(endpoints, want) {
+		t.Fatalf("expected Zhipu non-Claude model endpoints %#v, got %#v", want, endpoints)
+	}
+}

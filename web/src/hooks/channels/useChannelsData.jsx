@@ -40,6 +40,7 @@ import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 import { openMiniMaxUsageModal } from '../../components/table/channels/modals/MiniMaxUsageModal';
+import { openZhipuCodingPlanUsageModal } from '../../components/table/channels/modals/ZhipuCodingPlanModal';
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -790,6 +791,13 @@ export const useChannelsData = () => {
     });
   };
 
+  const openZhipuCodingPlanUsage = (record) => {
+    openZhipuCodingPlanUsageModal({
+      t,
+      record,
+    });
+  };
+
   const fixChannelsAbilities = async () => {
     const res = await API.post(`/api/channel/fix`);
     const { success, message, data } = res.data;
@@ -1242,6 +1250,7 @@ export const useChannelsData = () => {
     updateAllChannelsBalance,
     updateChannelBalance,
     openMiniMaxTokenPlanUsage,
+    openZhipuCodingPlanUsage,
     fixChannelsAbilities,
     checkOllamaVersion,
     testChannel,
