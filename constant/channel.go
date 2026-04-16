@@ -57,6 +57,7 @@ const (
 	ChannelTypeCodex          = 57
 	ChannelTypeKilo           = 58
 	ChannelTypePoe            = 59
+	ChannelTypeXunfeiMaaS     = 60
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -122,6 +123,7 @@ var ChannelBaseURLs = []string{
 	"https://chatgpt.com",                       //57
 	"https://api.kilo.ai/api/gateway",           //58
 	"https://api.poe.com",                       //59
+	"https://maas-api.cn-huabei-1.xf-yun.com/v2", //60
 }
 
 var ChannelTypeNames = map[int]string{
@@ -181,6 +183,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeCodex:          "Codex",
 	ChannelTypeKilo:           "KiloGateway",
 	ChannelTypePoe:            "Poe",
+	ChannelTypeXunfeiMaaS:     "XunfeiMaaS",
 }
 
 func GetChannelTypeName(channelType int) string {

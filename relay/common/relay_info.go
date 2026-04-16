@@ -323,6 +323,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeMiniMax:     true,
 	constant.ChannelTypePoe:         true,
 	constant.ChannelTypeSiliconFlow: true,
+	constant.ChannelTypeXunfeiMaaS:  true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {

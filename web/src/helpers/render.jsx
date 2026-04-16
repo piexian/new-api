@@ -56,6 +56,7 @@ import {
   Kling,
   Jimeng,
   Perplexity,
+  Poe,
   Replicate,
 } from '@lobehub/icons/es/icons';
 
@@ -356,6 +357,7 @@ export function getChannelIcon(channelType) {
     case 17: // 阿里通义千问
       return <Qwen.Color size={iconSize} />;
     case 18: // 讯飞星火认知
+    case 60: // 讯飞星辰MaaS
       return <Spark.Color size={iconSize} />;
     case 16: // 智谱 ChatGLM
     case 26: // 智谱 GLM-4V
@@ -403,6 +405,8 @@ export function getChannelIcon(channelType) {
       return <Doubao.Color size={iconSize} />;
     case 56: // Replicate
       return <Replicate size={iconSize} />;
+    case 59: // Poe
+      return <Poe size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;
@@ -1625,10 +1629,9 @@ function renderPriceSimpleCore({
 
 export function renderTaskBillingProcess(other, content) {
   if (other?.task_id != null) {
-    return renderBillingArticle(
-      [content].filter(Boolean),
-      { showReferenceNote: false },
-    );
+    return renderBillingArticle([content].filter(Boolean), {
+      showReferenceNote: false,
+    });
   }
   return renderBillingArticle([
     buildBillingText('任务预扣费（将在任务完成后按实际token重算）'),
