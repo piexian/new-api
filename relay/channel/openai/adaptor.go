@@ -182,6 +182,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, kiloRequestURLPath(info), info.ChannelType), nil
 	//case constant.ChannelTypeMiniMax:
 	//	return minimax.GetRequestURL(info)
+	case constant.ChannelTypeXunfeiMaaS:
+		// 讯飞星辰MaaS base URL 已含版本前缀 /v2，需去掉传入路径的 /v1
+		return fmt.Sprintf("%s%s", info.ChannelBaseUrl, strings.TrimPrefix(info.RequestURLPath, "/v1")), nil
 	case constant.ChannelTypeCustom:
 		url := info.ChannelBaseUrl
 		url = strings.Replace(url, "{model}", info.UpstreamModelName, -1)
