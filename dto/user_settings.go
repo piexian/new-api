@@ -16,6 +16,8 @@ type UserSetting struct {
 	SidebarModules                   string  `json:"sidebar_modules,omitempty"`                      // SidebarModules 左侧边栏模块配置
 	BillingPreference                string  `json:"billing_preference,omitempty"`                   // BillingPreference 扣费策略（订阅/钱包）
 	Language                         string  `json:"language,omitempty"`                             // Language 用户语言偏好 (zh, en)
+	SetupCompleted                   string  `json:"setup_completed,omitempty"`                      // SetupCompleted 新用户引导状态: "pending"=待完成, ""=已完成或老用户
+	FeatureUpdateV1                  string  `json:"feature_update_v1,omitempty"`                    // FeatureUpdateV1 功能更新公告: "dismissed"=已关闭, ""=未查看（老用户）
 }
 
 var (

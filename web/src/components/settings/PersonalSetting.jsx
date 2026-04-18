@@ -45,6 +45,8 @@ import EmailBindModal from './personal/modals/EmailBindModal';
 import WeChatBindModal from './personal/modals/WeChatBindModal';
 import AccountDeleteModal from './personal/modals/AccountDeleteModal';
 import ChangePasswordModal from './personal/modals/ChangePasswordModal';
+import SetupGuideModal from './personal/modals/SetupGuideModal';
+import UpdateAnnouncementModal from './personal/modals/UpdateAnnouncementModal';
 
 const PersonalSetting = () => {
   const [userState, userDispatch] = useContext(UserContext);
@@ -65,6 +67,8 @@ const PersonalSetting = () => {
   const [showWeChatBindModal, setShowWeChatBindModal] = useState(false);
   const [showEmailBindModal, setShowEmailBindModal] = useState(false);
   const [showAccountDeleteModal, setShowAccountDeleteModal] = useState(false);
+  const [showSetupGuideModal, setShowSetupGuideModal] = useState(false);
+  const [showUpdateAnnouncement, setShowUpdateAnnouncement] = useState(false);
   const [turnstileEnabled, setTurnstileEnabled] = useState(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
@@ -167,6 +171,40 @@ const PersonalSetting = () => {
       });
     }
   }, [userState?.user?.setting]);
+
+  // 检查是否需要显示新用户引导弹窗或更新公告
+  useEffect(() => {
+    if (userState?.user) {
+      const setupCompleted = userState.user.setup_completed;
+      const featureUpdateV1 = userState.user.feature_update_v1;
+      if (setupCompleted === 'pending') {
+        // 新用户 → 显示引导弹窗
+        setShowSetupGuideModal(true);
+      } else if (featureUpdateV1 !== 'dismissed') {
+        // 老用户且未查看公告 → 显示更新公告
+        setShowUpdateAnnouncement(true);
+      }
+    }
+  }, [userState?.user?.setup_completed, userState?.user?.feature_update_v1]);
+
+  const handleSetupGuideComplete = async () => {
+    try {
+      await API.put('/api/user/self', { setup_completed: 'completed' });
+      await getUserData();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleDismissAnnouncement = async () => {
+    setShowUpdateAnnouncement(false);
+    try {
+      await API.put('/api/user/self', { feature_update_v1: 'dismissed' });
+      await getUserData();
+    } catch {
+      // ignore
+    }
+  };
 
   const handleInputChange = (name, value) => {
     setInputs((inputs) => ({ ...inputs, [name]: value }));
@@ -319,15 +357,12 @@ const PersonalSetting = () => {
   };
 
   const changePassword = async () => {
-    // if (inputs.original_password === '') {
-    //   showError(t('请输入原密码！'));
-    //   return;
-    // }
     if (inputs.set_new_password === '') {
       showError(t('请输入新密码！'));
       return;
     }
-    if (inputs.original_password === inputs.set_new_password) {
+    const hasPassword = userState?.user?.has_password;
+    if (hasPassword && inputs.original_password === inputs.set_new_password) {
       showError(t('新密码需要和原密码不一致！'));
       return;
     }
@@ -335,10 +370,13 @@ const PersonalSetting = () => {
       showError(t('两次输入的密码不一致！'));
       return;
     }
-    const res = await API.put(`/api/user/self`, {
-      original_password: inputs.original_password,
+    const payload = {
       password: inputs.set_new_password,
-    });
+    };
+    if (hasPassword) {
+      payload.original_password = inputs.original_password;
+    }
+    const res = await API.put(`/api/user/self`, payload);
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('密码修改成功！'));
@@ -453,7 +491,7 @@ const PersonalSetting = () => {
       <div className='flex justify-center'>
         <div className='w-full max-w-7xl mx-auto px-2'>
           {/* 顶部用户信息区域 */}
-          <UserInfoHeader t={t} userState={userState} />
+          <UserInfoHeader t={t} userState={userState} onUsernameUpdated={getUserData} />
 
           {/* 签到日历 - 仅在启用时显示 */}
           {status?.checkin_enabled && (
@@ -555,6 +593,23 @@ const PersonalSetting = () => {
         turnstileEnabled={turnstileEnabled}
         turnstileSiteKey={turnstileSiteKey}
         setTurnstileToken={setTurnstileToken}
+        hasPassword={userState?.user?.has_password ?? true}
+      />
+
+      <SetupGuideModal
+        t={t}
+        visible={showSetupGuideModal}
+        onClose={() => setShowSetupGuideModal(false)}
+        userState={userState}
+        onComplete={handleSetupGuideComplete}
+      />
+
+      <UpdateAnnouncementModal
+        t={t}
+        visible={showUpdateAnnouncement}
+        onClose={handleDismissAnnouncement}
+        hasPassword={userState?.user?.has_password ?? true}
+        onChangePassword={() => setShowChangePasswordModal(true)}
       />
     </div>
   );

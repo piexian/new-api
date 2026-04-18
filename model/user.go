@@ -390,7 +390,10 @@ func (user *User) Insert(inviterId int) error {
 
 	// 初始化用户设置，包括默认的边栏配置
 	if user.Setting == "" {
-		defaultSetting := dto.UserSetting{}
+		defaultSetting := dto.UserSetting{
+			SetupCompleted:  "pending",
+			FeatureUpdateV1: "dismissed",
+		}
 		// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
 		user.SetSetting(defaultSetting)
 	}
@@ -419,7 +422,10 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 
 	// 初始化用户设置
 	if user.Setting == "" {
-		defaultSetting := dto.UserSetting{}
+		defaultSetting := dto.UserSetting{
+			SetupCompleted:  "pending",
+			FeatureUpdateV1: "dismissed",
+		}
 		user.SetSetting(defaultSetting)
 	}
 
@@ -659,6 +665,10 @@ func (user *User) FillUserByTelegramId() error {
 
 func IsEmailAlreadyTaken(email string) bool {
 	return DB.Unscoped().Where("email = ?", email).Find(&User{}).RowsAffected == 1
+}
+
+func IsUsernameAlreadyTaken(username string, excludeUserId int) bool {
+	return DB.Unscoped().Where("username = ? AND id != ?", username, excludeUserId).Find(&User{}).RowsAffected > 0
 }
 
 func IsWeChatIdAlreadyTaken(wechatId string) bool {

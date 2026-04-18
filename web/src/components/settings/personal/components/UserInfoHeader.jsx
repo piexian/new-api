@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Avatar,
   Card,
@@ -25,16 +25,26 @@ import {
   Divider,
   Typography,
   Badge,
+  Input,
+  Button,
+  Space,
 } from '@douyinfe/semi-ui';
+import { IconEdit, IconTick, IconClose } from '@douyinfe/semi-icons';
 import {
   isRoot,
   isAdmin,
   renderQuota,
   stringToColor,
+  API,
+  showError,
+  showSuccess,
 } from '../../../../helpers';
 import { Coins, BarChart2, Users } from 'lucide-react';
 
-const UserInfoHeader = ({ t, userState }) => {
+const UserInfoHeader = ({ t, userState, onUsernameUpdated }) => {
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [saving, setSaving] = useState(false);
   const getUsername = () => {
     if (userState.user) {
       return userState.user.username;
@@ -49,6 +59,50 @@ const UserInfoHeader = ({ t, userState }) => {
       return username.slice(0, 2).toUpperCase();
     }
     return 'NA';
+  };
+
+  const startEditUsername = () => {
+    setNewUsername(getUsername());
+    setEditingUsername(true);
+  };
+
+  const cancelEditUsername = () => {
+    setEditingUsername(false);
+    setNewUsername('');
+  };
+
+  const saveUsername = async () => {
+    const trimmed = newUsername.trim();
+    if (!trimmed) {
+      showError(t('用户名不能为空'));
+      return;
+    }
+    if (trimmed.length > 20) {
+      showError(t('用户名长度不能超过20个字符'));
+      return;
+    }
+    if (trimmed === getUsername()) {
+      setEditingUsername(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await API.put('/api/user/self', { username: trimmed });
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('用户名修改成功'));
+        setEditingUsername(false);
+        if (onUsernameUpdated) {
+          onUsernameUpdated();
+        }
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(t('操作失败，请重试'));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -73,11 +127,51 @@ const UserInfoHeader = ({ t, userState }) => {
                   {getAvatarText()}
                 </Avatar>
                 <div className='flex-1 min-w-0 flex flex-col justify-between'>
-                  <div
-                    className='text-3xl font-bold truncate'
-                    style={{ color: 'white' }}
-                  >
-                    {getUsername()}
+                  <div className='flex items-center gap-2'>
+                    {editingUsername ? (
+                      <Space>
+                        <Input
+                          value={newUsername}
+                          onChange={setNewUsername}
+                          onEnterPress={saveUsername}
+                          size='large'
+                          maxLength={20}
+                          style={{ width: 180, color: 'white', background: 'rgba(255,255,255,0.15)', border: 'none' }}
+                          autoFocus
+                        />
+                        <Button
+                          icon={<IconTick />}
+                          theme='borderless'
+                          style={{ color: 'white' }}
+                          loading={saving}
+                          onClick={saveUsername}
+                          size='small'
+                        />
+                        <Button
+                          icon={<IconClose />}
+                          theme='borderless'
+                          style={{ color: 'white' }}
+                          onClick={cancelEditUsername}
+                          size='small'
+                        />
+                      </Space>
+                    ) : (
+                      <>
+                        <div
+                          className='text-3xl font-bold truncate'
+                          style={{ color: 'white' }}
+                        >
+                          {getUsername()}
+                        </div>
+                        <Button
+                          icon={<IconEdit />}
+                          theme='borderless'
+                          style={{ color: 'rgba(255,255,255,0.7)' }}
+                          onClick={startEditUsername}
+                          size='small'
+                        />
+                      </>
+                    )}
                   </div>
                   <div className='flex flex-wrap items-center gap-2'>
                     {isRoot() ? (

@@ -642,7 +642,9 @@ const AccountManagement = ({
                           {t('密码管理')}
                         </Typography.Title>
                         <Typography.Text type='tertiary' className='text-sm'>
-                          {t('定期更改密码可以提高账户安全性')}
+                          {userState?.user?.has_password
+                            ? t('定期更改密码可以提高账户安全性')
+                            : t('设置密码后可使用用户名密码登录')}
                         </Typography.Text>
                       </div>
                     </div>
@@ -653,7 +655,7 @@ const AccountManagement = ({
                       className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
                       icon={<IconLock />}
                     >
-                      {t('修改密码')}
+                      {userState?.user?.has_password ? t('修改密码') : t('设置密码')}
                     </Button>
                   </div>
                 </Card>

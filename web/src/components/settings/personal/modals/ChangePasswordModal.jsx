@@ -32,13 +32,14 @@ const ChangePasswordModal = ({
   turnstileEnabled,
   turnstileSiteKey,
   setTurnstileToken,
+  hasPassword = true,
 }) => {
   return (
     <Modal
       title={
         <div className='flex items-center'>
           <IconLock className='mr-2 text-orange-500' />
-          {t('修改密码')}
+          {hasPassword ? t('修改密码') : t('设置密码')}
         </div>
       }
       visible={showChangePasswordModal}
@@ -49,6 +50,7 @@ const ChangePasswordModal = ({
       className='modern-modal'
     >
       <div className='space-y-4 py-4'>
+        {hasPassword && (
         <div>
           <Typography.Text strong className='block mb-2'>
             {t('原密码')}
@@ -64,6 +66,7 @@ const ChangePasswordModal = ({
             prefix={<IconLock />}
           />
         </div>
+        )}
 
         <div>
           <Typography.Text strong className='block mb-2'>

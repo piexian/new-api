@@ -387,6 +387,9 @@ func GetSelf(c *gin.Context) {
 	// 获取用户设置并提取sidebar_modules
 	userSetting := user.GetSetting()
 
+	// 判断用户是否设置了密码
+	hasPassword := user.Password != ""
+
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
 		"id":                user.Id,
@@ -414,6 +417,9 @@ func GetSelf(c *gin.Context) {
 		"stripe_customer":   user.StripeCustomer,
 		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":       permissions,                // 新增权限字段
+		"has_password":      hasPassword,
+		"setup_completed":   userSetting.SetupCompleted,
+		"feature_update_v1": userSetting.FeatureUpdateV1,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -686,6 +692,39 @@ func UpdateSelf(c *gin.Context) {
 		return
 	}
 
+	// 检查是否是 setup_completed 或 feature_update_v1 更新请求
+	setupCompleted, scExists := requestData["setup_completed"]
+	featureUpdateV1, fuExists := requestData["feature_update_v1"]
+	if scExists || fuExists {
+		userId := c.GetInt("id")
+		user, err := model.GetUserById(userId, false)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+
+		currentSetting := user.GetSetting()
+		if scExists {
+			if scStr, ok := setupCompleted.(string); ok {
+				currentSetting.SetupCompleted = scStr
+			}
+		}
+		if fuExists {
+			if fuStr, ok := featureUpdateV1.(string); ok {
+				currentSetting.FeatureUpdateV1 = fuStr
+			}
+		}
+
+		user.SetSetting(currentSetting)
+		if err := user.Update(false); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUpdateFailed)
+			return
+		}
+
+		common.ApiSuccessI18n(c, i18n.MsgUpdateSuccess, nil)
+		return
+	}
+
 	// 原有的用户信息更新逻辑
 	var user model.User
 	requestDataBytes, err := json.Marshal(requestData)
@@ -717,6 +756,13 @@ func UpdateSelf(c *gin.Context) {
 		user.Password = "" // rollback to what it should be
 		cleanUser.Password = ""
 	}
+	// 检查用户名是否被占用（排除自身）
+	if cleanUser.Username != "" {
+		if model.IsUsernameAlreadyTaken(cleanUser.Username, cleanUser.Id) {
+			common.ApiErrorI18n(c, i18n.MsgUserUsernameTaken)
+			return
+		}
+	}
 	updatePassword, err := checkUpdatePassword(user.OriginalPassword, user.Password, cleanUser.Id)
 	if err != nil {
 		common.ApiError(c, err)
@@ -744,7 +790,7 @@ func checkUpdatePassword(originalPassword string, newPassword string, userId int
 	// 密码不为空,需要验证原密码
 	// 支持第一次账号绑定时原密码为空的情况
 	if !common.ValidatePasswordAndHash(originalPassword, currentUser.Password) && currentUser.Password != "" {
-		err = fmt.Errorf("原密码错误")
+		err = errors.New("original password error")
 		return
 	}
 	if newPassword == "" {
