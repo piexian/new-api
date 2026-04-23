@@ -87,3 +87,15 @@ func TestGetEndpointTypesByChannelTypeForZhipuNonClaudeModel(t *testing.T) {
 		t.Fatalf("expected Zhipu non-Claude model endpoints %#v, got %#v", want, endpoints)
 	}
 }
+
+func TestGetEndpointTypesByChannelTypeForXunfeiMaaSImage(t *testing.T) {
+	t.Parallel()
+
+	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeXunfeiMaaSImage, "idxskolorss2b6")
+	want := []constant.EndpointType{
+		constant.EndpointTypeImageGeneration,
+	}
+	if !reflect.DeepEqual(endpoints, want) {
+		t.Fatalf("expected Xunfei MaaS image channel endpoints %#v, got %#v", want, endpoints)
+	}
+}

@@ -66,6 +66,7 @@ import LinuxDoIcon from '../common/logo/LinuxDoIcon';
 import TwoFAVerification from './TwoFAVerification';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
+import { LOGIN_FEATURE_UPDATE_PROMPT_KEY } from '../../constants/common.constant';
 
 const LoginForm = () => {
   let navigate = useNavigate();
@@ -112,6 +113,10 @@ const LoginForm = () => {
   const githubTimeoutRef = useRef(null);
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
   const [customOAuthLoading, setCustomOAuthLoading] = useState({});
+
+  const markFeatureUpdatePromptPending = () => {
+    sessionStorage.setItem(LOGIN_FEATURE_UPDATE_PROMPT_KEY, '1');
+  };
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -194,6 +199,7 @@ const LoginForm = () => {
       );
       const { success, message, data } = res.data;
       if (success) {
+        markFeatureUpdatePromptPending();
         userDispatch({ type: 'login', payload: data });
         localStorage.setItem('user', JSON.stringify(data));
         setUserData(data);
@@ -244,6 +250,7 @@ const LoginForm = () => {
             return;
           }
 
+          markFeatureUpdatePromptPending();
           userDispatch({ type: 'login', payload: data });
           setUserData(data);
           updateAPI();
@@ -295,6 +302,7 @@ const LoginForm = () => {
       const res = await API.get(`/api/oauth/telegram/login`, { params });
       const { success, message, data } = res.data;
       if (success) {
+        markFeatureUpdatePromptPending();
         userDispatch({ type: 'login', payload: data });
         localStorage.setItem('user', JSON.stringify(data));
         showSuccess('登录成功！');
@@ -452,6 +460,7 @@ const LoginForm = () => {
       );
       const finish = finishRes.data;
       if (finish.success) {
+        markFeatureUpdatePromptPending();
         userDispatch({ type: 'login', payload: finish.data });
         setUserData(finish.data);
         updateAPI();
@@ -487,6 +496,7 @@ const LoginForm = () => {
 
   // 2FA验证成功处理
   const handle2FASuccess = (data) => {
+    markFeatureUpdatePromptPending();
     userDispatch({ type: 'login', payload: data });
     setUserData(data);
     updateAPI();
@@ -958,8 +968,7 @@ const LoginForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailLogin ||
-        !hasOAuthLoginOptions
+        {showEmailLogin || !hasOAuthLoginOptions
           ? renderEmailLoginForm()
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}

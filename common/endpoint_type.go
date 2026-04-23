@@ -12,6 +12,9 @@ func IsClaudeCompatibleModel(modelName string) bool {
 
 // GetEndpointTypesByChannelType 获取渠道最优先端点类型（所有的渠道都支持 OpenAI 端点）
 func GetEndpointTypesByChannelType(channelType int, modelName string) []constant.EndpointType {
+	if channelType == constant.ChannelTypeXunfeiMaaSImage {
+		return []constant.EndpointType{constant.EndpointTypeImageGeneration}
+	}
 	if IsOpenAIResponseCompactModel(modelName) {
 		return []constant.EndpointType{constant.EndpointTypeOpenAIResponseCompact}
 	}

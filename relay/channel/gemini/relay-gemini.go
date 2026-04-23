@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -1592,25 +1593,30 @@ func FetchGeminiModels(baseURL, apiKey, proxyURL string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("创建HTTP客户端失败: %v", err)
 	}
+	if client == nil {
+		client = http.DefaultClient
+	}
 
 	allModels := make([]string, 0)
 	nextPageToken := ""
 	maxPages := 100 // Safety limit to prevent infinite loops
+	baseURL = strings.TrimRight(baseURL, "/")
 
 	for page := 0; page < maxPages; page++ {
-		url := fmt.Sprintf("%s/v1beta/models", baseURL)
+		query := url.Values{}
+		query.Set("key", apiKey)
+		query.Set("pageSize", strconv.Itoa(1000))
 		if nextPageToken != "" {
-			url = fmt.Sprintf("%s?pageToken=%s", url, nextPageToken)
+			query.Set("pageToken", nextPageToken)
 		}
+		requestURL := fmt.Sprintf("%s/v1beta/models?%s", baseURL, query.Encode())
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		request, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 		if err != nil {
 			cancel()
 			return nil, fmt.Errorf("创建请求失败: %v", err)
 		}
-
-		request.Header.Set("x-goog-api-key", apiKey)
 
 		response, err := client.Do(request)
 		if err != nil {
@@ -1638,11 +1644,10 @@ func FetchGeminiModels(baseURL, apiKey, proxyURL string) ([]string, error) {
 		}
 
 		for _, model := range modelsResponse.Models {
-			modelNameValue, ok := model.Name.(string)
-			if !ok {
+			modelName := strings.TrimPrefix(model.Name, "models/")
+			if modelName == "" {
 				continue
 			}
-			modelName := strings.TrimPrefix(modelNameValue, "models/")
 			allModels = append(allModels, modelName)
 		}
 
@@ -1652,7 +1657,11 @@ func FetchGeminiModels(baseURL, apiKey, proxyURL string) ([]string, error) {
 		}
 	}
 
-	return allModels, nil
+	if nextPageToken != "" {
+		return nil, fmt.Errorf("获取Gemini模型失败: 超过最大分页限制 %d", maxPages)
+	}
+
+	return lo.Uniq(allModels), nil
 }
 
 // convertToolChoiceToGeminiConfig converts OpenAI tool_choice to Gemini toolConfig

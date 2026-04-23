@@ -115,6 +115,7 @@ const (
 	MsgUserLinuxDOIdEmpty            = "user.linux_do_id_empty"
 	MsgUserQuotaChangeZero           = "user.quota_change_zero"
 	MsgUserUsernameTaken             = "user.username_taken"
+	MsgUserUsernameTooLong           = "user.username_too_long"
 )
 
 // Quota related messages

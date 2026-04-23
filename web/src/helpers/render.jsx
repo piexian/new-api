@@ -358,6 +358,7 @@ export function getChannelIcon(channelType) {
       return <Qwen.Color size={iconSize} />;
     case 18: // 讯飞星火认知
     case 60: // 讯飞星辰MaaS
+    case 61: // 讯飞星辰MaaS图片生成
       return <Spark.Color size={iconSize} />;
     case 16: // 智谱 ChatGLM
     case 26: // 智谱 GLM-4V

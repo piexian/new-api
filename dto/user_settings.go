@@ -18,6 +18,8 @@ type UserSetting struct {
 	Language                         string  `json:"language,omitempty"`                             // Language 用户语言偏好 (zh, en)
 	SetupCompleted                   string  `json:"setup_completed,omitempty"`                      // SetupCompleted 新用户引导状态: "pending"=待完成, ""=已完成或老用户
 	FeatureUpdateV1                  string  `json:"feature_update_v1,omitempty"`                    // FeatureUpdateV1 功能更新公告: "dismissed"=已关闭, ""=未查看（老用户）
+	UsernameChangeWindowStart        int64   `json:"username_change_window_start,omitempty"`         // UsernameChangeWindowStart 用户名修改窗口起始时间（首次修改开始计时）
+	UsernameChangeCount              int     `json:"username_change_count,omitempty"`                // UsernameChangeCount 当前窗口内用户名已修改次数
 }
 
 var (

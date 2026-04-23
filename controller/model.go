@@ -3,6 +3,8 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -28,6 +30,12 @@ import (
 var openAIModels []dto.OpenAIModels
 var openAIModelsMap map[string]dto.OpenAIModels
 var channelId2Models map[int][]string
+var geminiCompatibleModels map[string]bool
+
+const (
+	geminiListDefaultPageSize = 50
+	geminiListMaxPageSize     = 1000
+)
 
 func init() {
 	// https://platform.openai.com/docs/models/model-endpoint-compatibility
@@ -104,8 +112,126 @@ func init() {
 		adaptor.Init(meta)
 		channelId2Models[i] = adaptor.GetModelList()
 	}
+	geminiCompatibleModels = make(map[string]bool)
+	for _, channelType := range []int{constant.ChannelTypeGemini, constant.ChannelTypeVertexAi} {
+		for _, modelName := range channelId2Models[channelType] {
+			geminiCompatibleModels[modelName] = true
+		}
+	}
 	openAIModels = lo.UniqBy(openAIModels, func(m dto.OpenAIModels) string {
 		return m.Id
+	})
+}
+
+func shouldIncludeModelForType(modelName string, modelType int) bool {
+	switch modelType {
+	case constant.ChannelTypeGemini:
+		endpointTypes := model.GetModelSupportEndpointTypes(modelName)
+		if len(endpointTypes) > 0 {
+			return lo.Contains(endpointTypes, constant.EndpointTypeGemini)
+		}
+		return geminiCompatibleModels[modelName]
+	default:
+		return true
+	}
+}
+
+func appendModelIfEligible(userOpenAiModels *[]dto.OpenAIModels, modelName string, acceptUnsetRatioModel bool, modelType int) {
+	if !acceptUnsetRatioModel {
+		_, _, exist := ratio_setting.GetModelRatioOrPrice(modelName)
+		if !exist {
+			return
+		}
+	}
+	if !shouldIncludeModelForType(modelName, modelType) {
+		return
+	}
+	if oaiModel, ok := openAIModelsMap[modelName]; ok {
+		oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+		*userOpenAiModels = append(*userOpenAiModels, oaiModel)
+		return
+	}
+	*userOpenAiModels = append(*userOpenAiModels, dto.OpenAIModels{
+		Id:                     modelName,
+		Object:                 "model",
+		Created:                1626777600,
+		OwnedBy:                "custom",
+		SupportedEndpointTypes: model.GetModelSupportEndpointTypes(modelName),
+	})
+}
+
+func getGeminiSupportedGenerationMethods(endpointTypes []constant.EndpointType, modelName string) []string {
+	switch {
+	case strings.HasPrefix(modelName, "veo-"):
+		return []string{"predictLongRunning"}
+	case strings.HasPrefix(modelName, "imagen"):
+		return []string{"predict"}
+	case strings.HasPrefix(modelName, "text-embedding"),
+		strings.HasPrefix(modelName, "embedding"),
+		strings.HasPrefix(modelName, "gemini-embedding"):
+		return []string{"embedContent", "batchEmbedContents"}
+	}
+
+	methods := make([]string, 0, 4)
+	if lo.Contains(endpointTypes, constant.EndpointTypeGemini) || geminiCompatibleModels[modelName] {
+		methods = append(methods, "generateContent", "streamGenerateContent")
+	}
+	if lo.Contains(endpointTypes, constant.EndpointTypeEmbeddings) {
+		methods = append(methods, "embedContent", "batchEmbedContents")
+	}
+	return lo.Uniq(methods)
+}
+
+func buildGeminiModel(openAIModel dto.OpenAIModels) dto.GeminiModel {
+	endpointTypes := openAIModel.SupportedEndpointTypes
+	if len(endpointTypes) == 0 {
+		endpointTypes = model.GetModelSupportEndpointTypes(openAIModel.Id)
+	}
+	return dto.GeminiModel{
+		Name:                       fmt.Sprintf("models/%s", openAIModel.Id),
+		BaseModelId:                openAIModel.Id,
+		DisplayName:                openAIModel.Id,
+		SupportedGenerationMethods: getGeminiSupportedGenerationMethods(endpointTypes, openAIModel.Id),
+	}
+}
+
+func getGeminiPagination(c *gin.Context, total int) (start int, end int, nextPageToken string, err error) {
+	pageSize := geminiListDefaultPageSize
+	if pageSizeValue := c.Query("pageSize"); pageSizeValue != "" {
+		parsedPageSize, parseErr := strconv.Atoi(pageSizeValue)
+		if parseErr == nil && parsedPageSize > 0 {
+			pageSize = parsedPageSize
+		}
+	}
+	if pageSize > geminiListMaxPageSize {
+		pageSize = geminiListMaxPageSize
+	}
+
+	start = 0
+	if pageToken := c.Query("pageToken"); pageToken != "" {
+		start, err = strconv.Atoi(pageToken)
+		if err != nil || start < 0 {
+			return 0, 0, "", fmt.Errorf("invalid pageToken")
+		}
+	}
+	if start >= total {
+		return total, total, "", nil
+	}
+
+	end = start + pageSize
+	if end >= total {
+		return start, total, "", nil
+	}
+	return start, end, strconv.Itoa(end), nil
+}
+
+func renderGeminiError(c *gin.Context, statusCode int, status string, message string) {
+	c.JSON(statusCode, gin.H{
+		"error": gin.H{
+			"code":    statusCode,
+			"message": message,
+			"status":  status,
+		},
 	})
 }
 
@@ -133,24 +259,7 @@ func ListModels(c *gin.Context, modelType int) {
 			tokenModelLimit = map[string]bool{}
 		}
 		for allowModel, _ := range tokenModelLimit {
-			if !acceptUnsetRatioModel {
-				_, _, exist := ratio_setting.GetModelRatioOrPrice(allowModel)
-				if !exist {
-					continue
-				}
-			}
-			if oaiModel, ok := openAIModelsMap[allowModel]; ok {
-				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(allowModel)
-				userOpenAiModels = append(userOpenAiModels, oaiModel)
-			} else {
-				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
-					Id:                     allowModel,
-					Object:                 "model",
-					Created:                1626777600,
-					OwnedBy:                "custom",
-					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(allowModel),
-				})
-			}
+			appendModelIfEligible(&userOpenAiModels, allowModel, acceptUnsetRatioModel, modelType)
 		}
 	} else {
 		userId := c.GetInt("id")
@@ -181,24 +290,7 @@ func ListModels(c *gin.Context, modelType int) {
 			models = model.GetGroupEnabledModels(group)
 		}
 		for _, modelName := range models {
-			if !acceptUnsetRatioModel {
-				_, _, exist := ratio_setting.GetModelRatioOrPrice(modelName)
-				if !exist {
-					continue
-				}
-			}
-			if oaiModel, ok := openAIModelsMap[modelName]; ok {
-				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
-				userOpenAiModels = append(userOpenAiModels, oaiModel)
-			} else {
-				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
-					Id:                     modelName,
-					Object:                 "model",
-					Created:                1626777600,
-					OwnedBy:                "custom",
-					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(modelName),
-				})
-			}
+			appendModelIfEligible(&userOpenAiModels, modelName, acceptUnsetRatioModel, modelType)
 		}
 	}
 
@@ -221,16 +313,21 @@ func ListModels(c *gin.Context, modelType int) {
 		})
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
-		for i, model := range userOpenAiModels {
-			userGeminiModels[i] = dto.GeminiModel{
-				Name:        model.Id,
-				DisplayName: model.Id,
-			}
+		for i, modelItem := range userOpenAiModels {
+			userGeminiModels[i] = buildGeminiModel(modelItem)
 		}
-		c.JSON(200, gin.H{
-			"models":        userGeminiModels,
-			"nextPageToken": nil,
-		})
+		start, end, nextPageToken, err := getGeminiPagination(c, len(userGeminiModels))
+		if err != nil {
+			renderGeminiError(c, http.StatusBadRequest, "INVALID_ARGUMENT", err.Error())
+			return
+		}
+		response := gin.H{
+			"models": userGeminiModels[start:end],
+		}
+		if nextPageToken != "" {
+			response["nextPageToken"] = nextPageToken
+		}
+		c.JSON(http.StatusOK, response)
 	default:
 		c.JSON(200, gin.H{
 			"success": true,
@@ -264,6 +361,7 @@ func EnabledListModels(c *gin.Context) {
 func RetrieveModel(c *gin.Context, modelType int) {
 	modelId := c.Param("model")
 	if aiModel, ok := openAIModelsMap[modelId]; ok {
+		aiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(aiModel.Id)
 		switch modelType {
 		case constant.ChannelTypeAnthropic:
 			c.JSON(200, dto.AnthropicModel{
@@ -272,10 +370,20 @@ func RetrieveModel(c *gin.Context, modelType int) {
 				DisplayName: aiModel.Id,
 				Type:        "model",
 			})
+		case constant.ChannelTypeGemini:
+			if !shouldIncludeModelForType(aiModel.Id, modelType) {
+				renderGeminiError(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("model not found: models/%s", modelId))
+				return
+			}
+			c.JSON(http.StatusOK, buildGeminiModel(aiModel))
 		default:
 			c.JSON(200, aiModel)
 		}
 	} else {
+		if modelType == constant.ChannelTypeGemini {
+			renderGeminiError(c, http.StatusNotFound, "NOT_FOUND", fmt.Sprintf("model not found: models/%s", modelId))
+			return
+		}
 		openAIError := types.OpenAIError{
 			Message: fmt.Sprintf("The model '%s' does not exist", modelId),
 			Type:    "invalid_request_error",

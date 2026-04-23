@@ -37,6 +37,7 @@ import {
   IconKey,
   IconLock,
   IconDelete,
+  IconEdit,
 } from '@douyinfe/semi-icons';
 import { SiTelegram, SiWechat, SiLinux, SiDiscord } from 'react-icons/si';
 import { UserPlus, ShieldCheck } from 'lucide-react';
@@ -53,6 +54,32 @@ import {
   getOAuthProviderIcon,
 } from '../../../../helpers';
 import TwoFASetting from '../components/TwoFASetting';
+import Turnstile from 'react-turnstile';
+
+const defaultUsernameChangeLimit = 3;
+
+const formatCountdown = (milliseconds, t) => {
+  if (milliseconds <= 0) {
+    return t('已重置，可再次修改');
+  }
+
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const parts = [];
+
+  if (days > 0) {
+    parts.push(`${days}${t('天')}`);
+  }
+  if (days > 0 || hours > 0) {
+    parts.push(`${hours}${t('小时')}`);
+  }
+  parts.push(`${minutes}${t('分钟')}`);
+  parts.push(`${seconds}${t('秒')}`);
+  return parts.join(' ');
+};
 
 const AccountManagement = ({
   t,
@@ -65,6 +92,11 @@ const AccountManagement = ({
   handleSystemTokenClick,
   setShowChangePasswordModal,
   setShowAccountDeleteModal,
+  onUsernameUpdated,
+  turnstileEnabled,
+  turnstileSiteKey,
+  turnstileToken,
+  setTurnstileToken,
   passkeyStatus,
   passkeySupported,
   passkeyRegisterLoading,
@@ -101,6 +133,118 @@ const AccountManagement = ({
     React.useState(false);
   const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
   const [customOAuthLoading, setCustomOAuthLoading] = React.useState({});
+  const [showUsernameModal, setShowUsernameModal] = React.useState(false);
+  const [newUsername, setNewUsername] = React.useState('');
+  const [usernameSaving, setUsernameSaving] = React.useState(false);
+  const [countdownNow, setCountdownNow] = React.useState(Date.now());
+
+  const currentUsername = userState?.user?.username || '';
+  const usernameChangeLimit =
+    userState?.user?.username_change_limit || defaultUsernameChangeLimit;
+  const usernameChangeCount = userState?.user?.username_change_count || 0;
+  const usernameChangeRemaining =
+    userState?.user?.username_change_remaining ?? usernameChangeLimit;
+  const usernameChangeResetAt = userState?.user?.username_change_reset_at || 0;
+  const usernameWindowStarted =
+    usernameChangeCount > 0 && usernameChangeResetAt > 0;
+  const usernameResetCountdown = usernameWindowStarted
+    ? formatCountdown(usernameChangeResetAt * 1000 - countdownNow, t)
+    : t('首次修改后开始 1 年倒计时');
+  const usernameQuotaExhausted =
+    usernameWindowStarted && usernameChangeRemaining <= 0;
+  const usernameStatusText = usernameWindowStarted
+    ? t('一年内最多 {{limit}} 次，已使用 {{count}} 次，剩余 {{remaining}} 次', {
+        limit: usernameChangeLimit,
+        count: usernameChangeCount,
+        remaining: usernameChangeRemaining,
+      })
+    : t('一年内最多 {{limit}} 次，首次修改后开始计时', {
+        limit: usernameChangeLimit,
+      });
+  const usernameResetText = usernameWindowStarted
+    ? t('距离次数重置还有 {{countdown}}', {
+        countdown: usernameResetCountdown,
+      })
+    : t('首次修改后开始 1 年倒计时');
+
+  React.useEffect(() => {
+    if (!usernameWindowStarted) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      setCountdownNow(Date.now());
+    }, 1000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [usernameWindowStarted]);
+
+  React.useEffect(() => {
+    setCountdownNow(Date.now());
+  }, [usernameChangeResetAt]);
+
+  const buildSelfUpdateUrl = () =>
+    turnstileToken
+      ? `/api/user/self?turnstile=${encodeURIComponent(turnstileToken)}`
+      : '/api/user/self';
+
+  const openUsernameModal = () => {
+    setNewUsername(currentUsername);
+    if (turnstileEnabled) {
+      setTurnstileToken('');
+    }
+    setShowUsernameModal(true);
+  };
+
+  const closeUsernameModal = () => {
+    if (usernameSaving) {
+      return;
+    }
+    setShowUsernameModal(false);
+    setNewUsername('');
+    if (turnstileEnabled) {
+      setTurnstileToken('');
+    }
+  };
+
+  const saveUsername = async () => {
+    const trimmed = newUsername.trim();
+    if (!trimmed) {
+      showError(t('用户名不能为空'));
+      return;
+    }
+    if (trimmed.length > 20) {
+      showError(t('用户名长度不能超过20个字符'));
+      return;
+    }
+    if (trimmed === currentUsername) {
+      closeUsernameModal();
+      return;
+    }
+    if (usernameQuotaExhausted) {
+      showError(t('用户名修改次数已用完，请等待倒计时结束后再试'));
+      return;
+    }
+
+    setUsernameSaving(true);
+    try {
+      const res = await API.put(buildSelfUpdateUrl(), { username: trimmed });
+      const { success, message } = res.data;
+      if (success) {
+        showSuccess(t('用户名修改成功'));
+        closeUsernameModal();
+        if (onUsernameUpdated) {
+          await onUsernameUpdated();
+        }
+      } else {
+        showError(message);
+      }
+    } catch (error) {
+      showError(t('操作失败，请重试'));
+    } finally {
+      setUsernameSaving(false);
+    }
+  };
 
   // Fetch custom OAuth bindings
   const loadCustomOAuthBindings = async () => {
@@ -112,7 +256,9 @@ const AccountManagement = ({
         showError(res.data.message || t('获取绑定信息失败'));
       }
     } catch (error) {
-      showError(error.response?.data?.message || error.message || t('获取绑定信息失败'));
+      showError(
+        error.response?.data?.message || error.message || t('获取绑定信息失败'),
+      );
     }
   };
 
@@ -126,7 +272,9 @@ const AccountManagement = ({
       onOk: async () => {
         setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: true }));
         try {
-          const res = await API.delete(`/api/user/oauth/bindings/${providerId}`);
+          const res = await API.delete(
+            `/api/user/oauth/bindings/${providerId}`,
+          );
           if (res.data.success) {
             showSuccess(t('解绑成功'));
             await loadCustomOAuthBindings();
@@ -134,7 +282,9 @@ const AccountManagement = ({
             showError(res.data.message);
           }
         } catch (error) {
-          showError(error.response?.data?.message || error.message || t('操作失败'));
+          showError(
+            error.response?.data?.message || error.message || t('操作失败'),
+          );
         } finally {
           setCustomOAuthLoading((prev) => ({ ...prev, [providerId]: false }));
         }
@@ -150,13 +300,17 @@ const AccountManagement = ({
   // Check if custom OAuth provider is bound
   const isCustomOAuthBound = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.some((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.some(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   // Get binding info for a provider
   const getCustomOAuthBinding = (providerId) => {
     const normalizedId = Number(providerId);
-    return customOAuthBindings.find((b) => Number(b.provider_id) === normalizedId);
+    return customOAuthBindings.find(
+      (b) => Number(b.provider_id) === normalizedId,
+    );
   };
 
   React.useEffect(() => {
@@ -554,7 +708,10 @@ const AccountManagement = ({
                               size='small'
                               loading={customOAuthLoading[provider.id]}
                               onClick={() =>
-                                handleUnbindCustomOAuth(provider.id, provider.name)
+                                handleUnbindCustomOAuth(
+                                  provider.id,
+                                  provider.name,
+                                )
                               }
                             >
                               {t('解绑')}
@@ -630,6 +787,45 @@ const AccountManagement = ({
                   </div>
                 </Card>
 
+                <Card className='!rounded-xl w-full'>
+                  <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
+                    <div className='flex items-start w-full sm:w-auto'>
+                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
+                        <IconEdit size='large' className='text-slate-600' />
+                      </div>
+                      <div>
+                        <Typography.Title heading={6} className='mb-1'>
+                          {t('修改用户名')}
+                        </Typography.Title>
+                        <Typography.Text type='tertiary' className='text-sm'>
+                          {usernameStatusText}
+                        </Typography.Text>
+                        <Typography.Text
+                          type='quaternary'
+                          className='text-xs mt-2 block'
+                        >
+                          @{currentUsername}
+                        </Typography.Text>
+                        <Typography.Text
+                          type='quaternary'
+                          className='text-xs mt-1 block'
+                        >
+                          {usernameResetText}
+                        </Typography.Text>
+                      </div>
+                    </div>
+                    <Button
+                      type='primary'
+                      theme='solid'
+                      onClick={openUsernameModal}
+                      className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
+                      icon={<IconEdit />}
+                    >
+                      {t('修改用户名')}
+                    </Button>
+                  </div>
+                </Card>
+
                 {/* 密码管理 */}
                 <Card className='!rounded-xl w-full'>
                   <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
@@ -651,11 +847,18 @@ const AccountManagement = ({
                     <Button
                       type='primary'
                       theme='solid'
-                      onClick={() => setShowChangePasswordModal(true)}
+                      onClick={() => {
+                        if (turnstileEnabled) {
+                          setTurnstileToken('');
+                        }
+                        setShowChangePasswordModal(true);
+                      }}
                       className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
                       icon={<IconLock />}
                     >
-                      {userState?.user?.has_password ? t('修改密码') : t('设置密码')}
+                      {userState?.user?.has_password
+                        ? t('修改密码')
+                        : t('设置密码')}
                     </Button>
                   </div>
                 </Card>
@@ -769,6 +972,68 @@ const AccountManagement = ({
           </div>
         </TabPane>
       </Tabs>
+      <Modal
+        title={t('修改用户名')}
+        visible={showUsernameModal}
+        onOk={saveUsername}
+        onCancel={closeUsernameModal}
+        okText={t('保存')}
+        cancelText={t('取消')}
+        confirmLoading={usernameSaving}
+        centered
+        okButtonProps={{
+          disabled:
+            usernameQuotaExhausted && newUsername.trim() !== currentUsername,
+        }}
+      >
+        <div className='space-y-3 py-2'>
+          <Typography.Text type='tertiary' className='block text-sm'>
+            @{currentUsername}
+          </Typography.Text>
+          <div className='rounded-xl border border-slate-200 bg-slate-50 px-3 py-3'>
+            <Typography.Text strong className='block text-sm text-slate-700'>
+              {t('用户名修改额度')}
+            </Typography.Text>
+            <Typography.Text type='tertiary' className='block text-sm mt-1'>
+              {usernameStatusText}
+            </Typography.Text>
+            <Typography.Text
+              type={usernameQuotaExhausted ? 'warning' : 'quaternary'}
+              className='block text-xs mt-2'
+            >
+              {usernameResetText}
+            </Typography.Text>
+            {usernameQuotaExhausted && (
+              <Typography.Text type='danger' className='block text-xs mt-2'>
+                {t('当前窗口内已不能继续修改用户名')}
+              </Typography.Text>
+            )}
+          </div>
+          <Input
+            value={newUsername}
+            onChange={setNewUsername}
+            onEnterPress={saveUsername}
+            placeholder={t('请输入新的用户名')}
+            maxLength={20}
+            size='large'
+            autoFocus
+            disabled={usernameQuotaExhausted}
+          />
+          {turnstileEnabled && (
+            <div className='flex justify-center pt-2'>
+              <Turnstile
+                sitekey={turnstileSiteKey}
+                onVerify={(token) => {
+                  setTurnstileToken(token);
+                }}
+                onExpire={() => {
+                  setTurnstileToken('');
+                }}
+              />
+            </div>
+          )}
+        </div>
+      </Modal>
     </Card>
   );
 };

@@ -106,10 +106,6 @@ func validateApiInfo(apiInfoStr string) error {
 			return fmt.Errorf("第%d个API信息缺少颜色字段", i+1)
 		}
 
-		if err := validateURL(urlStr, i+1, "API信息"); err != nil {
-			return err
-		}
-
 		if len(urlStr) > 500 {
 			return fmt.Errorf("第%d个API信息的URL长度不能超过500字符", i+1)
 		}
@@ -204,8 +200,8 @@ func validateFAQ(faqStr string) error {
 		if len(question) > 200 {
 			return fmt.Errorf("第%d个FAQ的问题长度不能超过200字符", i+1)
 		}
-		if len(answer) > 1000 {
-			return fmt.Errorf("第%d个FAQ的答案长度不能超过1000字符", i+1)
+		if len(answer) > 100000 {
+			return fmt.Errorf("第%d个FAQ的答案长度不能超过100000字符", i+1)
 		}
 	}
 	return nil

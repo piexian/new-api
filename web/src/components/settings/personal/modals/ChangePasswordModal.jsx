@@ -34,6 +34,12 @@ const ChangePasswordModal = ({
   setTurnstileToken,
   hasPassword = true,
 }) => {
+  React.useEffect(() => {
+    if (showChangePasswordModal && turnstileEnabled) {
+      setTurnstileToken('');
+    }
+  }, [showChangePasswordModal, turnstileEnabled, setTurnstileToken]);
+
   return (
     <Modal
       title={
@@ -43,7 +49,12 @@ const ChangePasswordModal = ({
         </div>
       }
       visible={showChangePasswordModal}
-      onCancel={() => setShowChangePasswordModal(false)}
+      onCancel={() => {
+        setShowChangePasswordModal(false);
+        if (turnstileEnabled) {
+          setTurnstileToken('');
+        }
+      }}
       onOk={changePassword}
       size={'small'}
       centered={true}
@@ -51,21 +62,23 @@ const ChangePasswordModal = ({
     >
       <div className='space-y-4 py-4'>
         {hasPassword && (
-        <div>
-          <Typography.Text strong className='block mb-2'>
-            {t('原密码')}
-          </Typography.Text>
-          <Input
-            name='original_password'
-            placeholder={t('请输入原密码')}
-            type='password'
-            value={inputs.original_password}
-            onChange={(value) => handleInputChange('original_password', value)}
-            size='large'
-            className='!rounded-lg'
-            prefix={<IconLock />}
-          />
-        </div>
+          <div>
+            <Typography.Text strong className='block mb-2'>
+              {t('原密码')}
+            </Typography.Text>
+            <Input
+              name='original_password'
+              placeholder={t('请输入原密码')}
+              type='password'
+              value={inputs.original_password}
+              onChange={(value) =>
+                handleInputChange('original_password', value)
+              }
+              size='large'
+              className='!rounded-lg'
+              prefix={<IconLock />}
+            />
+          </div>
         )}
 
         <div>
@@ -108,6 +121,9 @@ const ChangePasswordModal = ({
               sitekey={turnstileSiteKey}
               onVerify={(token) => {
                 setTurnstileToken(token);
+              }}
+              onExpire={() => {
+                setTurnstileToken('');
               }}
             />
           </div>

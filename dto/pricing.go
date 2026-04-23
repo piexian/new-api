@@ -19,17 +19,17 @@ type AnthropicModel struct {
 }
 
 type GeminiModel struct {
-	Name                       interface{}   `json:"name"`
-	BaseModelId                interface{}   `json:"baseModelId"`
-	Version                    interface{}   `json:"version"`
-	DisplayName                interface{}   `json:"displayName"`
-	Description                interface{}   `json:"description"`
-	InputTokenLimit            interface{}   `json:"inputTokenLimit"`
-	OutputTokenLimit           interface{}   `json:"outputTokenLimit"`
-	SupportedGenerationMethods []interface{} `json:"supportedGenerationMethods"`
-	Thinking                   interface{}   `json:"thinking"`
-	Temperature                interface{}   `json:"temperature"`
-	MaxTemperature             interface{}   `json:"maxTemperature"`
-	TopP                       interface{}   `json:"topP"`
-	TopK                       interface{}   `json:"topK"`
+	Name                       string   `json:"name"`
+	BaseModelId                string   `json:"baseModelId,omitempty"`
+	Version                    string   `json:"version,omitempty"`
+	DisplayName                string   `json:"displayName,omitempty"`
+	Description                string   `json:"description,omitempty"`
+	InputTokenLimit            int64    `json:"inputTokenLimit,omitempty"`
+	OutputTokenLimit           int64    `json:"outputTokenLimit,omitempty"`
+	SupportedGenerationMethods []string `json:"supportedGenerationMethods,omitempty"`
+	Thinking                   *bool    `json:"thinking,omitempty"`
+	Temperature                *float64 `json:"temperature,omitempty"`
+	MaxTemperature             *float64 `json:"maxTemperature,omitempty"`
+	TopP                       *float64 `json:"topP,omitempty"`
+	TopK                       *int64   `json:"topK,omitempty"`
 }

@@ -1,6 +1,14 @@
-import React, { useState } from 'react';
-import { Modal, Steps, Input, Typography, Button, Banner } from '@douyinfe/semi-ui';
+import React, { useEffect, useState } from 'react';
+import {
+  Modal,
+  Steps,
+  Input,
+  Typography,
+  Button,
+  Banner,
+} from '@douyinfe/semi-ui';
 import { IconLock, IconUser, IconShield, IconTick } from '@douyinfe/semi-icons';
+import Turnstile from 'react-turnstile';
 
 const SetupGuideModal = ({
   t,
@@ -8,6 +16,10 @@ const SetupGuideModal = ({
   onClose,
   userState,
   onComplete,
+  turnstileEnabled,
+  turnstileSiteKey,
+  turnstileToken,
+  setTurnstileToken,
 }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [username, setUsername] = useState(userState?.user?.username || '');
@@ -17,6 +29,17 @@ const SetupGuideModal = ({
   const [error, setError] = useState('');
 
   const hasPassword = userState?.user?.has_password;
+
+  useEffect(() => {
+    if (visible && turnstileEnabled) {
+      setTurnstileToken('');
+    }
+  }, [visible, turnstileEnabled, setTurnstileToken]);
+
+  const buildSelfUpdateUrl = () =>
+    turnstileToken
+      ? `/api/user/self?turnstile=${encodeURIComponent(turnstileToken)}`
+      : '/api/user/self';
 
   const handleSkipAll = async () => {
     await markCompleted();
@@ -46,7 +69,7 @@ const SetupGuideModal = ({
       setError('');
       try {
         const { API, showSuccess } = await import('../../../../helpers');
-        const res = await API.put('/api/user/self', { username: trimmed });
+        const res = await API.put(buildSelfUpdateUrl(), { username: trimmed });
         const { success, message } = res.data;
         if (success) {
           showSuccess(t('用户名修改成功'));
@@ -90,7 +113,7 @@ const SetupGuideModal = ({
     setError('');
     try {
       const { API, showSuccess } = await import('../../../../helpers');
-      const res = await API.put('/api/user/self', { password });
+      const res = await API.put(buildSelfUpdateUrl(), { password });
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('密码设置成功'));
@@ -127,9 +150,7 @@ const SetupGuideModal = ({
               <div className='w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-3'>
                 <IconUser size='extra-large' className='text-blue-500' />
               </div>
-              <Typography.Title heading={5}>
-                {t('设置用户名')}
-              </Typography.Title>
+              <Typography.Title heading={5}>{t('设置用户名')}</Typography.Title>
               <Typography.Text type='tertiary'>
                 {t('设置一个方便记忆的用户名')}
               </Typography.Text>
@@ -152,6 +173,20 @@ const SetupGuideModal = ({
 
             {error && (
               <Banner type='danger' description={error} closeIcon={null} />
+            )}
+
+            {turnstileEnabled && (
+              <div className='flex justify-center pt-2'>
+                <Turnstile
+                  sitekey={turnstileSiteKey}
+                  onVerify={(token) => {
+                    setTurnstileToken(token);
+                  }}
+                  onExpire={() => {
+                    setTurnstileToken('');
+                  }}
+                />
+              </div>
             )}
           </div>
         );
@@ -214,6 +249,20 @@ const SetupGuideModal = ({
             {error && (
               <Banner type='danger' description={error} closeIcon={null} />
             )}
+
+            {!hasPassword && turnstileEnabled && (
+              <div className='flex justify-center pt-2'>
+                <Turnstile
+                  sitekey={turnstileSiteKey}
+                  onVerify={(token) => {
+                    setTurnstileToken(token);
+                  }}
+                  onExpire={() => {
+                    setTurnstileToken('');
+                  }}
+                />
+              </div>
+            )}
           </div>
         );
       case 2:
@@ -233,7 +282,9 @@ const SetupGuideModal = ({
 
             <Banner
               type='info'
-              description={t('两步验证可以有效防止他人未经授权访问您的账户，即使密码泄露也能保障安全。此步骤非强制要求，您可以稍后在安全设置中启用。')}
+              description={t(
+                '两步验证可以有效防止他人未经授权访问您的账户，即使密码泄露也能保障安全。此步骤非强制要求，您可以稍后在安全设置中启用。',
+              )}
               closeIcon={null}
             />
           </div>
@@ -252,10 +303,20 @@ const SetupGuideModal = ({
               {t('跳过全部')}
             </Button>
             <div className='flex gap-2'>
-              <Button onClick={() => { setError(''); setCurrentStep(1); }} type='tertiary'>
+              <Button
+                onClick={() => {
+                  setError('');
+                  setCurrentStep(1);
+                }}
+                type='tertiary'
+              >
                 {t('跳过')}
               </Button>
-              <Button theme='solid' onClick={handleUsernameNext} loading={saving}>
+              <Button
+                theme='solid'
+                onClick={handleUsernameNext}
+                loading={saving}
+              >
                 {t('下一步')}
               </Button>
             </div>
@@ -264,16 +325,32 @@ const SetupGuideModal = ({
       case 1:
         return (
           <div className='flex justify-between w-full'>
-            <Button onClick={() => { setError(''); setCurrentStep(0); }} type='tertiary'>
+            <Button
+              onClick={() => {
+                setError('');
+                setCurrentStep(0);
+              }}
+              type='tertiary'
+            >
               {t('上一步')}
             </Button>
             <div className='flex gap-2'>
               {!hasPassword && (
-                <Button onClick={() => { setError(''); setCurrentStep(2); }} type='tertiary'>
+                <Button
+                  onClick={() => {
+                    setError('');
+                    setCurrentStep(2);
+                  }}
+                  type='tertiary'
+                >
                   {t('跳过')}
                 </Button>
               )}
-              <Button theme='solid' onClick={handlePasswordNext} loading={saving}>
+              <Button
+                theme='solid'
+                onClick={handlePasswordNext}
+                loading={saving}
+              >
                 {hasPassword ? t('下一步') : t('设置并继续')}
               </Button>
             </div>
@@ -282,7 +359,13 @@ const SetupGuideModal = ({
       case 2:
         return (
           <div className='flex justify-between w-full'>
-            <Button onClick={() => { setError(''); setCurrentStep(1); }} type='tertiary'>
+            <Button
+              onClick={() => {
+                setError('');
+                setCurrentStep(1);
+              }}
+              type='tertiary'
+            >
               {t('上一步')}
             </Button>
             <div className='flex gap-2'>

@@ -47,6 +47,9 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if normalized != "" {
 		return normalized
 	}
+	if channel != nil && channel.Type == constant.ChannelTypeXunfeiMaaSImage {
+		return string(constant.EndpointTypeImageGeneration)
+	}
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}
@@ -114,6 +117,11 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			strings.Contains(testModel, "embed") ||
 			channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
 			requestPath = "/v1/embeddings" // 修改请求路径
+		}
+
+		// image-generation only channels
+		if channel.Type == constant.ChannelTypeXunfeiMaaSImage {
+			requestPath = "/v1/images/generations"
 		}
 
 		// VolcEngine 图像生成模型

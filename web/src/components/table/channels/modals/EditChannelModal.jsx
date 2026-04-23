@@ -135,11 +135,6 @@ const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan';
 const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL =
   'glm-coding-plan-international';
 
-// 支持并且已适配通过接口获取模型列表的渠道类型
-const MODEL_FETCHABLE_TYPES = new Set([
-  1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
-]);
-
 function type2secretPrompt(type) {
   // inputs.type === 15 ? '按照如下格式输入：APIKey|SecretKey' : (inputs.type === 18 ? '按照如下格式输入：APPID|APISecret|APIKey' : '请输入渠道对应的鉴权密钥')
   switch (type) {
@@ -161,6 +156,8 @@ function type2secretPrompt(type) {
       return '按照如下格式输入: AccessKey|SecretAccessKey';
     case 57:
       return '请输入 JSON 格式的 OAuth 凭据（必须包含 access_token 和 account_id）';
+    case 61:
+      return '按照如下格式输入：APPID|APIKey|APISecret';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -3497,6 +3494,23 @@ const EditChannelModal = (props) => {
                           field='other'
                           label={t('智能体ID')}
                           placeholder={'请输入智能体ID，例如：7342866812345'}
+                          onChange={(value) =>
+                            handleInputChange('other', value)
+                          }
+                          showClear
+                        />
+                      )}
+
+                      {inputs.type === 61 && (
+                        <Form.Input
+                          field='other'
+                          label={t('默认 Patch ID')}
+                          placeholder={
+                            '可选；若使用讯飞训练模型，请填写对应 patch_id'
+                          }
+                          helpText={t(
+                            '普通基础生图模型可留空；若上游返回缺少 patch_id，请在这里填写默认 patch_id',
+                          )}
                           onChange={(value) =>
                             handleInputChange('other', value)
                           }

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   API,
   copy,
@@ -46,11 +46,11 @@ import WeChatBindModal from './personal/modals/WeChatBindModal';
 import AccountDeleteModal from './personal/modals/AccountDeleteModal';
 import ChangePasswordModal from './personal/modals/ChangePasswordModal';
 import SetupGuideModal from './personal/modals/SetupGuideModal';
-import UpdateAnnouncementModal from './personal/modals/UpdateAnnouncementModal';
 
 const PersonalSetting = () => {
   const [userState, userDispatch] = useContext(UserContext);
   let navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
 
   const [inputs, setInputs] = useState({
@@ -68,7 +68,6 @@ const PersonalSetting = () => {
   const [showEmailBindModal, setShowEmailBindModal] = useState(false);
   const [showAccountDeleteModal, setShowAccountDeleteModal] = useState(false);
   const [showSetupGuideModal, setShowSetupGuideModal] = useState(false);
-  const [showUpdateAnnouncement, setShowUpdateAnnouncement] = useState(false);
   const [turnstileEnabled, setTurnstileEnabled] = useState(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
@@ -172,34 +171,29 @@ const PersonalSetting = () => {
     }
   }, [userState?.user?.setting]);
 
-  // 检查是否需要显示新用户引导弹窗或更新公告
+  // 检查是否需要显示新用户引导弹窗
   useEffect(() => {
     if (userState?.user) {
       const setupCompleted = userState.user.setup_completed;
-      const featureUpdateV1 = userState.user.feature_update_v1;
       if (setupCompleted === 'pending') {
         // 新用户 → 显示引导弹窗
         setShowSetupGuideModal(true);
-      } else if (featureUpdateV1 !== 'dismissed') {
-        // 老用户且未查看公告 → 显示更新公告
-        setShowUpdateAnnouncement(true);
       }
     }
-  }, [userState?.user?.setup_completed, userState?.user?.feature_update_v1]);
+  }, [userState?.user?.setup_completed]);
+
+  useEffect(() => {
+    if (!location.state?.openChangePasswordModal) {
+      return;
+    }
+
+    setShowChangePasswordModal(true);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.pathname, location.state, navigate]);
 
   const handleSetupGuideComplete = async () => {
     try {
       await API.put('/api/user/self', { setup_completed: 'completed' });
-      await getUserData();
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleDismissAnnouncement = async () => {
-    setShowUpdateAnnouncement(false);
-    try {
-      await API.put('/api/user/self', { feature_update_v1: 'dismissed' });
       await getUserData();
     } catch {
       // ignore
@@ -376,11 +370,14 @@ const PersonalSetting = () => {
     if (hasPassword) {
       payload.original_password = inputs.original_password;
     }
-    const res = await API.put(`/api/user/self`, payload);
+    const url = turnstileToken
+      ? `/api/user/self?turnstile=${encodeURIComponent(turnstileToken)}`
+      : '/api/user/self';
+    const res = await API.put(url, payload);
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('密码修改成功！'));
-      setShowWeChatBindModal(false);
+      await getUserData();
     } else {
       showError(message);
     }
@@ -491,7 +488,7 @@ const PersonalSetting = () => {
       <div className='flex justify-center'>
         <div className='w-full max-w-7xl mx-auto px-2'>
           {/* 顶部用户信息区域 */}
-          <UserInfoHeader t={t} userState={userState} onUsernameUpdated={getUserData} />
+          <UserInfoHeader t={t} userState={userState} />
 
           {/* 签到日历 - 仅在启用时显示 */}
           {status?.checkin_enabled && (
@@ -520,6 +517,11 @@ const PersonalSetting = () => {
                 handleSystemTokenClick={handleSystemTokenClick}
                 setShowChangePasswordModal={setShowChangePasswordModal}
                 setShowAccountDeleteModal={setShowAccountDeleteModal}
+                onUsernameUpdated={getUserData}
+                turnstileEnabled={turnstileEnabled}
+                turnstileSiteKey={turnstileSiteKey}
+                turnstileToken={turnstileToken}
+                setTurnstileToken={setTurnstileToken}
                 passkeyStatus={passkeyStatus}
                 passkeySupported={passkeySupported}
                 passkeyRegisterLoading={passkeyRegisterLoading}
@@ -602,14 +604,10 @@ const PersonalSetting = () => {
         onClose={() => setShowSetupGuideModal(false)}
         userState={userState}
         onComplete={handleSetupGuideComplete}
-      />
-
-      <UpdateAnnouncementModal
-        t={t}
-        visible={showUpdateAnnouncement}
-        onClose={handleDismissAnnouncement}
-        hasPassword={userState?.user?.has_password ?? true}
-        onChangePassword={() => setShowChangePasswordModal(true)}
+        turnstileEnabled={turnstileEnabled}
+        turnstileSiteKey={turnstileSiteKey}
+        turnstileToken={turnstileToken}
+        setTurnstileToken={setTurnstileToken}
       />
     </div>
   );

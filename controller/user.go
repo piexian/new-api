@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -27,6 +28,60 @@ import (
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+const (
+	usernameChangeLimit         = 3
+	usernameChangeWindowSeconds = 365 * 24 * 60 * 60
+)
+
+type usernameChangeQuotaStatus struct {
+	Limit       int
+	Count       int
+	Remaining   int
+	WindowStart int64
+	ResetAt     int64
+}
+
+func getUsernameChangeQuotaStatus(userSetting dto.UserSetting, now int64) usernameChangeQuotaStatus {
+	status := usernameChangeQuotaStatus{
+		Limit:     usernameChangeLimit,
+		Remaining: usernameChangeLimit,
+	}
+
+	if userSetting.UsernameChangeWindowStart <= 0 || userSetting.UsernameChangeCount <= 0 {
+		return status
+	}
+
+	resetAt := userSetting.UsernameChangeWindowStart + usernameChangeWindowSeconds
+	if now >= resetAt {
+		return status
+	}
+
+	count := userSetting.UsernameChangeCount
+	if count < 0 {
+		count = 0
+	}
+	if count > usernameChangeLimit {
+		count = usernameChangeLimit
+	}
+
+	status.Count = count
+	status.Remaining = usernameChangeLimit - count
+	status.WindowStart = userSetting.UsernameChangeWindowStart
+	status.ResetAt = resetAt
+	return status
+}
+
+func applyUsernameChangeWindow(userSetting *dto.UserSetting, now int64) usernameChangeQuotaStatus {
+	status := getUsernameChangeQuotaStatus(*userSetting, now)
+	if status.WindowStart == 0 {
+		userSetting.UsernameChangeWindowStart = now
+		userSetting.UsernameChangeCount = 1
+	} else {
+		userSetting.UsernameChangeCount = status.Count + 1
+	}
+	return getUsernameChangeQuotaStatus(*userSetting, now)
 }
 
 func Login(c *gin.Context) {
@@ -373,7 +428,7 @@ func GetAffCode(c *gin.Context) {
 func GetSelf(c *gin.Context) {
 	id := c.GetInt("id")
 	userRole := c.GetInt("role")
-	user, err := model.GetUserById(id, false)
+	user, err := model.GetUserById(id, true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -386,40 +441,47 @@ func GetSelf(c *gin.Context) {
 
 	// 获取用户设置并提取sidebar_modules
 	userSetting := user.GetSetting()
+	usernameChangeStatus := getUsernameChangeQuotaStatus(userSetting, common.GetTimestamp())
 
 	// 判断用户是否设置了密码
 	hasPassword := user.Password != ""
+	user.Password = ""
 
 	// 构建响应数据，包含用户信息和权限
 	responseData := map[string]interface{}{
-		"id":                user.Id,
-		"username":          user.Username,
-		"display_name":      user.DisplayName,
-		"role":              user.Role,
-		"status":            user.Status,
-		"email":             user.Email,
-		"github_id":         user.GitHubId,
-		"discord_id":        user.DiscordId,
-		"oidc_id":           user.OidcId,
-		"wechat_id":         user.WeChatId,
-		"telegram_id":       user.TelegramId,
-		"group":             user.Group,
-		"quota":             user.Quota,
-		"used_quota":        user.UsedQuota,
-		"request_count":     user.RequestCount,
-		"aff_code":          user.AffCode,
-		"aff_count":         user.AffCount,
-		"aff_quota":         user.AffQuota,
-		"aff_history_quota": user.AffHistoryQuota,
-		"inviter_id":        user.InviterId,
-		"linux_do_id":       user.LinuxDOId,
-		"setting":           user.Setting,
-		"stripe_customer":   user.StripeCustomer,
-		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
-		"permissions":       permissions,                // 新增权限字段
-		"has_password":      hasPassword,
-		"setup_completed":   userSetting.SetupCompleted,
-		"feature_update_v1": userSetting.FeatureUpdateV1,
+		"id":                           user.Id,
+		"username":                     user.Username,
+		"display_name":                 user.DisplayName,
+		"role":                         user.Role,
+		"status":                       user.Status,
+		"email":                        user.Email,
+		"github_id":                    user.GitHubId,
+		"discord_id":                   user.DiscordId,
+		"oidc_id":                      user.OidcId,
+		"wechat_id":                    user.WeChatId,
+		"telegram_id":                  user.TelegramId,
+		"group":                        user.Group,
+		"quota":                        user.Quota,
+		"used_quota":                   user.UsedQuota,
+		"request_count":                user.RequestCount,
+		"aff_code":                     user.AffCode,
+		"aff_count":                    user.AffCount,
+		"aff_quota":                    user.AffQuota,
+		"aff_history_quota":            user.AffHistoryQuota,
+		"inviter_id":                   user.InviterId,
+		"linux_do_id":                  user.LinuxDOId,
+		"setting":                      user.Setting,
+		"stripe_customer":              user.StripeCustomer,
+		"sidebar_modules":              userSetting.SidebarModules, // 正确提取sidebar_modules字段
+		"permissions":                  permissions,                // 新增权限字段
+		"has_password":                 hasPassword,
+		"setup_completed":              userSetting.SetupCompleted,
+		"feature_update_v1":            userSetting.FeatureUpdateV1,
+		"username_change_limit":        usernameChangeStatus.Limit,
+		"username_change_count":        usernameChangeStatus.Count,
+		"username_change_remaining":    usernameChangeStatus.Remaining,
+		"username_change_window_start": usernameChangeStatus.WindowStart,
+		"username_change_reset_at":     usernameChangeStatus.ResetAt,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -557,6 +619,10 @@ func UpdateUser(c *gin.Context) {
 	if updatedUser.Password == "" {
 		updatedUser.Password = "$I_LOVE_U" // make Validator happy :)
 	}
+	if len(updatedUser.Username) > model.UserNameMaxLength {
+		common.ApiErrorI18n(c, i18n.MsgUserUsernameTooLong, map[string]any{"Max": model.UserNameMaxLength})
+		return
+	}
 	if err := common.Validate.Struct(&updatedUser); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
@@ -574,6 +640,12 @@ func UpdateUser(c *gin.Context) {
 	if myRole <= updatedUser.Role && myRole != common.RoleRootUser {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
+	}
+	if updatedUser.Username != "" {
+		if model.IsUsernameAlreadyTaken(updatedUser.Username, updatedUser.Id) {
+			common.ApiErrorI18n(c, i18n.MsgUserUsernameTaken)
+			return
+		}
 	}
 	if updatedUser.Password == "$I_LOVE_U" {
 		updatedUser.Password = "" // rollback to what it should be
@@ -630,7 +702,7 @@ func AdminClearUserBinding(c *gin.Context) {
 
 func UpdateSelf(c *gin.Context) {
 	var requestData map[string]interface{}
-	err := json.NewDecoder(c.Request.Body).Decode(&requestData)
+	err := common.DecodeJson(c.Request.Body, &requestData)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -727,12 +799,12 @@ func UpdateSelf(c *gin.Context) {
 
 	// 原有的用户信息更新逻辑
 	var user model.User
-	requestDataBytes, err := json.Marshal(requestData)
+	requestDataBytes, err := common.Marshal(requestData)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	err = json.Unmarshal(requestDataBytes, &user)
+	err = common.Unmarshal(requestDataBytes, &user)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -740,6 +812,10 @@ func UpdateSelf(c *gin.Context) {
 
 	if user.Password == "" {
 		user.Password = "$I_LOVE_U" // make Validator happy :)
+	}
+	if len(user.Username) > model.UserNameMaxLength {
+		common.ApiErrorI18n(c, i18n.MsgUserUsernameTooLong, map[string]any{"Max": model.UserNameMaxLength})
+		return
 	}
 	if err := common.Validate.Struct(&user); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidInput)
@@ -763,7 +839,34 @@ func UpdateSelf(c *gin.Context) {
 			return
 		}
 	}
-	updatePassword, err := checkUpdatePassword(user.OriginalPassword, user.Password, cleanUser.Id)
+
+	currentUser, err := model.GetUserById(cleanUser.Id, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	isUsernameUpdate := cleanUser.Username != "" && cleanUser.Username != currentUser.Username
+	isPasswordUpdate := user.Password != ""
+	if isUsernameUpdate || isPasswordUpdate {
+		if !middleware.ValidateTurnstile(c) {
+			return
+		}
+	}
+
+	if isUsernameUpdate {
+		currentSetting := currentUser.GetSetting()
+		usernameChangeStatus := getUsernameChangeQuotaStatus(currentSetting, common.GetTimestamp())
+		if usernameChangeStatus.Remaining <= 0 {
+			common.ApiErrorMsg(c, fmt.Sprintf("用户名一年内最多只能修改%d次，请等待重置后再试", usernameChangeLimit))
+			return
+		}
+		applyUsernameChangeWindow(&currentSetting, common.GetTimestamp())
+		currentUser.SetSetting(currentSetting)
+		cleanUser.Setting = currentUser.Setting
+	}
+
+	updatePassword, err := checkUpdatePassword(user.OriginalPassword, user.Password, currentUser)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -771,6 +874,20 @@ func UpdateSelf(c *gin.Context) {
 	if err := cleanUser.Update(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if isUsernameUpdate {
+		model.RecordLog(
+			cleanUser.Id,
+			model.LogTypeSystem,
+			fmt.Sprintf("用户自助修改用户名: %s -> %s", currentUser.Username, cleanUser.Username),
+		)
+	}
+	if isPasswordUpdate {
+		passwordLogContent := "用户自助修改密码"
+		if currentUser.Password == "" {
+			passwordLogContent = "用户自助设置密码"
+		}
+		model.RecordLog(cleanUser.Id, model.LogTypeSystem, passwordLogContent)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -780,10 +897,8 @@ func UpdateSelf(c *gin.Context) {
 	return
 }
 
-func checkUpdatePassword(originalPassword string, newPassword string, userId int) (updatePassword bool, err error) {
-	var currentUser *model.User
-	currentUser, err = model.GetUserById(userId, true)
-	if err != nil {
+func checkUpdatePassword(originalPassword string, newPassword string, currentUser *model.User) (updatePassword bool, err error) {
+	if newPassword == "" {
 		return
 	}
 
@@ -791,9 +906,6 @@ func checkUpdatePassword(originalPassword string, newPassword string, userId int
 	// 支持第一次账号绑定时原密码为空的情况
 	if !common.ValidatePasswordAndHash(originalPassword, currentUser.Password) && currentUser.Password != "" {
 		err = errors.New("original password error")
-		return
-	}
-	if newPassword == "" {
 		return
 	}
 	updatePassword = true

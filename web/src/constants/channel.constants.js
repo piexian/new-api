@@ -200,6 +200,11 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: '讯飞星辰MaaS',
   },
+  {
+    value: 61,
+    color: 'cyan',
+    label: '讯飞星辰MaaS图片生成',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.
