@@ -44,7 +44,13 @@ export function Profile() {
                     loading={loading}
                     onProfileUpdate={refreshProfile}
                   />
-                  <ProfileSecurityCard profile={profile} loading={loading} />
+                  <ProfileSecurityCard
+                    profile={profile}
+                    loading={loading}
+                    turnstileEnabled={turnstileEnabled}
+                    turnstileSiteKey={turnstileSiteKey}
+                    onProfileUpdate={refreshProfile}
+                  />
                 </div>
 
                 <div className='space-y-5 sm:space-y-6 xl:sticky xl:top-6'>

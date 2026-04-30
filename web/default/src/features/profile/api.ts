@@ -25,9 +25,11 @@ export async function getUserProfile(): Promise<ApiResponse<UserProfile>> {
  * Update user profile
  */
 export async function updateUserProfile(
-  data: UpdateUserRequest
+  data: UpdateUserRequest,
+  turnstileToken?: string
 ): Promise<ApiResponse> {
-  const res = await api.put('/api/user/self', data)
+  const params = turnstileToken ? { turnstile: turnstileToken } : undefined
+  const res = await api.put('/api/user/self', data, { params })
   return res.data
 }
 

@@ -26,10 +26,15 @@ export interface AuthUser {
   wechat_id?: string
   telegram_id?: string
   linux_do_id?: string
-  setting?: Record<string, unknown>
+  setting?: string | Record<string, unknown>
   stripe_customer?: string
   sidebar_modules?: string
   permissions?: UserPermissions
+  has_password?: boolean
+  username_change_limit?: number
+  username_change_count?: number
+  username_change_remaining?: number
+  username_change_reset_at?: number
 }
 
 interface AuthState {

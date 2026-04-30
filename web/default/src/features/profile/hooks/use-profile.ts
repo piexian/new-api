@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
+import { type AuthUser, useAuthStore } from '@/stores/auth-store'
 import { getUserProfile, updateUserProfile, updateUserSettings } from '../api'
 import type {
   UserProfile,
@@ -27,6 +28,7 @@ export function useProfile() {
 
       if (response.success && response.data) {
         setProfile(response.data)
+        useAuthStore.getState().auth.setUser(response.data as AuthUser)
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -48,10 +50,13 @@ export function useProfile() {
 
   // Update user profile
   const updateProfile = useCallback(
-    async (data: UpdateUserRequest): Promise<boolean> => {
+    async (
+      data: UpdateUserRequest,
+      turnstileToken?: string
+    ): Promise<boolean> => {
       try {
         setUpdating(true)
-        const response = await updateUserProfile(data)
+        const response = await updateUserProfile(data, turnstileToken)
 
         if (response.success) {
           toast.success(i18next.t('Profile updated successfully'))

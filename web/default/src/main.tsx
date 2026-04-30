@@ -17,6 +17,7 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
+import { FrontendSwitchGuideDialog } from './components/frontend-switch-guide-dialog'
 import './i18n/config'
 // Generated Routes
 import { routeTree } from './routeTree.gen'
@@ -142,6 +143,7 @@ if (!rootElement.innerHTML) {
           <FontProvider>
             <DirectionProvider>
               <RouterProvider router={router} />
+              <FrontendSwitchGuideDialog />
             </DirectionProvider>
           </FontProvider>
         </ThemeProvider>

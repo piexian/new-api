@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { User, Wallet, LogOut, Settings } from 'lucide-react'
+import { User, Wallet, LogOut, Settings, PanelsTopLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import {
+  switchToClassicFrontend as applyClassicFrontend,
+} from '@/lib/frontend-theme'
 import { ROLE } from '@/lib/roles'
 import useDialogState from '@/hooks/use-dialog'
 import { useUserDisplay } from '@/hooks/use-user-display'
@@ -25,6 +28,18 @@ export function ProfileDropdown() {
   const user = useAuthStore((state) => state.auth.user)
   const { displayName, initials, roleLabel } = useUserDisplay(user)
   const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
+
+  const handleSwitchToClassicFrontend = () => {
+    const confirmed = window.confirm(
+      t(
+        'Switch to the classic frontend and jump to the matching page. If the classic frontend does not keep local login state, please sign in again.'
+      )
+    )
+    if (!confirmed) return
+
+    setSheetOpen(false)
+    applyClassicFrontend()
+  }
 
   return (
     <>
@@ -110,6 +125,15 @@ export function ProfileDropdown() {
                 </Link>
               </SheetClose>
             )}
+
+            <Button
+              variant='ghost'
+              onClick={handleSwitchToClassicFrontend}
+              className='text-primary/60 hover:text-primary/80 h-auto w-full justify-start gap-2.5 rounded-none border-b p-2.5 hover:bg-transparent'
+            >
+              <PanelsTopLeft className='size-4' />
+              {t('Switch to classic frontend')}
+            </Button>
 
             {/* Sign out */}
             <Button

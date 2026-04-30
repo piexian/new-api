@@ -63,6 +63,16 @@ export interface UserProfile {
   telegram_id?: string
   /** LinuxDO ID (OAuth) */
   linux_do_id?: string
+  /** Whether the account has a password set */
+  has_password?: boolean
+  /** Yearly username change limit */
+  username_change_limit?: number
+  /** Username changes used in current window */
+  username_change_count?: number
+  /** Username changes remaining in current window */
+  username_change_remaining?: number
+  /** Username change reset timestamp */
+  username_change_reset_at?: number
 }
 
 /**
@@ -104,6 +114,7 @@ export interface UserSettings {
  * User update request
  */
 export interface UpdateUserRequest {
+  username?: string
   display_name?: string
   password?: string
   original_password?: string
