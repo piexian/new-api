@@ -363,6 +363,74 @@ export const useLogsData = () => {
     setShowParamOverrideModal(true);
   };
 
+  const renderImageDetailValue = (value) => {
+    if (value === undefined || value === null || value === '') {
+      return '';
+    }
+    if (typeof value === 'object') {
+      try {
+        return JSON.stringify(value);
+      } catch {
+        return String(value);
+      }
+    }
+    return String(value);
+  };
+
+  const buildImageDetailLines = (detail) => {
+    if (!detail || typeof detail !== 'object') {
+      return [];
+    }
+
+    return [
+      [t('大小'), detail.size],
+      [t('品质'), detail.quality],
+      [t('背景'), detail.background],
+      [t('输出格式'), detail.output_format],
+      [t('输出压缩'), detail.output_compression],
+      [t('审核'), detail.moderation],
+      [t('局部图'), detail.partial_images],
+      [t('响应格式'), detail.response_format],
+      [t('生成数量'), detail.n],
+      [t('水印'), detail.watermark],
+    ]
+      .map(([label, value]) => {
+        const renderedValue = renderImageDetailValue(value);
+        if (!renderedValue) {
+          return null;
+        }
+        return `${label} ${renderedValue}`;
+      })
+      .filter(Boolean);
+  };
+
+  const renderImageDetailContent = (other, fallbackContent) => {
+    const mergedDetail = {
+      ...(other?.image_request || {}),
+      ...(other?.image_generation_call_detail || {}),
+    };
+    const lines = buildImageDetailLines(mergedDetail);
+
+    if (lines.length === 0) {
+      return fallbackContent;
+    }
+
+    return (
+      <div
+        style={{
+          maxWidth: 600,
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          lineHeight: 1.6,
+        }}
+      >
+        {lines.map((line, index) => (
+          <div key={`${index}-${line}`}>{line}</div>
+        ))}
+      </div>
+    );
+  };
+
   // Format logs data
   const setLogsFormat = (logs) => {
     const requestConversionDisplayValue = (conversionChain) => {
@@ -463,10 +531,22 @@ export const useLogsData = () => {
               ),
         });
         if (logs[i]?.content) {
+          const imageDetailContent = renderImageDetailContent(
+            other,
+            logs[i].content,
+          );
           expandDataLocal.push({
             key: t('其他详情'),
-            value: logs[i].content,
+            value: imageDetailContent,
           });
+        } else {
+          const imageDetailContent = renderImageDetailContent(other, null);
+          if (imageDetailContent) {
+            expandDataLocal.push({
+              key: t('其他详情'),
+              value: imageDetailContent,
+            });
+          }
         }
         if (isAdminUser && other?.reject_reason) {
           expandDataLocal.push({
