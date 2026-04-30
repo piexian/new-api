@@ -20,18 +20,31 @@ var TopUpLink = ""
 
 var themeValue atomic.Value // stores string; safe for concurrent read/write
 
+const (
+	FrontendThemeCookieName = "new-api-frontend"
+	FrontendThemeDefault    = "default"
+	FrontendThemeClassic    = "classic"
+)
+
 func init() {
-	themeValue.Store("classic")
+	themeValue.Store(FrontendThemeClassic)
 }
 
 func GetTheme() string {
 	return themeValue.Load().(string)
 }
 
+func NormalizeFrontendTheme(t string) string {
+	if t == FrontendThemeDefault || t == FrontendThemeClassic {
+		return t
+	}
+	return FrontendThemeClassic
+}
+
 // SetTheme updates the frontend theme atomically.
 // Only "default" and "classic" are accepted; other values are silently ignored.
 func SetTheme(t string) {
-	if t == "default" || t == "classic" {
+	if t == FrontendThemeDefault || t == FrontendThemeClassic {
 		themeValue.Store(t)
 	}
 }

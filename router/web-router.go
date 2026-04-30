@@ -24,23 +24,69 @@ type ThemeAssets struct {
 func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	defaultFS := common.EmbedFolder(assets.DefaultBuildFS, "web/default/dist")
 	classicFS := common.EmbedFolder(assets.ClassicBuildFS, "web/classic/dist")
-	themeFS := common.NewThemeAwareFS(defaultFS, classicFS)
 
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
-	router.Use(static.Serve("/", themeFS))
+	router.Use(serveThemeStatic(defaultFS, classicFS))
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
-		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
+		if shouldReturnRelayNotFound(c.Request.RequestURI) {
 			controller.RelayNotFound(c)
 			return
 		}
 		c.Header("Cache-Control", "no-cache")
-		if common.GetTheme() == "classic" {
+		if getRequestFrontendTheme(c) == common.FrontendThemeClassic {
 			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.ClassicIndexPage)
 		} else {
 			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.DefaultIndexPage)
 		}
 	})
+}
+
+func serveThemeStatic(defaultFS, classicFS static.ServeFileSystem) gin.HandlerFunc {
+	defaultServer := http.StripPrefix("/", http.FileServer(defaultFS))
+	classicServer := http.StripPrefix("/", http.FileServer(classicFS))
+
+	return func(c *gin.Context) {
+		if c.Request.URL.Path == "/" {
+			return
+		}
+
+		fs, server := selectThemeStatic(c, defaultFS, classicFS, defaultServer, classicServer)
+		if !fs.Exists("/", c.Request.URL.Path) {
+			return
+		}
+
+		server.ServeHTTP(c.Writer, c.Request)
+		c.Abort()
+	}
+}
+
+func selectThemeStatic(
+	c *gin.Context,
+	defaultFS static.ServeFileSystem,
+	classicFS static.ServeFileSystem,
+	defaultServer http.Handler,
+	classicServer http.Handler,
+) (static.ServeFileSystem, http.Handler) {
+	if getRequestFrontendTheme(c) == common.FrontendThemeClassic {
+		return classicFS, classicServer
+	}
+	return defaultFS, defaultServer
+}
+
+func getRequestFrontendTheme(c *gin.Context) string {
+	theme, err := c.Cookie(common.FrontendThemeCookieName)
+	if err == nil && (theme == common.FrontendThemeDefault || theme == common.FrontendThemeClassic) {
+		return theme
+	}
+	return common.NormalizeFrontendTheme(common.GetTheme())
+}
+
+func shouldReturnRelayNotFound(requestURI string) bool {
+	return strings.HasPrefix(requestURI, "/v1") ||
+		strings.HasPrefix(requestURI, "/api") ||
+		strings.HasPrefix(requestURI, "/assets") ||
+		strings.HasPrefix(requestURI, "/static")
 }
