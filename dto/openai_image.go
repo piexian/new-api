@@ -1,7 +1,9 @@
 package dto
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -156,6 +158,128 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		CombineText:     i.Prompt,
 		MaxTokens:       1584,
 		ImagePriceRatio: sizeRatio * qualityRatio,
+	}
+}
+
+func (i *ImageRequest) GetLogDetails() map[string]interface{} {
+	details := make(map[string]interface{})
+
+	size := strings.TrimSpace(i.Size)
+	if size == "" && isGPTImageModel(i.Model) {
+		size = "auto"
+	}
+	if size != "" {
+		details["size"] = size
+	}
+
+	quality := strings.TrimSpace(i.Quality)
+	if quality == "" && isGPTImageModel(i.Model) {
+		quality = "auto"
+	}
+	if quality != "" {
+		details["quality"] = quality
+	}
+
+	background := rawJSONLogValue(i.Background)
+	if background == nil && isGPTImageModel(i.Model) {
+		background = "auto"
+	}
+	if background != nil {
+		details["background"] = background
+	}
+
+	if outputFormat := rawJSONLogValue(i.OutputFormat); outputFormat != nil {
+		details["output_format"] = outputFormat
+	}
+	if outputCompression := rawJSONLogValue(i.OutputCompression); outputCompression != nil {
+		details["output_compression"] = outputCompression
+	}
+	if moderation := rawJSONLogValue(i.Moderation); moderation != nil {
+		details["moderation"] = moderation
+	}
+	if partialImages := rawJSONLogValue(i.PartialImages); partialImages != nil {
+		details["partial_images"] = partialImages
+	}
+
+	if responseFormat := strings.TrimSpace(i.ResponseFormat); responseFormat != "" {
+		details["response_format"] = responseFormat
+	}
+	if i.N != nil && *i.N > 0 {
+		details["n"] = int(*i.N)
+	}
+	if i.Watermark != nil {
+		details["watermark"] = *i.Watermark
+	}
+
+	return details
+}
+
+func (i *ImageRequest) GetLogContent() []string {
+	details := i.GetLogDetails()
+	logContent := make([]string, 0, len(details))
+
+	appendImageLogLine := func(key, label string) {
+		value, ok := details[key]
+		if !ok {
+			return
+		}
+		if valueStr := imageLogValueString(value); valueStr != "" {
+			logContent = append(logContent, fmt.Sprintf("%s %s", label, valueStr))
+		}
+	}
+
+	appendImageLogLine("size", "大小")
+	appendImageLogLine("quality", "品质")
+	appendImageLogLine("background", "背景")
+	appendImageLogLine("output_format", "输出格式")
+	appendImageLogLine("output_compression", "输出压缩")
+	appendImageLogLine("moderation", "审核")
+	appendImageLogLine("partial_images", "局部图")
+	appendImageLogLine("response_format", "响应格式")
+	appendImageLogLine("n", "生成数量")
+	appendImageLogLine("watermark", "水印")
+
+	return logContent
+}
+
+func isGPTImageModel(model string) bool {
+	normalized := strings.TrimSpace(strings.ToLower(model))
+	return strings.HasPrefix(normalized, "gpt-image-")
+}
+
+func rawJSONLogValue(raw json.RawMessage) interface{} {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+
+	var value interface{}
+	if err := common.Unmarshal(trimmed, &value); err != nil {
+		return strings.Trim(string(trimmed), "\"")
+	}
+
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case string, bool, float64:
+		return v
+	default:
+		data, err := common.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("%v", v)
+		}
+		return string(data)
+	}
+}
+
+func imageLogValueString(value interface{}) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(v)
+	default:
+		return common.Interface2String(v)
 	}
 }
 

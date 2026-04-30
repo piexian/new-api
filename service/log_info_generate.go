@@ -77,6 +77,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
+	appendImageGenerationInfo(ctx, other)
 	return other
 }
 
@@ -112,6 +113,30 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]inter
 		streamInfo["errors"] = messages
 	}
 	other["stream_status"] = streamInfo
+}
+
+func appendImageGenerationInfo(ctx *gin.Context, other map[string]interface{}) {
+	if ctx == nil || other == nil {
+		return
+	}
+	if detail, ok := contextMapStringAny(ctx, "image_request_detail"); ok && len(detail) > 0 {
+		other["image_request"] = detail
+	}
+	if detail, ok := contextMapStringAny(ctx, "image_generation_call_detail"); ok && len(detail) > 0 {
+		other["image_generation_call_detail"] = detail
+	}
+}
+
+func contextMapStringAny(ctx *gin.Context, key string) (map[string]interface{}, bool) {
+	value, ok := ctx.Get(key)
+	if !ok || value == nil {
+		return nil, false
+	}
+	detail, ok := value.(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+	return detail, true
 }
 
 func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {

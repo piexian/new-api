@@ -331,6 +331,17 @@ func (o *OpenAIResponsesResponse) GetSize() string {
 	return ""
 }
 
+func (o *OpenAIResponsesResponse) GetImageGenerationLogDetails() map[string]interface{} {
+	details := make(map[string]interface{})
+	if quality := o.GetQuality(); quality != "" {
+		details["quality"] = quality
+	}
+	if size := o.GetSize(); size != "" {
+		details["size"] = size
+	}
+	return details
+}
+
 type IncompleteDetails struct {
 	Reasoning string `json:"reasoning"`
 }
