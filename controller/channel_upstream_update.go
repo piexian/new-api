@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/cohere"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
@@ -260,6 +261,24 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		})), nil
 	}
 
+	if channel.Type == constant.ChannelTypeCohere {
+		key, _, apiErr := channel.GetNextEnabledKey()
+		if apiErr != nil {
+			return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+		}
+		key = strings.TrimSpace(key)
+		headers, err := buildFetchModelsHeaders(channel, key)
+		if err != nil {
+			return nil, err
+		}
+		url := fmt.Sprintf("%s/v2/models", baseURL)
+		allModels, err := fetchCohereModels(url, headers, channel)
+		if err != nil {
+			return nil, err
+		}
+		return normalizeModelNames(allModels), nil
+	}
+
 	if channel.Type == constant.ChannelTypeGemini {
 		key, _, apiErr := channel.GetNextEnabledKey()
 		if apiErr != nil {
@@ -330,6 +349,37 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	})
 
 	return normalizeModelNames(ids), nil
+}
+
+func fetchCohereModels(url string, headers http.Header, channel *model.Channel) ([]string, error) {
+	var allNames []string
+	pageToken := ""
+	for {
+		pagedURL := url
+		if pageToken != "" {
+			pagedURL = fmt.Sprintf("%s?page_token=%s", url, pageToken)
+		} else {
+			pagedURL = fmt.Sprintf("%s?page_size=1000", url)
+		}
+		body, err := GetResponseBody(http.MethodGet, pagedURL, channel, headers)
+		if err != nil {
+			return nil, err
+		}
+		var result cohere.CohereModelsResponse
+		if err := common.Unmarshal(body, &result); err != nil {
+			return nil, err
+		}
+		for _, m := range result.Models {
+			if m.Name != "" {
+				allNames = append(allNames, m.Name)
+			}
+		}
+		if result.NextPageToken == "" {
+			break
+		}
+		pageToken = result.NextPageToken
+	}
+	return allNames, nil
 }
 
 func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {

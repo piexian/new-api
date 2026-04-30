@@ -88,6 +88,19 @@ func TestGetEndpointTypesByChannelTypeForZhipuNonClaudeModel(t *testing.T) {
 	}
 }
 
+func TestGetEndpointTypesByChannelTypeForDeepSeek(t *testing.T) {
+	t.Parallel()
+
+	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeDeepSeek, "deepseek-chat")
+	want := []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeAnthropic,
+	}
+	if !reflect.DeepEqual(endpoints, want) {
+		t.Fatalf("expected DeepSeek endpoints %#v, got %#v", want, endpoints)
+	}
+}
+
 func TestGetEndpointTypesByChannelTypeForXunfeiMaaSImage(t *testing.T) {
 	t.Parallel()
 

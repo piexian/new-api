@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/cohere"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
@@ -1030,6 +1032,49 @@ func FetchModels(c *gin.Context) {
 			return
 		}
 
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    models,
+		})
+		return
+	}
+
+	if req.Type == constant.ChannelTypeCohere {
+		client := &http.Client{}
+		cohereURL := fmt.Sprintf("%s/v2/models?page_size=1000", baseURL)
+		cohereReq, _ := http.NewRequest("GET", cohereURL, nil)
+		cohereReq.Header.Set("Authorization", "Bearer "+key)
+		resp, err := client.Do(cohereReq)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("获取Cohere模型失败: %s", err.Error()),
+			})
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("获取Cohere模型失败: status %d", resp.StatusCode),
+			})
+			return
+		}
+		body, _ := io.ReadAll(resp.Body)
+		var result cohere.CohereModelsResponse
+		if err := json.Unmarshal(body, &result); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("解析Cohere模型失败: %s", err.Error()),
+			})
+			return
+		}
+		models := make([]string, 0, len(result.Models))
+		for _, m := range result.Models {
+			if m.Name != "" {
+				models = append(models, m.Name)
+			}
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"data":    models,
