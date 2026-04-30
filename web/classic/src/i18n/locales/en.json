@@ -3816,6 +3816,11 @@
     "修改用户名": "Change username",
     "现在可以在账户管理中修改您的用户名和密码。": "You can now change your username and password in Account Management.",
     "您的账户尚未设置密码。设置密码后可使用用户名密码登录，提升账户安全性。": "Your account does not have a password. Set one to enable username/password login and improve security.",
-    "立即设置": "Set now"
+    "立即设置": "Set now",
+    "使用新版现代化前端": "Use the modern frontend",
+    "新版现代化前端": "Modern frontend",
+    "新版现代化前端已可使用，普通用户也可以自由切换体验。": "The modern frontend is now available. Regular users can switch to try it at any time.",
+    "立即体验": "Try now",
+    "即将切换到新版现代化前端，并跳转到对应页面。如果新版前端没有保留本地登录状态，请重新登录。": "You are about to switch to the modern frontend and jump to the matching page. If the modern frontend does not keep local login state, please sign in again."
   }
 }

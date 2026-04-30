@@ -1,6 +1,6 @@
 import React from 'react';
-import { Modal, Typography, Button, Space } from '@douyinfe/semi-ui';
-import { IconEdit, IconLock } from '@douyinfe/semi-icons';
+import { Modal, Typography, Button } from '@douyinfe/semi-ui';
+import { IconDesktop, IconEdit, IconLock } from '@douyinfe/semi-icons';
 
 const { Title, Paragraph } = Typography;
 
@@ -10,11 +10,19 @@ const UpdateAnnouncementModal = ({
   onClose,
   hasPassword,
   onChangePassword,
+  onSwitchFrontend,
 }) => {
   const handleChangePassword = () => {
     onClose();
     if (onChangePassword) {
       onChangePassword();
+    }
+  };
+
+  const handleSwitchFrontend = () => {
+    onClose();
+    if (onSwitchFrontend) {
+      onSwitchFrontend();
     }
   };
 
@@ -44,6 +52,24 @@ const UpdateAnnouncementModal = ({
             <Paragraph type="tertiary" style={{ fontSize: 13 }}>
               {t('现在可以在账户管理中修改您的用户名和密码。')}
             </Paragraph>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+          <IconDesktop size="large" style={{ color: 'var(--semi-color-success)', marginTop: 2, flexShrink: 0 }} />
+          <div>
+            <Title heading={6} style={{ marginBottom: 4 }}>{t('新版现代化前端')}</Title>
+            <Paragraph type="tertiary" style={{ fontSize: 13 }}>
+              {t('新版现代化前端已可使用，普通用户也可以自由切换体验。')}
+            </Paragraph>
+            <Button
+              size="small"
+              theme="light"
+              style={{ marginTop: 8 }}
+              onClick={handleSwitchFrontend}
+            >
+              {t('立即体验')}
+            </Button>
           </div>
         </div>
 

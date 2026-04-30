@@ -23,7 +23,13 @@ import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useSetTheme, useTheme, useActualTheme } from '../../context/Theme';
-import { getLogo, getSystemName, API, showSuccess } from '../../helpers';
+import {
+  getLogo,
+  getSystemName,
+  API,
+  showSuccess,
+  switchFrontendTheme,
+} from '../../helpers';
 import { normalizeLanguage } from '../../i18n/language';
 import { useIsMobile } from './useIsMobile';
 import { useSidebarCollapsed } from './useSidebarCollapsed';
@@ -209,6 +215,13 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     [setTheme],
   );
 
+  const handleFrontendSwitch = useCallback(() => {
+    switchFrontendTheme(
+      'default',
+      t('即将切换到新版现代化前端，并跳转到对应页面。如果新版前端没有保留本地登录状态，请重新登录。'),
+    );
+  }, [t]);
+
   const handleMobileMenuToggle = useCallback(() => {
     if (isMobile) {
       onMobileMenuToggle();
@@ -243,6 +256,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     logout,
     handleLanguageChange,
     handleThemeToggle,
+    handleFrontendSwitch,
     handleMobileMenuToggle,
     navigate,
     t,

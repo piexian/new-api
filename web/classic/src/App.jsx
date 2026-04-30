@@ -40,6 +40,7 @@ import {
   PrivateRoute,
   AdminRoute,
   setUserData,
+  switchFrontendTheme,
 } from './helpers';
 import RegisterForm from './components/auth/RegisterForm';
 import LoginForm from './components/auth/LoginForm';
@@ -49,7 +50,11 @@ import Setting from './pages/Setting';
 import { StatusContext } from './context/Status';
 import { UserContext } from './context/User';
 import { useTranslation } from 'react-i18next';
-import { LOGIN_FEATURE_UPDATE_PROMPT_KEY } from './constants/common.constant';
+import {
+  FEATURE_UPDATE_FRONTEND_V2_DISMISSED,
+  FEATURE_UPDATE_PROMPT_CHECKED_KEY,
+  LOGIN_FEATURE_UPDATE_PROMPT_KEY,
+} from './constants/common.constant';
 
 import PasswordResetForm from './components/auth/PasswordResetForm';
 import PasswordResetConfirm from './components/auth/PasswordResetConfirm';
@@ -118,11 +123,19 @@ function App() {
   useEffect(() => {
     if (
       !userState?.user?.id ||
-      sessionStorage.getItem(LOGIN_FEATURE_UPDATE_PROMPT_KEY) !== '1'
+      sessionStorage.getItem(FEATURE_UPDATE_PROMPT_CHECKED_KEY) === '1'
     ) {
       return;
     }
 
+    const shouldCheckPrompt =
+      sessionStorage.getItem(LOGIN_FEATURE_UPDATE_PROMPT_KEY) === '1' ||
+      userState?.user?.feature_update_v1 !== FEATURE_UPDATE_FRONTEND_V2_DISMISSED;
+    if (!shouldCheckPrompt) {
+      return;
+    }
+
+    sessionStorage.setItem(FEATURE_UPDATE_PROMPT_CHECKED_KEY, '1');
     sessionStorage.removeItem(LOGIN_FEATURE_UPDATE_PROMPT_KEY);
 
     let cancelled = false;
@@ -139,7 +152,7 @@ function App() {
 
         if (
           data.setup_completed === 'pending' ||
-          data.feature_update_v1 === 'dismissed'
+          data.feature_update_v1 === FEATURE_UPDATE_FRONTEND_V2_DISMISSED
         ) {
           return;
         }
@@ -159,11 +172,13 @@ function App() {
   const handleDismissAnnouncement = async () => {
     setShowUpdateAnnouncement(false);
     try {
-      await API.put('/api/user/self', { feature_update_v1: 'dismissed' });
+      await API.put('/api/user/self', {
+        feature_update_v1: FEATURE_UPDATE_FRONTEND_V2_DISMISSED,
+      });
       if (userState?.user) {
         const nextUser = {
           ...userState.user,
-          feature_update_v1: 'dismissed',
+          feature_update_v1: FEATURE_UPDATE_FRONTEND_V2_DISMISSED,
         };
         userDispatch({ type: 'login', payload: nextUser });
         setUserData(nextUser);
@@ -499,6 +514,12 @@ function App() {
             navigate('/console/personal', {
               state: { openChangePasswordModal: true },
             })
+          }
+          onSwitchFrontend={() =>
+            switchFrontendTheme(
+              'default',
+              t('即将切换到新版现代化前端，并跳转到对应页面。如果新版前端没有保留本地登录状态，请重新登录。'),
+            )
           }
         />
       </>

@@ -4206,6 +4206,11 @@
     "修改用户名": "Đổi tên người dùng",
     "现在可以在账户管理中修改您的用户名和密码。": "Bạn có thể thay đổi tên người dùng và mật khẩu trong phần Quản lý tài khoản.",
     "您的账户尚未设置密码。设置密码后可使用用户名密码登录，提升账户安全性。": "Tài khoản của bạn chưa có mật khẩu. Đặt mật khẩu để đăng nhập bằng tên người dùng và tăng cường bảo mật.",
-    "立即设置": "Thiết lập ngay"
+    "立即设置": "Thiết lập ngay",
+    "使用新版现代化前端": "Dùng frontend hiện đại",
+    "新版现代化前端": "Frontend hiện đại",
+    "新版现代化前端已可使用，普通用户也可以自由切换体验。": "Frontend hiện đại hiện đã có sẵn. Người dùng thông thường cũng có thể tự do chuyển sang trải nghiệm.",
+    "立即体验": "Dùng thử ngay",
+    "即将切换到新版现代化前端，并跳转到对应页面。如果新版前端没有保留本地登录状态，请重新登录。": "Bạn sắp chuyển sang frontend hiện đại và đi tới trang tương ứng. Nếu frontend hiện đại không giữ trạng thái đăng nhập cục bộ, vui lòng đăng nhập lại."
   }
 }

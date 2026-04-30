@@ -49,6 +49,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     logout,
     handleLanguageChange,
     handleThemeToggle,
+    handleFrontendSwitch,
     handleMobileMenuToggle,
     navigate,
     t,
@@ -111,6 +112,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             isNewYear={isNewYear}
             unreadCount={unreadCount}
             onNoticeOpen={handleNoticeOpen}
+            onSwitchFrontend={handleFrontendSwitch}
             theme={theme}
             onThemeToggle={handleThemeToggle}
             currentLang={currentLang}
