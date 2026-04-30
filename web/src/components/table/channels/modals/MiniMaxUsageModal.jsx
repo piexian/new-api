@@ -101,13 +101,18 @@ const resolveCurrentWindowLabel = (startTime, endTime, t) => {
 
 const resolveWindowQuota = ({ total, remaining, upstreamUsageCount }) => {
   const totalValue = toNumber(total);
-  // MiniMax coding_plan/remains 的 usage_count 实际表示“剩余次数”，
-  // 不是“已使用次数”，需要由 total - remaining 反推出 used。
-  const remainingValue = toNumber(remaining) ?? toNumber(upstreamUsageCount);
+  const usedCount = toNumber(upstreamUsageCount);
+  const remainingCount = toNumber(remaining);
   const usedValue =
-    totalValue != null && remainingValue != null
-      ? Math.max(totalValue - remainingValue, 0)
-      : null;
+    usedCount ??
+    (totalValue != null && remainingCount != null
+      ? Math.max(totalValue - remainingCount, 0)
+      : null);
+  const remainingValue =
+    remainingCount ??
+    (totalValue != null && usedCount != null
+      ? Math.max(totalValue - usedCount, 0)
+      : null);
 
   return {
     total: totalValue,

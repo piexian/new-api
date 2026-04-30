@@ -243,6 +243,22 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-chat":          0.27 / 2,
 	"deepseek-coder":         0.27 / 2,
 	"deepseek-reasoner":      0.55 / 2, // 0.55 / 1k tokens
+	// MiniMax: https://platform.minimaxi.com/docs/guides/pricing-paygo
+	"MiniMax-M2.7":           2.1 / 1000 * RMB, // ￥2.1 / 1M tokens
+	"MiniMax-M2.7-highspeed": 4.2 / 1000 * RMB, // ￥4.2 / 1M tokens
+	"MiniMax-M2.5":           2.1 / 1000 * RMB,
+	"MiniMax-M2.5-highspeed": 4.2 / 1000 * RMB,
+	"MiniMax-M2.1":           2.1 / 1000 * RMB,
+	"MiniMax-M2.1-highspeed": 4.2 / 1000 * RMB,
+	"MiniMax-M2":             2.1 / 1000 * RMB,
+	"speech-2.8-hd":          0.35 * RMB, // ￥3.5 / 10K characters
+	"speech-2.6-hd":          0.35 * RMB,
+	"speech-02-hd":           0.35 * RMB,
+	"speech-01-hd":           0.35 * RMB,
+	"speech-2.8-turbo":       0.2 * RMB, // ￥2 / 10K characters
+	"speech-2.6-turbo":       0.2 * RMB,
+	"speech-02-turbo":        0.2 * RMB,
+	"speech-01-turbo":        0.2 * RMB,
 	// Perplexity online 模型对搜索额外收费，有需要应自行调整，此处不计入搜索费用
 	"llama-3-sonar-small-32k-chat":   0.2 / 1000 * USD,
 	"llama-3-sonar-small-32k-online": 0.2 / 1000 * USD,
@@ -302,6 +318,15 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
 	"veo-3.1-fast-generate-preview":  0.15,
+	"image-01":                       0.025 / USD2RMB,
+	"image-01-live":                  0.025 / USD2RMB,
+	"MiniMax-Hailuo-2.3":             2.00 / USD2RMB,
+	"MiniMax-Hailuo-2.3-Fast":        1.35 / USD2RMB,
+	"MiniMax-Hailuo-02":              2.00 / USD2RMB,
+	"music-2.6":                      1.00 / USD2RMB,
+	"music-cover":                    1.00 / USD2RMB,
+	"music-2.6-free":                 0,
+	"music-cover-free":               0,
 }
 
 var defaultAudioRatio = map[string]float64{
@@ -327,10 +352,17 @@ var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 
 var defaultCompletionRatio = map[string]float64{
-	"gpt-4-gizmo-*":  2,
-	"gpt-4o-gizmo-*": 3,
-	"gpt-4-all":      2,
-	"gpt-image-1":    8,
+	"gpt-4-gizmo-*":          2,
+	"gpt-4o-gizmo-*":         3,
+	"gpt-4-all":              2,
+	"gpt-image-1":            8,
+	"MiniMax-M2.7":           4,
+	"MiniMax-M2.7-highspeed": 4,
+	"MiniMax-M2.5":           4,
+	"MiniMax-M2.5-highspeed": 4,
+	"MiniMax-M2.1":           4,
+	"MiniMax-M2.1-highspeed": 4,
+	"MiniMax-M2":             4,
 }
 
 // InitRatioSettings initializes all model related settings maps

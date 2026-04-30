@@ -2,12 +2,12 @@ package minimax
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
@@ -36,9 +36,14 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		return nil, errors.New("unsupported audio relay mode")
 	}
 
+	if isMiniMaxMusicModel(info.OriginModelName) {
+		return convertMusicRequest(c, info, request)
+	}
+
 	voiceID := request.Voice
 	speed := lo.FromPtrOr(request.Speed, 0.0)
-	outputFormat := request.ResponseFormat
+	audioFormat := normalizeMiniMaxAudioFormat(request.ResponseFormat)
+	outputFormat := normalizeMiniMaxOutputFormat(request.ResponseFormat)
 
 	minimaxRequest := MiniMaxTTSRequest{
 		Model: info.OriginModelName,
@@ -48,27 +53,25 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 			Speed:   speed,
 		},
 		AudioSetting: &AudioSetting{
-			Format: outputFormat,
+			Format: audioFormat,
 		},
 		OutputFormat: outputFormat,
 	}
 
 	// 同步扩展字段的厂商自定义metadata
 	if len(request.Metadata) > 0 {
-		if err := json.Unmarshal(request.Metadata, &minimaxRequest); err != nil {
+		if err := common.Unmarshal(request.Metadata, &minimaxRequest); err != nil {
 			return nil, fmt.Errorf("error unmarshalling metadata to minimax request: %w", err)
 		}
 	}
+	minimaxRequest.OutputFormat = normalizeMiniMaxOutputFormat(minimaxRequest.OutputFormat)
 
-	jsonData, err := json.Marshal(minimaxRequest)
+	jsonData, err := common.Marshal(minimaxRequest)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling minimax request: %w", err)
 	}
-	if outputFormat != "hex" {
-		outputFormat = "url"
-	}
 
-	c.Set("response_format", outputFormat)
+	c.Set("response_format", minimaxRequest.OutputFormat)
 
 	// Debug: log the request structure
 	// fmt.Printf("MiniMax TTS Request: %s\n", string(jsonData))
@@ -76,9 +79,47 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	return bytes.NewReader(jsonData), nil
 }
 
+func convertMusicRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
+	audioFormat := normalizeMiniMaxAudioFormat(request.ResponseFormat)
+	outputFormat := normalizeMiniMaxOutputFormat(request.ResponseFormat)
+	minimaxRequest := MiniMaxMusicRequest{
+		Model:        info.OriginModelName,
+		Prompt:       request.Input,
+		Lyrics:       request.Instructions,
+		OutputFormat: outputFormat,
+		AudioSetting: &AudioSetting{
+			Format: audioFormat,
+		},
+	}
+	if len(request.Metadata) > 0 {
+		if err := common.Unmarshal(request.Metadata, &minimaxRequest); err != nil {
+			return nil, fmt.Errorf("error unmarshalling metadata to minimax music request: %w", err)
+		}
+	}
+	minimaxRequest.OutputFormat = normalizeMiniMaxOutputFormat(minimaxRequest.OutputFormat)
+
+	jsonData, err := common.Marshal(minimaxRequest)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling minimax music request: %w", err)
+	}
+	c.Set("response_format", minimaxRequest.OutputFormat)
+	return bytes.NewReader(jsonData), nil
+}
+
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if info.RelayMode != constant.RelayModeImagesGenerations {
 		return nil, fmt.Errorf("unsupported image relay mode: %d", info.RelayMode)
+	}
+	if isMiniMaxNativeImageEndpoint(c) {
+		storage, err := common.GetBodyStorage(c)
+		if err != nil {
+			return nil, err
+		}
+		body, err := storage.Bytes()
+		if err != nil {
+			return nil, err
+		}
+		return bytes.NewBuffer(body), nil
 	}
 	return oaiImage2MiniMaxImageRequest(request), nil
 }
@@ -99,6 +140,10 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
+	}
+	if lo.FromPtrOr(request.MaxCompletionTokens, uint(0)) == 0 && lo.FromPtrOr(request.MaxTokens, uint(0)) != 0 {
+		request.MaxCompletionTokens = request.MaxTokens
+		request.MaxTokens = nil
 	}
 	return request, nil
 }
@@ -124,6 +169,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return handleTTSResponse(c, resp, info)
 	}
 	if info.RelayMode == constant.RelayModeImagesGenerations {
+		if isMiniMaxNativeImageEndpoint(c) {
+			return miniMaxNativeImageHandler(c, resp)
+		}
 		return miniMaxImageHandler(c, resp, info)
 	}
 

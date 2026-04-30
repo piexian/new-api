@@ -32,8 +32,19 @@ type TaskAdaptor struct {
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
-	a.baseURL = info.ChannelBaseUrl
+	a.baseURL = miniMaxTaskRootBaseURL(info.ChannelBaseUrl)
 	a.apiKey = info.ApiKey
+}
+
+func miniMaxTaskRootBaseURL(baseURL string) string {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		baseURL = constant.ChannelBaseURLs[constant.ChannelTypeMiniMax]
+	}
+	for _, suffix := range []string{"/v1", "/anthropic"} {
+		baseURL = strings.TrimSuffix(baseURL, suffix)
+	}
+	return baseURL
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
@@ -159,11 +170,73 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq, in
 		Duration:   &duration,
 		Resolution: resolution,
 	}
+	a.applyImageInputs(req, videoRequest)
 	if err := req.UnmarshalMetadata(&videoRequest); err != nil {
 		return nil, errors.Wrap(err, "unmarshal metadata to video request failed")
 	}
 
 	return videoRequest, nil
+}
+
+func (a *TaskAdaptor) applyImageInputs(req *relaycommon.TaskSubmitReq, videoRequest *VideoRequest) {
+	images := append([]string{}, req.Images...)
+	if req.Image != "" && len(images) == 0 {
+		images = append(images, req.Image)
+	}
+	if req.InputReference != "" && len(images) == 0 {
+		images = append(images, req.InputReference)
+	}
+	if len(images) == 0 {
+		return
+	}
+
+	mode := strings.ToLower(req.Mode)
+	if videoRequest.Model == "S2V-01" || strings.Contains(mode, "subject") || strings.Contains(mode, "reference") || strings.Contains(mode, "s2v") {
+		videoRequest.SubjectReference = []SubjectReference{{
+			Type:  "character",
+			Image: []string{images[0]},
+		}}
+		return
+	}
+
+	videoRequest.FirstFrameImage = images[0]
+	if len(images) > 1 {
+		videoRequest.LastFrameImage = images[1]
+	}
+}
+
+func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil
+	}
+	videoRequest, err := a.convertToRequestPayload(&req, info)
+	if err != nil {
+		return nil
+	}
+	duration := DefaultDuration
+	if videoRequest.Duration != nil && *videoRequest.Duration > 0 {
+		duration = *videoRequest.Duration
+	}
+	if ratio := miniMaxVideoPriceRatio(videoRequest.Model, videoRequest.Resolution, duration); ratio > 0 && ratio != 1 {
+		return map[string]float64{"duration_resolution": ratio}
+	}
+	return nil
+}
+
+func miniMaxVideoPriceRatio(model string, resolution string, duration int) float64 {
+	key := fmt.Sprintf("%s:%s:%d", model, resolution, duration)
+	ratios := map[string]float64{
+		"MiniMax-Hailuo-2.3-Fast:768P:10": 2.25 / 1.35,
+		"MiniMax-Hailuo-2.3-Fast:1080P:6": 2.31 / 1.35,
+		"MiniMax-Hailuo-2.3:768P:10":      4.00 / 2.00,
+		"MiniMax-Hailuo-2.3:1080P:6":      3.50 / 2.00,
+		"MiniMax-Hailuo-02:768P:10":       4.00 / 2.00,
+		"MiniMax-Hailuo-02:1080P:6":       3.50 / 2.00,
+		"MiniMax-Hailuo-02:512P:6":        0.60 / 2.00,
+		"MiniMax-Hailuo-02:512P:10":       1.00 / 2.00,
+	}
+	return ratios[key]
 }
 
 func (a *TaskAdaptor) parseResolutionFromSize(size string, modelConfig ModelConfig) string {

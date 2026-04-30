@@ -1,6 +1,7 @@
 package minimax
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +35,37 @@ func TestGetRequestURLForImageGeneration(t *testing.T) {
 	want := "https://api.minimax.chat/v1/image_generation"
 	if got != want {
 		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
+	}
+}
+
+func TestGetRequestURLForOfficialCompatibleEndpoints(t *testing.T) {
+	t.Parallel()
+
+	chatURL, err := GetRequestURL(&relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeChatCompletions,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://api.minimaxi.com/v1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetRequestURL chat returned error: %v", err)
+	}
+	if chatURL != "https://api.minimaxi.com/v1/chat/completions" {
+		t.Fatalf("chatURL = %q", chatURL)
+	}
+
+	claudeURL, err := GetRequestURL(&relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeChatCompletions,
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://api.minimaxi.com/anthropic",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetRequestURL claude returned error: %v", err)
+	}
+	if claudeURL != "https://api.minimaxi.com/anthropic/v1/messages" {
+		t.Fatalf("claudeURL = %q", claudeURL)
 	}
 }
 
@@ -85,6 +117,89 @@ func TestConvertImageRequest(t *testing.T) {
 	}
 }
 
+func TestConvertImageRequestPreservesMiniMaxExtraFields(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		OriginModelName: "image-01",
+	}
+	request := dto.ImageRequest{
+		Model:  "image-01",
+		Prompt: "a portrait",
+		ExtraFields: []byte(`{
+			"width": 1024,
+			"height": 768,
+			"seed": 7,
+			"prompt_optimizer": true,
+			"subject_reference": [{"type": "character", "image_file": "https://example.com/ref.png"}]
+		}`),
+	}
+
+	got, err := adaptor.ConvertImageRequest(gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()), info, request)
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+	body, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("json.Marshal returned error: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+	if payload["width"] != float64(1024) || payload["height"] != float64(768) {
+		t.Fatalf("payload size = %#v x %#v", payload["width"], payload["height"])
+	}
+	if payload["seed"] != float64(7) {
+		t.Fatalf("seed = %#v", payload["seed"])
+	}
+	if payload["prompt_optimizer"] != true {
+		t.Fatalf("prompt_optimizer = %#v", payload["prompt_optimizer"])
+	}
+	if _, ok := payload["subject_reference"].([]any); !ok {
+		t.Fatalf("subject_reference = %#v", payload["subject_reference"])
+	}
+}
+
+func TestConvertImageRequestPassesThroughNativeEndpoint(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		OriginModelName: "image-01",
+	}
+	body := `{"model":"image-01","prompt":"a portrait","width":1024,"height":768,"prompt_optimizer":false}`
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/image_generation", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	got, err := adaptor.ConvertImageRequest(c, info, dto.ImageRequest{Model: "image-01", Prompt: "a portrait"})
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+	buf, ok := got.(*bytes.Buffer)
+	if !ok {
+		t.Fatalf("ConvertImageRequest returned %T, want *bytes.Buffer", got)
+	}
+	if buf.String() != body {
+		t.Fatalf("body = %s, want %s", buf.String(), body)
+	}
+}
+
+func TestPath2RelayModeSupportsMiniMaxNativeImageEndpoint(t *testing.T) {
+	t.Parallel()
+
+	got := relayconstant.Path2RelayMode("/v1/image_generation")
+	if got != relayconstant.RelayModeImagesGenerations {
+		t.Fatalf("Path2RelayMode = %d, want %d", got, relayconstant.RelayModeImagesGenerations)
+	}
+}
+
 func TestDoResponseForImageGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -118,6 +233,43 @@ func TestDoResponseForImageGeneration(t *testing.T) {
 	}
 	if strings.Contains(body, `"image_urls"`) {
 		t.Fatalf("response body = %s, should not expose raw MiniMax image_urls payload", body)
+	}
+}
+
+func TestDoResponseForNativeImageEndpointPassesMiniMaxBody(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/image_generation", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesGenerations,
+		StartTime: time.Unix(1700000000, 0),
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       ioNopCloser(`{"data":{"image_urls":["https://example.com/minimax.png"]},"base_resp":{"status_code":0,"status_msg":"success"}}`),
+	}
+	resp.Header.Set("Content-Type", "application/json")
+
+	adaptor := &Adaptor{}
+	usage, err := adaptor.DoResponse(c, resp, info)
+	if err != nil {
+		t.Fatalf("DoResponse returned error: %v", err)
+	}
+	if usage == nil {
+		t.Fatalf("DoResponse returned nil usage")
+	}
+
+	body := recorder.Body.String()
+	if !strings.Contains(body, `"image_urls":["https://example.com/minimax.png"]`) {
+		t.Fatalf("response body = %s, want native MiniMax image_urls payload", body)
+	}
+	if strings.Contains(body, `"url":"https://example.com/minimax.png"`) {
+		t.Fatalf("response body = %s, should not convert native MiniMax payload", body)
 	}
 }
 

@@ -1,6 +1,7 @@
 package minimax
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,13 +18,23 @@ import (
 )
 
 type MiniMaxImageRequest struct {
-	Model           string `json:"model"`
-	Prompt          string `json:"prompt"`
-	AspectRatio     string `json:"aspect_ratio,omitempty"`
-	ResponseFormat  string `json:"response_format,omitempty"`
-	N               int    `json:"n,omitempty"`
-	PromptOptimizer *bool  `json:"prompt_optimizer,omitempty"`
-	AigcWatermark   *bool  `json:"aigc_watermark,omitempty"`
+	Model            string                         `json:"model"`
+	Prompt           string                         `json:"prompt"`
+	AspectRatio      string                         `json:"aspect_ratio,omitempty"`
+	Width            *int                           `json:"width,omitempty"`
+	Height           *int                           `json:"height,omitempty"`
+	ResponseFormat   string                         `json:"response_format,omitempty"`
+	Seed             *int64                         `json:"seed,omitempty"`
+	N                int                            `json:"n,omitempty"`
+	PromptOptimizer  *bool                          `json:"prompt_optimizer,omitempty"`
+	AigcWatermark    *bool                          `json:"aigc_watermark,omitempty"`
+	Style            json.RawMessage                `json:"style,omitempty"`
+	SubjectReference []MiniMaxImageSubjectReference `json:"subject_reference,omitempty"`
+}
+
+type MiniMaxImageSubjectReference struct {
+	Type      string `json:"type,omitempty"`
+	ImageFile string `json:"image_file,omitempty"`
 }
 
 type MiniMaxImageResponse struct {
@@ -37,6 +48,13 @@ type MiniMaxImageResponse struct {
 		StatusCode int    `json:"status_code"`
 		StatusMsg  string `json:"status_msg"`
 	} `json:"base_resp"`
+}
+
+func isMiniMaxNativeImageEndpoint(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	return strings.HasPrefix(c.Request.URL.Path, "/v1/image_generation")
 }
 
 func oaiImage2MiniMaxImageRequest(request dto.ImageRequest) MiniMaxImageRequest {
@@ -58,14 +76,80 @@ func oaiImage2MiniMaxImageRequest(request dto.ImageRequest) MiniMaxImageRequest 
 	if aspectRatio := aspectRatioFromImageRequest(request); aspectRatio != "" {
 		minimaxRequest.AspectRatio = aspectRatio
 	}
-	if raw, ok := request.Extra["prompt_optimizer"]; ok {
-		var promptOptimizer bool
-		if err := common.Unmarshal(raw, &promptOptimizer); err == nil {
-			minimaxRequest.PromptOptimizer = &promptOptimizer
-		}
+	if len(request.Style) > 0 {
+		minimaxRequest.Style = request.Style
 	}
+	applyMiniMaxImageRawFields(request.Extra, &minimaxRequest)
+	applyMiniMaxImageExtraFields(request.ExtraFields, &minimaxRequest)
 
 	return minimaxRequest
+}
+
+func applyMiniMaxImageExtraFields(extraFields json.RawMessage, minimaxRequest *MiniMaxImageRequest) {
+	if len(extraFields) == 0 {
+		return
+	}
+	var fields map[string]json.RawMessage
+	if err := common.Unmarshal(extraFields, &fields); err != nil {
+		return
+	}
+	applyMiniMaxImageRawFields(fields, minimaxRequest)
+}
+
+func applyMiniMaxImageRawFields(fields map[string]json.RawMessage, minimaxRequest *MiniMaxImageRequest) {
+	if len(fields) == 0 {
+		return
+	}
+	for key, raw := range fields {
+		switch key {
+		case "aspect_ratio":
+			var value string
+			if err := common.Unmarshal(raw, &value); err == nil && value != "" {
+				minimaxRequest.AspectRatio = value
+			}
+		case "width":
+			minimaxRequest.Width = unmarshalMiniMaxInt(raw)
+		case "height":
+			minimaxRequest.Height = unmarshalMiniMaxInt(raw)
+		case "seed":
+			minimaxRequest.Seed = unmarshalMiniMaxInt64(raw)
+		case "prompt_optimizer":
+			minimaxRequest.PromptOptimizer = unmarshalMiniMaxBool(raw)
+		case "aigc_watermark":
+			minimaxRequest.AigcWatermark = unmarshalMiniMaxBool(raw)
+		case "style":
+			minimaxRequest.Style = raw
+		case "subject_reference":
+			var subjectReference []MiniMaxImageSubjectReference
+			if err := common.Unmarshal(raw, &subjectReference); err == nil {
+				minimaxRequest.SubjectReference = subjectReference
+			}
+		}
+	}
+}
+
+func unmarshalMiniMaxInt(raw json.RawMessage) *int {
+	var value int
+	if err := common.Unmarshal(raw, &value); err != nil {
+		return nil
+	}
+	return &value
+}
+
+func unmarshalMiniMaxInt64(raw json.RawMessage) *int64 {
+	var value int64
+	if err := common.Unmarshal(raw, &value); err != nil {
+		return nil
+	}
+	return &value
+}
+
+func unmarshalMiniMaxBool(raw json.RawMessage) *bool {
+	var value bool
+	if err := common.Unmarshal(raw, &value); err != nil {
+		return nil
+	}
+	return &value
 }
 
 func aspectRatioFromImageRequest(request dto.ImageRequest) string {
@@ -208,6 +292,19 @@ func miniMaxImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	if _, err := c.Writer.Write(jsonResponse); err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
+
+	return &dto.Usage{}, nil
+}
+
+func miniMaxNativeImageHandler(c *gin.Context, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	defer service.CloseResponseBodyGracefully(resp)
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+
+	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	return &dto.Usage{}, nil
 }

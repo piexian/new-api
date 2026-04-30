@@ -3,7 +3,6 @@ package minimax
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +33,21 @@ type MiniMaxTTSRequest struct {
 	SubtitleEnable    bool               `json:"subtitle_enable,omitempty"`
 	OutputFormat      string             `json:"output_format,omitempty"`
 	AigcWatermark     bool               `json:"aigc_watermark,omitempty"`
+}
+
+type MiniMaxMusicRequest struct {
+	Model           string        `json:"model"`
+	Prompt          string        `json:"prompt,omitempty"`
+	Lyrics          string        `json:"lyrics,omitempty"`
+	Stream          bool          `json:"stream,omitempty"`
+	OutputFormat    string        `json:"output_format,omitempty"`
+	AudioSetting    *AudioSetting `json:"audio_setting,omitempty"`
+	AigcWatermark   bool          `json:"aigc_watermark,omitempty"`
+	LyricsOptimizer *bool         `json:"lyrics_optimizer,omitempty"`
+	IsInstrumental  *bool         `json:"is_instrumental,omitempty"`
+	AudioURL        string        `json:"audio_url,omitempty"`
+	AudioBase64     string        `json:"audio_base64,omitempty"`
+	CoverFeatureID  string        `json:"cover_feature_id,omitempty"`
 }
 
 type StreamOptions struct {
@@ -87,7 +101,9 @@ type MiniMaxTTSData struct {
 }
 
 type MiniMaxExtraInfo struct {
-	UsageCharacters int64 `json:"usage_characters"`
+	UsageCharacters int64  `json:"usage_characters"`
+	AudioFormat     string `json:"audio_format"`
+	MusicFormat     string `json:"music_format"`
 }
 
 type MiniMaxBaseResp struct {
@@ -109,6 +125,24 @@ func getContentTypeByFormat(format string) string {
 	return "audio/mpeg" // default to mp3
 }
 
+func normalizeMiniMaxAudioFormat(responseFormat string) string {
+	switch strings.ToLower(responseFormat) {
+	case "wav", "flac", "aac", "pcm":
+		return strings.ToLower(responseFormat)
+	default:
+		return "mp3"
+	}
+}
+
+func normalizeMiniMaxOutputFormat(responseFormat string) string {
+	switch strings.ToLower(responseFormat) {
+	case "url":
+		return "url"
+	default:
+		return "hex"
+	}
+}
+
 func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	body, readErr := io.ReadAll(resp.Body)
 	if readErr != nil {
@@ -122,7 +156,7 @@ func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 
 	// Parse response
 	var minimaxResp MiniMaxTTSResponse
-	if unmarshalErr := json.Unmarshal(body, &minimaxResp); unmarshalErr != nil {
+	if unmarshalErr := common.Unmarshal(body, &minimaxResp); unmarshalErr != nil {
 		return nil, types.NewErrorWithStatusCode(
 			fmt.Errorf("failed to unmarshal minimax TTS response: %w", unmarshalErr),
 			types.ErrorCodeBadResponseBody,
@@ -161,16 +195,25 @@ func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 			)
 		}
 
-		// Determine content type - default to mp3
-		contentType := "audio/mpeg"
+		audioFormat := minimaxResp.ExtraInfo.AudioFormat
+		if audioFormat == "" {
+			audioFormat = minimaxResp.ExtraInfo.MusicFormat
+		}
+		if audioFormat == "" {
+			audioFormat = normalizeMiniMaxAudioFormat("")
+		}
 
-		c.Data(http.StatusOK, contentType, audioData)
+		c.Data(http.StatusOK, getContentTypeByFormat(audioFormat), audioData)
 	}
 
+	promptTokens := info.GetEstimatePromptTokens()
+	if minimaxResp.ExtraInfo.UsageCharacters > 0 {
+		promptTokens = int(minimaxResp.ExtraInfo.UsageCharacters)
+	}
 	usage = &dto.Usage{
-		PromptTokens:     info.GetEstimatePromptTokens(),
+		PromptTokens:     promptTokens,
 		CompletionTokens: 0,
-		TotalTokens:      int(minimaxResp.ExtraInfo.UsageCharacters),
+		TotalTokens:      promptTokens,
 	}
 
 	return usage, nil

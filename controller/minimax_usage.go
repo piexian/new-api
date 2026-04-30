@@ -170,7 +170,7 @@ func miniMaxTokenPlanRequestURLs(channel *model.Channel) []string {
 		if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
 			host = "https://" + host
 		}
-		url := host + "/v1/api/openplatform/coding_plan/remains"
+		url := host + "/v1/token_plan/remains"
 		for _, existing := range candidates {
 			if existing == url {
 				return
@@ -192,5 +192,26 @@ func miniMaxTokenPlanRequestURLs(channel *model.Channel) []string {
 	addCandidate("https://www.minimaxi.com")
 	addCandidate("https://www.minimax.io")
 	addCandidate("https://www.minimax.com")
+	addLegacyMiniMaxTokenPlanCandidates(&candidates)
 	return candidates
+}
+
+func addLegacyMiniMaxTokenPlanCandidates(candidates *[]string) {
+	for _, host := range []string{
+		"https://www.minimaxi.com",
+		"https://www.minimax.io",
+		"https://www.minimax.com",
+	} {
+		url := host + "/v1/api/openplatform/coding_plan/remains"
+		exists := false
+		for _, existing := range *candidates {
+			if existing == url {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			*candidates = append(*candidates, url)
+		}
+	}
 }
