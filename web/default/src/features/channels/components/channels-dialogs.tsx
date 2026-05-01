@@ -6,6 +6,7 @@ import { EditTagDialog } from './dialogs/edit-tag-dialog'
 import { FetchModelsDialog } from './dialogs/fetch-models-dialog'
 import { MultiKeyManageDialog } from './dialogs/multi-key-manage-dialog'
 import { OllamaModelsDialog } from './dialogs/ollama-models-dialog'
+import { PlanUsageQueryDialog } from './dialogs/plan-usage-query-dialog'
 import { TagBatchEditDialog } from './dialogs/tag-batch-edit-dialog'
 import { UpstreamUpdateDialog } from './dialogs/upstream-update-dialog'
 import { ChannelMutateDrawer } from './drawers/channel-mutate-drawer'
@@ -31,6 +32,12 @@ export function ChannelsDialogs() {
       {/* Balance Query Dialog */}
       <BalanceQueryDialog
         open={open === 'balance-query'}
+        onOpenChange={(v) => !v && setOpen(null)}
+      />
+
+      {/* Token Plan / Coding Plan Usage Dialog */}
+      <PlanUsageQueryDialog
+        open={open === 'plan-usage'}
         onOpenChange={(v) => !v && setOpen(null)}
       />
 

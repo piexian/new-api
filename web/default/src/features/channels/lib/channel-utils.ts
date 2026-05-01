@@ -97,6 +97,10 @@ export function getChannelTypeIcon(type: number): string {
     12: 'OpenAI', // API2GPT
     13: 'OpenAI', // AIGC2D
     9: 'OpenAI', // AILS
+    58: 'OpenAI', // Kilo Gateway
+    59: 'Poe', // Poe
+    60: 'Spark', // Xunfei MaaS
+    61: 'Spark', // Xunfei MaaS Image
   }
 
   return TYPE_TO_ICON[type] || 'OpenAI'

@@ -1,15 +1,30 @@
 import { useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
+import { useStatus } from '@/hooks/use-status'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { formatQuota } from '@/lib/format'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
-import { formatDuration, formatResetPeriod } from '../lib'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
+  formatDuration,
+  formatResetPeriod,
+  getModelRestrictionMeta,
+  getQuotaWindowItems,
+} from '../lib'
 import type { PlanRecord } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const enableEpay = !!status?.enable_online_topup
 
   return useMemo(
     (): ColumnDef<PlanRecord>[] => [
@@ -56,9 +71,27 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         ),
         cell: ({ row }) => (
           <span className='font-semibold text-emerald-600'>
-            ${Number(row.original.plan.price_amount || 0).toFixed(2)}
+            {formatBillingCurrencyFromUSD(
+              Number(row.original.plan.price_amount || 0)
+            )}
           </span>
         ),
+        size: 100,
+      },
+      {
+        id: 'purchase_limit',
+        meta: { label: t('Purchase Limit'), mobileHidden: true },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Purchase Limit')} />
+        ),
+        cell: ({ row }) => {
+          const limit = Number(row.original.plan.max_purchase_per_user || 0)
+          return (
+            <span className='text-muted-foreground'>
+              {limit > 0 ? limit : t('Unlimited')}
+            </span>
+          )
+        },
         size: 100,
       },
       {
@@ -144,6 +177,13 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
               {plan.creem_product_id && (
                 <StatusBadge label='Creem' variant='neutral' copyable={false} />
               )}
+              {enableEpay && (
+                <StatusBadge
+                  label={t('Epay')}
+                  variant='neutral'
+                  copyable={false}
+                />
+              )}
             </div>
           )
         },
@@ -159,11 +199,67 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
           const total = Number(row.original.plan.total_amount || 0)
           return (
             <span className='text-muted-foreground'>
-              {total > 0 ? total : t('Unlimited')}
+              {total > 0 ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className='cursor-help'>{formatQuota(total)}</span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {t('Raw Quota')}: {total}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                t('Unlimited')
+              )}
             </span>
           )
         },
         size: 100,
+      },
+      {
+        id: 'limits',
+        meta: { label: t('Model and Window Limits'), mobileHidden: true },
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={t('Model and Window Limits')}
+          />
+        ),
+        cell: ({ row }) => {
+          const plan = row.original.plan
+          const restriction = getModelRestrictionMeta(plan, t)
+          const windows = getQuotaWindowItems(plan, t, formatQuota)
+
+          if (!restriction && windows.length === 0) {
+            return <span className='text-muted-foreground'>{t('None')}</span>
+          }
+
+          return (
+            <div className='max-w-[220px] space-y-1 text-xs'>
+              {restriction &&
+                (restriction.tooltip ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className='text-muted-foreground truncate'>
+                        {restriction.label}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>{restriction.tooltip}</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <div className='text-muted-foreground truncate'>
+                    {restriction.label}
+                  </div>
+                ))}
+              {windows.map((item) => (
+                <div key={item.label} className='text-muted-foreground truncate'>
+                  {item.label}
+                </div>
+              ))}
+            </div>
+          )
+        },
+        size: 220,
       },
       {
         id: 'upgrade_group',
@@ -186,6 +282,6 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         size: 80,
       },
     ],
-    [t]
+    [enableEpay, t]
   )
 }

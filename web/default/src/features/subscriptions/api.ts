@@ -114,6 +114,13 @@ export async function paySubscriptionEpay(
   }
 }
 
+export async function paySubscriptionWallet(
+  data: SubscriptionPayRequest
+): Promise<ApiResponse<{ order?: unknown }>> {
+  const res = await api.post('/api/subscription/wallet/pay', data)
+  return res.data
+}
+
 // ============================================================================
 // User Self Subscriptions
 // ============================================================================

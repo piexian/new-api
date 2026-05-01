@@ -14,6 +14,7 @@ type DialogType =
   | 'update-channel'
   | 'test-channel'
   | 'balance-query'
+  | 'plan-usage'
   | 'fetch-models'
   | 'ollama-models'
   | 'multi-key-manage'

@@ -2,9 +2,11 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -35,10 +37,16 @@ import {
 import {
   getPublicPlans,
   getSelfSubscriptionFull,
+  paySubscriptionWallet,
   updateBillingPreference,
 } from '@/features/subscriptions/api'
 import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
-import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
+import {
+  formatDuration,
+  formatResetPeriod,
+  getModelRestrictionMeta,
+  getQuotaWindowItems,
+} from '@/features/subscriptions/lib'
 import type {
   PlanRecord,
   UserSubscriptionRecord,
@@ -48,6 +56,8 @@ import type { PaymentMethod, TopupInfo } from '../types'
 interface SubscriptionPlansCardProps {
   topupInfo: TopupInfo | null
   onAvailabilityChange?: (available: boolean) => void
+  walletQuota?: number
+  onWalletQuotaChange?: () => Promise<void> | void
 }
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
@@ -59,6 +69,8 @@ function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
 export function SubscriptionPlansCard({
   topupInfo,
   onAvailabilityChange,
+  walletQuota = 0,
+  onWalletQuotaChange,
 }: SubscriptionPlansCardProps) {
   const { t } = useTranslation()
   const { status } = useStatus()
@@ -77,6 +89,12 @@ export function SubscriptionPlansCard({
 
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<PlanRecord | null>(null)
+  const [walletConfirmPlan, setWalletConfirmPlan] = useState<PlanRecord | null>(
+    null
+  )
+  const [walletPayingPlanId, setWalletPayingPlanId] = useState<number | null>(
+    null
+  )
 
   const enableStripe = !!status?.enable_stripe_topup
   const enableCreem = !!topupInfo?.enable_creem_topup
@@ -125,6 +143,7 @@ export function SubscriptionPlansCard({
     setRefreshing(true)
     try {
       await fetchSelfSubscription()
+      await onWalletQuotaChange?.()
     } finally {
       setRefreshing(false)
     }
@@ -195,6 +214,49 @@ export function SubscriptionPlansCard({
     const used = Number(sub?.subscription?.amount_used || 0)
     if (total <= 0) return 0
     return Math.round((used / total) * 100)
+  }
+
+  const getRequiredQuota = (planRecord: PlanRecord | null) => {
+    const requiredQuota = Number(planRecord?.required_quota)
+    return Number.isFinite(requiredQuota) && requiredQuota >= 0
+      ? requiredQuota
+      : 0
+  }
+
+  const handleOpenWalletConfirm = (planRecord: PlanRecord) => {
+    const requiredQuota = getRequiredQuota(planRecord)
+    const currentQuota = Number(walletQuota || 0)
+    if (requiredQuota > currentQuota) {
+      toast.error(
+        t('Insufficient balance. Current {{current}}, required {{required}}', {
+          current: formatQuota(currentQuota),
+          required: formatQuota(requiredQuota),
+        })
+      )
+      return
+    }
+    setWalletConfirmPlan(planRecord)
+  }
+
+  const handleWalletPay = async () => {
+    const planId = walletConfirmPlan?.plan?.id
+    if (!planId) return
+
+    setWalletPayingPlanId(planId)
+    try {
+      const res = await paySubscriptionWallet({ plan_id: planId })
+      if (res.success) {
+        toast.success(t('Wallet purchase succeeded'))
+        setWalletConfirmPlan(null)
+        await Promise.all([fetchSelfSubscription(), onWalletQuotaChange?.()])
+      } else {
+        toast.error(res.message || t('Wallet purchase failed'))
+      }
+    } catch {
+      toast.error(t('Wallet purchase failed'))
+    } finally {
+      setWalletPayingPlanId(null)
+    }
   }
 
   if (loading) {
@@ -334,7 +396,10 @@ export function SubscriptionPlansCard({
                         ? Math.max(0, totalAmount - usedAmount)
                         : 0
                     const planTitle =
-                      planTitleMap.get(subscription?.plan_id) || ''
+                      sub.plan?.title ||
+                      planTitleMap.get(subscription?.plan_id) ||
+                      ''
+                    const planInfo = sub.plan
                     const remainDays = getRemainingDays(sub)
                     const usagePercent = getUsagePercent(sub)
                     const now = Date.now() / 1000
@@ -342,6 +407,16 @@ export function SubscriptionPlansCard({
                     const isCancelled = subscription?.status === 'cancelled'
                     const isActive =
                       subscription?.status === 'active' && !isExpired
+                    const modelRestrictionMeta = getModelRestrictionMeta(
+                      planInfo,
+                      t
+                    )
+                    const windowUsageItems = getQuotaWindowItems(
+                      planInfo,
+                      t,
+                      formatQuota,
+                      subscription
+                    )
 
                     return (
                       <div
@@ -433,6 +508,30 @@ export function SubscriptionPlansCard({
                             className='mt-2 h-1.5'
                           />
                         )}
+                        {modelRestrictionMeta && (
+                          <div className='text-muted-foreground mt-1'>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className='cursor-help'>
+                                  {modelRestrictionMeta.label}
+                                </span>
+                              </TooltipTrigger>
+                              {modelRestrictionMeta.tooltip && (
+                                <TooltipContent>
+                                  {modelRestrictionMeta.tooltip}
+                                </TooltipContent>
+                              )}
+                            </Tooltip>
+                          </div>
+                        )}
+                        {windowUsageItems.map((item) => (
+                          <div
+                            key={`${subscription?.id || 0}-${item.label}`}
+                            className='text-muted-foreground mt-1'
+                          >
+                            {item.label}
+                          </div>
+                        ))}
                       </div>
                     )
                   })}
@@ -454,11 +553,21 @@ export function SubscriptionPlansCard({
                 const plan = p?.plan
                 if (!plan) return null
                 const totalAmount = Number(plan.total_amount || 0)
-                const price = Number(plan.price_amount || 0).toFixed(2)
+                const price = formatBillingCurrencyFromUSD(
+                  Number(plan.price_amount || 0)
+                )
                 const isPopular = index === 0 && plans.length > 1
                 const limit = Number(plan.max_purchase_per_user || 0)
                 const count = planPurchaseCountMap.get(plan.id) || 0
                 const reached = limit > 0 && count >= limit
+                const hasOnlinePurchase =
+                  enableOnlineTopUp || enableStripe || enableCreem
+                const modelRestrictionMeta = getModelRestrictionMeta(plan, t)
+                const windowLimitItems = getQuotaWindowItems(
+                  plan,
+                  t,
+                  formatQuota
+                )
 
                 const benefits = [
                   `${t('Validity Period')}: ${formatDuration(plan, t)}`,
@@ -469,6 +578,8 @@ export function SubscriptionPlansCard({
                     ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
                     : `${t('Total Quota')}: ${t('Unlimited')}`,
                   limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
+                  modelRestrictionMeta ? modelRestrictionMeta.label : null,
+                  ...windowLimitItems.map((item) => item.label),
                   plan.upgrade_group
                     ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
                     : null,
@@ -508,20 +619,36 @@ export function SubscriptionPlansCard({
 
                       <div className='py-2'>
                         <span className='text-primary text-2xl font-bold'>
-                          ${price}
+                          {price}
                         </span>
                       </div>
 
                       <div className='flex-1 space-y-1.5 pb-3'>
-                        {benefits.map((label) => (
-                          <div
-                            key={label}
-                            className='text-muted-foreground flex items-center gap-2 text-xs'
-                          >
-                            <Check className='text-primary h-3 w-3 shrink-0' />
-                            <span>{label}</span>
-                          </div>
-                        ))}
+                        {benefits.map((label) => {
+                          const content = (
+                            <div className='text-muted-foreground flex items-center gap-2 text-xs'>
+                              <Check className='text-primary h-3 w-3 shrink-0' />
+                              <span>{label}</span>
+                            </div>
+                          )
+                          if (
+                            modelRestrictionMeta &&
+                            label === modelRestrictionMeta.label &&
+                            modelRestrictionMeta.tooltip
+                          ) {
+                            return (
+                              <Tooltip key={label}>
+                                <TooltipTrigger asChild>
+                                  <div>{content}</div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {modelRestrictionMeta.tooltip}
+                                </TooltipContent>
+                              </Tooltip>
+                            )
+                          }
+                          return <div key={label}>{content}</div>
+                        })}
                       </div>
 
                       <Separator className='mb-3' />
@@ -544,16 +671,29 @@ export function SubscriptionPlansCard({
                           </TooltipContent>
                         </Tooltip>
                       ) : (
-                        <Button
-                          variant='outline'
-                          className='w-full'
-                          onClick={() => {
-                            setSelectedPlan(p)
-                            setPurchaseOpen(true)
-                          }}
-                        >
-                          {t('Subscribe Now')}
-                        </Button>
+                        <div className='flex flex-col gap-2'>
+                          <Button
+                            className='w-full'
+                            disabled={walletPayingPlanId === plan.id}
+                            onClick={() => handleOpenWalletConfirm(p)}
+                          >
+                            {Number(plan.price_amount || 0) > 0
+                              ? t('Buy with Balance')
+                              : t('Claim for Free')}
+                          </Button>
+                          {hasOnlinePurchase && (
+                            <Button
+                              variant='outline'
+                              className='w-full'
+                              onClick={() => {
+                                setSelectedPlan(p)
+                                setPurchaseOpen(true)
+                              }}
+                            >
+                              {t('Subscribe Online')}
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -590,6 +730,37 @@ export function SubscriptionPlansCard({
             ? planPurchaseCountMap.get(selectedPlan.plan.id)
             : undefined
         }
+      />
+
+      <ConfirmDialog
+        open={!!walletConfirmPlan}
+        onOpenChange={(open) => {
+          if (!open) setWalletConfirmPlan(null)
+        }}
+        title={t('Confirm balance subscription purchase')}
+        desc={
+          <div className='space-y-2 text-sm'>
+            <div>
+              {t('Plan')}: {walletConfirmPlan?.plan?.title || '-'}
+            </div>
+            <div>
+              {t('Current Balance')}: {formatQuota(Number(walletQuota || 0))}
+            </div>
+            <div>
+              {t('This deduction')}: {formatQuota(getRequiredQuota(walletConfirmPlan))}
+            </div>
+            {getRequiredQuota(walletConfirmPlan) === 0 && (
+              <div className='text-muted-foreground'>
+                {t(
+                  'This plan costs 0 and will create a subscription record without deducting wallet balance.'
+                )}
+              </div>
+            )}
+          </div>
+        }
+        confirmText={t('Confirm purchase')}
+        handleConfirm={handleWalletPay}
+        isLoading={walletPayingPlanId === walletConfirmPlan?.plan?.id}
       />
     </>
   )

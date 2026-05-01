@@ -54,6 +54,21 @@ export type CodexUsageResponse = {
   data?: Record<string, unknown>
 }
 
+export type ChannelPlanUsageResponse = {
+  success: boolean
+  message?: string
+  multi_key?: boolean
+  key_index?: number
+  key_count?: number
+  key_label?: string
+  key_status?: number
+  disabled_reason?: string
+  disabled_time?: number
+  upstream_status?: number
+  request_url?: string
+  data?: unknown
+}
+
 export type CodexCredentialRefreshResponse = {
   success: boolean
   message?: string
@@ -276,6 +291,39 @@ export async function getCodexUsage(
     disableDuplicate: true,
   }
   const res = await api.get(`/api/channel/${channelId}/codex/usage`, config)
+  return res.data
+}
+
+export async function getMiniMaxTokenPlanUsage(
+  channelId: number,
+  keyIndex = 0
+): Promise<ChannelPlanUsageResponse> {
+  const config: ExtendedApiConfig = {
+    skipBusinessError: true,
+    disableDuplicate: true,
+  }
+  const res = await api.get(`/api/channel/${channelId}/minimax/usage`, {
+    ...config,
+    params: { key_index: Math.max(Math.floor(keyIndex), 0) },
+  })
+  return res.data
+}
+
+export async function getZhipuCodingPlanUsage(
+  channelId: number,
+  keyIndex = 0
+): Promise<ChannelPlanUsageResponse> {
+  const config: ExtendedApiConfig = {
+    skipBusinessError: true,
+    disableDuplicate: true,
+  }
+  const res = await api.get(
+    `/api/channel/${channelId}/zhipu/coding_plan/usage`,
+    {
+      ...config,
+      params: { key_index: Math.max(Math.floor(keyIndex), 0) },
+    }
+  )
   return res.data
 }
 

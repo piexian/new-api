@@ -142,6 +142,10 @@ import { ParamOverrideEditorDialog } from '../dialogs/param-override-editor-dial
 import { StatusCodeRiskDialog } from '../dialogs/status-code-risk-dialog'
 import { ModelMappingEditor } from '../model-mapping-editor'
 
+const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan'
+const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL =
+  'glm-coding-plan-international'
+
 type ChannelMutateDrawerProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -217,6 +221,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.proxy?.trim() ||
     values.system_prompt?.trim() ||
     values.force_format ||
+    values.use_responses_api ||
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
@@ -1484,6 +1489,78 @@ export function ChannelMutateDrawer({
                   />
                 )}
 
+                {/* Zhipu V4 (type 26) */}
+                {currentType === 26 && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name='base_url'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('API Base URL')}</FormLabel>
+                          <Select
+                            onValueChange={(value) =>
+                              field.onChange(
+                                value === '__default__' ? '' : value
+                              )
+                            }
+                            value={
+                              [
+                                '',
+                                ZHIPU_CODING_PLAN_BASE_URL,
+                                ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL,
+                              ].includes(String(field.value || ''))
+                                ? field.value || '__default__'
+                                : undefined
+                            }
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {field.value &&
+                                ![
+                                  ZHIPU_CODING_PLAN_BASE_URL,
+                                  ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL,
+                                ].includes(String(field.value)) && (
+                                  <SelectItem value={String(field.value)}>
+                                    {String(field.value)}
+                                  </SelectItem>
+                                )}
+                              <SelectItem value='__default__'>
+                                {t('Default Zhipu endpoint')}
+                              </SelectItem>
+                              <SelectItem value={ZHIPU_CODING_PLAN_BASE_URL}>
+                                {ZHIPU_CODING_PLAN_BASE_URL}
+                              </SelectItem>
+                              <SelectItem
+                                value={ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL}
+                              >
+                                {ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {t(
+                              'Coding Plan quota only applies to the corresponding coding-tool scenarios. Choose a special endpoint to use the official Coding Plan routing rules.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Alert>
+                      <AlertDescription>
+                        {t(
+                          'This channel supports both OpenAI and Claude endpoints: /v1/chat/completions uses the OpenAI-compatible endpoint, while /v1/messages uses the Claude-compatible endpoint.'
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  </>
+                )}
+
                 {/* Cloudflare Workers AI (type 39) */}
                 {currentType === 39 && (
                   <FormField
@@ -1752,7 +1829,7 @@ export function ChannelMutateDrawer({
                 )}
 
                 {/* General base_url for other types */}
-                {![3, 8, 22, 36, 45].includes(currentType) && (
+                {![3, 8, 22, 26, 36, 45].includes(currentType) && (
                   <FormField
                     control={form.control}
                     name='base_url'
@@ -3015,28 +3092,55 @@ export function ChannelMutateDrawer({
 
                     <div className='divide-border space-y-0 divide-y border-y'>
                       {currentType === 1 && (
-                        <FormField
-                          control={form.control}
-                          name='force_format'
-                          render={({ field }) => (
-                            <FormItem className='flex items-center justify-between px-4 py-3'>
-                              <div className='space-y-0.5'>
-                                <FormLabel>{t('Force Format')}</FormLabel>
-                                <FormDescription>
-                                  {t(
-                                    'Force format response to OpenAI standard (OpenAI channel only)'
-                                  )}
-                                </FormDescription>
-                              </div>
-                              <FormControl>
-                                <Switch
-                                  checked={field.value}
-                                  onCheckedChange={field.onChange}
-                                />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
+                        <>
+                          <FormField
+                            control={form.control}
+                            name='use_responses_api'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>
+                                    {t('Responses API Mode')}
+                                  </FormLabel>
+                                  <FormDescription>
+                                    {t(
+                                      'When enabled, /v1/chat/completions requests for this channel are automatically converted to Responses API.'
+                                    )}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name='force_format'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>{t('Force Format')}</FormLabel>
+                                  <FormDescription>
+                                    {t(
+                                      'Force format response to OpenAI standard (OpenAI channel only)'
+                                    )}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        </>
                       )}
 
                       <FormField

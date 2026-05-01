@@ -1,6 +1,32 @@
 import { z } from 'zod'
 import type { TFunction } from 'i18next'
+import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 import type { SubscriptionPlan, PlanPayload } from '../types'
+
+const modelRestrictModes = ['', 'group', 'custom'] as const
+
+function parseAllowedModels(value?: string): string[] {
+  if (!value || value.trim() === '') return []
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((item) => String(item || '').trim()).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+function normalizeAllowedModels(models: string[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const model of models) {
+    const normalized = String(model || '').trim()
+    if (!normalized || seen.has(normalized)) continue
+    seen.add(normalized)
+    result.push(normalized)
+  }
+  return result
+}
 
 export function getPlanFormSchema(t: TFunction) {
   return z.object({
@@ -22,6 +48,12 @@ export function getPlanFormSchema(t: TFunction) {
     sort_order: z.coerce.number(),
     max_purchase_per_user: z.coerce.number().min(0),
     total_amount: z.coerce.number().min(0),
+    model_restrict_mode: z.enum(modelRestrictModes),
+    model_restrict_group: z.string().optional(),
+    allowed_models: z.array(z.string()),
+    daily_quota_limit: z.coerce.number().min(0),
+    weekly_quota_limit: z.coerce.number().min(0),
+    monthly_quota_limit: z.coerce.number().min(0),
     upgrade_group: z.string().optional(),
     stripe_price_id: z.string().optional(),
     creem_product_id: z.string().optional(),
@@ -43,6 +75,12 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   sort_order: 0,
   max_purchase_per_user: 0,
   total_amount: 0,
+  model_restrict_mode: '',
+  model_restrict_group: '',
+  allowed_models: [],
+  daily_quota_limit: 0,
+  weekly_quota_limit: 0,
+  monthly_quota_limit: 0,
   upgrade_group: '',
   stripe_price_id: '',
   creem_product_id: '',
@@ -61,7 +99,19 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     enabled: plan.enabled !== false,
     sort_order: Number(plan.sort_order || 0),
     max_purchase_per_user: Number(plan.max_purchase_per_user || 0),
-    total_amount: Number(plan.total_amount || 0),
+    total_amount: Number(quotaUnitsToDollars(Number(plan.total_amount || 0)).toFixed(6)),
+    model_restrict_mode: plan.model_restrict_mode || '',
+    model_restrict_group: plan.model_restrict_group || '',
+    allowed_models: parseAllowedModels(plan.allowed_models),
+    daily_quota_limit: Number(
+      quotaUnitsToDollars(Number(plan.daily_quota_limit || 0)).toFixed(6)
+    ),
+    weekly_quota_limit: Number(
+      quotaUnitsToDollars(Number(plan.weekly_quota_limit || 0)).toFixed(6)
+    ),
+    monthly_quota_limit: Number(
+      quotaUnitsToDollars(Number(plan.monthly_quota_limit || 0)).toFixed(6)
+    ),
     upgrade_group: plan.upgrade_group || '',
     stripe_price_id: plan.stripe_price_id || '',
     creem_product_id: plan.creem_product_id || '',
@@ -83,7 +133,24 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
           : 0,
       sort_order: Number(values.sort_order || 0),
       max_purchase_per_user: Number(values.max_purchase_per_user || 0),
-      total_amount: Number(values.total_amount || 0),
+      total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
+      model_restrict_mode: values.model_restrict_mode || '',
+      model_restrict_group:
+        values.model_restrict_mode === 'group'
+          ? values.model_restrict_group || ''
+          : '',
+      allowed_models: JSON.stringify(
+        normalizeAllowedModels(values.allowed_models || [])
+      ),
+      daily_quota_limit: parseQuotaFromDollars(
+        Number(values.daily_quota_limit || 0)
+      ),
+      weekly_quota_limit: parseQuotaFromDollars(
+        Number(values.weekly_quota_limit || 0)
+      ),
+      monthly_quota_limit: parseQuotaFromDollars(
+        Number(values.monthly_quota_limit || 0)
+      ),
       upgrade_group: values.upgrade_group || '',
     },
   }

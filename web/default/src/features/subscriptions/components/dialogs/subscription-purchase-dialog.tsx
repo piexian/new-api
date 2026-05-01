@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { formatQuota } from '@/lib/format'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -66,7 +68,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
   const hasAnyPayment = hasStripe || hasCreem || hasEpay
   const totalAmount = Number(plan.total_amount || 0)
-  const price = Number(plan.price_amount || 0).toFixed(2)
+  const price = formatBillingCurrencyFromUSD(Number(plan.price_amount || 0))
   const limitReached =
     (props.purchaseLimit || 0) > 0 &&
     (props.purchaseCount || 0) >= (props.purchaseLimit || 0)
@@ -206,7 +208,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
               </span>
               <span className='flex items-center gap-1 text-sm'>
                 <Package className='h-3.5 w-3.5' />
-                {totalAmount > 0 ? totalAmount : t('Unlimited')}
+                {totalAmount > 0 ? formatQuota(totalAmount) : t('Unlimited')}
               </span>
             </div>
             {plan.upgrade_group && (
@@ -220,7 +222,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
             <Separator />
             <div className='flex items-center justify-between'>
               <span className='text-sm font-medium'>{t('Amount Due')}</span>
-              <span className='text-primary text-lg font-bold'>${price}</span>
+              <span className='text-primary text-lg font-bold'>{price}</span>
             </div>
           </div>
 

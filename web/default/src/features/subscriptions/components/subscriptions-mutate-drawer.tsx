@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CalendarClock, CreditCard, RefreshCw, Settings2 } from 'lucide-react'
+import {
+  CalendarClock,
+  CreditCard,
+  RefreshCw,
+  Settings2,
+  SlidersHorizontal,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { getCurrencyLabel } from '@/lib/currency'
+import { TagInput } from '@/components/tag-input'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -84,6 +92,8 @@ export function SubscriptionsMutateDrawer({
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
+  const modelRestrictMode = form.watch('model_restrict_mode')
+  const quotaDisplayUnit = getCurrencyLabel()
 
   const onSubmit = async (values: PlanFormValues) => {
     setIsSubmitting(true)
@@ -214,6 +224,7 @@ export function SubscriptionsMutateDrawer({
                         <Input
                           {...field}
                           type='number'
+                          step='0.01'
                           min={0}
                           onChange={(e) =>
                             field.onChange(parseFloat(e.target.value) || 0)
@@ -221,7 +232,10 @@ export function SubscriptionsMutateDrawer({
                         />
                       </FormControl>
                       <FormDescription>
-                        {t('0 means unlimited')}
+                        {t(
+                          '0 means unlimited. Values are entered in the current display unit: {{unit}}',
+                          { unit: quotaDisplayUnit }
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -240,7 +254,7 @@ export function SubscriptionsMutateDrawer({
                         onValueChange={(v) =>
                           field.onChange(v === '__none__' ? '' : v)
                         }
-                        value={field.value || ''}
+                        value={field.value || '__none__'}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -323,6 +337,205 @@ export function SubscriptionsMutateDrawer({
                       <FormLabel className='!mt-0'>
                         {t('Enabled Status')}
                       </FormLabel>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* Model & Window Limits */}
+            <div className='space-y-4'>
+              <h3 className='flex items-center gap-2 text-sm font-medium'>
+                <SlidersHorizontal className='h-4 w-4' />
+                {t('Model and Window Limits')}
+              </h3>
+
+              <div className='grid grid-cols-2 gap-3'>
+                <FormField
+                  control={form.control}
+                  name='model_restrict_mode'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Model Restriction Mode')}</FormLabel>
+                      <Select
+                        value={field.value || '__none__'}
+                        onValueChange={(value) => {
+                          const next = value === '__none__' ? '' : value
+                          field.onChange(next)
+                          if (next !== 'group') {
+                            form.setValue('model_restrict_group', '')
+                          }
+                          if (next !== 'custom') {
+                            form.setValue('allowed_models', [])
+                          }
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value='__none__'>
+                            {t('No model restriction')}
+                          </SelectItem>
+                          <SelectItem value='group'>
+                            {t('Restrict by model group')}
+                          </SelectItem>
+                          <SelectItem value='custom'>
+                            {t('Restrict by custom models')}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='model_restrict_group'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Model Restriction Group')}</FormLabel>
+                      <Select
+                        disabled={modelRestrictMode !== 'group'}
+                        onValueChange={(v) =>
+                          field.onChange(v === '__auto__' ? '' : v)
+                        }
+                        value={field.value || '__auto__'}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value='__auto__'>
+                            {t('Auto detect')}
+                          </SelectItem>
+                          {groupOptions.map((g) => (
+                            <SelectItem key={g} value={g}>
+                              {g}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {modelRestrictMode === 'group'
+                          ? t(
+                              'When empty, the upgrade group is used first, otherwise the current user group is used.'
+                            )
+                          : t('Only available when restricting by model group')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name='allowed_models'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Allowed Models')}</FormLabel>
+                    <FormControl>
+                      <TagInput
+                        value={field.value || []}
+                        onChange={field.onChange}
+                        disabled={modelRestrictMode !== 'custom'}
+                        placeholder={t(
+                          'Enter model names or prefixes, such as gpt-4o or claude-*'
+                        )}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {modelRestrictMode === 'custom'
+                        ? t(
+                            'Exact model names and prefix* patterns are supported.'
+                          )
+                        : t(
+                            'Only custom model restriction mode needs allowed models.'
+                          )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className='grid grid-cols-3 gap-3'>
+                <FormField
+                  control={form.control}
+                  name='daily_quota_limit'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Daily Quota Limit')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          step='0.01'
+                          min={0}
+                          onChange={(e) =>
+                            field.onChange(parseFloat(e.target.value) || 0)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('0 means unlimited')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='weekly_quota_limit'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Weekly Quota Limit')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          step='0.01'
+                          min={0}
+                          onChange={(e) =>
+                            field.onChange(parseFloat(e.target.value) || 0)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('0 means unlimited')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='monthly_quota_limit'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Monthly Quota Limit')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          step='0.01'
+                          min={0}
+                          onChange={(e) =>
+                            field.onChange(parseFloat(e.target.value) || 0)
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('0 means unlimited')}
+                      </FormDescription>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />

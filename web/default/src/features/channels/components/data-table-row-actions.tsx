@@ -16,6 +16,7 @@ import {
   Trash2,
   RefreshCw,
   Loader2,
+  ChartNoAxesColumn,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -40,7 +41,9 @@ import {
   handleTestChannel,
   handleToggleChannelStatus,
   isChannelEnabled,
+  isMiniMaxTokenPlanChannel,
   isMultiKeyChannel,
+  isZhipuCodingPlanChannel,
 } from '../lib'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
 import type { Channel } from '../types'
@@ -61,6 +64,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
   const isEnabled = isChannelEnabled(channel)
   const isMultiKey = isMultiKeyChannel(channel)
+  const canQueryPlanUsage =
+    isMiniMaxTokenPlanChannel(channel) || isZhipuCodingPlanChannel(channel)
 
   const handleEdit = () => {
     setCurrentRow(channel)
@@ -87,6 +92,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const handleQueryBalance = () => {
     setCurrentRow(channel)
     setOpen('balance-query')
+  }
+
+  const handleQueryPlanUsage = () => {
+    setCurrentRow(channel)
+    setOpen('plan-usage')
   }
 
   const handleFetchModels = () => {
@@ -204,6 +214,17 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               <DollarSign size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
+
+          {canQueryPlanUsage && (
+            <DropdownMenuItem onClick={handleQueryPlanUsage}>
+              {isMiniMaxTokenPlanChannel(channel)
+                ? t('Token Plan')
+                : t('Coding Plan')}
+              <DropdownMenuShortcut>
+                <ChartNoAxesColumn size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
 
           {/* Fetch Models */}
           <DropdownMenuItem onClick={handleFetchModels}>
