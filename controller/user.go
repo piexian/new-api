@@ -164,7 +164,7 @@ func setupLogin(user *model.User, c *gin.Context) {
 		"data": map[string]any{
 			"id":           user.Id,
 			"username":     user.Username,
-			"display_name": user.DisplayName,
+			"display_name": user.Username,
 			"role":         user.Role,
 			"status":       user.Status,
 			"group":        user.Group,
@@ -452,7 +452,7 @@ func GetSelf(c *gin.Context) {
 	responseData := map[string]interface{}{
 		"id":                           user.Id,
 		"username":                     user.Username,
-		"display_name":                 user.DisplayName,
+		"display_name":                 user.Username,
 		"role":                         user.Role,
 		"status":                       user.Status,
 		"email":                        user.Email,

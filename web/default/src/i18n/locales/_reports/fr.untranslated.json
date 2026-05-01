@@ -1,5 +1,5 @@
 {
-  "Go to Settings": "Go to Settings",
-  "Failed to adjust quota": "Failed to adjust quota",
-  "Select an operation mode and enter the amount": "Select an operation mode and enter the amount"
+  "Account-level token with Email Sending:Edit permission. Leave blank to keep existing.": "Account-level token with Email Sending:Edit permission. Leave blank to keep existing.",
+  "Choose which email service to use for sending": "Choose which email service to use for sending",
+  "Enter new API Token to update": "Enter new API Token to update"
 }

@@ -41,10 +41,6 @@ func (u *WebAuthnUser) WebAuthnDisplayName() string {
 	if u == nil || u.user == nil {
 		return ""
 	}
-	display := strings.TrimSpace(u.user.DisplayName)
-	if display != "" {
-		return display
-	}
 	return u.WebAuthnName()
 }
 
