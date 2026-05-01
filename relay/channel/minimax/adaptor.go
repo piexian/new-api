@@ -134,12 +134,24 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
 	req.Set("Authorization", "Bearer "+info.ApiKey)
+	if shouldUseMiniMaxClaudeCompatibleAPI(info) {
+		anthropicVersion := c.Request.Header.Get("anthropic-version")
+		if anthropicVersion == "" {
+			anthropicVersion = "2023-06-01"
+		}
+		req.Set("anthropic-version", anthropicVersion)
+		claude.CommonClaudeHeadersOperation(c, req, info)
+	}
 	return nil
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
+	}
+	if shouldUseMiniMaxClaudeCompatibleAPI(info) {
+		adaptor := claude.Adaptor{}
+		return adaptor.ConvertOpenAIRequest(c, info, request)
 	}
 	if lo.FromPtrOr(request.MaxCompletionTokens, uint(0)) == 0 && lo.FromPtrOr(request.MaxTokens, uint(0)) != 0 {
 		request.MaxCompletionTokens = request.MaxTokens
@@ -175,13 +187,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return miniMaxImageHandler(c, resp, info)
 	}
 
-	switch info.RelayFormat {
-	case types.RelayFormatClaude:
+	if shouldUseMiniMaxClaudeCompatibleAPI(info) {
 		adaptor := claude.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)
-	default:
-		return handleChatCompletionResponse(c, resp, info)
 	}
+	return handleChatCompletionResponse(c, resp, info)
 }
 
 func (a *Adaptor) GetModelList() []string {
