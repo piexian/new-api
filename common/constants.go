@@ -117,6 +117,13 @@ var SMTPAccount = ""
 var SMTPFrom = ""
 var SMTPToken = ""
 
+var EmailProvider = "smtp"
+var CFEmailAccountID = ""
+var CFEmailAPIToken = ""
+var CFEmailFrom = ""
+var EmailDailyLimit = 0
+var EmailVerificationDailyLimitPerUser = 5
+
 var GitHubClientId = ""
 var GitHubClientSecret = ""
 var LinuxDOClientId = ""

@@ -14,12 +14,20 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const createEmailSchema = (t: (key: string) => string) =>
   z.object({
+    EmailProvider: z.string(),
     SMTPServer: z.string(),
     SMTPPort: z.string().refine((value) => {
       const trimmed = value.trim()
@@ -35,6 +43,23 @@ const createEmailSchema = (t: (key: string) => string) =>
     SMTPToken: z.string(),
     SMTPSSLEnabled: z.boolean(),
     SMTPForceAuthLogin: z.boolean(),
+    CFEmailAccountID: z.string(),
+    CFEmailAPIToken: z.string(),
+    CFEmailFrom: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+    }, t('Enter a valid email or leave blank')),
+    EmailDailyLimit: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^\d+$/.test(trimmed)
+    }, t('Must be a non-negative integer')),
+    EmailVerificationDailyLimitPerUser: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return /^\d+$/.test(trimmed)
+    }, t('Must be a non-negative integer')),
   })
 
 type EmailFormValues = z.infer<ReturnType<typeof createEmailSchema>>
@@ -59,6 +84,7 @@ export function EmailSettingsSection({
 
   const onSubmit = async (values: EmailFormValues) => {
     const sanitized = {
+      EmailProvider: values.EmailProvider.trim(),
       SMTPServer: values.SMTPServer.trim(),
       SMTPPort: values.SMTPPort.trim(),
       SMTPAccount: values.SMTPAccount.trim(),
@@ -66,52 +92,50 @@ export function EmailSettingsSection({
       SMTPToken: values.SMTPToken.trim(),
       SMTPSSLEnabled: values.SMTPSSLEnabled,
       SMTPForceAuthLogin: values.SMTPForceAuthLogin,
+      CFEmailAccountID: values.CFEmailAccountID.trim(),
+      CFEmailAPIToken: values.CFEmailAPIToken.trim(),
+      CFEmailFrom: values.CFEmailFrom.trim(),
+      EmailDailyLimit: values.EmailDailyLimit.trim(),
+      EmailVerificationDailyLimitPerUser:
+        values.EmailVerificationDailyLimitPerUser.trim(),
     }
 
-    const initial = {
-      SMTPServer: defaultValues.SMTPServer.trim(),
-      SMTPPort: defaultValues.SMTPPort.trim(),
-      SMTPAccount: defaultValues.SMTPAccount.trim(),
-      SMTPFrom: defaultValues.SMTPFrom.trim(),
-      SMTPToken: defaultValues.SMTPToken.trim(),
-      SMTPSSLEnabled: defaultValues.SMTPSSLEnabled,
-      SMTPForceAuthLogin: defaultValues.SMTPForceAuthLogin,
-    }
+    const stringKeys = [
+      'EmailProvider',
+      'SMTPServer',
+      'SMTPPort',
+      'SMTPAccount',
+      'SMTPFrom',
+      'SMTPToken',
+      'CFEmailAccountID',
+      'CFEmailFrom',
+      'EmailDailyLimit',
+      'EmailVerificationDailyLimitPerUser',
+    ] as const
+
+    const boolKeys = [
+      'SMTPSSLEnabled',
+      'SMTPForceAuthLogin',
+    ] as const
 
     const updates: Array<{ key: string; value: string | boolean }> = []
 
-    if (sanitized.SMTPServer !== initial.SMTPServer) {
-      updates.push({ key: 'SMTPServer', value: sanitized.SMTPServer })
+    for (const key of stringKeys) {
+      const newVal = sanitized[key]
+      const oldVal = String(defaultValues[key] ?? '')
+      if (newVal !== oldVal) {
+        updates.push({ key, value: newVal })
+      }
     }
 
-    if (sanitized.SMTPPort !== initial.SMTPPort) {
-      updates.push({ key: 'SMTPPort', value: sanitized.SMTPPort })
+    if (sanitized.CFEmailAPIToken) {
+      updates.push({ key: 'CFEmailAPIToken', value: sanitized.CFEmailAPIToken })
     }
 
-    if (sanitized.SMTPAccount !== initial.SMTPAccount) {
-      updates.push({ key: 'SMTPAccount', value: sanitized.SMTPAccount })
-    }
-
-    if (sanitized.SMTPFrom !== initial.SMTPFrom) {
-      updates.push({ key: 'SMTPFrom', value: sanitized.SMTPFrom })
-    }
-
-    if (sanitized.SMTPToken && sanitized.SMTPToken !== initial.SMTPToken) {
-      updates.push({ key: 'SMTPToken', value: sanitized.SMTPToken })
-    }
-
-    if (sanitized.SMTPSSLEnabled !== initial.SMTPSSLEnabled) {
-      updates.push({
-        key: 'SMTPSSLEnabled',
-        value: sanitized.SMTPSSLEnabled,
-      })
-    }
-
-    if (sanitized.SMTPForceAuthLogin !== initial.SMTPForceAuthLogin) {
-      updates.push({
-        key: 'SMTPForceAuthLogin',
-        value: sanitized.SMTPForceAuthLogin,
-      })
+    for (const key of boolKeys) {
+      if (sanitized[key] !== defaultValues[key]) {
+        updates.push({ key, value: sanitized[key] })
+      }
     }
 
     for (const update of updates) {
@@ -121,7 +145,7 @@ export function EmailSettingsSection({
 
   return (
     <SettingsSection
-      title={t('SMTP Email')}
+      title={t('Email Settings')}
       description={t('Configure outgoing email server for notifications')}
     >
       <Form {...form}>
@@ -130,6 +154,38 @@ export function EmailSettingsSection({
           className='space-y-6'
           autoComplete='off'
         >
+          <FormField
+            control={form.control}
+            name='EmailProvider'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Email Provider')}</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t('Select provider')} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value='smtp'>
+                      {t('SMTP')}
+                    </SelectItem>
+                    <SelectItem value='cloudflare'>
+                      {t('Cloudflare Email Service')}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  {t('Choose which email service to use for sending')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           <FormField
             control={form.control}
             name='SMTPServer'
@@ -254,7 +310,7 @@ export function EmailSettingsSection({
                 <FormControl>
                   <Input
                     autoComplete='off'
-                    placeholder={t('New API &lt;noreply@example.com&gt;')}
+                    placeholder={t('New API <noreply@example.com>')}
                     {...field}
                     onChange={(event) => field.onChange(event.target.value)}
                   />
@@ -290,8 +346,130 @@ export function EmailSettingsSection({
             )}
           />
 
+          <hr className='my-8' />
+
+          <h3 className='text-lg font-medium'>
+            {t('Cloudflare Email Service')}
+          </h3>
+
+          <FormField
+            control={form.control}
+            name='CFEmailAccountID'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Account ID')}</FormLabel>
+                <FormControl>
+                  <Input
+                    autoComplete='off'
+                    placeholder={t('Cloudflare Account ID')}
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='CFEmailAPIToken'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('API Token')}</FormLabel>
+                <FormControl>
+                  <Input
+                    autoComplete='off'
+                    type='password'
+                    placeholder={t('Enter new API Token to update')}
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('Account-level token with Email Sending:Edit permission. Leave blank to keep existing.')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='CFEmailFrom'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('From Address')}</FormLabel>
+                <FormControl>
+                  <Input
+                    autoComplete='off'
+                    placeholder={t('noreply@mail.example.com')}
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('Verified sending domain email address')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <hr className='my-8' />
+
+          <h3 className='text-lg font-medium'>{t('Sending Limits')}</h3>
+
+          <div className='grid gap-6 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='EmailDailyLimit'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Daily Email Limit')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      autoComplete='off'
+                      type='number'
+                      placeholder='0'
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Max emails sent per day site-wide. 0 means unlimited.')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='EmailVerificationDailyLimitPerUser'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Daily Verification Limit Per Email')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      autoComplete='off'
+                      type='number'
+                      placeholder='5'
+                      {...field}
+                      onChange={(event) => field.onChange(event.target.value)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Max verification code emails per address per day. 0 means unlimited.')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
           <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t('Save SMTP settings')}
+            {updateOption.isPending ? t('Saving...') : t('Save email settings')}
           </Button>
         </form>
       </Form>

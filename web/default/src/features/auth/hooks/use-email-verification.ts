@@ -8,6 +8,7 @@ import { EMAIL_VERIFICATION_COUNTDOWN } from '../constants'
 interface UseEmailVerificationOptions {
   turnstileToken?: string
   validateTurnstile?: () => boolean
+  resetTurnstile?: () => void
 }
 
 /**
@@ -43,11 +44,13 @@ export function useEmailVerification(options?: UseEmailVerificationOptions) {
         toast.success(i18next.t('Verification email sent'))
         return true
       }
+      toast.error(res?.message || i18next.t('Failed to send verification code'))
       return false
     } catch (_error) {
       // Errors are handled by global interceptor
       return false
     } finally {
+      options?.resetTurnstile?.()
       setIsSending(false)
     }
   }

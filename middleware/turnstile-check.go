@@ -14,14 +14,25 @@ type turnstileCheckResponse struct {
 }
 
 func ValidateTurnstile(c *gin.Context) bool {
+	return validateTurnstile(c, true)
+}
+
+func ValidateTurnstileNoSession(c *gin.Context) bool {
+	return validateTurnstile(c, false)
+}
+
+func validateTurnstile(c *gin.Context, allowSessionReuse bool) bool {
 	if !common.TurnstileCheckEnabled {
 		return true
 	}
 
-	session := sessions.Default(c)
-	turnstileChecked := session.Get("turnstile")
-	if turnstileChecked != nil {
-		return true
+	var session sessions.Session
+	if allowSessionReuse {
+		session = sessions.Default(c)
+		turnstileChecked := session.Get("turnstile")
+		if turnstileChecked != nil {
+			return true
+		}
 	}
 
 	response := c.Query("turnstile")
@@ -70,15 +81,17 @@ func ValidateTurnstile(c *gin.Context) bool {
 		return false
 	}
 
-	session.Set("turnstile", true)
-	err = session.Save()
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "无法保存会话信息，请重试",
-			"success": false,
-		})
-		c.Abort()
-		return false
+	if allowSessionReuse {
+		session.Set("turnstile", true)
+		err = session.Save()
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"message": "无法保存会话信息，请重试",
+				"success": false,
+			})
+			c.Abort()
+			return false
+		}
 	}
 	return true
 }
@@ -86,6 +99,15 @@ func ValidateTurnstile(c *gin.Context) bool {
 func TurnstileCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !ValidateTurnstile(c) {
+			return
+		}
+		c.Next()
+	}
+}
+
+func TurnstileCheckNoSession() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !ValidateTurnstileNoSession(c) {
 			return
 		}
 		c.Next()

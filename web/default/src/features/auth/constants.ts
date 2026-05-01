@@ -53,7 +53,7 @@ export const OTP_REGEX = /^\d{6}$/
 // Countdown Constants
 // ============================================================================
 
-export const EMAIL_VERIFICATION_COUNTDOWN = 30 // seconds
+export const EMAIL_VERIFICATION_COUNTDOWN = 300 // seconds
 export const PASSWORD_RESET_COUNTDOWN = 30 // seconds
 
 // ============================================================================

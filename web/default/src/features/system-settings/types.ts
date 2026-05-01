@@ -139,6 +139,12 @@ export type IntegrationSettings = {
   SMTPToken: string
   SMTPSSLEnabled: boolean
   SMTPForceAuthLogin: boolean
+  EmailProvider: string
+  CFEmailAccountID: string
+  CFEmailAPIToken: string
+  CFEmailFrom: string
+  EmailDailyLimit: string
+  EmailVerificationDailyLimitPerUser: string
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean

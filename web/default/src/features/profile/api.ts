@@ -76,7 +76,9 @@ export async function sendEmailVerification(
   if (turnstileToken) {
     params.append('turnstile', turnstileToken)
   }
-  const res = await api.get(`/api/verification?${params}`)
+  const res = await api.get(`/api/verification?${params}`, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
   return res.data
 }
 

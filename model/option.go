@@ -63,6 +63,12 @@ func InitOptionMap() {
 	common.OptionMap["SMTPToken"] = ""
 	common.OptionMap["SMTPSSLEnabled"] = strconv.FormatBool(common.SMTPSSLEnabled)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
+	common.OptionMap["EmailProvider"] = common.EmailProvider
+	common.OptionMap["CFEmailAccountID"] = common.CFEmailAccountID
+	common.OptionMap["CFEmailAPIToken"] = ""
+	common.OptionMap["CFEmailFrom"] = common.CFEmailFrom
+	common.OptionMap["EmailDailyLimit"] = strconv.Itoa(common.EmailDailyLimit)
+	common.OptionMap["EmailVerificationDailyLimitPerUser"] = strconv.Itoa(common.EmailVerificationDailyLimitPerUser)
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -346,6 +352,20 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPFrom = value
 	case "SMTPToken":
 		common.SMTPToken = value
+	case "EmailProvider":
+		common.EmailProvider = value
+	case "CFEmailAccountID":
+		common.CFEmailAccountID = value
+	case "CFEmailAPIToken":
+		if value != "" {
+			common.CFEmailAPIToken = value
+		}
+	case "CFEmailFrom":
+		common.CFEmailFrom = value
+	case "EmailDailyLimit":
+		common.EmailDailyLimit, _ = strconv.Atoi(value)
+	case "EmailVerificationDailyLimitPerUser":
+		common.EmailVerificationDailyLimitPerUser, _ = strconv.Atoi(value)
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "WorkerUrl":

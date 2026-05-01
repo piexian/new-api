@@ -34,28 +34,51 @@ func getSMTPAuth() smtp.Auth {
 }
 
 func SendEmail(subject string, receiver string, content string) error {
-	if SMTPFrom == "" { // for compatibility
+	if err := CheckEmailDailyLimit(); err != nil {
+		return err
+	}
+	ok, release := TryAcquireEmailSendDedupLock(subject, receiver, content)
+	if !ok {
+		SysLog(fmt.Sprintf("duplicate email suppressed: receiver=%s subject=%s", receiver, subject))
+		return ErrDuplicateEmailSuppressed
+	}
+
+	var err error
+	if EmailProvider == "cloudflare" {
+		err = sendEmailViaCloudflare(subject, receiver, content)
+	} else {
+		err = sendEmailViaSMTP(subject, receiver, content)
+	}
+	if err != nil {
+		release()
+		return err
+	}
+	IncrEmailDailyCount()
+	return nil
+}
+
+func sendEmailViaSMTP(subject string, receiver string, content string) error {
+	if SMTPFrom == "" {
 		SMTPFrom = SMTPAccount
 	}
-	id, err2 := generateMessageID()
-	if err2 != nil {
-		return err2
+	id, err := generateMessageID()
+	if err != nil {
+		return err
 	}
 	if SMTPServer == "" && SMTPAccount == "" {
-		return fmt.Errorf("SMTP 服务器未配置")
+		return fmt.Errorf("SMTP server not configured")
 	}
 	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(subject)))
 	mail := []byte(fmt.Sprintf("To: %s\r\n"+
 		"From: %s <%s>\r\n"+
 		"Subject: %s\r\n"+
 		"Date: %s\r\n"+
-		"Message-ID: %s\r\n"+ // 添加 Message-ID 头
+		"Message-ID: %s\r\n"+
 		"Content-Type: text/html; charset=UTF-8\r\n\r\n%s\r\n",
 		receiver, SystemName, SMTPFrom, encodedSubject, time.Now().Format(time.RFC1123Z), id, content))
 	auth := getSMTPAuth()
 	addr := fmt.Sprintf("%s:%d", SMTPServer, SMTPPort)
 	to := strings.Split(receiver, ";")
-	var err error
 	if SMTPPort == 465 || SMTPSSLEnabled {
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: true,

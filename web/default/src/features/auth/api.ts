@@ -100,7 +100,8 @@ export async function sendEmailVerification(
 ): Promise<ApiResponse> {
   const res = await api.get('/api/verification', {
     params: { email, turnstile },
-  })
+    skipBusinessError: true,
+  } as Record<string, unknown>)
   return res.data
 }
 

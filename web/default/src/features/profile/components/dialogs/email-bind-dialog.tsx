@@ -3,7 +3,9 @@ import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useCountdown } from '@/hooks/use-countdown'
+import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
+import { Turnstile } from '@/components/turnstile'
 import {
   Dialog,
   DialogContent,
@@ -38,24 +40,40 @@ export function EmailBindDialog({
   const [sendingCode, setSendingCode] = useState(false)
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
+  const { status } = useStatus()
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+  const turnstileEnabled = !!(
+    status?.turnstile_check && status?.turnstile_site_key
+  )
+  const turnstileSiteKey = String(status?.turnstile_site_key || '')
   const {
     secondsLeft,
     isActive,
     start: startCountdown,
     reset: resetCountdown,
   } = useCountdown({
-    initialSeconds: 60,
+    initialSeconds: 300,
   })
+
+  const resetTurnstile = () => {
+    setTurnstileToken('')
+    setTurnstileWidgetKey((value) => value + 1)
+  }
 
   const handleSendCode = async () => {
     if (!email || !email.includes('@')) {
       toast.error(t('Please enter a valid email address'))
       return
     }
+    if (turnstileEnabled && !turnstileToken) {
+      toast.info(t('Please wait a moment, human check is initializing...'))
+      return
+    }
 
     try {
       setSendingCode(true)
-      const response = await sendEmailVerification(email)
+      const response = await sendEmailVerification(email, turnstileToken)
 
       if (response.success) {
         toast.success(t('Verification code sent! Please check your email.'))
@@ -66,6 +84,7 @@ export function EmailBindDialog({
     } catch (_error) {
       toast.error(t('Failed to send verification code'))
     } finally {
+      resetTurnstile()
       setSendingCode(false)
     }
   }
@@ -87,6 +106,7 @@ export function EmailBindDialog({
         // Reset form
         setEmail('')
         setCode('')
+        resetTurnstile()
         resetCountdown()
       } else {
         toast.error(response.message || t('Failed to bind email'))
@@ -105,6 +125,7 @@ export function EmailBindDialog({
         // Reset form when closing
         setEmail('')
         setCode('')
+        resetTurnstile()
         resetCountdown()
       }
     }
@@ -162,6 +183,17 @@ export function EmailBindDialog({
               </Button>
             </div>
           </div>
+
+          {turnstileEnabled && (
+            <div className='flex justify-center'>
+              <Turnstile
+                key={turnstileWidgetKey}
+                siteKey={turnstileSiteKey}
+                onVerify={setTurnstileToken}
+                onExpire={() => setTurnstileToken('')}
+              />
+            </div>
+          )}
         </div>
 
         <DialogFooter>

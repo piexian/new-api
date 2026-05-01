@@ -71,11 +71,12 @@ const INTEGRATIONS_SECTIONS = [
   },
   {
     id: 'email',
-    titleKey: 'SMTP Email',
-    descriptionKey: 'Configure SMTP email settings',
+    titleKey: 'Email Settings',
+    descriptionKey: 'Configure email service settings',
     build: (settings: IntegrationSettings) => (
       <EmailSettingsSection
         defaultValues={{
+          EmailProvider: settings.EmailProvider,
           SMTPServer: settings.SMTPServer,
           SMTPPort: settings.SMTPPort,
           SMTPAccount: settings.SMTPAccount,
@@ -83,6 +84,12 @@ const INTEGRATIONS_SECTIONS = [
           SMTPToken: settings.SMTPToken,
           SMTPSSLEnabled: settings.SMTPSSLEnabled,
           SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
+          CFEmailAccountID: settings.CFEmailAccountID,
+          CFEmailAPIToken: settings.CFEmailAPIToken,
+          CFEmailFrom: settings.CFEmailFrom,
+          EmailDailyLimit: settings.EmailDailyLimit,
+          EmailVerificationDailyLimitPerUser:
+            settings.EmailVerificationDailyLimitPerUser,
         }}
       />
     ),

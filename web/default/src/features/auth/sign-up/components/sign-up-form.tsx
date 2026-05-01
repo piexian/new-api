@@ -54,9 +54,11 @@ export function SignUpForm({
   const {
     isTurnstileEnabled,
     turnstileSiteKey,
+    turnstileWidgetKey,
     turnstileToken,
     setTurnstileToken,
     validateTurnstile,
+    resetTurnstile,
   } = useTurnstile()
   const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
   const {
@@ -67,6 +69,7 @@ export function SignUpForm({
   } = useEmailVerification({
     turnstileToken,
     validateTurnstile,
+    resetTurnstile,
   })
 
   const form = useForm<z.infer<typeof registerFormSchema>>({
@@ -304,8 +307,10 @@ export function SignUpForm({
             {isTurnstileEnabled && (
               <div className='mt-2'>
                 <Turnstile
+                  key={turnstileWidgetKey}
                   siteKey={turnstileSiteKey}
                   onVerify={setTurnstileToken}
+                  onExpire={() => setTurnstileToken('')}
                 />
               </div>
             )}

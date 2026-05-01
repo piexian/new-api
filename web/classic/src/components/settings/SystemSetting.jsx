@@ -92,6 +92,12 @@ const SystemSetting = () => {
     EmailAliasRestrictionEnabled: '',
     SMTPSSLEnabled: '',
     SMTPForceAuthLogin: '',
+    EmailProvider: 'smtp',
+    CFEmailAccountID: '',
+    CFEmailAPIToken: '',
+    CFEmailFrom: '',
+    EmailDailyLimit: '',
+    EmailVerificationDailyLimitPerUser: '',
     EmailDomainWhitelist: [],
     TelegramOAuthEnabled: '',
     TelegramBotToken: '',
@@ -319,8 +325,12 @@ const SystemSetting = () => {
     await updateOptions([{ key: 'ServerAddress', value: ServerAddress }]);
   };
 
-  const submitSMTP = async () => {
+  const submitEmail = async () => {
     const options = [];
+
+    if (originInputs['EmailProvider'] !== inputs.EmailProvider) {
+      options.push({ key: 'EmailProvider', value: inputs.EmailProvider });
+    }
 
     if (originInputs['SMTPServer'] !== inputs.SMTPServer) {
       options.push({ key: 'SMTPServer', value: inputs.SMTPServer });
@@ -342,6 +352,25 @@ const SystemSetting = () => {
       inputs.SMTPToken !== ''
     ) {
       options.push({ key: 'SMTPToken', value: inputs.SMTPToken });
+    }
+
+    if (originInputs['CFEmailAccountID'] !== inputs.CFEmailAccountID) {
+      options.push({ key: 'CFEmailAccountID', value: inputs.CFEmailAccountID });
+    }
+    if (
+      originInputs['CFEmailAPIToken'] !== inputs.CFEmailAPIToken &&
+      inputs.CFEmailAPIToken !== ''
+    ) {
+      options.push({ key: 'CFEmailAPIToken', value: inputs.CFEmailAPIToken });
+    }
+    if (originInputs['CFEmailFrom'] !== inputs.CFEmailFrom) {
+      options.push({ key: 'CFEmailFrom', value: inputs.CFEmailFrom });
+    }
+    if (originInputs['EmailDailyLimit'] !== inputs.EmailDailyLimit) {
+      options.push({ key: 'EmailDailyLimit', value: inputs.EmailDailyLimit });
+    }
+    if (originInputs['EmailVerificationDailyLimitPerUser'] !== inputs.EmailVerificationDailyLimitPerUser) {
+      options.push({ key: 'EmailVerificationDailyLimitPerUser', value: inputs.EmailVerificationDailyLimitPerUser });
     }
 
     if (options.length > 0) {
@@ -1291,10 +1320,21 @@ const SystemSetting = () => {
                 </Form.Section>
               </Card>
               <Card>
-                <Form.Section text={t('配置 SMTP')}>
+                <Form.Section text={t('配置邮件服务')}>
                   <Text>{t('用以支持系统的邮件发送')}</Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Select field='EmailProvider' label={t('邮件服务提供商')}>
+                        <Form.Select.Option value='smtp'>{t('SMTP')}</Form.Select.Option>
+                        <Form.Select.Option value='cloudflare'>{t('Cloudflare Email Service')}</Form.Select.Option>
+                      </Form.Select>
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
                   >
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
                       <Form.Input
@@ -1348,7 +1388,65 @@ const SystemSetting = () => {
                       </Form.Checkbox>
                     </Col>
                   </Row>
-                  <Button onClick={submitSMTP}>{t('保存 SMTP 设置')}</Button>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Text style={{ fontWeight: 'bold', fontSize: 14, paddingLeft: 12 }}>{t('Cloudflare Email Service')}</Text>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field='CFEmailAccountID'
+                        label={t('Account ID')}
+                        placeholder={t('Cloudflare Account ID')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field='CFEmailAPIToken'
+                        label={t('API Token')}
+                        type='password'
+                        placeholder={t('留空表示不更新')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field='CFEmailFrom'
+                        label={t('发送者邮箱')}
+                        placeholder='noreply@mail.example.com'
+                      />
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Text style={{ fontWeight: 'bold', fontSize: 14, paddingLeft: 12 }}>{t('发送限制')}</Text>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='EmailDailyLimit'
+                        label={t('每日邮件发送上限')}
+                        placeholder='0'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='EmailVerificationDailyLimitPerUser'
+                        label={t('每个邮箱每日验证码上限')}
+                        placeholder='5'
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitEmail}>{t('保存邮件设置')}</Button>
                 </Form.Section>
               </Card>
               <Card>
