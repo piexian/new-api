@@ -17,7 +17,20 @@ const ZHIPU_CODING_PLAN_DOMAINS = [
 ]
 
 const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan'
-const KIMI_CODING_PLAN_DOMAINS = ['api.kimi.com']
+
+export function isKimiCodingPlanChannel(channel: Channel): boolean {
+  if (channel.type !== CHANNEL_TYPE_MOONSHOT) {
+    return false
+  }
+  const baseURL = String(channel.base_url || '').trim()
+  if (baseURL === KIMI_CODING_PLAN_BASE_URL) {
+    return true
+  }
+  const normalized = baseURL.toLowerCase().replace(/\/+$/, '')
+  return (
+    normalized.endsWith('/coding') || normalized.endsWith('/coding/v1')
+  )
+}
 
 export function isMiniMaxTokenPlanChannel(channel: Channel): boolean {
   return channel.type === CHANNEL_TYPE_MINIMAX
@@ -37,16 +50,4 @@ export function isZhipuCodingPlanChannel(channel: Channel): boolean {
   return ZHIPU_CODING_PLAN_DOMAINS.some((domain) =>
     normalized.includes(domain)
   )
-}
-
-export function isKimiCodingPlanChannel(channel: Channel): boolean {
-  if (channel.type !== CHANNEL_TYPE_MOONSHOT) {
-    return false
-  }
-  const baseURL = String(channel.base_url || '').trim()
-  if (baseURL === KIMI_CODING_PLAN_BASE_URL) {
-    return true
-  }
-  const normalized = baseURL.toLowerCase().replace(/\/+$/, '')
-  return KIMI_CODING_PLAN_DOMAINS.some((domain) => normalized.includes(domain))
 }

@@ -168,8 +168,11 @@ func kimiCodingPlanRequestURL(channel *model.Channel) (string, error) {
 // kimiCodingPlanAPIBase resolves the OpenAI-compatible base URL for the Kimi
 // Coding Plan endpoint. It accepts:
 //   - the special placeholder "kimi-coding-plan" (mapped via ChannelSpecialBases);
-//   - an explicit URL whose host is api.kimi.com (or contains api.kimi.com/coding),
-//     which is the case when the user routes through a reverse proxy.
+//   - an explicit URL whose path ends with "/coding" or "/coding/v1" (so users
+//     fill the address up to "/coding" and we append "/v1" if missing).
+//
+// Anything else — including a bare api.kimi.com or api.kimi.com/v1 — is
+// rejected so that non-Coding-Plan channels are never treated as Coding Plan.
 func kimiCodingPlanAPIBase(baseURL string) (string, bool) {
 	trimmed := strings.TrimSpace(baseURL)
 	if trimmed == "" {
@@ -182,9 +185,8 @@ func kimiCodingPlanAPIBase(baseURL string) (string, bool) {
 		return kimiCodingPlanFallback, true
 	}
 
-	lower := strings.ToLower(trimmed)
 	cleaned := strings.TrimRight(trimmed, "/")
-	cleanedLower := strings.TrimRight(lower, "/")
+	cleanedLower := strings.ToLower(cleaned)
 	switch {
 	case strings.HasSuffix(cleanedLower, "/coding/v1"):
 		// Already canonical, e.g. https://proxy.example.com/kimi/coding/v1.
@@ -192,9 +194,6 @@ func kimiCodingPlanAPIBase(baseURL string) (string, bool) {
 	case strings.HasSuffix(cleanedLower, "/coding"):
 		// e.g. https://api.kimi.com/coding — append /v1.
 		return cleaned + "/v1", true
-	case strings.Contains(lower, "api.kimi.com"):
-		// Bare api.kimi.com without /coding[/v1] — append the canonical suffix.
-		return cleaned + "/coding/v1", true
 	}
 	return "", false
 }

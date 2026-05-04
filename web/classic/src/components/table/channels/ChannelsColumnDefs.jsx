@@ -82,7 +82,6 @@ const isZhipuCodingPlanChannel = (record) => {
 };
 
 const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan';
-const KIMI_CODING_PLAN_DOMAINS = ['api.kimi.com'];
 
 const isKimiCodingPlanChannel = (record) => {
   if (!record || record.children !== undefined) return false;
@@ -90,7 +89,7 @@ const isKimiCodingPlanChannel = (record) => {
   const baseURL = String(record.base_url || '').trim();
   if (baseURL === KIMI_CODING_PLAN_BASE_URL) return true;
   const lower = baseURL.toLowerCase().replace(/\/+$/, '');
-  return KIMI_CODING_PLAN_DOMAINS.some((domain) => lower.includes(domain));
+  return lower.endsWith('/coding') || lower.endsWith('/coding/v1');
 };
 
 // Render functions
