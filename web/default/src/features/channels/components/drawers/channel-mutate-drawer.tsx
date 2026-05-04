@@ -1666,7 +1666,7 @@ export function ChannelMutateDrawer({
                         </Select>
                         <FormDescription>
                           {t(
-                            'Coding Plan quota only applies to the corresponding coding-tool scenarios. Choose a special endpoint to use the official Coding Plan routing rules.'
+                            'Coding Plan quota only applies to the corresponding coding-tool scenarios. Choose a special endpoint to use the official Coding Plan routing rules. For proxied Coding Plan addresses, fill the URL up to "/coding"; the "/v1" suffix will be appended automatically.'
                           )}
                         </FormDescription>
                         <FormMessage />

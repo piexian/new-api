@@ -89,7 +89,7 @@ const isKimiCodingPlanChannel = (record) => {
   const baseURL = String(record.base_url || '').trim();
   if (baseURL === KIMI_CODING_PLAN_BASE_URL) return true;
   const lower = baseURL.toLowerCase().replace(/\/+$/, '');
-  return lower.endsWith('/coding') || lower.endsWith('/coding/v1');
+  return lower.endsWith('/coding');
 };
 
 // Render functions
