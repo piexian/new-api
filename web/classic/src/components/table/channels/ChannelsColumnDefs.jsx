@@ -82,7 +82,7 @@ const isZhipuCodingPlanChannel = (record) => {
 };
 
 const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan';
-const KIMI_CODING_PLAN_DOMAINS = ['api.kimi.com/coding'];
+const KIMI_CODING_PLAN_DOMAINS = ['api.kimi.com'];
 
 const isKimiCodingPlanChannel = (record) => {
   if (!record || record.children !== undefined) return false;

@@ -1968,7 +1968,7 @@ export function ChannelMutateDrawer({
                 )}
 
                 {/* General base_url for other types */}
-                {![3, 8, 22, 26, 36, 45].includes(currentType) && (
+                {![3, 8, 22, 25, 26, 36, 45].includes(currentType) && (
                   <FormField
                     control={form.control}
                     name='base_url'

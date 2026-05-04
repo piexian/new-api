@@ -183,13 +183,18 @@ func kimiCodingPlanAPIBase(baseURL string) (string, bool) {
 	}
 
 	lower := strings.ToLower(trimmed)
-	if strings.Contains(lower, "api.kimi.com/coding") {
-		// e.g. https://proxy.example.com/kimi/coding/v1 — keep as-is.
-		return strings.TrimRight(trimmed, "/"), true
-	}
-	if strings.Contains(lower, "api.kimi.com") {
-		// Bare api.kimi.com without /coding/v1 — append the canonical suffix.
-		return strings.TrimRight(trimmed, "/") + "/coding/v1", true
+	cleaned := strings.TrimRight(trimmed, "/")
+	cleanedLower := strings.TrimRight(lower, "/")
+	switch {
+	case strings.HasSuffix(cleanedLower, "/coding/v1"):
+		// Already canonical, e.g. https://proxy.example.com/kimi/coding/v1.
+		return cleaned, true
+	case strings.HasSuffix(cleanedLower, "/coding"):
+		// e.g. https://api.kimi.com/coding — append /v1.
+		return cleaned + "/v1", true
+	case strings.Contains(lower, "api.kimi.com"):
+		// Bare api.kimi.com without /coding[/v1] — append the canonical suffix.
+		return cleaned + "/coding/v1", true
 	}
 	return "", false
 }

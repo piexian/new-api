@@ -17,7 +17,7 @@ const ZHIPU_CODING_PLAN_DOMAINS = [
 ]
 
 const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan'
-const KIMI_CODING_PLAN_DOMAINS = ['api.kimi.com/coding']
+const KIMI_CODING_PLAN_DOMAINS = ['api.kimi.com']
 
 export function isMiniMaxTokenPlanChannel(channel: Channel): boolean {
   return channel.type === CHANNEL_TYPE_MINIMAX
