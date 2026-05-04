@@ -28,7 +28,7 @@ import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import type { ChannelPlanUsageResponse } from '../../api'
 import type { Channel } from '../../types'
 
-export type ChannelPlanUsageKind = 'minimax' | 'zhipu'
+export type ChannelPlanUsageKind = 'minimax' | 'zhipu' | 'kimi'
 
 type ChannelPlanUsageDialogProps = {
   open: boolean
@@ -63,6 +63,16 @@ type ZhipuLimitCard = {
   usageLabel: string | null
   nextResetTime: string
   details: { key: string; name: string; usage: number | null }[]
+}
+
+type KimiUsageRow = {
+  key: string
+  label: string
+  used: number
+  limit: number
+  remaining: number
+  percent: number
+  resetHint: string | null
 }
 
 const TOOL_NAME_MAP: Record<string, string> = {
@@ -714,6 +724,271 @@ function ZhipuUsageView({
   )
 }
 
+function getKimiCodingPlanSource(
+  response: ChannelPlanUsageResponse | null
+): Record<string, unknown> | null {
+  return toRecord(response?.data)
+}
+
+function formatKimiResetHint(
+  detail: Record<string, unknown>,
+  t: (key: string) => string
+): string | null {
+  const resetCandidate =
+    detail.resetAt ??
+    detail.reset_at ??
+    detail.resetTime ??
+    detail.reset_time
+  if (resetCandidate != null && resetCandidate !== '') {
+    const epochMs = parseResetTime(resetCandidate)
+    if (epochMs != null) {
+      const deltaMs = epochMs - Date.now()
+      if (deltaMs > 0) {
+        return `${t('Resets in')} ${formatDurationMs(deltaMs, t)}`
+      }
+      return t('Reset')
+    }
+    return `${t('Reset Time')}: ${String(resetCandidate)}`
+  }
+
+  for (const key of ['reset_in', 'resetIn', 'ttl']) {
+    const seconds = toNumber(detail[key])
+    if (seconds != null && seconds > 0) {
+      return `${t('Resets in')} ${formatDurationMs(seconds * 1000, t)}`
+    }
+  }
+  return null
+}
+
+function formatKimiLimitLabel(
+  item: Record<string, unknown>,
+  detail: Record<string, unknown>,
+  windowInfo: Record<string, unknown>,
+  index: number,
+  t: (key: string) => string
+): string {
+  for (const key of ['name', 'title', 'scope']) {
+    const value = item[key] ?? detail[key]
+    if (value != null && String(value).trim() !== '') {
+      return String(value)
+    }
+  }
+
+  const duration = toNumber(
+    windowInfo.duration ?? item.duration ?? detail.duration
+  )
+  const timeUnit = String(
+    windowInfo.timeUnit ?? item.timeUnit ?? detail.timeUnit ?? ''
+  ).toUpperCase()
+
+  if (duration && duration > 0) {
+    if (timeUnit.includes('MINUTE')) {
+      if (duration >= 60 && duration % 60 === 0) {
+        return `${duration / 60}h ${t('Limit')}`
+      }
+      return `${duration}m ${t('Limit')}`
+    }
+    if (timeUnit.includes('HOUR')) return `${duration}h ${t('Limit')}`
+    if (timeUnit.includes('DAY')) return `${duration}d ${t('Limit')}`
+    return `${duration}s ${t('Limit')}`
+  }
+
+  return `${t('Limit')} #${index + 1}`
+}
+
+function buildKimiUsageRow(
+  data: Record<string, unknown>,
+  defaultLabel: string,
+  rowKey: string,
+  resetHint: string | null
+): KimiUsageRow | null {
+  const limit = toNumber(data.limit) ?? 0
+  let used = toNumber(data.used)
+  if (used == null) {
+    const remaining = toNumber(data.remaining)
+    if (remaining != null && limit > 0) {
+      used = Math.max(limit - remaining, 0)
+    }
+  }
+  if (used == null && limit <= 0) return null
+
+  const usedSafe = used ?? 0
+  const remaining = limit > 0 ? Math.max(limit - usedSafe, 0) : 0
+  const percent =
+    limit > 0 ? Math.floor(clampPercent((usedSafe / limit) * 100)) : 0
+  const labelRaw = data.name ?? data.title
+  const label =
+    labelRaw != null && String(labelRaw).trim() !== ''
+      ? String(labelRaw)
+      : defaultLabel
+
+  return {
+    key: rowKey,
+    label,
+    used: usedSafe,
+    limit,
+    remaining,
+    percent,
+    resetHint,
+  }
+}
+
+function normalizeKimiUsageRows(
+  response: ChannelPlanUsageResponse | null,
+  t: (key: string) => string
+): { summary: KimiUsageRow | null; limits: KimiUsageRow[] } {
+  const source = getKimiCodingPlanSource(response)
+  if (!source) return { summary: null, limits: [] }
+
+  const summarySource = toRecord(source.usage)
+  const summary = summarySource
+    ? buildKimiUsageRow(
+        summarySource,
+        t('Weekly Quota'),
+        'usage-summary',
+        formatKimiResetHint(summarySource, t)
+      )
+    : null
+
+  const rawLimits = Array.isArray(source.limits) ? source.limits : []
+  const limits: KimiUsageRow[] = []
+  rawLimits.forEach((item, index) => {
+    const itemRecord = toRecord(item)
+    if (!itemRecord) return
+    const detailRecord = toRecord(itemRecord.detail) ?? itemRecord
+    const windowRecord = toRecord(itemRecord.window) ?? {}
+    const label = formatKimiLimitLabel(
+      itemRecord,
+      detailRecord,
+      windowRecord,
+      index,
+      t
+    )
+    const resetHint = formatKimiResetHint(detailRecord, t)
+    const row = buildKimiUsageRow(
+      detailRecord,
+      label,
+      `limit-${index}`,
+      resetHint
+    )
+    if (row) {
+      // Preserve the constructed window-based label even if detail also has a name.
+      row.label =
+        detailRecord.name != null && String(detailRecord.name).trim() !== ''
+          ? String(detailRecord.name)
+          : label
+      limits.push(row)
+    }
+  })
+
+  return { summary, limits }
+}
+
+function KimiUsageRowCard({ row }: { row: KimiUsageRow }) {
+  const { t } = useTranslation()
+  const variant = getProgressVariant(row.percent)
+
+  return (
+    <div className='rounded-lg border p-3'>
+      <div className='flex items-center justify-between gap-2'>
+        <div className='text-sm font-medium'>{row.label}</div>
+        <StatusBadge
+          label={`${row.percent}%`}
+          variant={variant}
+          copyable={false}
+        />
+      </div>
+      <Progress value={row.percent} className='mt-3' />
+      <div className='text-muted-foreground mt-2 grid gap-1 text-xs sm:grid-cols-2'>
+        <div>
+          {t('Used')}: {formatCount(row.used)}
+        </div>
+        <div>
+          {t('Remaining')}: {formatCount(row.remaining)}
+        </div>
+        <div>
+          {t('Total')}: {formatCount(row.limit)}
+        </div>
+        {row.resetHint && <div>{row.resetHint}</div>}
+      </div>
+    </div>
+  )
+}
+
+function KimiUsageView({
+  response,
+  onRefresh,
+  isRefreshing,
+}: {
+  response: ChannelPlanUsageResponse | null
+  onRefresh: () => void
+  isRefreshing?: boolean
+}) {
+  const { t } = useTranslation()
+  const { summary, limits } = useMemo(
+    () => normalizeKimiUsageRows(response, t),
+    [response, t]
+  )
+  const shouldShowEmptyState = response != null && response.success !== false
+
+  return (
+    <div className='space-y-4'>
+      {response?.success === false && (
+        <div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400'>
+          {response.message || t('Failed to fetch Coding Plan usage')}
+        </div>
+      )}
+
+      <div className='rounded-lg border p-4'>
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <StatusBadge
+              label={t('Kimi Coding Plan')}
+              variant='cyan'
+              copyable={false}
+            />
+            {typeof response?.upstream_status === 'number' && (
+              <StatusBadge
+                label={`${t('Upstream Status')}: ${response.upstream_status}`}
+                variant='neutral'
+                copyable={false}
+              />
+            )}
+          </div>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={onRefresh}
+            disabled={Boolean(isRefreshing)}
+          >
+            <RefreshCw className='mr-1.5 h-3.5 w-3.5' />
+            {t('Refresh')}
+          </Button>
+        </div>
+        <div className='text-muted-foreground mt-2 text-xs break-all'>
+          {t('Request URL')}: {response?.request_url || '-'}
+        </div>
+      </div>
+
+      {summary || limits.length > 0 ? (
+        <div className='grid grid-cols-1 gap-3 lg:grid-cols-3'>
+          {summary && <KimiUsageRowCard key={summary.key} row={summary} />}
+          {limits.map((row) => (
+            <KimiUsageRowCard key={row.key} row={row} />
+          ))}
+        </div>
+      ) : shouldShowEmptyState ? (
+        <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
+          {t(
+            'No parsed quota windows were found. The key may not be a plan key, or the upstream response format changed.'
+          )}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function KeyPager({
   response,
   currentKeyIndex,
@@ -843,7 +1118,9 @@ export function ChannelPlanUsageDialog({
   const title =
     kind === 'minimax'
       ? t('MiniMax Token Plan Usage')
-      : t('Zhipu Coding Plan Usage')
+      : kind === 'kimi'
+        ? t('Kimi Coding Plan Usage')
+        : t('Zhipu Coding Plan Usage')
 
   const rawJsonText = useMemo(() => {
     if (!response) return ''
@@ -882,6 +1159,12 @@ export function ChannelPlanUsageDialog({
 
               {kind === 'minimax' ? (
                 <MiniMaxUsageView
+                  response={response}
+                  onRefresh={() => onRefresh(currentKeyIndex)}
+                  isRefreshing={isRefreshing}
+                />
+              ) : kind === 'kimi' ? (
+                <KimiUsageView
                   response={response}
                   onRefresh={() => onRefresh(currentKeyIndex)}
                   isRefreshing={isRefreshing}

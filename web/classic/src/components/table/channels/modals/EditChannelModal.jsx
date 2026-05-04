@@ -498,13 +498,13 @@ const EditChannelModal = (props) => {
   };
 
   const handleApiConfigSecretClick = () => {
-    if (inputs.type !== 45) return;
+    if (![26, 45].includes(inputs.type)) return;
     const next = doubaoApiClickCountRef.current + 1;
     doubaoApiClickCountRef.current = next;
     if (next >= 10) {
       setDoubaoApiEditUnlocked((unlocked) => {
         if (!unlocked) {
-          showInfo(t('已解锁豆包自定义 API 地址编辑'));
+          showInfo(t('已解锁自定义 API 地址编辑'));
         }
         return true;
       });
@@ -1267,7 +1267,7 @@ const EditChannelModal = (props) => {
   };
 
   useEffect(() => {
-    if (inputs.type !== 45) {
+    if (![26, 45].includes(inputs.type)) {
       doubaoApiClickCountRef.current = 0;
       setDoubaoApiEditUnlocked(false);
     }
@@ -3671,7 +3671,7 @@ const EditChannelModal = (props) => {
                             inputs.type !== 8 &&
                             inputs.type !== 22 &&
                             inputs.type !== 36 &&
-                            inputs.type !== 26 &&
+                            (inputs.type !== 26 || doubaoApiEditUnlocked) &&
                             (inputs.type !== 45 || doubaoApiEditUnlocked) && (
                               <div>
                                 <Form.Input
@@ -3765,12 +3765,19 @@ const EditChannelModal = (props) => {
                             </div>
                           )}
 
-                          {inputs.type === 26 && (
+                          {inputs.type === 26 && !doubaoApiEditUnlocked && (
                             <>
                               <div>
                                 <Form.Select
                                   field='base_url'
-                                  label={t('API地址')}
+                                  label={
+                                    <span
+                                      onClick={handleApiConfigSecretClick}
+                                      style={{ cursor: 'pointer', userSelect: 'none' }}
+                                    >
+                                      {t('API地址')}
+                                    </span>
+                                  }
                                   placeholder={t('请选择API地址')}
                                   onChange={(value) =>
                                     handleInputChange('base_url', value)

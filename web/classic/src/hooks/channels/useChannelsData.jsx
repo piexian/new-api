@@ -41,6 +41,7 @@ import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 import { openMiniMaxUsageModal } from '../../components/table/channels/modals/MiniMaxUsageModal';
 import { openZhipuCodingPlanUsageModal } from '../../components/table/channels/modals/ZhipuCodingPlanModal';
+import { openKimiCodingPlanUsageModal } from '../../components/table/channels/modals/KimiCodingPlanModal';
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -798,6 +799,13 @@ export const useChannelsData = () => {
     });
   };
 
+  const openKimiCodingPlanUsage = (record) => {
+    openKimiCodingPlanUsageModal({
+      t,
+      record,
+    });
+  };
+
   const fixChannelsAbilities = async () => {
     const res = await API.post(`/api/channel/fix`);
     const { success, message, data } = res.data;
@@ -1251,6 +1259,7 @@ export const useChannelsData = () => {
     updateChannelBalance,
     openMiniMaxTokenPlanUsage,
     openZhipuCodingPlanUsage,
+    openKimiCodingPlanUsage,
     fixChannelsAbilities,
     checkOllamaVersion,
     testChannel,

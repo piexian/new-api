@@ -41,6 +41,7 @@ import {
   handleTestChannel,
   handleToggleChannelStatus,
   isChannelEnabled,
+  isKimiCodingPlanChannel,
   isMiniMaxTokenPlanChannel,
   isMultiKeyChannel,
   isZhipuCodingPlanChannel,
@@ -65,7 +66,9 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const isEnabled = isChannelEnabled(channel)
   const isMultiKey = isMultiKeyChannel(channel)
   const canQueryPlanUsage =
-    isMiniMaxTokenPlanChannel(channel) || isZhipuCodingPlanChannel(channel)
+    isMiniMaxTokenPlanChannel(channel) ||
+    isZhipuCodingPlanChannel(channel) ||
+    isKimiCodingPlanChannel(channel)
 
   const handleEdit = () => {
     setCurrentRow(channel)

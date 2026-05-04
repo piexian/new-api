@@ -145,6 +145,10 @@ import { ModelMappingEditor } from '../model-mapping-editor'
 const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan'
 const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL =
   'glm-coding-plan-international'
+const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan'
+const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn/v1'
+const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai/v1'
+const CUSTOM_BASE_URL_UNLOCK_TYPES = [25, 26, 45]
 
 type ChannelMutateDrawerProps = {
   open: boolean
@@ -387,22 +391,22 @@ export function ChannelMutateDrawer({
   )
   const currentSettings = form.watch('settings')
   const {
-    unlocked: doubaoApiEditUnlocked,
+    unlocked: customBaseUrlUnlocked,
     handleClick: handleApiConfigSecretClick,
-    reset: resetDoubaoApiUnlock,
+    reset: resetCustomBaseUrlUnlock,
   } = useHiddenClickUnlock({
     requiredClicks: 10,
-    disabled: currentType !== 45,
+    disabled: !CUSTOM_BASE_URL_UNLOCK_TYPES.includes(currentType),
     onUnlock: () => {
-      toast.info(t('Doubao custom API address editing unlocked'))
+      toast.info(t('Custom API address editing unlocked'))
     },
   })
 
   useEffect(() => {
     if (!open) {
-      resetDoubaoApiUnlock()
+      resetCustomBaseUrlUnlock()
     }
-  }, [open, resetDoubaoApiUnlock])
+  }, [open, resetCustomBaseUrlUnlock])
 
   // Helper computed values
   const isBatchMode =
@@ -1490,14 +1494,19 @@ export function ChannelMutateDrawer({
                 )}
 
                 {/* Zhipu V4 (type 26) */}
-                {currentType === 26 && (
+                {currentType === 26 && !customBaseUrlUnlocked && (
                   <>
                     <FormField
                       control={form.control}
                       name='base_url'
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{t('API Base URL')}</FormLabel>
+                          <FormLabel
+                            className='cursor-pointer select-none'
+                            onClick={handleApiConfigSecretClick}
+                          >
+                            {t('API Base URL')}
+                          </FormLabel>
                           <Select
                             onValueChange={(value) =>
                               field.onChange(
@@ -1559,6 +1568,136 @@ export function ChannelMutateDrawer({
                       </AlertDescription>
                     </Alert>
                   </>
+                )}
+
+                {/* Zhipu V4 (type 26) - Custom API URL (unlocked) */}
+                {currentType === 26 && customBaseUrlUnlocked && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name='base_url'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('API Base URL')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder={t(
+                                'e.g., https://open.bigmodel.cn or proxy URL'
+                              )}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Enter custom API endpoint URL (proxy supported)'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Alert>
+                      <AlertDescription>
+                        {t(
+                          'This channel supports both OpenAI and Claude endpoints: /v1/chat/completions uses the OpenAI-compatible endpoint, while /v1/messages uses the Claude-compatible endpoint.'
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  </>
+                )}
+
+                {/* Moonshot / Kimi (type 25) */}
+                {currentType === 25 && !customBaseUrlUnlocked && (
+                  <FormField
+                    control={form.control}
+                    name='base_url'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel
+                          className='cursor-pointer select-none'
+                          onClick={handleApiConfigSecretClick}
+                        >
+                          {t('API Base URL')}
+                        </FormLabel>
+                        <Select
+                          onValueChange={(value) =>
+                            field.onChange(value === '__default__' ? '' : value)
+                          }
+                          value={
+                            [
+                              '',
+                              MOONSHOT_DEFAULT_BASE_URL,
+                              MOONSHOT_INTL_BASE_URL,
+                              KIMI_CODING_PLAN_BASE_URL,
+                            ].includes(String(field.value || ''))
+                              ? field.value || '__default__'
+                              : undefined
+                          }
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {field.value &&
+                              ![
+                                MOONSHOT_DEFAULT_BASE_URL,
+                                MOONSHOT_INTL_BASE_URL,
+                                KIMI_CODING_PLAN_BASE_URL,
+                              ].includes(String(field.value)) && (
+                                <SelectItem value={String(field.value)}>
+                                  {String(field.value)}
+                                </SelectItem>
+                              )}
+                            <SelectItem value='__default__'>
+                              {t('Default Moonshot endpoint')}
+                            </SelectItem>
+                            <SelectItem value={MOONSHOT_DEFAULT_BASE_URL}>
+                              {MOONSHOT_DEFAULT_BASE_URL}
+                            </SelectItem>
+                            <SelectItem value={MOONSHOT_INTL_BASE_URL}>
+                              {MOONSHOT_INTL_BASE_URL}
+                            </SelectItem>
+                            <SelectItem value={KIMI_CODING_PLAN_BASE_URL}>
+                              {t('Kimi Coding Plan')}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {t(
+                            'Coding Plan quota only applies to the corresponding coding-tool scenarios. Choose a special endpoint to use the official Coding Plan routing rules.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Moonshot / Kimi (type 25) - Custom API URL (unlocked) */}
+                {currentType === 25 && customBaseUrlUnlocked && (
+                  <FormField
+                    control={form.control}
+                    name='base_url'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('API Base URL')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t(
+                              'e.g., https://api.moonshot.cn/v1 or proxy URL'
+                            )}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Enter custom API endpoint URL (proxy supported)')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 )}
 
                 {/* Cloudflare Workers AI (type 39) */}
@@ -1736,7 +1875,7 @@ export function ChannelMutateDrawer({
                 )}
 
                 {/* VolcEngine (type 45) */}
-                {currentType === 45 && !doubaoApiEditUnlocked && (
+                {currentType === 45 && !customBaseUrlUnlocked && (
                   <FormField
                     control={form.control}
                     name='base_url'
@@ -1781,7 +1920,7 @@ export function ChannelMutateDrawer({
                 )}
 
                 {/* VolcEngine (type 45) - Custom API URL (unlocked) */}
-                {currentType === 45 && doubaoApiEditUnlocked && (
+                {currentType === 45 && customBaseUrlUnlocked && (
                   <FormField
                     control={form.control}
                     name='base_url'

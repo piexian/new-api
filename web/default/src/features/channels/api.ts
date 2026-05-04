@@ -327,6 +327,24 @@ export async function getZhipuCodingPlanUsage(
   return res.data
 }
 
+export async function getKimiCodingPlanUsage(
+  channelId: number,
+  keyIndex = 0
+): Promise<ChannelPlanUsageResponse> {
+  const config: ExtendedApiConfig = {
+    skipBusinessError: true,
+    disableDuplicate: true,
+  }
+  const res = await api.get(
+    `/api/channel/${channelId}/kimi/coding_plan/usage`,
+    {
+      ...config,
+      params: { key_index: Math.max(Math.floor(keyIndex), 0) },
+    }
+  )
+  return res.data
+}
+
 // ============================================================================
 // Multi-Key Management
 // ============================================================================

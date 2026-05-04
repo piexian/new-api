@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import {
+  getKimiCodingPlanUsage,
   getMiniMaxTokenPlanUsage,
   getZhipuCodingPlanUsage,
   type ChannelPlanUsageResponse,
 } from '../../api'
+import { isKimiCodingPlanChannel } from '../../lib/plan-usage-utils'
 import { useChannels } from '../channels-provider'
 import {
   ChannelPlanUsageDialog,
@@ -30,7 +32,11 @@ export function PlanUsageQueryDialog({
   const [currentKeyIndex, setCurrentKeyIndex] = useState(0)
 
   const kind: ChannelPlanUsageKind =
-    currentRow?.type === 35 ? 'minimax' : 'zhipu'
+    currentRow?.type === 35
+      ? 'minimax'
+      : currentRow && isKimiCodingPlanChannel(currentRow)
+        ? 'kimi'
+        : 'zhipu'
 
   const fetchUsage = useCallback(
     async (keyIndex: number) => {
@@ -42,7 +48,9 @@ export function PlanUsageQueryDialog({
         const res =
           kind === 'minimax'
             ? await getMiniMaxTokenPlanUsage(row.id, keyIndex)
-            : await getZhipuCodingPlanUsage(row.id, keyIndex)
+            : kind === 'kimi'
+              ? await getKimiCodingPlanUsage(row.id, keyIndex)
+              : await getZhipuCodingPlanUsage(row.id, keyIndex)
         const resolvedKeyIndex = Number(res.key_index ?? keyIndex)
         setCurrentKeyIndex(
           Number.isFinite(resolvedKeyIndex) ? resolvedKeyIndex : 0

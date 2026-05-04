@@ -43,6 +43,7 @@ import {
   CHANNEL_OPTIONS,
   CHANNEL_TYPE_CODEX,
   CHANNEL_TYPE_MINIMAX,
+  CHANNEL_TYPE_MOONSHOT,
   CHANNEL_TYPE_ZHIPU_V4,
   MODEL_FETCHABLE_CHANNEL_TYPES,
 } from '../../../constants';
@@ -78,6 +79,18 @@ const isZhipuCodingPlanChannel = (record) => {
   }
   const lower = baseURL.toLowerCase().replace(/\/+$/, '');
   return ZHIPU_CODING_PLAN_DOMAINS.some((domain) => lower.includes(domain));
+};
+
+const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan';
+const KIMI_CODING_PLAN_DOMAINS = ['api.kimi.com/coding'];
+
+const isKimiCodingPlanChannel = (record) => {
+  if (!record || record.children !== undefined) return false;
+  if (record.type !== CHANNEL_TYPE_MOONSHOT) return false;
+  const baseURL = String(record.base_url || '').trim();
+  if (baseURL === KIMI_CODING_PLAN_BASE_URL) return true;
+  const lower = baseURL.toLowerCase().replace(/\/+$/, '');
+  return KIMI_CODING_PLAN_DOMAINS.some((domain) => lower.includes(domain));
 };
 
 // Render functions
@@ -339,6 +352,7 @@ export const getChannelsColumns = ({
   updateChannelBalance,
   openMiniMaxTokenPlanUsage,
   openZhipuCodingPlanUsage,
+  openKimiCodingPlanUsage,
   manageChannel,
   manageTag,
   submitTagEdit,
@@ -562,6 +576,7 @@ export const getChannelsColumns = ({
           const isCodexChannel = record.type === CHANNEL_TYPE_CODEX;
           const isMiniMaxChannel = record.type === CHANNEL_TYPE_MINIMAX;
           const isZhipuPlanChannel = isZhipuCodingPlanChannel(record);
+          const isKimiPlanChannel = isKimiCodingPlanChannel(record);
           return (
             <div>
               <Space spacing={1}>
@@ -625,6 +640,19 @@ export const getChannelsColumns = ({
                       shape='circle'
                       className='cursor-pointer'
                       onClick={() => openZhipuCodingPlanUsage(record)}
+                    >
+                      {t('Coding Plan')}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {isKimiPlanChannel && (
+                  <Tooltip content={t('查询 Kimi Coding Plan 额度窗口')}>
+                    <Tag
+                      color='blue'
+                      type='light'
+                      shape='circle'
+                      className='cursor-pointer'
+                      onClick={() => openKimiCodingPlanUsage(record)}
                     >
                       {t('Coding Plan')}
                     </Tag>
