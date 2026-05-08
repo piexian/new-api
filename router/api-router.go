@@ -31,7 +31,14 @@ func SetApiRouter(router *gin.Engine) {
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
-		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheckNoSession(), controller.SendEmailVerification)
+		perfMetricsRoute := apiRouter.Group("/perf-metrics")
+		perfMetricsRoute.Use(middleware.TryUserAuth())
+		{
+			perfMetricsRoute.GET("/summary", controller.GetPerfMetricsSummary)
+			perfMetricsRoute.GET("", controller.GetPerfMetrics)
+		}
+		apiRouter.GET("/rankings", controller.GetRankings)
+		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), controller.ResetPassword)
 		// OAuth routes - specific routes must come before :provider wildcard
@@ -144,10 +151,10 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
 			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
 			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
-			subscriptionRoute.POST("/wallet/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWalletPay)
 			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
 			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
 			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
+			subscriptionRoute.POST("/wallet/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWalletPay)
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())
@@ -238,9 +245,6 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/:id/codex/oauth/complete", controller.CompleteCodexOAuthForChannel)
 			channelRoute.POST("/:id/codex/refresh", controller.RefreshCodexChannelCredential)
 			channelRoute.GET("/:id/codex/usage", controller.GetCodexChannelUsage)
-			channelRoute.GET("/:id/minimax/usage", controller.GetMiniMaxChannelUsage)
-			channelRoute.GET("/:id/zhipu/coding_plan/usage", controller.GetZhipuCodingPlanUsage)
-			channelRoute.GET("/:id/kimi/coding_plan/usage", controller.GetKimiCodingPlanUsage)
 			channelRoute.POST("/ollama/pull", controller.OllamaPullModel)
 			channelRoute.POST("/ollama/pull/stream", controller.OllamaPullModelStream)
 			channelRoute.DELETE("/ollama/delete", controller.OllamaDeleteModel)
@@ -253,6 +257,9 @@ func SetApiRouter(router *gin.Engine) {
 			channelRoute.POST("/upstream_updates/apply_all", controller.ApplyAllChannelUpstreamModelUpdates)
 			channelRoute.POST("/upstream_updates/detect", controller.DetectChannelUpstreamModelUpdates)
 			channelRoute.POST("/upstream_updates/detect_all", controller.DetectAllChannelUpstreamModelUpdates)
+			channelRoute.GET("/:id/minimax/usage", controller.GetMiniMaxChannelUsage)
+			channelRoute.GET("/:id/zhipu/coding_plan/usage", controller.GetZhipuCodingPlanUsage)
+			channelRoute.GET("/:id/kimi/coding_plan/usage", controller.GetKimiCodingPlanUsage)
 		}
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())

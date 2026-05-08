@@ -2,12 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import { formatQuota } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -184,20 +183,33 @@ export function UserSubscriptionsDialog(props: Props) {
 
           <div className='mt-4 space-y-4'>
             <div className='flex gap-2'>
-              <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
+              <Select
+                items={[
+                  ...plans.map((p) => ({
+                    value: String(p.plan.id),
+                    label: (
+                      <>
+                        {p.plan.title}($
+                        {Number(p.plan.price_amount || 0).toFixed(2)})
+                      </>
+                    ),
+                  })),
+                ]}
+                value={selectedPlanId}
+                onValueChange={(v) => v !== null && setSelectedPlanId(v)}
+              >
                 <SelectTrigger className='flex-1'>
                   <SelectValue placeholder={t('Select subscription plan')} />
                 </SelectTrigger>
-                <SelectContent>
-                  {plans.map((p) => (
-                    <SelectItem key={p.plan.id} value={String(p.plan.id)}>
-                      {p.plan.title} (
-                      {formatBillingCurrencyFromUSD(
-                        Number(p.plan.price_amount || 0)
-                      )}
-                      )
-                    </SelectItem>
-                  ))}
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {plans.map((p) => (
+                      <SelectItem key={p.plan.id} value={String(p.plan.id)}>
+                        {p.plan.title} ($
+                        {Number(p.plan.price_amount || 0).toFixed(2)})
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               <Button
@@ -275,9 +287,7 @@ export function UserSubscriptionsDialog(props: Props) {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {total > 0
-                              ? `${formatQuota(used)}/${formatQuota(total)}`
-                              : t('Unlimited')}
+                            {total > 0 ? `${used}/${total}` : t('Unlimited')}
                           </TableCell>
                           <TableCell className='text-right'>
                             <div className='flex justify-end gap-1'>

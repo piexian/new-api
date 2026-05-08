@@ -1,17 +1,12 @@
-import { Shield, Key, Trash2, UserPen } from 'lucide-react'
+import { Shield, Key, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useDialogs } from '@/hooks/use-dialog'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import type { UserProfile } from '../types'
 import { AccessTokenDialog } from './dialogs/access-token-dialog'
 import { ChangePasswordDialog } from './dialogs/change-password-dialog'
-import { ChangeUsernameDialog } from './dialogs/change-username-dialog'
 import { DeleteAccountDialog } from './dialogs/delete-account-dialog'
 
 // ============================================================================
@@ -21,19 +16,13 @@ import { DeleteAccountDialog } from './dialogs/delete-account-dialog'
 interface ProfileSecurityCardProps {
   profile: UserProfile | null
   loading: boolean
-  turnstileEnabled: boolean
-  turnstileSiteKey: string
-  onProfileUpdate: () => void
 }
 
-type DialogKey = 'username' | 'password' | 'token' | 'delete'
+type DialogKey = 'password' | 'token' | 'delete'
 
 export function ProfileSecurityCard({
   profile,
   loading,
-  turnstileEnabled,
-  turnstileSiteKey,
-  onProfileUpdate,
 }: ProfileSecurityCardProps) {
   const { t } = useTranslation()
   const dialogs = useDialogs<DialogKey>()
@@ -56,21 +45,11 @@ export function ProfileSecurityCard({
 
   if (!profile) return null
 
-  const hasPassword = profile.has_password ?? true
   const securityActions = [
     {
-      icon: UserPen,
-      title: t('Update Username'),
-      description: t('Change your account username and login name'),
-      action: () => dialogs.open('username'),
-      variant: 'default' as const,
-    },
-    {
       icon: Shield,
-      title: hasPassword ? t('Change Password') : t('Set Password'),
-      description: hasPassword
-        ? t('Update your password to keep your account secure')
-        : t('Set a password to sign in with username and password'),
+      title: t('Change Password'),
+      description: t('Update your password to keep your account secure'),
       action: () => dialogs.open('password'),
       variant: 'default' as const,
     },
@@ -97,60 +76,45 @@ export function ProfileSecurityCard({
         description={t('Manage your security settings and account access')}
         icon={<Shield className='h-4 w-4' />}
       >
-        <div className='grid grid-cols-1 gap-2.5 sm:gap-3 md:grid-cols-2 xl:grid-cols-4'>
-            {securityActions.map((item) => (
-              <button
-                key={item.title}
-                type='button'
-                onClick={item.action}
-                className={`hover:bg-muted/50 flex items-center gap-3 rounded-lg border p-3 text-left transition-colors md:flex-col md:gap-2 md:p-4 md:text-center ${
+        <div className='grid grid-cols-1 gap-2.5 sm:gap-3 md:grid-cols-3'>
+          {securityActions.map((item) => (
+            <button
+              key={item.title}
+              type='button'
+              onClick={item.action}
+              className={`hover:bg-muted/50 flex items-center gap-3 rounded-lg border p-3 text-left transition-colors md:flex-col md:gap-2 md:p-4 md:text-center ${
+                item.variant === 'destructive'
+                  ? 'border-destructive/30 hover:border-destructive/50 hover:bg-destructive/5'
+                  : ''
+              }`}
+            >
+              <div
+                className={`rounded-md p-2 ${
                   item.variant === 'destructive'
-                    ? 'border-destructive/30 hover:border-destructive/50 hover:bg-destructive/5'
-                    : ''
+                    ? 'bg-destructive/10 text-destructive'
+                    : 'bg-muted'
                 }`}
               >
-                <div
-                  className={`rounded-md p-2 ${
-                    item.variant === 'destructive'
-                      ? 'bg-destructive/10 text-destructive'
-                      : 'bg-muted'
-                  }`}
-                >
-                  <item.icon className='h-5 w-5' />
-                </div>
-                <div className='min-w-0 md:contents'>
-                  <p className='text-sm font-medium'>{item.title}</p>
-                  <p className='text-muted-foreground line-clamp-1 text-xs md:line-clamp-none'>
-                    {item.description}
-                  </p>
-                </div>
-              </button>
-            ))}
+                <item.icon className='h-5 w-5' />
+              </div>
+              <div className='min-w-0 md:contents'>
+                <p className='text-sm font-medium'>{item.title}</p>
+                <p className='text-muted-foreground line-clamp-1 text-xs md:line-clamp-none'>
+                  {item.description}
+                </p>
+              </div>
+            </button>
+          ))}
         </div>
       </TitledCard>
 
       {/* Dialogs */}
-      <ChangeUsernameDialog
-        open={dialogs.isOpen('username')}
-        onOpenChange={(open) =>
-          open ? dialogs.open('username') : dialogs.close('username')
-        }
-        profile={profile}
-        turnstileEnabled={turnstileEnabled}
-        turnstileSiteKey={turnstileSiteKey}
-        onUpdated={onProfileUpdate}
-      />
-
       <ChangePasswordDialog
         open={dialogs.isOpen('password')}
         onOpenChange={(open) =>
           open ? dialogs.open('password') : dialogs.close('password')
         }
         username={profile.username}
-        hasPassword={hasPassword}
-        turnstileEnabled={turnstileEnabled}
-        turnstileSiteKey={turnstileSiteKey}
-        onUpdated={onProfileUpdate}
       />
 
       <AccessTokenDialog

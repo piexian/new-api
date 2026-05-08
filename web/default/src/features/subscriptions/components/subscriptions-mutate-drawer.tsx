@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -251,6 +252,10 @@ export function SubscriptionsMutateDrawer({
                     <FormItem>
                       <FormLabel>{t('Upgrade Group')}</FormLabel>
                       <Select
+                        items={[
+                          { value: '__none__', label: t('No Upgrade') },
+                          ...groupOptions.map((g) => ({ value: g, label: g })),
+                        ]}
                         onValueChange={(v) =>
                           field.onChange(v === '__none__' ? '' : v)
                         }
@@ -261,15 +266,17 @@ export function SubscriptionsMutateDrawer({
                             <SelectValue placeholder={t('No Upgrade')} />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value='__none__'>
-                            {t('No Upgrade')}
-                          </SelectItem>
-                          {groupOptions.map((g) => (
-                            <SelectItem key={g} value={g}>
-                              {g}
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            <SelectItem value='__none__'>
+                              {t('No Upgrade')}
                             </SelectItem>
-                          ))}
+                            {groupOptions.map((g) => (
+                              <SelectItem key={g} value={g}>
+                                {g}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -557,6 +564,12 @@ export function SubscriptionsMutateDrawer({
                     <FormItem>
                       <FormLabel>{t('Duration Unit')}</FormLabel>
                       <Select
+                        items={[
+                          ...durationUnitOpts.map((o) => ({
+                            value: o.value,
+                            label: o.label,
+                          })),
+                        ]}
                         onValueChange={field.onChange}
                         value={field.value}
                       >
@@ -565,12 +578,14 @@ export function SubscriptionsMutateDrawer({
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
-                          {durationUnitOpts.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {durationUnitOpts.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -639,6 +654,12 @@ export function SubscriptionsMutateDrawer({
                     <FormItem>
                       <FormLabel>{t('Reset Cycle')}</FormLabel>
                       <Select
+                        items={[
+                          ...resetPeriodOpts.map((o) => ({
+                            value: o.value,
+                            label: o.label,
+                          })),
+                        ]}
                         onValueChange={field.onChange}
                         value={field.value}
                       >
@@ -647,12 +668,14 @@ export function SubscriptionsMutateDrawer({
                             <SelectValue />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent>
-                          {resetPeriodOpts.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {resetPeriodOpts.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -722,8 +745,8 @@ export function SubscriptionsMutateDrawer({
           </form>
         </Form>
         <SheetFooter className='grid grid-cols-2 gap-2 border-t px-4 py-3 sm:flex sm:px-6 sm:py-4'>
-          <SheetClose asChild>
-            <Button variant='outline'>{t('Close')}</Button>
+          <SheetClose render={<Button variant='outline' />}>
+            {t('Close')}
           </SheetClose>
           <Button
             form='subscription-form'

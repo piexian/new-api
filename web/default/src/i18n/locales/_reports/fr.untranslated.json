@@ -1,5 +1,3 @@
 {
-  "Account-level token with Email Sending:Edit permission. Leave blank to keep existing.": "Account-level token with Email Sending:Edit permission. Leave blank to keep existing.",
-  "Choose which email service to use for sending": "Choose which email service to use for sending",
-  "Enter new API Token to update": "Enter new API Token to update"
+  "Each tier supports up to 2 conditions. The last tier without conditions is the fallback.": "Each tier supports up to 2 conditions. The last tier without conditions is the fallback."
 }
