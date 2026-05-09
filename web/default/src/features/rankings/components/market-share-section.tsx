@@ -2,10 +2,17 @@ import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { PieChart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useThemeRadiusPx } from '@/lib/theme-radius'
+import { Badge } from '@/components/ui/badge'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
-import { useThemeCustomization } from '@/context/theme-customization-provider'
 import { formatShare, formatTokens } from '../lib/format'
 import type { RankingPeriod, VendorRanking, VendorShareSeries } from '../types'
 import { VendorLink } from './entity-links'
@@ -80,17 +87,11 @@ type MarketShareSectionProps = {
 
 /**
  * Combined "Market Share" card: a 100%-stacked bar chart showing each
- * vendor's slice of total token volume, paired below with a two-column
- * vendor list.
+ * vendor's slice of total token volume, paired with a compact vendor list.
  */
 export function MarketShareSection(props: MarketShareSectionProps) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
-  const { customization } = useThemeCustomization()
-  const barRadius = useThemeRadiusPx(
-    '--radius-sm',
-    `${customization.preset}:${customization.radius}`
-  )
 
   const colourMap = useMemo(
     () => buildVendorColourMap(props.history.vendors.map((v) => v.name)),
@@ -117,10 +118,10 @@ export function MarketShareSection(props: MarketShareSectionProps) {
       yField: 'share',
       seriesField: 'vendor',
       stack: true,
-      paddingInner: 0.12,
+      paddingInner: 0.02,
       legends: { visible: false },
       bar: {
-        style: barRadius == null ? {} : { cornerRadius: barRadius },
+        style: { cornerRadius: 0, lineWidth: 0 },
       },
       color: { specified: colourMap },
       axes: [
@@ -184,70 +185,96 @@ export function MarketShareSection(props: MarketShareSectionProps) {
       },
       animationAppear: { duration: 500 },
     }
-  }, [barRadius, colourMap, orderedPoints])
+  }, [colourMap, orderedPoints])
 
   const visible = props.rows.slice(0, MAX_VENDORS_IN_LIST)
-  const half = Math.ceil(visible.length / 2)
-  const left = visible.slice(0, half)
-  const right = visible.slice(half)
+  const leadingVendor = visible[0]
+  const totalTokens = useMemo(
+    () => props.rows.reduce((sum, row) => sum + row.total_tokens, 0),
+    [props.rows]
+  )
 
   return (
-    <section className='bg-card overflow-hidden rounded-lg border'>
-      {/* Chart block ----------------------------------------------------- */}
-      <header className='px-5 py-4'>
-        <h2 className='text-foreground inline-flex items-center gap-2 text-base font-semibold'>
-          <PieChart className='text-primary size-4' />
-          {t('Market Share')}
-        </h2>
-        <p className='text-muted-foreground mt-1 text-sm'>
-          {t(PERIOD_DESCRIPTIONS[props.period])}
-        </p>
-      </header>
-
-      <div className='px-5 pb-5'>
-        <div className='h-60 sm:h-72'>
-          {themeReady && spec ? (
-            <VChart
-              key={`vendor-share-${resolvedTheme}-${props.period}`}
-              spec={{
-                ...spec,
-                theme: resolvedTheme === 'dark' ? 'dark' : 'light',
-                background: 'transparent',
-              }}
-              option={VCHART_OPTION}
-            />
-          ) : (
-            <div className='text-muted-foreground/80 flex h-full items-center justify-center text-xs'>
-              {t('No history data available')}
-            </div>
-          )}
+    <Card className='rounded-lg'>
+      <CardHeader className='gap-2 px-5'>
+        <div className='flex min-w-0 items-start gap-3'>
+          <span className='bg-muted text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-md'>
+            <PieChart className='size-4' />
+          </span>
+          <div className='min-w-0'>
+            <CardTitle className='text-base font-semibold'>
+              {t('Market Share')}
+            </CardTitle>
+            <CardDescription>
+              {t(PERIOD_DESCRIPTIONS[props.period])}
+            </CardDescription>
+          </div>
         </div>
-      </div>
+        <CardAction className='text-right'>
+          <div className='text-foreground font-mono text-2xl leading-none font-semibold tabular-nums'>
+            {leadingVendor ? formatShare(leadingVendor.share) : '0%'}
+          </div>
+          <div className='text-muted-foreground mt-1 text-[10px] font-medium tracking-widest uppercase'>
+            {leadingVendor?.vendor ?? t('Top vendor')}
+          </div>
+        </CardAction>
+      </CardHeader>
 
-      {/* Vendor list block ----------------------------------------------- */}
-      <div className='border-t'>
-        <header className='px-5 pt-4 pb-2'>
-          <h3 className='text-foreground text-sm font-semibold'>
-            {t('By model author')}
-          </h3>
-          <p className='text-muted-foreground/80 mt-0.5 text-xs'>
-            {t('Vendors ranked by aggregated token volume')}
-          </p>
-        </header>
-        {visible.length === 0 ? (
-          <div className='text-muted-foreground/80 px-5 py-8 text-center text-sm'>
-            {t('No vendor data available')}
+      <CardContent className='px-5 pb-5'>
+        <div className='space-y-5'>
+          <div className='min-w-0'>
+            <div className='mb-3 flex items-center justify-between gap-3'>
+              <h3 className='text-foreground text-sm font-medium'>
+                {t('Share over time')}
+              </h3>
+              <Badge variant='outline' className='font-mono'>
+                {formatTokens(totalTokens)} {t('tokens')}
+              </Badge>
+            </div>
+            <div className='h-72 lg:h-80'>
+              {themeReady && spec ? (
+                <VChart
+                  key={`vendor-share-${resolvedTheme}-${props.period}`}
+                  spec={{
+                    ...spec,
+                    theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+                    background: 'transparent',
+                  }}
+                  option={VCHART_OPTION}
+                />
+              ) : (
+                <div className='text-muted-foreground flex h-full items-center justify-center text-xs'>
+                  {t('No history data available')}
+                </div>
+              )}
+            </div>
           </div>
-        ) : (
-          <div className='grid grid-cols-1 gap-x-8 px-5 pt-1 pb-4 md:grid-cols-2'>
-            <VendorList rows={left} colourMap={colourMap} />
-            {right.length > 0 && (
-              <VendorList rows={right} colourMap={colourMap} />
+
+          <section className='border-t pt-4'>
+            <div className='mb-3 flex items-end justify-between gap-3'>
+              <div>
+                <h3 className='text-foreground text-sm font-semibold'>
+                  {t('By model author')}
+                </h3>
+                <p className='text-muted-foreground mt-0.5 text-xs'>
+                  {t('Vendors ranked by aggregated token volume')}
+                </p>
+              </div>
+              <span className='text-muted-foreground text-[11px] font-medium tracking-widest uppercase'>
+                {t('Share')}
+              </span>
+            </div>
+            {visible.length === 0 ? (
+              <div className='text-muted-foreground flex h-28 items-center justify-center text-sm'>
+                {t('No vendor data available')}
+              </div>
+            ) : (
+              <VendorList rows={visible} colourMap={colourMap} />
             )}
-          </div>
-        )}
-      </div>
-    </section>
+          </section>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -256,35 +283,55 @@ function VendorList(props: {
   colourMap: Record<string, string>
 }) {
   return (
-    <ul>
+    <div className='grid gap-x-6 md:grid-cols-2 xl:grid-cols-3'>
       {props.rows.map((vendor) => (
-        <li key={vendor.vendor} className='flex items-center gap-3 py-2.5'>
-          <span className='text-muted-foreground/80 w-6 shrink-0 text-right font-mono text-xs tabular-nums'>
-            {vendor.rank}.
+        <div
+          key={vendor.vendor}
+          className='border-border/60 flex min-w-0 items-start gap-3 border-b py-2.5 last:border-b-0'
+        >
+          <span className='text-muted-foreground w-6 shrink-0 text-right font-mono text-xs tabular-nums'>
+            {vendor.rank}
           </span>
           <span
             aria-hidden
-            className='size-2.5 shrink-0 rounded-full'
+            className='mt-1.5 size-2.5 shrink-0 rounded-full'
             style={{
               backgroundColor: props.colourMap[vendor.vendor] ?? '#94a3b8',
             }}
           />
-          <VendorLink
-            vendor={vendor.vendor}
-            className='text-foreground min-w-0 flex-1 truncate text-sm font-medium'
-          >
-            {vendor.vendor}
-          </VendorLink>
-          <div className='shrink-0 text-right'>
-            <div className='text-foreground font-mono text-sm font-semibold tabular-nums'>
-              {formatTokens(vendor.total_tokens)}
+          <div className='min-w-0 flex-1'>
+            <div className='flex items-center justify-between gap-3'>
+              <VendorLink
+                vendor={vendor.vendor}
+                className='text-foreground min-w-0 truncate text-sm font-medium'
+              >
+                {vendor.vendor}
+              </VendorLink>
+              <span className='text-foreground shrink-0 font-mono text-sm font-semibold tabular-nums'>
+                {formatShare(vendor.share)}
+              </span>
             </div>
-            <div className='text-muted-foreground/80 font-mono text-[11px] tabular-nums'>
-              {formatShare(vendor.share)}
+            <div className='bg-muted mt-2 h-1 overflow-hidden'>
+              <div
+                className='h-full'
+                style={{
+                  width: `${Math.max(2, Math.min(100, vendor.share * 100))}%`,
+                  backgroundColor:
+                    props.colourMap[vendor.vendor] ?? '#94a3b8',
+                }}
+              />
+            </div>
+            <div className='text-muted-foreground mt-1.5 flex items-center justify-between gap-3 text-[11px]'>
+              <span className='truncate'>
+                {vendor.models_count} · {vendor.top_model}
+              </span>
+              <span className='shrink-0 font-mono tabular-nums'>
+                {formatTokens(vendor.total_tokens)}
+              </span>
             </div>
           </div>
-        </li>
+        </div>
       ))}
-    </ul>
+    </div>
   )
 }

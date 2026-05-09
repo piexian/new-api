@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next'
+import { Badge } from '@/components/ui/badge'
 import { getLobeIcon } from '@/lib/lobe-icon'
-import { formatTokens } from '../lib/format'
+import { cn } from '@/lib/utils'
+import { formatShare, formatTokens } from '../lib/format'
 import type { ModelRanking } from '../types'
 import { ModelLink, VendorLink } from './entity-links'
 import { GrowthText } from './growth-text'
@@ -25,21 +27,13 @@ type ModelLeaderboardProps = {
  */
 export function ModelLeaderboard(props: ModelLeaderboardProps) {
   const limited = props.limit ? props.rows.slice(0, props.limit) : props.rows
-  const half = Math.ceil(limited.length / 2)
-  const left = limited.slice(0, half)
-  const right = limited.slice(half)
   const variant = props.variant ?? 'default'
 
   if (limited.length === 0) {
     return null
   }
 
-  return (
-    <div className='grid grid-cols-1 gap-x-8 md:grid-cols-2'>
-      <ModelList rows={left} variant={variant} />
-      {right.length > 0 && <ModelList rows={right} variant={variant} />}
-    </div>
-  )
+  return <ModelList rows={limited} variant={variant} />
 }
 
 function ModelList(props: {
@@ -49,71 +43,79 @@ function ModelList(props: {
   const { t } = useTranslation()
   const compact = props.variant === 'compact'
   return (
-    <ul>
+    <div className='overflow-hidden rounded-lg border'>
+      <div className='text-muted-foreground bg-muted/30 hidden grid-cols-[3.5rem_minmax(0,1fr)_5rem_5rem_4.5rem] gap-4 border-b px-3 py-2 text-[11px] font-medium tracking-widest uppercase sm:grid'>
+        <span>{t('Rank')}</span>
+        <span>{t('Model')}</span>
+        <span className='text-right'>{t('Share')}</span>
+        <span className='text-right'>{t('Tokens')}</span>
+        <span className='text-right'>{t('Growth')}</span>
+      </div>
       {props.rows.map((row) => (
-        <li
+        <div
           key={row.model_name}
-          className={
-            compact
-              ? 'flex items-center gap-3 py-2'
-              : 'flex items-center gap-3 py-2.5'
-          }
+          className={cn(
+            'hover:bg-muted/30 grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-3 border-b px-3 last:border-b-0 sm:grid-cols-[3.5rem_minmax(0,1fr)_5rem_5rem_4.5rem] sm:gap-4',
+            compact ? 'py-2' : 'py-3'
+          )}
         >
-          <span className='text-muted-foreground/80 w-6 shrink-0 text-right font-mono text-xs tabular-nums'>
-            {row.rank}.
+          <span className='text-muted-foreground font-mono text-xs tabular-nums'>
+            {row.rank}
           </span>
-          <span className='shrink-0'>
-            {getLobeIcon(row.vendor_icon, compact ? 20 : 22)}
-          </span>
-          <div className='min-w-0 flex-1'>
-            <ModelLink
-              modelName={row.model_name}
-              className={
-                compact
-                  ? 'text-foreground block truncate font-mono text-xs font-medium'
-                  : 'text-foreground block truncate font-mono text-sm font-medium'
-              }
-            >
-              {row.model_name}
-            </ModelLink>
-            <p
-              className={
-                compact
-                  ? 'text-muted-foreground/80 truncate text-[11px] italic'
-                  : 'text-muted-foreground/80 truncate text-xs italic'
-              }
-            >
-              by{' '}
-              <VendorLink vendor={row.vendor}>
-                {row.vendor.toLowerCase()}
-              </VendorLink>
-            </p>
-          </div>
-          <div className='shrink-0 text-right'>
-            <div
-              className={
-                compact
-                  ? 'text-foreground font-mono text-xs font-semibold tabular-nums'
-                  : 'text-foreground font-mono text-sm font-semibold tabular-nums'
-              }
-            >
-              {formatTokens(row.total_tokens)}
-              {!compact && (
-                <>
-                  {' '}
-                  <span className='text-muted-foreground/80 font-normal'>
-                    {t('tokens')}
-                  </span>
-                </>
-              )}
+          <div className='flex min-w-0 items-center gap-3'>
+            <span className='shrink-0'>
+              {getLobeIcon(row.vendor_icon, compact ? 20 : 22)}
+            </span>
+            <div className='min-w-0'>
+              <ModelLink
+                modelName={row.model_name}
+                className={
+                  compact
+                    ? 'text-foreground block truncate font-mono text-xs font-medium'
+                    : 'text-foreground block truncate font-mono text-sm font-medium'
+                }
+              >
+                {row.model_name}
+              </ModelLink>
+              <p
+                className={
+                  compact
+                    ? 'text-muted-foreground truncate text-[11px]'
+                    : 'text-muted-foreground truncate text-xs'
+                }
+              >
+                <VendorLink vendor={row.vendor}>{row.vendor}</VendorLink>
+              </p>
             </div>
-            <GrowthText
-              value={row.growth_pct}
-              className={compact ? 'text-[10px]' : 'text-[11px]'}
-            />
           </div>
-        </li>
+          <div className='hidden text-right sm:block'>
+            <Badge variant='outline' className='font-mono'>
+              {formatShare(row.share)}
+            </Badge>
+          </div>
+          <div className='hidden text-right sm:block'>
+            <div className='text-foreground font-mono text-sm font-semibold tabular-nums'>
+              {formatTokens(row.total_tokens)}
+            </div>
+          </div>
+          <div className='text-right'>
+            <GrowthText value={row.growth_pct} />
+          </div>
+          <div className='col-span-3 flex items-center gap-2 sm:hidden'>
+            <div className='bg-muted h-1.5 min-w-0 flex-1 overflow-hidden rounded-full'>
+              <div
+                className='bg-primary h-full rounded-full'
+                style={{
+                  width: `${Math.max(2, Math.min(100, row.share * 100))}%`,
+                }}
+              />
+            </div>
+            <span className='text-muted-foreground font-mono text-[11px] tabular-nums'>
+              {formatTokens(row.total_tokens)}
+            </span>
+          </div>
+        </div>
       ))}
-    </ul>
+    </div>
   )
 }
