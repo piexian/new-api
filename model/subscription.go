@@ -217,6 +217,10 @@ type SubscriptionOrder struct {
 	CompleteTime    int64  `json:"complete_time"`
 
 	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
+	ServerIp        string `json:"server_ip" gorm:"type:varchar(64);default:''"`
+	CallbackIp      string `json:"callback_ip" gorm:"type:varchar(64);default:''"`
+	Version         string `json:"version" gorm:"type:varchar(32);default:''"`
+	NodeName        string `json:"node_name" gorm:"type:varchar(64);default:''"`
 }
 
 func (o *SubscriptionOrder) Insert() error {
@@ -828,7 +832,7 @@ func GetSubscriptionPlanRequiredQuota(plan *SubscriptionPlan) (int, error) {
 	return calcSubscriptionPlanRequiredQuota(plan)
 }
 
-func WalletPurchaseSubscription(userId int, planId int) (*SubscriptionOrder, error) {
+func WalletPurchaseSubscription(userId int, planId int, callerIp string) (*SubscriptionOrder, error) {
 	if userId <= 0 || planId <= 0 {
 		return nil, errors.New("invalid userId or planId")
 	}
@@ -838,6 +842,7 @@ func WalletPurchaseSubscription(userId int, planId int) (*SubscriptionOrder, err
 	remainingQuota := -1
 	requiredQuota := 0
 	upgradeGroup := ""
+	planTitle := ""
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
@@ -883,6 +888,7 @@ func WalletPurchaseSubscription(userId int, planId int) (*SubscriptionOrder, err
 			return err
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+		planTitle = plan.Title
 		order = &SubscriptionOrder{
 			UserId:        userId,
 			PlanId:        plan.Id,
@@ -892,11 +898,14 @@ func WalletPurchaseSubscription(userId int, planId int) (*SubscriptionOrder, err
 			Status:        common.TopUpStatusSuccess,
 			CreateTime:    now,
 			CompleteTime:  now,
+			ServerIp:      common.GetIp(),
+			Version:       common.Version,
+			NodeName:      common.NodeName,
 		}
 		if err := tx.Create(order).Error; err != nil {
 			return err
 		}
-		return upsertSubscriptionTopUpTx(tx, order)
+		return upsertSubscriptionTopUpTx(tx, order, "")
 	})
 	if err != nil {
 		return nil, err
@@ -911,6 +920,7 @@ func WalletPurchaseSubscription(userId int, planId int) (*SubscriptionOrder, err
 			common.SysLog(fmt.Sprintf("failed to update user group cache after wallet subscription purchase: user_id=%d, group=%s, error=%v", userId, upgradeGroup, err))
 		}
 	}
+	RecordTopupLog(userId, fmt.Sprintf("使用钱包余额购买套餐成功，套餐: %s，支付金额: %.2f", planTitle, order.Money), callerIp, "wallet", "wallet")
 	return order, nil
 }
 
@@ -975,7 +985,7 @@ func AssignDefaultSubscriptionsToNewUser(userId int) {
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.
 // expectedPaymentProvider guards against cross-gateway callback attacks (empty skips the check).
 // actualPaymentMethod updates the order's PaymentMethod to reflect the real payment type used (empty skips update).
-func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string) error {
+func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, callerIp string) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
@@ -1014,11 +1024,12 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if err != nil {
 			return err
 		}
-		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
+		if err := upsertSubscriptionTopUpTx(tx, &order, callerIp); err != nil {
 			return err
 		}
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = common.GetTimestamp()
+		order.CallbackIp = callerIp
 		if providerPayload != "" {
 			order.ProviderPayload = providerPayload
 		}
@@ -1042,12 +1053,12 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	}
 	if logUserId > 0 {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
-		RecordLog(logUserId, LogTypeTopup, msg)
+		RecordTopupLog(logUserId, msg, callerIp, logPaymentMethod, expectedPaymentProvider)
 	}
 	return nil
 }
 
-func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
+func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder, callerIp string) error {
 	if tx == nil || order == nil {
 		return errors.New("invalid subscription order")
 	}
@@ -1056,14 +1067,19 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			topup = TopUp{
-				UserId:        order.UserId,
-				Amount:        0,
-				Money:         order.Money,
-				TradeNo:       order.TradeNo,
-				PaymentMethod: order.PaymentMethod,
-				CreateTime:    order.CreateTime,
-				CompleteTime:  now,
-				Status:        common.TopUpStatusSuccess,
+				UserId:          order.UserId,
+				Amount:          0,
+				Money:           order.Money,
+				TradeNo:         order.TradeNo,
+				PaymentMethod:   order.PaymentMethod,
+				PaymentProvider: order.PaymentProvider,
+				CallbackIp:      callerIp,
+				CreateTime:      order.CreateTime,
+				CompleteTime:    now,
+				Status:          common.TopUpStatusSuccess,
+				ServerIp:        common.GetIp(),
+				Version:         common.Version,
+				NodeName:        common.NodeName,
 			}
 			return tx.Create(&topup).Error
 		}
@@ -1083,7 +1099,7 @@ func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
 	return tx.Save(&topup).Error
 }
 
-func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) error {
+func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string, callerIp string) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
@@ -1104,6 +1120,7 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 		}
 		order.Status = common.TopUpStatusExpired
 		order.CompleteTime = common.GetTimestamp()
+		order.CallbackIp = callerIp
 		return tx.Save(&order).Error
 	})
 }

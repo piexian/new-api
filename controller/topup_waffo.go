@@ -216,6 +216,9 @@ func RequestWaffoPay(c *gin.Context) {
 		PaymentProvider: model.PaymentProviderWaffo,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
+		ServerIp:        common.GetIp(),
+		Version:         common.Version,
+		NodeName:        common.NodeName,
 	}
 	if err := topUp.Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 创建充值订单失败 user_id=%d trade_no=%s amount=%d error=%q", id, merchantOrderId, req.Amount, err.Error()))
@@ -227,6 +230,7 @@ func RequestWaffoPay(c *gin.Context) {
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo SDK 初始化失败 user_id=%d trade_no=%s error=%q", id, merchantOrderId, err.Error()))
 		topUp.Status = common.TopUpStatusFailed
+		topUp.CallbackIp = c.ClientIP()
 		_ = topUp.Update()
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付配置错误"})
 		return
@@ -271,6 +275,7 @@ func RequestWaffoPay(c *gin.Context) {
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 创建订单失败 user_id=%d trade_no=%s error=%q", id, merchantOrderId, err.Error()))
 		topUp.Status = common.TopUpStatusFailed
+		topUp.CallbackIp = c.ClientIP()
 		_ = topUp.Update()
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
@@ -278,6 +283,7 @@ func RequestWaffoPay(c *gin.Context) {
 	if !resp.IsSuccess() {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("Waffo 创建订单业务失败 user_id=%d trade_no=%s code=%s message=%q response=%q", id, merchantOrderId, resp.Code, resp.Message, common.GetJsonString(resp)))
 		topUp.Status = common.TopUpStatusFailed
+		topUp.CallbackIp = c.ClientIP()
 		_ = topUp.Update()
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
@@ -380,7 +386,7 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo 订单状态非成功，忽略充值 trade_no=%s order_status=%s client_ip=%s", result.MerchantOrderID, result.OrderStatus, c.ClientIP()))
 		// 终态失败订单标记为 failed，避免永远停在 pending
 		if result.MerchantOrderID != "" {
-			if err := model.UpdatePendingTopUpStatus(result.MerchantOrderID, model.PaymentProviderWaffo, common.TopUpStatusFailed); err != nil &&
+			if err := model.UpdatePendingTopUpStatus(result.MerchantOrderID, model.PaymentProviderWaffo, common.TopUpStatusFailed, c.ClientIP()); err != nil &&
 				!errors.Is(err, model.ErrTopUpNotFound) &&
 				!errors.Is(err, model.ErrTopUpStatusInvalid) {
 				logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 标记失败订单状态失败 trade_no=%s error=%q", result.MerchantOrderID, err.Error()))

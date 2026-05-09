@@ -109,6 +109,9 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		PaymentProvider: model.PaymentProviderStripe,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
+		ServerIp:        common.GetIp(),
+		Version:         common.Version,
+		NodeName:        common.NodeName,
 	}
 	err = topUp.Insert()
 	if err != nil {
@@ -178,7 +181,7 @@ func StripeWebhook(c *gin.Context) {
 	case stripe.EventTypeCheckoutSessionCompleted:
 		sessionCompleted(ctx, event, callerIp)
 	case stripe.EventTypeCheckoutSessionExpired:
-		sessionExpired(ctx, event)
+		sessionExpired(ctx, event, callerIp)
 	case stripe.EventTypeCheckoutSessionAsyncPaymentSucceeded:
 		sessionAsyncPaymentSucceeded(ctx, event, callerIp)
 	case stripe.EventTypeCheckoutSessionAsyncPaymentFailed:
@@ -249,6 +252,7 @@ func sessionAsyncPaymentFailed(ctx context.Context, event stripe.Event, callerIp
 	}
 
 	topUp.Status = common.TopUpStatusFailed
+	topUp.CallbackIp = callerIp
 	if err := topUp.Update(); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("Stripe 标记充值订单失败状态失败 trade_no=%s client_ip=%s error=%q", referenceId, callerIp, err.Error()))
 		return
@@ -271,7 +275,7 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 		"currency":     strings.ToUpper(event.GetObjectValue("currency")),
 		"event_type":   string(event.Type),
 	}
-	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload), model.PaymentProviderStripe, ""); err == nil {
+	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(payload), model.PaymentProviderStripe, "", callerIp); err == nil {
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe 订阅订单处理成功 trade_no=%s event_type=%s client_ip=%s", referenceId, string(event.Type), callerIp))
 		return
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
@@ -290,7 +294,7 @@ func fulfillOrder(ctx context.Context, event stripe.Event, referenceId string, c
 	logger.LogInfo(ctx, fmt.Sprintf("Stripe 充值成功 trade_no=%s amount_total=%.2f currency=%s event_type=%s client_ip=%s", referenceId, total/100, currency, string(event.Type), callerIp))
 }
 
-func sessionExpired(ctx context.Context, event stripe.Event) {
+func sessionExpired(ctx context.Context, event stripe.Event, callerIp string) {
 	referenceId := event.GetObjectValue("client_reference_id")
 	status := event.GetObjectValue("status")
 	if "expired" != status {
@@ -306,7 +310,7 @@ func sessionExpired(ctx context.Context, event stripe.Event) {
 	// Subscription order expiration
 	LockOrder(referenceId)
 	defer UnlockOrder(referenceId)
-	if err := model.ExpireSubscriptionOrder(referenceId, model.PaymentProviderStripe); err == nil {
+	if err := model.ExpireSubscriptionOrder(referenceId, model.PaymentProviderStripe, callerIp); err == nil {
 		logger.LogInfo(ctx, fmt.Sprintf("Stripe 订阅订单已过期 trade_no=%s", referenceId))
 		return
 	} else if err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
@@ -314,7 +318,7 @@ func sessionExpired(ctx context.Context, event stripe.Event) {
 		return
 	}
 
-	err := model.UpdatePendingTopUpStatus(referenceId, model.PaymentProviderStripe, common.TopUpStatusExpired)
+	err := model.UpdatePendingTopUpStatus(referenceId, model.PaymentProviderStripe, common.TopUpStatusExpired, callerIp)
 	if errors.Is(err, model.ErrTopUpNotFound) {
 		logger.LogWarn(ctx, fmt.Sprintf("Stripe 充值订单不存在，无法标记过期 trade_no=%s", referenceId))
 		return

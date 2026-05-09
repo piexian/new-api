@@ -22,6 +22,10 @@ type TopUp struct {
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
 	Status          string  `json:"status"`
+	ServerIp        string  `json:"server_ip" gorm:"type:varchar(64);default:''"`
+	CallbackIp      string  `json:"callback_ip" gorm:"type:varchar(64);default:''"`
+	Version         string  `json:"version" gorm:"type:varchar(32);default:''"`
+	NodeName        string  `json:"node_name" gorm:"type:varchar(64);default:''"`
 }
 
 const (
@@ -77,7 +81,7 @@ func GetTopUpByTradeNo(tradeNo string) *TopUp {
 	return topUp
 }
 
-func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, targetStatus string) error {
+func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, targetStatus string, callerIp string) error {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -100,6 +104,7 @@ func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, ta
 		}
 
 		topUp.Status = targetStatus
+		topUp.CallbackIp = callerIp
 		return tx.Save(topUp).Error
 	})
 }
@@ -133,6 +138,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
+		topUp.CallbackIp = callerIp
 		err = tx.Save(topUp).Error
 		if err != nil {
 			return err
@@ -364,6 +370,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		// 标记完成
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
+		topUp.CallbackIp = callerIp
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
@@ -416,6 +423,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
+		topUp.CallbackIp = callerIp
 		err = tx.Save(topUp).Error
 		if err != nil {
 			return err
@@ -502,6 +510,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
+		topUp.CallbackIp = callerIp
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
@@ -525,7 +534,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	return nil
 }
 
-func RechargeWaffoPancake(tradeNo string) (err error) {
+func RechargeWaffoPancake(tradeNo string, callerIp string) (err error) {
 	if tradeNo == "" {
 		return errors.New("未提供支付单号")
 	}
@@ -563,6 +572,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
+		topUp.CallbackIp = callerIp
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
@@ -580,7 +590,7 @@ func RechargeWaffoPancake(tradeNo string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
-		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffoPancake)
 	}
 
 	return nil

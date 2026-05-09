@@ -93,7 +93,7 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	insertUserForPaymentGuardTest(t, 101, 0)
 	insertTopUpForPaymentGuardTest(t, "waffo-pancake-guard", 101, PaymentProviderStripe)
 
-	err := RechargeWaffoPancake("waffo-pancake-guard")
+	err := RechargeWaffoPancake("waffo-pancake-guard", "127.0.0.1")
 	require.Error(t, err)
 
 	topUp := GetTopUpByTradeNo("waffo-pancake-guard")
@@ -132,7 +132,7 @@ func TestUpdatePendingTopUpStatus_RejectsMismatchedPaymentProvider(t *testing.T)
 			insertUserForPaymentGuardTest(t, 150, 0)
 			insertTopUpForPaymentGuardTest(t, tc.tradeNo, 150, tc.storedPaymentProvider)
 
-			err := UpdatePendingTopUpStatus(tc.tradeNo, tc.expectedPaymentProvider, tc.targetStatus)
+			err := UpdatePendingTopUpStatus(tc.tradeNo, tc.expectedPaymentProvider, tc.targetStatus, "127.0.0.1")
 			require.ErrorIs(t, err, ErrPaymentMethodMismatch)
 			assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, tc.tradeNo))
 		})
@@ -146,7 +146,7 @@ func TestCompleteSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T
 	plan := insertSubscriptionPlanForPaymentGuardTest(t, 301)
 	insertSubscriptionOrderForPaymentGuardTest(t, "sub-guard-order", 202, plan.Id, PaymentProviderStripe)
 
-	err := CompleteSubscriptionOrder("sub-guard-order", `{"provider":"epay"}`, PaymentProviderEpay, "alipay")
+	err := CompleteSubscriptionOrder("sub-guard-order", `{"provider":"epay"}`, PaymentProviderEpay, "alipay", "127.0.0.1")
 	require.ErrorIs(t, err, ErrPaymentMethodMismatch)
 
 	order := GetSubscriptionOrderByTradeNo("sub-guard-order")
@@ -165,7 +165,7 @@ func TestExpireSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T) 
 	plan := insertSubscriptionPlanForPaymentGuardTest(t, 401)
 	insertSubscriptionOrderForPaymentGuardTest(t, "sub-expire-guard", 303, plan.Id, PaymentProviderStripe)
 
-	err := ExpireSubscriptionOrder("sub-expire-guard", PaymentProviderCreem)
+	err := ExpireSubscriptionOrder("sub-expire-guard", PaymentProviderCreem, "")
 	require.ErrorIs(t, err, ErrPaymentMethodMismatch)
 
 	order := GetSubscriptionOrderByTradeNo("sub-expire-guard")

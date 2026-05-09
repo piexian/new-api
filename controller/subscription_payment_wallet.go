@@ -20,7 +20,7 @@ func SubscriptionRequestWalletPay(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
-	order, err := model.WalletPurchaseSubscription(userId, req.PlanId)
+	order, err := model.WalletPurchaseSubscription(userId, req.PlanId, c.ClientIP())
 	if err != nil {
 		switch {
 		case errors.Is(err, model.ErrSubscriptionWalletQuotaNotEnough):

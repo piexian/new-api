@@ -246,6 +246,9 @@ func RequestEpay(c *gin.Context) {
 		PaymentProvider: model.PaymentProviderEpay,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
+		ServerIp:        common.GetIp(),
+		Version:         common.Version,
+		NodeName:        common.NodeName,
 	}
 	err = topUp.Insert()
 	if err != nil {
@@ -380,6 +383,7 @@ func EpayNotify(c *gin.Context) {
 				topUp.PaymentMethod = verifyInfo.Type
 			}
 			topUp.Status = common.TopUpStatusSuccess
+			topUp.CallbackIp = c.ClientIP()
 			err := topUp.Update()
 			if err != nil {
 				logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 更新充值订单失败 trade_no=%s user_id=%d client_ip=%s error=%q topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), err.Error(), common.GetJsonString(topUp)))
