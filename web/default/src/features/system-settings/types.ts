@@ -253,6 +253,7 @@ export type OperationsSettings = {
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  EmailProvider: string
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string
@@ -260,6 +261,11 @@ export type OperationsSettings = {
   SMTPToken: string
   SMTPSSLEnabled: boolean
   SMTPForceAuthLogin: boolean
+  CFEmailAccountID: string
+  CFEmailAPIToken: string
+  CFEmailFrom: string
+  EmailDailyLimit: string
+  EmailVerificationDailyLimitPerUser: string
   WorkerUrl: string
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean

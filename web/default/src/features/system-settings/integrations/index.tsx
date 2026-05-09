@@ -1,11 +1,11 @@
 import { SettingsPage } from '../components/settings-page'
-import type { IntegrationSettings as IntegrationSettingsType } from '../types'
+import type { IntegrationSettings } from './section-registry.tsx'
 import {
   INTEGRATIONS_DEFAULT_SECTION,
   getIntegrationsSectionContent,
 } from './section-registry.tsx'
 
-const defaultIntegrationSettings: IntegrationSettingsType = {
+const defaultIntegrationSettings: IntegrationSettings = {
   SMTPServer: '',
   SMTPPort: '',
   SMTPAccount: '',

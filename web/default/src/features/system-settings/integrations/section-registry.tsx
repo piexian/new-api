@@ -1,5 +1,84 @@
-import type { IntegrationSettings } from '../types'
+import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+
+// Integration settings type with fields needed by the integrations/settings page
+export type IntegrationSettings = Pick<
+  OperationsSettings,
+  | 'SMTPServer'
+  | 'SMTPPort'
+  | 'SMTPAccount'
+  | 'SMTPFrom'
+  | 'SMTPToken'
+  | 'SMTPSSLEnabled'
+  | 'SMTPForceAuthLogin'
+  | 'WorkerUrl'
+  | 'WorkerValidKey'
+  | 'WorkerAllowHttpImageRequestEnabled'
+  | 'ChannelDisableThreshold'
+  | 'QuotaRemindThreshold'
+  | 'AutomaticDisableChannelEnabled'
+  | 'AutomaticEnableChannelEnabled'
+  | 'AutomaticDisableKeywords'
+  | 'AutomaticDisableStatusCodes'
+  | 'AutomaticRetryStatusCodes'
+  | 'EmailProvider'
+  | 'CFEmailAccountID'
+  | 'CFEmailAPIToken'
+  | 'CFEmailFrom'
+  | 'EmailDailyLimit'
+  | 'EmailVerificationDailyLimitPerUser'
+> & {
+  PayAddress: string
+  EpayId: string
+  EpayKey: string
+  Price: number
+  MinTopUp: number
+  CustomCallbackAddress: string
+  PayMethods: string
+  'payment_setting.amount_options': string
+  'payment_setting.amount_discount': string
+  StripeApiSecret: string
+  StripeWebhookSecret: string
+  StripePriceId: string
+  StripeUnitPrice: number
+  StripeMinTopUp: number
+  StripePromotionCodesEnabled: boolean
+  CreemApiKey: string
+  CreemWebhookSecret: string
+  CreemTestMode: boolean
+  CreemProducts: string
+  WaffoEnabled: boolean
+  WaffoApiKey: string
+  WaffoPrivateKey: string
+  WaffoPublicCert: string
+  WaffoSandboxPublicCert: string
+  WaffoSandboxApiKey: string
+  WaffoSandboxPrivateKey: string
+  WaffoSandbox: boolean
+  WaffoMerchantId: string
+  WaffoCurrency: string
+  WaffoUnitPrice: number
+  WaffoMinTopUp: number
+  WaffoNotifyUrl: string
+  WaffoReturnUrl: string
+  WaffoPayMethods: string
+  WaffoPancakeEnabled: boolean
+  WaffoPancakeSandbox: boolean
+  WaffoPancakeMerchantID: string
+  WaffoPancakePrivateKey: string
+  WaffoPancakeWebhookPublicKey: string
+  WaffoPancakeWebhookTestKey: string
+  WaffoPancakeStoreID: string
+  WaffoPancakeProductID: string
+  WaffoPancakeReturnURL: string
+  WaffoPancakeCurrency: string
+  WaffoPancakeUnitPrice: number
+  WaffoPancakeMinTopUp: number
+  'model_deployment.ionet.api_key': string
+  'model_deployment.ionet.enabled': boolean
+  'monitor_setting.auto_test_channel_enabled': boolean
+  'monitor_setting.auto_test_channel_minutes': number
+}
 import { EmailSettingsSection } from './email-settings-section'
 import { IoNetDeploymentSettingsSection } from './ionet-deployment-settings-section'
 import { MonitoringSettingsSection } from './monitoring-settings-section'

@@ -54,6 +54,7 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <EmailSettingsSection
         defaultValues={{
+          EmailProvider: settings.EmailProvider,
           SMTPServer: settings.SMTPServer,
           SMTPPort: settings.SMTPPort,
           SMTPAccount: settings.SMTPAccount,
@@ -61,6 +62,12 @@ const OPERATIONS_SECTIONS = [
           SMTPToken: settings.SMTPToken,
           SMTPSSLEnabled: settings.SMTPSSLEnabled,
           SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
+          CFEmailAccountID: settings.CFEmailAccountID,
+          CFEmailAPIToken: settings.CFEmailAPIToken,
+          CFEmailFrom: settings.CFEmailFrom,
+          EmailDailyLimit: settings.EmailDailyLimit,
+          EmailVerificationDailyLimitPerUser:
+            settings.EmailVerificationDailyLimitPerUser,
         }}
       />
     ),
