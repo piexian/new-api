@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
@@ -46,6 +47,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseURL := info.ChannelBaseUrl
+	if shouldUseKimiCodingClaudeEndpoint(info) {
+		return fmt.Sprintf("%s/v1/messages", kimiCodingClaudeBaseURL(baseURL)), nil
+	}
 	if specialPlan, ok := channelconstant.ChannelSpecialBases[baseURL]; ok {
 		if info.RelayFormat == types.RelayFormatClaude {
 			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
@@ -79,6 +83,10 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	if shouldUseKimiCodingClaudeEndpoint(info) {
+		adaptor := claude.Adaptor{}
+		return adaptor.ConvertOpenAIRequest(c, info, request)
+	}
 	return request, nil
 }
 
@@ -100,6 +108,10 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if shouldUseKimiCodingClaudeEndpoint(info) {
+		adaptor := claude.Adaptor{}
+		return adaptor.DoResponse(c, resp, info)
+	}
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
 		adaptor := claude.Adaptor{}
@@ -116,4 +128,38 @@ func (a *Adaptor) GetModelList() []string {
 
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
+}
+
+func shouldUseKimiCodingClaudeEndpoint(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if info.RelayFormat == types.RelayFormatClaude {
+		return isKimiCodingBaseURL(info.ChannelBaseUrl)
+	}
+	return info.RelayMode == constant.RelayModeChatCompletions &&
+		isKimiCodingBaseURL(info.ChannelBaseUrl)
+}
+
+func isKimiCodingBaseURL(baseURL string) bool {
+	normalized := strings.ToLower(strings.TrimRight(strings.TrimSpace(baseURL), "/"))
+	if normalized == "" {
+		return false
+	}
+	if normalized == "kimi-coding-plan" {
+		return true
+	}
+	return strings.HasSuffix(normalized, "/coding") ||
+		strings.HasSuffix(normalized, "/coding/v1")
+}
+
+func kimiCodingClaudeBaseURL(baseURL string) string {
+	if specialPlan, ok := channelconstant.ChannelSpecialBases[baseURL]; ok && specialPlan.ClaudeBaseURL != "" {
+		return strings.TrimRight(specialPlan.ClaudeBaseURL, "/")
+	}
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if strings.HasSuffix(strings.ToLower(trimmed), "/v1") {
+		trimmed = strings.TrimRight(trimmed[:len(trimmed)-len("/v1")], "/")
+	}
+	return trimmed
 }
