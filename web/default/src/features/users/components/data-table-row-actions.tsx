@@ -179,7 +179,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           )}
 
           <DropdownMenuItem
-            onSelect={(event) => {
+            onClick={(event) => {
               event.preventDefault()
               setBindingDialogOpen(true)
             }}
@@ -191,7 +191,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </DropdownMenuItem>
 
           <DropdownMenuItem
-            onSelect={(event) => {
+            onClick={(event) => {
               event.preventDefault()
               setSubscriptionsDialogOpen(true)
             }}
@@ -205,7 +205,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
-            onSelect={(event) => {
+            onClick={(event) => {
               event.preventDefault()
               setResetPasskeyOpen(true)
             }}
@@ -218,7 +218,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </DropdownMenuItem>
 
           <DropdownMenuItem
-            onSelect={(event) => {
+            onClick={(event) => {
               event.preventDefault()
               setResetTwoFAOpen(true)
             }}

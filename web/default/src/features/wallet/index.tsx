@@ -293,9 +293,9 @@ export function Wallet(props: WalletProps) {
 
               <SubscriptionPlansCard
                 topupInfo={topupInfo}
-                walletQuota={user?.quota ?? 0}
-                onWalletQuotaChange={fetchUser}
                 onAvailabilityChange={handleSubscriptionAvailabilityChange}
+                walletQuota={user?.quota}
+                onWalletPaySuccess={fetchUser}
               />
             </div>
 

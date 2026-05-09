@@ -23,7 +23,7 @@ export async function getUserQuotaDates(
   const endpoint = isAdmin ? '/api/data' : '/api/data/self'
   const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
     endpoint,
-    { params }
+    { params, skipErrorHandler: true } as Record<string, unknown>
   )
   return res.data
 }
@@ -38,7 +38,7 @@ export async function getUserQuotaDataByUsers(params: {
 }) {
   const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
     '/api/data/users',
-    { params }
+    { params, skipErrorHandler: true } as Record<string, unknown>
   )
   return res.data
 }

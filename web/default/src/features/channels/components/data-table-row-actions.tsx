@@ -304,7 +304,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {/* Delete */}
           <DropdownMenuItem
-            onSelect={(e) => {
+            onClick={(e) => {
               e.preventDefault()
               setDeleteConfirmOpen(true)
             }}

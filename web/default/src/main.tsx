@@ -60,6 +60,16 @@ const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {
       if (error instanceof AxiosError) {
+        const config = error.config as
+          | (Record<string, unknown> & {
+              skipErrorHandler?: boolean
+              skipRouteErrorHandler?: boolean
+            })
+          | undefined
+        if (config?.skipErrorHandler || config?.skipRouteErrorHandler) {
+          return
+        }
+
         if (error.response?.status === 401) {
           toast.error(i18next.t('Session expired!'))
           useAuthStore.getState().auth.reset()

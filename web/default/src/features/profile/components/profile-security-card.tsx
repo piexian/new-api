@@ -1,12 +1,14 @@
-import { Shield, Key, Trash2 } from 'lucide-react'
+import { Shield, Key, Trash2, Edit3 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useDialogs } from '@/hooks/use-dialog'
+import { useStatus } from '@/hooks/use-status'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import type { UserProfile } from '../types'
 import { AccessTokenDialog } from './dialogs/access-token-dialog'
 import { ChangePasswordDialog } from './dialogs/change-password-dialog'
+import { ChangeUsernameDialog } from './dialogs/change-username-dialog'
 import { DeleteAccountDialog } from './dialogs/delete-account-dialog'
 
 // ============================================================================
@@ -18,7 +20,7 @@ interface ProfileSecurityCardProps {
   loading: boolean
 }
 
-type DialogKey = 'password' | 'token' | 'delete'
+type DialogKey = 'password' | 'token' | 'delete' | 'username'
 
 export function ProfileSecurityCard({
   profile,
@@ -26,6 +28,7 @@ export function ProfileSecurityCard({
 }: ProfileSecurityCardProps) {
   const { t } = useTranslation()
   const dialogs = useDialogs<DialogKey>()
+  const { status } = useStatus()
 
   if (loading) {
     return (
@@ -45,11 +48,22 @@ export function ProfileSecurityCard({
 
   if (!profile) return null
 
+  const hasPassword = profile.has_password ?? false
+
   const securityActions = [
     {
+      icon: Edit3,
+      title: t('Change Username'),
+      description: t('Modify your display username'),
+      action: () => dialogs.open('username'),
+      variant: 'default' as const,
+    },
+    {
       icon: Shield,
-      title: t('Change Password'),
-      description: t('Update your password to keep your account secure'),
+      title: hasPassword ? t('Change Password') : t('Set Password'),
+      description: hasPassword
+        ? t('Update your password to keep your account secure')
+        : t('Set a password to enable username/password login'),
       action: () => dialogs.open('password'),
       variant: 'default' as const,
     },
@@ -109,12 +123,25 @@ export function ProfileSecurityCard({
       </TitledCard>
 
       {/* Dialogs */}
+      <ChangeUsernameDialog
+        open={dialogs.isOpen('username')}
+        onOpenChange={(open) =>
+          open ? dialogs.open('username') : dialogs.close('username')
+        }
+        profile={profile}
+        turnstileEnabled={!!status?.data?.turnstile_check}
+        turnstileSiteKey={status?.data?.turnstile_site_key || ''}
+      />
+
       <ChangePasswordDialog
         open={dialogs.isOpen('password')}
         onOpenChange={(open) =>
           open ? dialogs.open('password') : dialogs.close('password')
         }
         username={profile.username}
+        hasPassword={profile.has_password ?? false}
+        turnstileEnabled={!!status?.data?.turnstile_check}
+        turnstileSiteKey={status?.data?.turnstile_site_key || ''}
       />
 
       <AccessTokenDialog

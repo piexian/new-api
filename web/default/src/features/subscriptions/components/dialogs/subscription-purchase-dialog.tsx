@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Crown, CalendarClock, Package } from 'lucide-react'
+import { Crown, CalendarClock, Package, WalletCards } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
@@ -26,6 +26,7 @@ import {
   paySubscriptionStripe,
   paySubscriptionCreem,
   paySubscriptionEpay,
+  paySubscriptionWallet,
 } from '../../api'
 import { formatDuration, formatResetPeriod } from '../../lib'
 import type { PlanRecord } from '../../types'
@@ -45,12 +46,15 @@ interface Props {
   epayMethods?: PaymentMethod[]
   purchaseLimit?: number
   purchaseCount?: number
+  walletQuota?: number
+  onSuccess?: () => void
 }
 
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
+  const [confirmWalletOpen, setConfirmWalletOpen] = useState(false)
 
   useEffect(() => {
     if (props.open && props.epayMethods && props.epayMethods.length > 0) {
@@ -67,7 +71,20 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasEpay =
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
-  const hasAnyPayment = hasStripe || hasCreem || hasEpay
+  const hasWallet = typeof props.walletQuota === 'number'
+  const hasAnyPayment = hasStripe || hasCreem || hasEpay || hasWallet
+  const requiredQuota = (() => {
+    const requiredQuotaFromApi = Number(
+      (props.plan as PlanRecord & { required_quota?: number })
+        ?.required_quota || 0
+    )
+    if (Number.isFinite(requiredQuotaFromApi) && requiredQuotaFromApi >= 0) {
+      return requiredQuotaFromApi
+    }
+    return 0
+  })()
+  const walletBalance = props.walletQuota ?? 0
+  const walletSufficient = walletBalance >= requiredQuota
   const selectedEpayMethodLabel =
     (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
       ?.name ||
@@ -123,6 +140,24 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
+  const handlePayWallet = async () => {
+    setPaying(true)
+    try {
+      const res = await paySubscriptionWallet({ plan_id: plan.id })
+      if (res.success) {
+        toast.success(t('Wallet payment successful'))
+        props.onSuccess?.()
+        props.onOpenChange(false)
+      } else {
+        toast.error(res.message || t('Wallet payment failed'))
+      }
+    } catch {
+      toast.error(t('Wallet payment failed'))
+    } finally {
+      setPaying(false)
+    }
+  }
+
   const isSafari =
     typeof navigator !== 'undefined' &&
     /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
@@ -172,6 +207,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
   }
 
   return (
+  <>
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'>
         <DialogHeader>
@@ -246,8 +282,19 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <p className='text-muted-foreground text-xs'>
                 {t('Select payment method')}
               </p>
-              {(hasStripe || hasCreem) && (
+              {(hasStripe || hasCreem || hasWallet) && (
                 <div className='grid grid-cols-2 gap-2 sm:flex'>
+                  {hasWallet && (
+                    <Button
+                      variant='outline'
+                      className='flex-1'
+                      onClick={() => setConfirmWalletOpen(true)}
+                      disabled={paying || limitReached}
+                    >
+                      <WalletCards className='mr-1.5 h-3.5 w-3.5' />
+                      {t('Wallet Balance')}
+                    </Button>
+                  )}
                   {hasStripe && (
                     <Button
                       variant='outline'
@@ -319,5 +366,86 @@ export function SubscriptionPurchaseDialog(props: Props) {
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Wallet payment confirmation dialog */}
+    <Dialog open={confirmWalletOpen} onOpenChange={setConfirmWalletOpen}>
+      <DialogContent className='max-sm:w-[calc(100vw-1.5rem)] sm:max-w-md'>
+        <DialogHeader>
+          <DialogTitle className='flex items-center gap-2'>
+            <WalletCards className='h-5 w-5' />
+            {t('Confirm Wallet Payment')}
+          </DialogTitle>
+        </DialogHeader>
+        <div className='space-y-3'>
+          <div className='bg-muted/50 space-y-2.5 rounded-lg border p-3 sm:space-y-3 sm:p-4'>
+            <div className='flex justify-between'>
+              <span className='text-muted-foreground text-sm'>
+                {t('Plan Name')}
+              </span>
+              <span className='max-w-[200px] truncate text-sm font-medium'>
+                {plan.title}
+              </span>
+            </div>
+            <div className='flex justify-between'>
+              <span className='text-muted-foreground text-sm'>
+                {t('Current Balance')}
+              </span>
+              <span className='text-sm font-medium'>
+                {formatQuota(walletBalance)}
+              </span>
+            </div>
+            <Separator />
+            <div className='flex justify-between'>
+              <span className='text-muted-foreground text-sm'>
+                {t('Deduction Amount')}
+              </span>
+              <span className='text-sm font-medium'>
+                {requiredQuota > 0
+                  ? formatQuota(requiredQuota)
+                  : t('Free')}
+              </span>
+            </div>
+            {requiredQuota === 0 && (
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'This plan is free. No wallet balance will be deducted, but a subscription order will be created.'
+                )}
+              </p>
+            )}
+          </div>
+          {!walletSufficient && requiredQuota > 0 && (
+            <Alert variant='destructive'>
+              <AlertDescription>
+                {t('Insufficient balance. Current: {{current}}, Required: {{required}}', {
+                  current: formatQuota(walletBalance),
+                  required: formatQuota(requiredQuota),
+                })}
+              </AlertDescription>
+            </Alert>
+          )}
+          <div className='flex gap-2'>
+            <Button
+              variant='outline'
+              className='flex-1'
+              onClick={() => setConfirmWalletOpen(false)}
+              disabled={paying}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              className='flex-1'
+              onClick={() => {
+                setConfirmWalletOpen(false)
+                handlePayWallet()
+              }}
+              disabled={paying || (!walletSufficient && requiredQuota > 0)}
+            >
+              {paying ? t('Processing...') : t('Confirm Payment')}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  </>
   )
 }

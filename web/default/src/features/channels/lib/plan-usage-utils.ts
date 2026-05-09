@@ -27,7 +27,7 @@ export function isKimiCodingPlanChannel(channel: Channel): boolean {
     return true
   }
   const normalized = baseURL.toLowerCase().replace(/\/+$/, '')
-  return normalized.endsWith('/coding')
+  return normalized.endsWith('/coding') || normalized.endsWith('/coding/v1')
 }
 
 export function isMiniMaxTokenPlanChannel(channel: Channel): boolean {

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FRONTEND_RETURN_TIP_PENDING_KEY } from '@/lib/constants'
+import {
+  FRONTEND_RETURN_TIP_DISMISSED_KEY,
+  FRONTEND_RETURN_TIP_PENDING_KEY,
+} from '@/lib/constants'
 import { switchToClassicFrontend } from '@/lib/frontend-theme'
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -12,6 +14,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 
 function clearPendingTip() {
   try {
@@ -21,12 +24,27 @@ function clearPendingTip() {
   }
 }
 
+function setDismissed() {
+  try {
+    window.localStorage.setItem(FRONTEND_RETURN_TIP_DISMISSED_KEY, '1')
+  } catch {
+    /* empty */
+  }
+}
+
 export function FrontendSwitchGuideDialog() {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const [dontShowAgain, setDontShowAgain] = useState(false)
 
   useEffect(() => {
     try {
+      if (
+        window.localStorage.getItem(FRONTEND_RETURN_TIP_DISMISSED_KEY)
+      ) {
+        clearPendingTip()
+        return
+      }
       if (window.localStorage.getItem(FRONTEND_RETURN_TIP_PENDING_KEY)) {
         setOpen(true)
       }
@@ -35,9 +53,12 @@ export function FrontendSwitchGuideDialog() {
     }
   }, [])
 
-  const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen)
-    if (!nextOpen) clearPendingTip()
+  const handleClose = () => {
+    if (dontShowAgain) {
+      setDismissed()
+    }
+    clearPendingTip()
+    setOpen(false)
   }
 
   const handleSwitchToClassic = () => {
@@ -46,7 +67,7 @@ export function FrontendSwitchGuideDialog() {
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={handleOpenChange}>
+    <AlertDialog open={open} onOpenChange={(next) => { if (!next) handleClose() }}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
@@ -58,13 +79,26 @@ export function FrontendSwitchGuideDialog() {
             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        <div className='flex items-center gap-2 px-1'>
+          <Checkbox
+            id='dont-show-again'
+            checked={dontShowAgain}
+            onCheckedChange={(checked) => setDontShowAgain(Boolean(checked))}
+          />
+          <label
+            htmlFor='dont-show-again'
+            className='text-muted-foreground cursor-pointer text-sm leading-none font-medium'
+          >
+            {t("Don't show this again")}
+          </label>
+        </div>
         <AlertDialogFooter>
           <Button variant='outline' onClick={handleSwitchToClassic}>
             {t('Switch to classic frontend')}
           </Button>
-          <AlertDialogAction onClick={clearPendingTip}>
+          <Button onClick={handleClose}>
             {t('Confirm')}
-          </AlertDialogAction>
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

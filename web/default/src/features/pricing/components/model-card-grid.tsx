@@ -40,6 +40,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
 
   const perfMap = useMemo(() => {
     const map = new Map<string, ModelPerfBadgeData>()
+    if (perfQuery.data?.success === false) return map
     for (const model of perfQuery.data?.data?.models ?? []) {
       if (model.request_count > 0) {
         map.set(model.model_name, model)

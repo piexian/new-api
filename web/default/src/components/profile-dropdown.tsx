@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { User, Wallet, LogOut, Settings } from 'lucide-react'
+import { User, Wallet, LogOut, Settings, Layout } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
+import { switchToClassicFrontend } from '@/lib/frontend-theme'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { ROLE } from '@/lib/roles'
 import useDialogState from '@/hooks/use-dialog'
@@ -106,6 +107,11 @@ export function ProfileDropdown() {
           )}
 
           <DropdownMenuSeparator />
+
+          <DropdownMenuItem onClick={() => switchToClassicFrontend()}>
+            <Layout className='size-4' />
+            {t('Switch to classic frontend')}
+          </DropdownMenuItem>
 
           <DropdownMenuItem variant='destructive' onClick={() => setOpen(true)}>
             <LogOut className='size-4' />

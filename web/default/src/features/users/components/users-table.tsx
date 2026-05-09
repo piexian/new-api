@@ -68,21 +68,31 @@ export function UsersTable() {
     ],
   })
 
+  // Check if any column filter has active values
+  const hasActiveColumnFilters = columnFilters.some(
+    (f) => Array.isArray(f.value) && f.value.length > 0
+  )
+
+  // When column filters are active without a search keyword, fetch all users
+  // for client-side filtering (otherwise column filters only apply to the
+  // currently loaded page which may not contain matching rows).
+  const useClientSideFiltering = hasActiveColumnFilters && !globalFilter?.trim()
+
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       'users',
-      pagination.pageIndex + 1,
-      pagination.pageSize,
+      useClientSideFiltering ? 1 : pagination.pageIndex + 1,
+      useClientSideFiltering ? 10000 : pagination.pageSize,
       globalFilter,
+      columnFilters,
       refreshTrigger,
     ],
     queryFn: async () => {
       const hasFilter = globalFilter?.trim()
-      const params = {
-        p: pagination.pageIndex + 1,
-        page_size: pagination.pageSize,
-      }
+      const params = useClientSideFiltering
+        ? { p: 1, page_size: 10000 }
+        : { p: pagination.pageIndex + 1, page_size: pagination.pageSize }
 
       const result = hasFilter
         ? await searchUsers({ ...params, keyword: globalFilter })
@@ -142,8 +152,10 @@ export function UsersTable() {
     onPaginationChange,
     onGlobalFilterChange,
     onColumnFiltersChange,
-    manualPagination: !globalFilter,
-    pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
+    manualPagination: !globalFilter && !useClientSideFiltering,
+    pageCount: useClientSideFiltering
+      ? undefined
+      : Math.ceil((data?.total || 0) / pagination.pageSize),
   })
 
   const pageCount = table.getPageCount()

@@ -201,8 +201,8 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
             <span className='text-muted-foreground'>
               {total > 0 ? (
                 <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className='cursor-help'>{formatQuota(total)}</span>
+                  <TooltipTrigger render={<span className='cursor-help' />}>
+                    {formatQuota(total)}
                   </TooltipTrigger>
                   <TooltipContent>
                     {t('Raw Quota')}: {total}
@@ -239,10 +239,8 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
               {restriction &&
                 (restriction.tooltip ? (
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className='text-muted-foreground truncate'>
-                        {restriction.label}
-                      </div>
+                    <TooltipTrigger render={<div className='text-muted-foreground truncate' />}>
+                      {restriction.label}
                     </TooltipTrigger>
                     <TooltipContent>{restriction.tooltip}</TooltipContent>
                   </Tooltip>

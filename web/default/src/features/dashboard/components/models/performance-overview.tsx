@@ -161,7 +161,11 @@ export function PerformanceOverview() {
 
   const models = useMemo(
     () =>
-      [...(metricsQuery.data?.data.models ?? [])]
+      [
+        ...(metricsQuery.data?.success === false
+          ? []
+          : (metricsQuery.data?.data.models ?? [])),
+      ]
         .filter((model) => Number(model.request_count) > 0)
         .sort((a, b) => b.request_count - a.request_count),
     [metricsQuery.data]

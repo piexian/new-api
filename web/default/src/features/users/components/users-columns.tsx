@@ -134,8 +134,8 @@ export function useUsersColumns(): ColumnDef<User>[] {
           </Tooltip>
         )
       },
-      filterFn: (row, id, value) => {
-        return value.includes(String(row.getValue(id)))
+      filterFn: (row, _id, value) => {
+        return value.includes(String(row.getValue(_id)))
       },
       enableSorting: false,
       meta: { label: t('Status'), mobileBadge: true },
@@ -211,8 +211,8 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const group = row.getValue('group') as string
         return <GroupBadge group={group} />
       },
-      filterFn: (row, id, value) => {
-        const group = String(row.getValue(id) || t('User Group')).toLowerCase()
+      filterFn: (row, _id, value) => {
+        const group = String(row.getValue(_id) || t('User Group')).toLowerCase()
         const searchValue = String(value).toLowerCase()
         return group.includes(searchValue)
       },
@@ -240,8 +240,8 @@ export function useUsersColumns(): ColumnDef<User>[] {
           </div>
         )
       },
-      filterFn: (row, id, value) => {
-        return value.includes(String(row.getValue(id)))
+      filterFn: (row, _id, value) => {
+        return value.includes(String(row.getValue(_id)))
       },
       enableSorting: false,
       meta: { label: t('Role') },

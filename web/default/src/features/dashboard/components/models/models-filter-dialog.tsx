@@ -253,7 +253,7 @@ export function ModelsFilter(props: ModelsFilterProps) {
             <RotateCcw className='mr-2 h-4 w-4' />
             {t('Reset')}
           </Button>
-          <Button onClick={handleApply} type='submit'>
+          <Button onClick={handleApply} type='button'>
             <Search className='mr-2 h-4 w-4' />
             {t('Apply Filters')}
           </Button>

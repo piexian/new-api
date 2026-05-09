@@ -44,6 +44,8 @@ import type { PaymentMethod, TopupInfo } from '../types'
 interface SubscriptionPlansCardProps {
   topupInfo: TopupInfo | null
   onAvailabilityChange?: (available: boolean) => void
+  walletQuota?: number
+  onWalletPaySuccess?: () => void
 }
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
@@ -73,6 +75,8 @@ function getBillingPreferenceLabel(
 export function SubscriptionPlansCard({
   topupInfo,
   onAvailabilityChange,
+  walletQuota,
+  onWalletPaySuccess,
 }: SubscriptionPlansCardProps) {
   const { t } = useTranslation()
 
@@ -623,6 +627,8 @@ export function SubscriptionPlansCard({
             ? planPurchaseCountMap.get(selectedPlan.plan.id)
             : undefined
         }
+        walletQuota={walletQuota}
+        onSuccess={onWalletPaySuccess}
       />
     </>
   )

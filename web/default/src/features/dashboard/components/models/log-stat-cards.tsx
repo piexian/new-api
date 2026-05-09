@@ -55,6 +55,9 @@ export function LogStatCards(props: LogStatCardsProps) {
     getUserQuotaDates(buildQueryParams(timeRange, filters), isAdmin)
       .then((res) => {
         if (abortController.signal.aborted) return
+        if (res?.success === false) {
+          throw new Error('Failed to load dashboard data')
+        }
         const data = res?.data || []
         setStats(calculateDashboardStats(data))
         onDataUpdate?.(data, false)
