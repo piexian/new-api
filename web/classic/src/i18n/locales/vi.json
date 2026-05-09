@@ -4218,6 +4218,8 @@
         "默认折叠侧边栏": "Mặc định thu gọn thanh bên",
         "默认测试模型": "Mô hình kiểm tra mặc định",
         "默认用户消息": "Xin chào",
-        "默认补全倍率": "Tỷ lệ hoàn thành mặc định"
+        "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
+        "基于实时使用数据的公开排行榜": "Bảng xếp hạng công khai dựa trên dữ liệu sử dụng trực tiếp",
+        "开启后未登录用户无法访问排行榜": "Khi bật, người dùng chưa đăng nhập không thể truy cập bảng xếp hạng"
     }
 }

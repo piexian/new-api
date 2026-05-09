@@ -46,6 +46,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     theme,
     headerNavModules,
     pricingRequireAuth,
+    rankingsRequireAuth,
     logout,
     handleLanguageChange,
     handleThemeToggle,
@@ -106,6 +107,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             isLoading={isLoading}
             userState={userState}
             pricingRequireAuth={pricingRequireAuth}
+            rankingsRequireAuth={rankingsRequireAuth}
           />
 
           <ActionButtons

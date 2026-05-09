@@ -28,7 +28,13 @@ import {
   Space,
   Card,
 } from '@douyinfe/semi-ui';
-import { API, showError, showSuccess, timestamp2string } from '../../helpers';
+import {
+  API,
+  showError,
+  showSuccess,
+  switchFrontendTheme,
+  timestamp2string,
+} from '../../helpers';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
@@ -297,7 +303,7 @@ const OtherSetting = () => {
           }
           showSuccess(t('已切换到新版前端，正在刷新页面'));
           setTimeout(() => {
-            window.location.reload();
+            switchFrontendTheme('default');
           }, 600);
         } catch (error) {
           console.error('切换新版前端失败', error);

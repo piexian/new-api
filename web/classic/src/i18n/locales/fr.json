@@ -3684,6 +3684,8 @@
         "默认折叠侧边栏": "Réduire la barre latérale par défaut",
         "默认测试模型": "Modèle de test par défaut",
         "默认用户消息": "Bonjour",
-        "默认补全倍率": "Taux de complétion par défaut"
+        "默认补全倍率": "Taux de complétion par défaut",
+        "基于实时使用数据的公开排行榜": "Classements publics basés sur les données d'utilisation en direct",
+        "开启后未登录用户无法访问排行榜": "Lorsqu'il est activé, les utilisateurs non authentifiés ne peuvent pas accéder aux classements"
     }
 }

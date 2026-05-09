@@ -3828,6 +3828,8 @@
     "新版现代化前端": "Modern frontend",
     "新版现代化前端已可使用，普通用户也可以自由切换体验。": "The modern frontend is now available. Regular users can switch to try it at any time.",
     "立即体验": "Try now",
-    "即将切换到新版现代化前端，并跳转到对应页面。如果新版前端没有保留本地登录状态，请重新登录。": "You are about to switch to the modern frontend and jump to the matching page. If the modern frontend does not keep local login state, please sign in again."
+    "即将切换到新版现代化前端，并跳转到对应页面。如果新版前端没有保留本地登录状态，请重新登录。": "You are about to switch to the modern frontend and jump to the matching page. If the modern frontend does not keep local login state, please sign in again.",
+    "基于实时使用数据的公开排行榜": "Public rankings based on live usage data",
+    "开启后未登录用户无法访问排行榜": "When enabled, unauthenticated users cannot access rankings"
   }
 }
