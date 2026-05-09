@@ -105,13 +105,15 @@ type SiliconFlowUsageResponse struct {
 }
 
 type DeepSeekUsageResponse struct {
-	IsAvailable  bool `json:"is_available"`
-	BalanceInfos []struct {
-		Currency        string `json:"currency"`
-		TotalBalance    string `json:"total_balance"`
-		GrantedBalance  string `json:"granted_balance"`
-		ToppedUpBalance string `json:"topped_up_balance"`
-	} `json:"balance_infos"`
+	IsAvailable  *bool                 `json:"is_available"`
+	BalanceInfos []DeepSeekBalanceInfo `json:"balance_infos"`
+}
+
+type DeepSeekBalanceInfo struct {
+	Currency        string `json:"currency"`
+	TotalBalance    string `json:"total_balance"`
+	GrantedBalance  string `json:"granted_balance"`
+	ToppedUpBalance string `json:"topped_up_balance"`
 }
 
 type OpenRouterCreditResponse struct {
@@ -272,26 +274,46 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	response := DeepSeekUsageResponse{}
-	err = common.Unmarshal(body, &response)
-	if err != nil {
-		return 0, err
-	}
-	index := -1
-	for i, balanceInfo := range response.BalanceInfos {
-		if balanceInfo.Currency == "CNY" {
-			index = i
-			break
-		}
-	}
-	if index == -1 {
-		return 0, errors.New("currency CNY not found")
-	}
-	balance, err := strconv.ParseFloat(response.BalanceInfos[index].TotalBalance, 64)
+	balance, err := parseDeepSeekBalance(body)
 	if err != nil {
 		return 0, err
 	}
 	return persistChannelBalance(channel, balance)
+}
+
+func parseDeepSeekBalance(body []byte) (float64, error) {
+	response := DeepSeekUsageResponse{}
+	if err := common.Unmarshal(body, &response); err != nil {
+		return 0, err
+	}
+	return resolveDeepSeekBalance(response, operation_setting.Price)
+}
+
+func resolveDeepSeekBalance(response DeepSeekUsageResponse, cnyPerUSD float64) (float64, error) {
+	if response.IsAvailable != nil && !*response.IsAvailable {
+		return 0, nil
+	}
+
+	for _, currency := range []string{"USD", "CNY"} {
+		for _, balanceInfo := range response.BalanceInfos {
+			if balanceInfo.Currency != currency {
+				continue
+			}
+			balance, err := strconv.ParseFloat(balanceInfo.TotalBalance, 64)
+			if err != nil {
+				return 0, fmt.Errorf("parse DeepSeek %s balance: %w", currency, err)
+			}
+			if currency == "USD" {
+				return balance, nil
+			}
+			if cnyPerUSD <= 0 {
+				return 0, fmt.Errorf("invalid CNY per USD rate: %f", cnyPerUSD)
+			}
+			return decimal.NewFromFloat(balance).Div(decimal.NewFromFloat(cnyPerUSD)).InexactFloat64(), nil
+		}
+	}
+
+	return 0, errors.New("currency USD or CNY not found")
 }
 
 func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
