@@ -66,6 +66,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
+	}
 	return request, nil
 }
 

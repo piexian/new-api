@@ -104,6 +104,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	if request.Model == "" && info != nil {
 		request.Model = info.UpstreamModelName
 	}
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
+	}
 	return request, nil
 }
 

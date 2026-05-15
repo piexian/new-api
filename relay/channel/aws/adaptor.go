@@ -10,7 +10,9 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/pkg/errors"
@@ -115,6 +117,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+	return a.convertOpenAIChatRequest(c, info, request)
+}
+
+func (a *Adaptor) convertOpenAIChatRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	a.IsNova = false
 	// 检查是否为Nova模型
 	if isNovaModel(request.Model) {
 		novaReq := convertToNovaRequest(request)
@@ -127,7 +134,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to convert openai request to claude request")
 	}
-	info.UpstreamModelName = claudeReq.Model
+	if info != nil {
+		info.UpstreamModelName = claudeReq.Model
+	}
 	return claudeReq, err
 }
 
@@ -141,8 +150,18 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	chatRequest, err := responsescompat.ConvertToNonStreamOpenAIChatRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	converted, err := a.convertOpenAIChatRequest(c, info, chatRequest)
+	if err != nil {
+		return nil, err
+	}
+	if info != nil && !a.IsNova {
+		info.FinalRequestRelayFormat = types.RelayFormatClaude
+	}
+	return converted, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -159,8 +178,18 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		usage, err = claudeAdaptor.DoResponse(c, resp, info)
 	} else {
 		if a.IsNova {
+			if info != nil && info.RelayMode == relayconstant.RelayModeResponses && info.IsStream {
+				return nil, types.NewOpenAIError(errors.New("aws nova responses compatibility conversion does not support stream yet"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+			}
 			err, usage = handleNovaRequest(c, info, a)
 		} else {
+			if info != nil && info.RelayMode == relayconstant.RelayModeResponses {
+				if info.IsStream {
+					return nil, types.NewOpenAIError(errors.New("aws claude responses compatibility conversion does not support stream yet"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+				}
+				err, usage = awsResponsesHandler(c, info, a)
+				return
+			}
 			if info.IsStream {
 				err, usage = awsStreamHandler(c, info, a)
 			} else {

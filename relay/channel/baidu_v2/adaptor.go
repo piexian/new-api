@@ -47,6 +47,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	switch info.RelayMode {
 	case constant.RelayModeChatCompletions:
 		return fmt.Sprintf("%s/v2/chat/completions", info.ChannelBaseUrl), nil
+	case constant.RelayModeResponses:
+		return fmt.Sprintf("%s/v2/responses", info.ChannelBaseUrl), nil
 	case constant.RelayModeEmbeddings:
 		return fmt.Sprintf("%s/v2/embeddings", info.ChannelBaseUrl), nil
 	case constant.RelayModeImagesGenerations:
@@ -107,8 +109,10 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
+	}
+	return request, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -116,6 +120,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info != nil && info.RelayMode == constant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAIResponses {
+		if info.IsStream {
+			return openai.OaiResponsesStreamHandler(c, info, resp)
+		}
+		return openai.OaiResponsesHandler(c, info, resp)
+	}
 	adaptor := openai.Adaptor{}
 	usage, err = adaptor.DoResponse(c, resp, info)
 	return

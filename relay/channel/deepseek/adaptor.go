@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -207,8 +208,17 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	if err := applyDeepSeekV4OpenAIThinkingSuffix(info, chatRequest); err != nil {
+		return nil, err
+	}
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+	}
+	return chatRequest, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -216,6 +226,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info != nil && info.RelayMode == relayconstant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
+		if info.IsStream {
+			return openai.ChatCompletionResponsesStreamHandler(c, info, resp)
+		}
+		return openai.ChatCompletionResponsesHandler(c, info, resp)
+	}
 	switch {
 	case shouldUseDeepSeekClaudeCompatibleAPI(info):
 		adaptor := claude.Adaptor{}

@@ -16,11 +16,20 @@ func GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if shouldUseMiniMaxClaudeCompatibleAPI(info) {
 		return fmt.Sprintf("%s/anthropic/v1/messages", baseURL), nil
 	}
+	if info.RelayMode == constant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
+		return fmt.Sprintf("%s/v1/chat/completions", baseURL), nil
+	}
 	switch info.RelayMode {
 	case constant.RelayModeChatCompletions:
 		return fmt.Sprintf("%s/v1/chat/completions", baseURL), nil
 	case constant.RelayModeImagesGenerations:
 		return fmt.Sprintf("%s/v1/image_generation", baseURL), nil
+	case constant.RelayModeMiniMaxMusicGeneration:
+		return fmt.Sprintf("%s/v1/music_generation", baseURL), nil
+	case constant.RelayModeMiniMaxMusicCoverPreprocess:
+		return fmt.Sprintf("%s/v1/music_cover_preprocess", baseURL), nil
+	case constant.RelayModeMiniMaxLyricsGeneration:
+		return fmt.Sprintf("%s/v1/lyrics_generation", baseURL), nil
 	case constant.RelayModeAudioSpeech:
 		if isMiniMaxMusicModel(info.OriginModelName) {
 			return fmt.Sprintf("%s/v1/music_generation", baseURL), nil
@@ -52,9 +61,16 @@ func miniMaxRootBaseURL(info *relaycommon.RelayInfo) string {
 	if baseURL == "" {
 		baseURL = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeMiniMax]
 	}
+	return NormalizeBaseURL(baseURL)
+}
+
+func NormalizeBaseURL(baseURL string) string {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	for _, suffix := range []string{"/v1", "/anthropic"} {
 		baseURL = strings.TrimSuffix(baseURL, suffix)
+	}
+	if baseURL == "" {
+		baseURL = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeMiniMax]
 	}
 	return baseURL
 }

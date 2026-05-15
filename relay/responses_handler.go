@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -23,6 +24,9 @@ import (
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+		if newAPIError = minimax.ValidateEndpointForModel(info); newAPIError != nil {
+			return newAPIError
+		}
 		switch info.ApiType {
 		case appconstant.APITypeOpenAI, appconstant.APITypeCodex:
 		default:
@@ -63,6 +67,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	}
+	if newAPIError = minimax.ValidateEndpointForModel(info); newAPIError != nil {
+		return newAPIError
 	}
 
 	adaptor := GetAdaptor(info.ApiType)

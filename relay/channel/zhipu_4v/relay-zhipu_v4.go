@@ -14,6 +14,9 @@ func requestOpenAI2Zhipu(request dto.GeneralOpenAIRequest) *dto.GeneralOpenAIReq
 			for j, mediaMessage := range mediaMessages {
 				if mediaMessage.Type == dto.ContentTypeImageURL {
 					imageUrl := mediaMessage.GetImageMedia()
+					if imageUrl == nil {
+						continue
+					}
 					// check if base64
 					if strings.HasPrefix(imageUrl.Url, "data:image/") {
 						// 去除base64数据的URL前缀（如果有）
@@ -27,12 +30,17 @@ func requestOpenAI2Zhipu(request dto.GeneralOpenAIRequest) *dto.GeneralOpenAIReq
 			}
 			message.SetMediaContent(mediaMessages)
 		}
-		messages = append(messages, dto.Message{
+		convertedMessage := dto.Message{
 			Role:       message.Role,
-			Content:    message.Content,
 			ToolCalls:  message.ToolCalls,
 			ToolCallId: message.ToolCallId,
-		})
+		}
+		if !message.IsStringContent() {
+			convertedMessage.SetMediaContent(message.ParseContent())
+		} else {
+			convertedMessage.Content = message.Content
+		}
+		messages = append(messages, convertedMessage)
 	}
 	str, ok := request.Stop.(string)
 	var Stop []string

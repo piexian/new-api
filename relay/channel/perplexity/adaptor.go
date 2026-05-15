@@ -76,6 +76,9 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
+	}
 	return request, nil
 }
 

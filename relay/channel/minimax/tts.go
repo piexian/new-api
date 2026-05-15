@@ -134,6 +134,15 @@ func normalizeMiniMaxAudioFormat(responseFormat string) string {
 	}
 }
 
+func normalizeMiniMaxMusicAudioFormat(responseFormat string) string {
+	switch strings.ToLower(responseFormat) {
+	case "wav", "pcm":
+		return strings.ToLower(responseFormat)
+	default:
+		return "mp3"
+	}
+}
+
 func normalizeMiniMaxOutputFormat(responseFormat string) string {
 	switch strings.ToLower(responseFormat) {
 	case "url":

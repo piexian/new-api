@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
@@ -319,8 +320,41 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	chatRequest, err := responsescompat.ConvertToNonStreamOpenAIChatRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	switch a.RequestMode {
+	case RequestModeClaude:
+		if info != nil {
+			info.FinalRequestRelayFormat = types.RelayFormatClaude
+		}
+		claudeReq, err := claude.RequestOpenAI2ClaudeMessage(c, *chatRequest)
+		if err != nil {
+			return nil, err
+		}
+		vertexClaudeReq := copyRequest(claudeReq, anthropicVersion)
+		c.Set("request_model", claudeReq.Model)
+		info.UpstreamModelName = claudeReq.Model
+		return vertexClaudeReq, nil
+	case RequestModeGemini:
+		if info != nil {
+			info.FinalRequestRelayFormat = types.RelayFormatGemini
+		}
+		geminiRequest, err := gemini.CovertOpenAI2Gemini(c, *chatRequest, info)
+		if err != nil {
+			return nil, err
+		}
+		c.Set("request_model", chatRequest.Model)
+		return geminiRequest, nil
+	case RequestModeOpenSource:
+		if info != nil {
+			info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+		}
+		return chatRequest, nil
+	default:
+		return nil, errors.New("unsupported request mode")
+	}
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -329,6 +363,25 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	claudeAdaptor := claude.Adaptor{}
+	if info.RelayMode == constant.RelayModeResponses {
+		switch a.RequestMode {
+		case RequestModeClaude:
+			if info.IsStream {
+				return nil, types.NewOpenAIError(errors.New("vertex claude responses compatibility conversion does not support stream yet"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+			}
+			return claude.ClaudeResponsesHandler(c, resp, info)
+		case RequestModeGemini:
+			if info.IsStream {
+				return nil, types.NewOpenAIError(errors.New("vertex gemini responses compatibility conversion does not support stream yet"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+			}
+			return gemini.GeminiResponsesHandler(c, info, resp)
+		case RequestModeOpenSource:
+			if info.IsStream {
+				return openai.ChatCompletionResponsesStreamHandler(c, info, resp)
+			}
+			return openai.ChatCompletionResponsesHandler(c, info, resp)
+		}
+	}
 	if info.IsStream {
 		switch a.RequestMode {
 		case RequestModeClaude:

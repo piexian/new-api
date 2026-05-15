@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relay/reasonmap"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
@@ -1067,6 +1068,54 @@ func ClaudeHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayI
 		return nil, handleErr
 	}
 	return claudeInfo.Usage, nil
+}
+
+func ClaudeResponsesHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
+	defer service.CloseResponseBodyGracefully(resp)
+
+	claudeInfo := &ClaudeResponseInfo{
+		ResponseId:   helper.GetResponseID(c),
+		Created:      common.GetTimestamp(),
+		Model:        info.UpstreamModelName,
+		ResponseText: strings.Builder{},
+		Usage:        &dto.Usage{},
+	}
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	if common.DebugEnabled {
+		println("responseBody: ", string(responseBody))
+	}
+
+	var claudeResponse dto.ClaudeResponse
+	if err := common.Unmarshal(responseBody, &claudeResponse); err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
+		return nil, types.WithClaudeError(*claudeError, http.StatusInternalServerError)
+	}
+	maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
+	if claudeResponse.Usage != nil {
+		claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
+		claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
+		claudeInfo.Usage.TotalTokens = claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens
+		claudeInfo.Usage.UsageSemantic = "anthropic"
+		claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Usage.CacheReadInputTokens
+		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
+		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
+		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
+	}
+
+	openaiResponse := ResponseClaude2OpenAI(&claudeResponse)
+	openaiResponse.Usage = buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
+	responsesResponse, usage := responsescompat.ChatCompletionToResponse(c, info, openaiResponse)
+	data, err := common.Marshal(responsesResponse)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
+	}
+	service.IOCopyBytesGracefully(c, resp, data)
+	return usage, nil
 }
 
 func mapToolChoice(toolChoice any, parallelToolCalls *bool) *dto.ClaudeToolChoice {

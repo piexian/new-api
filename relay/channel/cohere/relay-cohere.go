@@ -15,6 +15,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -423,6 +424,67 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	return usage, nil
 }
 
+func cohereResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	defer service.CloseResponseBodyGracefully(resp)
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	dataChan := make(chan string)
+	stopChan := make(chan bool)
+	go func() {
+		for scanner.Scan() {
+			dataChan <- scanner.Text()
+		}
+		stopChan <- true
+	}()
+
+	helper.SetEventStreamHeaders(c)
+	isFirst := true
+	emitter := responsescompat.NewStreamEmitter(c, info)
+	c.Stream(func(w io.Writer) bool {
+		select {
+		case line := <-dataChan:
+			data, ok := extractSSEData(line)
+			if !ok || data == "[DONE]" {
+				return true
+			}
+			if isFirst && info != nil {
+				isFirst = false
+				info.FirstResponseTime = time.Now()
+			}
+
+			var event CohereStreamEvent
+			if err := common.Unmarshal(common.StringToByteSlice(data), &event); err != nil {
+				common.SysLog("error unmarshalling cohere responses stream response: " + err.Error())
+				return true
+			}
+			if event.Type == "content-delta" {
+				if !emitter.SendTextDelta(event.Delta.Message.Content.Text) {
+					return false
+				}
+			}
+			if event.Type == "message-end" {
+				estimatedPromptTokens := 0
+				if info != nil {
+					estimatedPromptTokens = info.GetEstimatePromptTokens()
+				}
+				usage := cohereUsageToOpenAI(event.Delta.Usage, estimatedPromptTokens)
+				if usage.PromptTokens != 0 || usage.CompletionTokens != 0 || usage.TotalTokens != 0 {
+					emitter.SetUsage(&usage)
+				}
+				return emitter.Complete()
+			}
+			return true
+		case <-stopChan:
+			return !emitter.Complete()
+		}
+	})
+	if emitter.Err() != nil {
+		return nil, emitter.Err()
+	}
+	return emitter.Usage(), nil
+}
+
 func extractSSEData(line string) (string, bool) {
 	line = strings.TrimSpace(strings.TrimSuffix(line, "\r"))
 	if !strings.HasPrefix(line, "data:") {
@@ -573,6 +635,62 @@ func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	c.Writer.WriteHeader(resp.StatusCode)
 	_, _ = c.Writer.Write(jsonResponse)
 	return &usage, nil
+}
+
+func cohereResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	createdTime := common.GetTimestamp()
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	service.CloseResponseBodyGracefully(resp)
+
+	var cohereResp CohereChatResponse
+	if err = common.Unmarshal(responseBody, &cohereResp); err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+
+	responseText := cohereResponseText(cohereResp.Message.Content)
+	usage := cohereUsageToOpenAI(cohereResp.Usage, info.GetEstimatePromptTokens())
+	if usage.PromptTokens == 0 && usage.CompletionTokens == 0 {
+		usage = *service.ResponseText2Usage(c, responseText, info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
+
+	message := dto.Message{
+		Content: responseText,
+		Role:    "assistant",
+	}
+	toolCalls := convertCohereToolCallsToOpenAI(cohereResp.Message.ToolCalls)
+	if len(toolCalls) > 0 {
+		message.SetNullContent()
+		message.SetToolCalls(toolCalls)
+	}
+
+	openaiResp := &dto.OpenAITextResponse{
+		Id:      cohereResp.ID,
+		Created: createdTime,
+		Object:  "chat.completion",
+		Model:   info.UpstreamModelName,
+		Usage:   usage,
+		Choices: []dto.OpenAITextResponseChoice{
+			{
+				Index:        0,
+				Message:      message,
+				FinishReason: stopReasonCohere2OpenAI(cohereResp.FinishReason),
+			},
+		},
+	}
+	if openaiResp.Id == "" {
+		openaiResp.Id = helper.GetResponseID(c)
+	}
+
+	responsesResp, responsesUsage := responsescompat.ChatCompletionToResponse(c, info, openaiResp)
+	jsonResponse, err := common.Marshal(responsesResp)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	service.IOCopyBytesGracefully(c, resp, jsonResponse)
+	return responsesUsage, nil
 }
 
 func cohereResponseText(contents []CohereContentBlock) string {

@@ -10,6 +10,8 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -108,8 +110,14 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	chatRequest, err := responsescompat.ConvertToNonStreamOpenAIChatRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatClaude
+	}
+	return RequestOpenAI2ClaudeMessage(c, *chatRequest)
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -118,6 +126,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	info.FinalRequestRelayFormat = types.RelayFormatClaude
+	if info.RelayMode == relayconstant.RelayModeResponses {
+		if info.IsStream {
+			return nil, types.NewOpenAIError(errors.New("claude responses compatibility conversion does not support stream yet"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+		}
+		return ClaudeResponsesHandler(c, resp, info)
+	}
 	if info.IsStream {
 		return ClaudeStreamHandler(c, resp, info)
 	} else {

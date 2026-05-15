@@ -11,8 +11,10 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -80,7 +82,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func convertMusicRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	audioFormat := normalizeMiniMaxAudioFormat(request.ResponseFormat)
+	audioFormat := normalizeMiniMaxMusicAudioFormat(request.ResponseFormat)
 	outputFormat := normalizeMiniMaxOutputFormat(request.ResponseFormat)
 	minimaxRequest := MiniMaxMusicRequest{
 		Model:        info.OriginModelName,
@@ -169,7 +171,18 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	if lo.FromPtrOr(chatRequest.MaxCompletionTokens, uint(0)) == 0 && lo.FromPtrOr(chatRequest.MaxTokens, uint(0)) != 0 {
+		chatRequest.MaxCompletionTokens = chatRequest.MaxTokens
+		chatRequest.MaxTokens = nil
+	}
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+	}
+	return chatRequest, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -177,6 +190,19 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info != nil && info.RelayMode == constant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
+		if info.IsStream {
+			return openai.ChatCompletionResponsesStreamHandler(c, info, resp)
+		}
+		return openai.ChatCompletionResponsesHandler(c, info, resp)
+	}
+	if info != nil && isMiniMaxNativeMusicRelayMode(info.RelayMode) {
+		usage, err := miniMaxNativeMusicHandler(c, resp, info)
+		if err != nil {
+			return nil, err
+		}
+		return usage, nil
+	}
 	if info.RelayMode == constant.RelayModeAudioSpeech {
 		return handleTTSResponse(c, resp, info)
 	}

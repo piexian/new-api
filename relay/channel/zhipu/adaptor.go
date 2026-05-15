@@ -12,6 +12,8 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
 
@@ -28,7 +30,7 @@ func shouldUseZhipuClaudeCompatibleAPI(info *relaycommon.RelayInfo) bool {
 	if info.RelayFormat == types.RelayFormatClaude {
 		return true
 	}
-	return common.IsClaudeCompatibleModel(info.UpstreamModelName)
+	return info.ChannelMeta != nil && common.IsClaudeCompatibleModel(info.UpstreamModelName)
 }
 
 func setupZhipuClaudeCompatibleHeaders(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
@@ -118,11 +120,39 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	if shouldUseZhipuClaudeCompatibleAPI(info) {
+		if info != nil {
+			info.FinalRequestRelayFormat = types.RelayFormatClaude
+		}
+		adaptor := claude.Adaptor{}
+		return adaptor.ConvertOpenAIResponsesRequest(c, info, request)
+	}
+	if lo.FromPtrOr(chatRequest.TopP, 0) >= 1 {
+		chatRequest.TopP = lo.ToPtr(0.99)
+	}
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+	}
+	return requestOpenAI2Zhipu(*chatRequest), nil
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info != nil && info.RelayMode == relayconstant.RelayModeResponses {
+		if info.IsStream {
+			if info.GetFinalRequestRelayFormat() == types.RelayFormatClaude {
+				return nil, types.NewOpenAIError(errors.New("zhipu claude-compatible responses conversion does not support stream yet"), types.ErrorCodeBadResponse, http.StatusBadGateway)
+			}
+			return zhipuResponsesStreamHandler(c, info, resp)
+		}
+		if info.GetFinalRequestRelayFormat() == types.RelayFormatClaude {
+			return claude.ClaudeResponsesHandler(c, resp, info)
+		}
+		return zhipuResponsesHandler(c, info, resp)
+	}
 	if shouldUseZhipuClaudeCompatibleAPI(info) {
 		adaptor := claude.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)

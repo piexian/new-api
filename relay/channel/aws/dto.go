@@ -95,10 +95,11 @@ func convertToNovaRequest(req *dto.GeneralOpenAIRequest) *NovaRequest {
 	}
 
 	// 设置推理配置
-	if (req.MaxTokens != nil && *req.MaxTokens != 0) || (req.Temperature != nil && *req.Temperature != 0) || (req.TopP != nil && *req.TopP != 0) || (req.TopK != nil && *req.TopK != 0) || req.Stop != nil {
+	maxTokens := req.GetMaxTokens()
+	if maxTokens != 0 || (req.Temperature != nil && *req.Temperature != 0) || (req.TopP != nil && *req.TopP != 0) || (req.TopK != nil && *req.TopK != 0) || req.Stop != nil {
 		novaReq.InferenceConfig = &NovaInferenceConfig{}
-		if req.MaxTokens != nil && *req.MaxTokens != 0 {
-			novaReq.InferenceConfig.MaxTokens = int(*req.MaxTokens)
+		if maxTokens != 0 {
+			novaReq.InferenceConfig.MaxTokens = int(maxTokens)
 		}
 		if req.Temperature != nil && *req.Temperature != 0 {
 			novaReq.InferenceConfig.Temperature = *req.Temperature

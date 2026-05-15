@@ -1,8 +1,8 @@
 package aws
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,8 +14,10 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -252,6 +254,31 @@ func awsHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types
 	return nil, claudeInfo.Usage
 }
 
+func awsResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types.NewAPIError, *dto.Usage) {
+	ctx, cancel := newAwsInvokeContext()
+	defer cancel()
+
+	awsResp, err := a.AwsClient.InvokeModel(ctx, a.AwsReq.(*bedrockruntime.InvokeModelInput))
+	if err != nil {
+		statusCode := getAwsErrorStatusCode(err)
+		return types.NewOpenAIError(errors.Wrap(err, "InvokeModel"), types.ErrorCodeAwsInvokeError, statusCode), nil
+	}
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader(awsResp.Body)),
+	}
+	if awsResp.ContentType != nil && *awsResp.ContentType != "" {
+		resp.Header.Set("Content-Type", *awsResp.ContentType)
+	}
+	usage, handlerErr := claude.ClaudeResponsesHandler(c, resp, info)
+	if handlerErr != nil {
+		return handlerErr, nil
+	}
+	return nil, usage
+}
+
 func awsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (*types.NewAPIError, *dto.Usage) {
 	ctx, cancel := newAwsInvokeContext()
 	defer cancel()
@@ -321,8 +348,12 @@ func handleNovaRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) 
 		} `json:"usage"`
 	}
 
-	if err := json.Unmarshal(awsResp.Body, &novaResp); err != nil {
+	if err := common.Unmarshal(awsResp.Body, &novaResp); err != nil {
 		return types.NewError(errors.Wrap(err, "unmarshal nova response"), types.ErrorCodeBadResponseBody), nil
+	}
+	outputText := ""
+	if len(novaResp.Output.Message.Content) > 0 {
+		outputText = novaResp.Output.Message.Content[0].Text
 	}
 
 	// 构造OpenAI格式响应
@@ -335,7 +366,7 @@ func handleNovaRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) 
 			Index: 0,
 			Message: dto.Message{
 				Role:    "assistant",
-				Content: novaResp.Output.Message.Content[0].Text,
+				Content: outputText,
 			},
 			FinishReason: "stop",
 		}},
@@ -344,6 +375,18 @@ func handleNovaRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) 
 			CompletionTokens: novaResp.Usage.OutputTokens,
 			TotalTokens:      novaResp.Usage.TotalTokens,
 		},
+	}
+
+	if info != nil && info.RelayMode == relayconstant.RelayModeResponses {
+		responsesResponse, usage := responsescompat.ChatCompletionToResponse(c, info, &response)
+		data, err := common.Marshal(responsesResponse)
+		if err != nil {
+			return types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError), nil
+		}
+		resp := &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}
+		resp.Header.Set("Content-Type", "application/json")
+		service.IOCopyBytesGracefully(c, resp, data)
+		return nil, usage
 	}
 
 	c.JSON(http.StatusOK, response)

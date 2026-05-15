@@ -26,6 +26,8 @@ var ModelList = []string{
 	"music-cover",
 	"music-2.6-free",
 	"music-cover-free",
+	MusicCoverPreprocessModel,
+	LyricsGenerationModel,
 	"MiniMax-Hailuo-2.3",
 	"MiniMax-Hailuo-2.3-Fast",
 	"MiniMax-Hailuo-02",
@@ -39,6 +41,43 @@ var ModelList = []string{
 
 var ChannelName = "minimax"
 
+const (
+	MusicCoverPreprocessModel = "music_cover_preprocess"
+	LyricsGenerationModel     = "lyrics_generation"
+
+	MusicGenerationEndpoint      = "/v1/music_generation"
+	MusicCoverPreprocessEndpoint = "/v1/music_cover_preprocess"
+	LyricsGenerationEndpoint     = "/v1/lyrics_generation"
+	ChatCompletionsEndpoint      = "/v1/chat/completions"
+	AnthropicMessagesEndpoint    = "/v1/messages"
+	SpeechEndpoint               = "/v1/audio/speech"
+	ImageGenerationEndpoint      = "/v1/image_generation"
+	MusicGenerationDocURL        = "https://platform.minimaxi.com/docs/api-reference/music-generation"
+	MusicCoverPreprocessDocURL   = "https://platform.minimaxi.com/docs/api-reference/music-cover-preprocess"
+	LyricsGenerationDocURL       = "https://platform.minimaxi.com/docs/api-reference/lyrics-generation"
+	OpenAIChatCompletionsDocURL  = "https://platform.minimaxi.com/docs/api-reference/text-chat-openai"
+	AnthropicMessagesDocURL      = "https://platform.minimaxi.com/docs/api-reference/text-chat-anthropic"
+	SpeechDocURL                 = "https://platform.minimaxi.com/docs/api-reference/speech-t2a-http"
+	ImageGenerationDocURL        = "https://platform.minimaxi.com/docs/api-reference/image-generation-t2i"
+)
+
+var NativeEndpointModelList = []string{
+	MusicCoverPreprocessModel,
+	LyricsGenerationModel,
+}
+
 func isMiniMaxMusicModel(model string) bool {
 	return strings.HasPrefix(model, "music-")
+}
+
+func isMiniMaxSpeechModel(model string) bool {
+	return strings.HasPrefix(model, "speech-")
+}
+
+func isMiniMaxImageModel(model string) bool {
+	return model == "image-01" || model == "image-01-live"
+}
+
+func isMiniMaxTextModel(model string) bool {
+	return strings.HasPrefix(model, "MiniMax-") || strings.HasPrefix(model, "abab")
 }

@@ -54,17 +54,20 @@ func requestOpenAI2Mistral(request *dto.GeneralOpenAIRequest) *dto.GeneralOpenAI
 		for j, mediaMessage := range mediaMessages {
 			if mediaMessage.Type == dto.ContentTypeImageURL {
 				imageUrl := mediaMessage.GetImageMedia()
+				if imageUrl == nil {
+					continue
+				}
 				mediaMessage.ImageUrl = imageUrl.Url
 				mediaMessages[j] = mediaMessage
 			}
 		}
-		message.SetMediaContent(mediaMessages)
-		messages = append(messages, dto.Message{
+		convertedMessage := dto.Message{
 			Role:       message.Role,
-			Content:    message.Content,
 			ToolCalls:  message.ToolCalls,
 			ToolCallId: message.ToolCallId,
-		})
+		}
+		convertedMessage.SetMediaContent(mediaMessages)
+		messages = append(messages, convertedMessage)
 	}
 	out := &dto.GeneralOpenAIRequest{
 		Model:       request.Model,

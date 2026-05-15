@@ -9,6 +9,8 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -69,8 +71,15 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+	}
+	a.request = chatRequest
+	return chatRequest, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -87,6 +96,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 	if a.request == nil {
 		return nil, types.NewError(errors.New("request is nil"), types.ErrorCodeInvalidRequest)
+	}
+	if info != nil && info.RelayMode == relayconstant.RelayModeResponses {
+		if info.IsStream {
+			return xunfeiResponsesStreamHandler(c, info, *a.request, splits[0], splits[1], splits[2])
+		}
+		return xunfeiResponsesHandler(c, info, *a.request, splits[0], splits[1], splits[2])
 	}
 	if info.IsStream {
 		usage, err = xunfeiStreamHandler(c, *a.request, splits[0], splits[1], splits[2])

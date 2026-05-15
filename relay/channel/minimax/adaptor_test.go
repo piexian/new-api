@@ -67,6 +67,20 @@ func TestGetRequestURLForOfficialCompatibleEndpoints(t *testing.T) {
 	if claudeURL != "https://api.minimaxi.com/anthropic/v1/messages" {
 		t.Fatalf("claudeURL = %q", claudeURL)
 	}
+
+	responsesURL, err := GetRequestURL(&relaycommon.RelayInfo{
+		RelayMode:               relayconstant.RelayModeResponses,
+		FinalRequestRelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://api.minimaxi.com/v1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetRequestURL responses conversion returned error: %v", err)
+	}
+	if responsesURL != "https://api.minimaxi.com/v1/chat/completions" {
+		t.Fatalf("responsesURL = %q", responsesURL)
+	}
 }
 
 func TestGetRequestURLUsesClaudeCompatibleEndpointForClaudeModel(t *testing.T) {
@@ -288,6 +302,100 @@ func TestPath2RelayModeSupportsMiniMaxNativeImageEndpoint(t *testing.T) {
 	}
 }
 
+func TestPath2RelayModeSupportsMiniMaxNativeMusicEndpoints(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		path string
+		want int
+	}{
+		{path: "/v1/music_generation", want: relayconstant.RelayModeMiniMaxMusicGeneration},
+		{path: "/v1/music_cover_preprocess", want: relayconstant.RelayModeMiniMaxMusicCoverPreprocess},
+		{path: "/v1/lyrics_generation", want: relayconstant.RelayModeMiniMaxLyricsGeneration},
+	}
+	for _, tt := range tests {
+		got := relayconstant.Path2RelayMode(tt.path)
+		if got != tt.want {
+			t.Fatalf("Path2RelayMode(%q) = %d, want %d", tt.path, got, tt.want)
+		}
+	}
+}
+
+func TestGetRequestURLForMiniMaxNativeMusicEndpoints(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		mode int
+		want string
+	}{
+		{mode: relayconstant.RelayModeMiniMaxMusicGeneration, want: "https://api.minimaxi.com/v1/music_generation"},
+		{mode: relayconstant.RelayModeMiniMaxMusicCoverPreprocess, want: "https://api.minimaxi.com/v1/music_cover_preprocess"},
+		{mode: relayconstant.RelayModeMiniMaxLyricsGeneration, want: "https://api.minimaxi.com/v1/lyrics_generation"},
+	}
+	for _, tt := range tests {
+		got, err := GetRequestURL(&relaycommon.RelayInfo{
+			RelayMode: tt.mode,
+			ChannelMeta: &relaycommon.ChannelMeta{
+				ChannelBaseUrl: "https://api.minimaxi.com/v1",
+			},
+		})
+		if err != nil {
+			t.Fatalf("GetRequestURL returned error: %v", err)
+		}
+		if got != tt.want {
+			t.Fatalf("GetRequestURL = %q, want %q", got, tt.want)
+		}
+	}
+}
+
+func TestNormalizeBaseURLTrimsMiniMaxCompatibleSuffixes(t *testing.T) {
+	t.Parallel()
+
+	if got := NormalizeBaseURL("https://api.minimaxi.com/v1"); got != "https://api.minimaxi.com" {
+		t.Fatalf("NormalizeBaseURL(/v1) = %q", got)
+	}
+	if got := NormalizeBaseURL("https://api.minimaxi.com/anthropic"); got != "https://api.minimaxi.com" {
+		t.Fatalf("NormalizeBaseURL(/anthropic) = %q", got)
+	}
+}
+
+func TestConvertMusicRequestUsesMiniMaxMusicAudioFormats(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeAudioSpeech,
+		OriginModelName: "music-2.6",
+	}
+	request := dto.AudioRequest{
+		Model:          "music-2.6",
+		Input:          "lofi piano",
+		Instructions:   "[Verse]\nhello",
+		ResponseFormat: "flac",
+	}
+
+	reader, err := adaptor.ConvertAudioRequest(gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()), info, request)
+	if err != nil {
+		t.Fatalf("ConvertAudioRequest returned error: %v", err)
+	}
+	buf := new(bytes.Buffer)
+	if _, err := buf.ReadFrom(reader); err != nil {
+		t.Fatalf("ReadFrom returned error: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+	audioSetting, ok := payload["audio_setting"].(map[string]any)
+	if !ok {
+		t.Fatalf("audio_setting = %#v", payload["audio_setting"])
+	}
+	if audioSetting["format"] != "mp3" {
+		t.Fatalf("audio_setting.format = %#v, want mp3", audioSetting["format"])
+	}
+}
+
 func TestDoResponseForImageGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -358,6 +466,76 @@ func TestDoResponseForNativeImageEndpointPassesMiniMaxBody(t *testing.T) {
 	}
 	if strings.Contains(body, `"url":"https://example.com/minimax.png"`) {
 		t.Fatalf("response body = %s, should not convert native MiniMax payload", body)
+	}
+}
+
+func TestDoResponseForNativeMusicEndpointPassesMiniMaxBody(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/music_generation", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeMiniMaxMusicGeneration,
+		StartTime: time.Unix(1700000000, 0),
+	}
+	info.SetEstimatePromptTokens(8)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       ioNopCloser(`{"data":{"audio":"https://example.com/song.mp3","status":2},"base_resp":{"status_code":0,"status_msg":"success"}}`),
+	}
+	resp.Header.Set("Content-Type", "application/json")
+
+	adaptor := &Adaptor{}
+	usage, err := adaptor.DoResponse(c, resp, info)
+	if err != nil {
+		t.Fatalf("DoResponse returned error: %v", err)
+	}
+	if usage.(*dto.Usage).TotalTokens != 8 {
+		t.Fatalf("TotalTokens = %d, want 8", usage.(*dto.Usage).TotalTokens)
+	}
+
+	body := recorder.Body.String()
+	if !strings.Contains(body, `"audio":"https://example.com/song.mp3"`) {
+		t.Fatalf("response body = %s, want native MiniMax audio payload", body)
+	}
+}
+
+func TestDoResponseForNativeMusicEndpointMapsBaseRespError(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/music_generation", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeMiniMaxMusicGeneration,
+		StartTime: time.Unix(1700000000, 0),
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       ioNopCloser(`{"base_resp":{"status_code":1008,"status_msg":"invalid parameter"}}`),
+	}
+	resp.Header.Set("Content-Type", "application/json")
+
+	adaptor := &Adaptor{}
+	usage, err := adaptor.DoResponse(c, resp, info)
+	if err == nil {
+		t.Fatalf("DoResponse returned nil error")
+	}
+	if usage != nil {
+		t.Fatalf("DoResponse returned unexpected usage: %#v", usage)
+	}
+	if err.StatusCode != http.StatusBadRequest {
+		t.Fatalf("StatusCode = %d, want %d", err.StatusCode, http.StatusBadRequest)
+	}
+	if err.ToOpenAIError().Message != "invalid parameter" {
+		t.Fatalf("message = %q, want invalid parameter", err.ToOpenAIError().Message)
 	}
 }
 
