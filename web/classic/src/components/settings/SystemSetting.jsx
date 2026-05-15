@@ -106,6 +106,9 @@ const SystemSetting = () => {
     LinuxDOClientId: '',
     LinuxDOClientSecret: '',
     LinuxDOMinimumTrustLevel: '',
+    QQOAuthEnabled: '',
+    QQClientId: '',
+    QQClientSecret: '',
     ServerAddress: '',
     // SSRF防护配置
     'fetch_setting.enable_ssrf_protection': true,
@@ -191,6 +194,7 @@ const SystemSetting = () => {
           case 'SMTPSSLEnabled':
           case 'SMTPForceAuthLogin':
           case 'LinuxDOOAuthEnabled':
+          case 'QQOAuthEnabled':
           case 'discord.enabled':
           case 'oidc.enabled':
           case 'passkey.enabled':
@@ -369,8 +373,14 @@ const SystemSetting = () => {
     if (originInputs['EmailDailyLimit'] !== inputs.EmailDailyLimit) {
       options.push({ key: 'EmailDailyLimit', value: inputs.EmailDailyLimit });
     }
-    if (originInputs['EmailVerificationDailyLimitPerUser'] !== inputs.EmailVerificationDailyLimitPerUser) {
-      options.push({ key: 'EmailVerificationDailyLimitPerUser', value: inputs.EmailVerificationDailyLimitPerUser });
+    if (
+      originInputs['EmailVerificationDailyLimitPerUser'] !==
+      inputs.EmailVerificationDailyLimitPerUser
+    ) {
+      options.push({
+        key: 'EmailVerificationDailyLimitPerUser',
+        value: inputs.EmailVerificationDailyLimitPerUser,
+      });
     }
 
     if (options.length > 0) {
@@ -660,6 +670,27 @@ const SystemSetting = () => {
       options.push({
         key: 'LinuxDOMinimumTrustLevel',
         value: inputs.LinuxDOMinimumTrustLevel,
+      });
+    }
+
+    if (options.length > 0) {
+      await updateOptions(options);
+    }
+  };
+
+  const submitQQOAuth = async () => {
+    const options = [];
+
+    if (originInputs['QQClientId'] !== inputs.QQClientId) {
+      options.push({ key: 'QQClientId', value: inputs.QQClientId });
+    }
+    if (
+      originInputs['QQClientSecret'] !== inputs.QQClientSecret &&
+      inputs.QQClientSecret !== ''
+    ) {
+      options.push({
+        key: 'QQClientSecret',
+        value: inputs.QQClientSecret,
       });
     }
 
@@ -1094,6 +1125,15 @@ const SystemSetting = () => {
                         {t('允许通过 Linux DO 账户登录 & 注册')}
                       </Form.Checkbox>
                       <Form.Checkbox
+                        field='QQOAuthEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('QQOAuthEnabled', e)
+                        }
+                      >
+                        {t('允许通过 QQ 账户登录 & 注册')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
                         field='WeChatAuthEnabled'
                         noLabel
                         onChange={(e) =>
@@ -1326,9 +1366,16 @@ const SystemSetting = () => {
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Select field='EmailProvider' label={t('邮件服务提供商')}>
-                        <Form.Select.Option value='smtp'>{t('SMTP')}</Form.Select.Option>
-                        <Form.Select.Option value='cloudflare'>{t('Cloudflare Email Service')}</Form.Select.Option>
+                      <Form.Select
+                        field='EmailProvider'
+                        label={t('邮件服务提供商')}
+                      >
+                        <Form.Select.Option value='smtp'>
+                          {t('SMTP')}
+                        </Form.Select.Option>
+                        <Form.Select.Option value='cloudflare'>
+                          {t('Cloudflare Email Service')}
+                        </Form.Select.Option>
                       </Form.Select>
                     </Col>
                   </Row>
@@ -1392,7 +1439,15 @@ const SystemSetting = () => {
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                     style={{ marginTop: 16 }}
                   >
-                    <Text style={{ fontWeight: 'bold', fontSize: 14, paddingLeft: 12 }}>{t('Cloudflare Email Service')}</Text>
+                    <Text
+                      style={{
+                        fontWeight: 'bold',
+                        fontSize: 14,
+                        paddingLeft: 12,
+                      }}
+                    >
+                      {t('Cloudflare Email Service')}
+                    </Text>
                   </Row>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
@@ -1425,7 +1480,15 @@ const SystemSetting = () => {
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                     style={{ marginTop: 16 }}
                   >
-                    <Text style={{ fontWeight: 'bold', fontSize: 14, paddingLeft: 12 }}>{t('发送限制')}</Text>
+                    <Text
+                      style={{
+                        fontWeight: 'bold',
+                        fontSize: 14,
+                        paddingLeft: 12,
+                      }}
+                    >
+                      {t('发送限制')}
+                    </Text>
                   </Row>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
@@ -1645,6 +1708,39 @@ const SystemSetting = () => {
               </Card>
 
               <CustomOAuthSetting serverAddress={inputs.ServerAddress} />
+
+              <Card>
+                <Form.Section text={t('配置 QQ OAuth')}>
+                  <Text>{t('用以支持通过 QQ 进行登录注册')}</Text>
+                  <Banner
+                    type='info'
+                    description={`${t('回调 URL 填')} ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}/oauth/qq`}
+                    style={{ marginBottom: 20, marginTop: 16 }}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='QQClientId'
+                        label={t('QQ App ID')}
+                        placeholder={t('输入你注册的 QQ 互联 App ID')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='QQClientSecret'
+                        label={t('QQ App Key')}
+                        type='password'
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitQQOAuth}>
+                    {t('保存 QQ OAuth 设置')}
+                  </Button>
+                </Form.Section>
+              </Card>
 
               <Card>
                 <Form.Section text={t('配置 WeChat Server')}>

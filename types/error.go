@@ -91,6 +91,7 @@ type NewAPIError struct {
 	Err            error
 	RelayError     any
 	skipRetry      bool
+	skipMask       bool
 	recordErrorLog *bool
 	errorType      ErrorType
 	errorCode      ErrorCode
@@ -153,7 +154,7 @@ func (e *NewAPIError) MaskSensitiveError() string {
 		return string(e.errorCode)
 	}
 	errStr := e.Err.Error()
-	if e.errorCode == ErrorCodeCountTokenFailed {
+	if e.errorCode == ErrorCodeCountTokenFailed || e.skipMask {
 		return errStr
 	}
 	return common.MaskSensitiveInfo(errStr)
@@ -201,7 +202,7 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 			Code:    e.errorCode,
 		}
 	}
-	if e.errorCode != ErrorCodeCountTokenFailed {
+	if e.errorCode != ErrorCodeCountTokenFailed && !e.skipMask {
 		result.Message = common.MaskSensitiveInfo(result.Message)
 	}
 	if result.Message == "" {
@@ -230,7 +231,7 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 			Type:    string(e.errorType),
 		}
 	}
-	if e.errorCode != ErrorCodeCountTokenFailed {
+	if e.errorCode != ErrorCodeCountTokenFailed && !e.skipMask {
 		result.Message = common.MaskSensitiveInfo(result.Message)
 	}
 	if result.Message == "" {
@@ -381,6 +382,12 @@ func IsSkipRetryError(err *NewAPIError) bool {
 func ErrOptionWithSkipRetry() NewAPIErrorOptions {
 	return func(e *NewAPIError) {
 		e.skipRetry = true
+	}
+}
+
+func ErrOptionWithSkipSensitiveMask() NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		e.skipMask = true
 	}
 }
 

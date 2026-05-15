@@ -144,10 +144,7 @@ function renderType(type, t) {
 
 function buildStreamStatusTooltip(ss, t) {
   if (!ss) return null;
-  const lines = [
-    t('流状态') + '：' + t('异常'),
-    (ss.end_reason || 'unknown'),
-  ];
+  const lines = [t('流状态') + '：' + t('异常'), ss.end_reason || 'unknown'];
   if (ss.error_count > 0) {
     lines.push(`${t('软错误')}: ${ss.error_count}`);
   }
@@ -185,11 +182,7 @@ function renderIsStream(bool, t, streamStatus) {
                 userSelect: 'none',
               }}
             >
-              <CircleAlert
-                size={14}
-                strokeWidth={2.5}
-                color='currentColor'
-              />
+              <CircleAlert size={14} strokeWidth={2.5} color='currentColor' />
             </span>
           </Tooltip>
         )}
@@ -255,6 +248,26 @@ function renderFirstUseTime(type, t) {
       </Tag>
     );
   }
+}
+
+function renderTokensPerSecond(useTime, completionTokens) {
+  const elapsedSeconds = Number(useTime);
+  const outputTokens = Number(completionTokens);
+
+  if (
+    !Number.isFinite(elapsedSeconds) ||
+    elapsedSeconds <= 0 ||
+    !Number.isFinite(outputTokens) ||
+    outputTokens <= 0
+  ) {
+    return null;
+  }
+
+  return (
+    <Tag color='light-blue' shape='circle'>
+      {Math.round(outputTokens / elapsedSeconds)} t/s
+    </Tag>
+  );
 }
 
 function renderBillingTag(record, t) {
@@ -461,7 +474,11 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
-  const summaryOpts = { ...other, displayMode: billingDisplayMode, outputMode: 'segments' };
+  const summaryOpts = {
+    ...other,
+    displayMode: billingDisplayMode,
+    outputMode: 'segments',
+  };
 
   if (other?.billing_mode === 'tiered_expr') {
     return { segments: renderTieredModelPriceSimple(summaryOpts) };
@@ -709,6 +726,7 @@ export const getLogsColumns = ({
               <Space>
                 {renderUseTime(text, t)}
                 {renderFirstUseTime(other?.frt, t)}
+                {renderTokensPerSecond(text, record.completion_tokens)}
                 {renderIsStream(record.is_stream, t, other?.stream_status)}
               </Space>
             </>
@@ -718,6 +736,7 @@ export const getLogsColumns = ({
             <>
               <Space>
                 {renderUseTime(text, t)}
+                {renderTokensPerSecond(text, record.completion_tokens)}
                 {renderIsStream(record.is_stream, t)}
               </Space>
             </>

@@ -47,6 +47,20 @@ const { Text } = Typography;
 
 // Preset templates for common OAuth providers
 const OAUTH_PRESETS = {
+  google: {
+    name: 'Google',
+    authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+    token_endpoint: 'https://oauth2.googleapis.com/token',
+    user_info_endpoint: 'https://openidconnect.googleapis.com/v1/userinfo',
+    scopes: 'openid profile email',
+    user_id_field: 'sub',
+    username_field: 'name',
+    display_name_field: 'name',
+    email_field: 'email',
+    well_known: 'https://accounts.google.com/.well-known/openid-configuration',
+    auth_style: 0,
+    needsBaseUrl: false,
+  },
   'github-enterprise': {
     name: 'GitHub Enterprise',
     authorization_endpoint: '/login/oauth/authorize',
@@ -127,6 +141,7 @@ const OAUTH_PRESETS = {
 };
 
 const OAUTH_PRESET_ICONS = {
+  google: 'google',
   'github-enterprise': 'github',
   gitlab: 'gitlab',
   gitea: 'gitea',
@@ -489,9 +504,15 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       username_field: presetConfig.username_field,
       display_name_field: presetConfig.display_name_field,
       email_field: presetConfig.email_field,
+      well_known: presetConfig.well_known || '',
       auth_style: presetConfig.auth_style ?? 0,
     };
-    if (cleanUrl) {
+    if (presetConfig.needsBaseUrl === false) {
+      setBaseUrl('');
+      newValues.authorization_endpoint = presetConfig.authorization_endpoint;
+      newValues.token_endpoint = presetConfig.token_endpoint;
+      newValues.user_info_endpoint = presetConfig.user_info_endpoint;
+    } else if (cleanUrl) {
       newValues.authorization_endpoint =
         cleanUrl + presetConfig.authorization_endpoint;
       newValues.token_endpoint = cleanUrl + presetConfig.token_endpoint;
@@ -504,6 +525,9 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     setBaseUrl(url);
     if (url && selectedPreset && OAUTH_PRESETS[selectedPreset]) {
       const presetConfig = OAUTH_PRESETS[selectedPreset];
+      if (presetConfig.needsBaseUrl === false) {
+        return;
+      }
       const cleanUrl = normalizeBaseUrl(url);
       const newValues = {
         authorization_endpoint: cleanUrl + presetConfig.authorization_endpoint,
@@ -739,8 +763,15 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                   placeholder={t('例如：https://gitea.example.com')}
                   value={baseUrl}
                   onChange={handleBaseUrlChange}
+                  disabled={
+                    selectedPreset &&
+                    OAUTH_PRESETS[selectedPreset]?.needsBaseUrl === false
+                  }
                   extraText={
-                    selectedPreset
+                    selectedPreset &&
+                    OAUTH_PRESETS[selectedPreset]?.needsBaseUrl === false
+                      ? null
+                      : selectedPreset
                       ? t('填写后会自动拼接预设端点')
                       : t('可选：用于自动生成端点或 Discovery URL')
                   }
