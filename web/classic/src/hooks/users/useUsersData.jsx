@@ -121,13 +121,14 @@ export const useUsersData = () => {
   };
 
   // Manage user operations (promote, demote, enable, disable, delete)
-  const manageUser = async (userId, action, record) => {
+  const manageUser = async (userId, action, record, extraPayload = {}) => {
     // Trigger loading state to force table re-render
     setLoading(true);
 
     const res = await API.post('/api/user/manage', {
       id: userId,
       action,
+      ...extraPayload,
     });
 
     const { success, message } = res.data;
@@ -141,7 +142,12 @@ export const useUsersData = () => {
           if (action === 'delete') {
             return { ...u, DeletedAt: new Date() };
           }
-          return { ...u, status: user.status, role: user.role };
+          return {
+            ...u,
+            status: user.status,
+            role: user.role,
+            disable_reason: user.disable_reason,
+          };
         }
         return u;
       });

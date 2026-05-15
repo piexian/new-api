@@ -101,6 +101,11 @@ let showWarningOptions = { autoClose: toastConstants.WARNING_TIMEOUT };
 let showSuccessOptions = { autoClose: toastConstants.SUCCESS_TIMEOUT };
 let showInfoOptions = { autoClose: toastConstants.INFO_TIMEOUT };
 let showNoticeOptions = { autoClose: false };
+let lastAccountDisabledDialogKey = '';
+let lastAccountDisabledDialogMessage = '';
+let lastAccountDisabledDialogAt = 0;
+
+export const ACCOUNT_DISABLED_DIALOG_EVENT = 'newapi:account-disabled-dialog';
 
 const isMobileScreen = window.matchMedia(
   `(max-width: ${MOBILE_BREAKPOINT - 1}px)`,
@@ -119,8 +124,69 @@ if (isMobileScreen) {
   // showNoticeOptions.transition = 'flip';
 }
 
+export function getAccountDisabledDialogPayload(error) {
+  const responseData = error?.response?.data ?? error;
+  if (!responseData || typeof responseData !== 'object') {
+    return null;
+  }
+
+  const businessData =
+    responseData.data && typeof responseData.data === 'object'
+      ? responseData.data
+      : responseData;
+
+  if (businessData.error_type !== 'user_disabled') {
+    return null;
+  }
+
+  return {
+    message:
+      typeof responseData.message === 'string' ? responseData.message : '',
+    reason:
+      typeof businessData.disable_reason === 'string'
+        ? businessData.disable_reason
+        : '',
+  };
+}
+
+export function showAccountDisabledDialog(payload) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const key = `${payload?.message || ''}\n${payload?.reason || ''}`;
+  const now = Date.now();
+  if (key === lastAccountDisabledDialogKey && now - lastAccountDisabledDialogAt < 500) {
+    return;
+  }
+
+  lastAccountDisabledDialogKey = key;
+  lastAccountDisabledDialogMessage = payload?.message || '';
+  lastAccountDisabledDialogAt = now;
+
+  window.dispatchEvent(
+    new CustomEvent(ACCOUNT_DISABLED_DIALOG_EVENT, {
+      detail: payload,
+    }),
+  );
+}
+
 export function showError(error) {
   console.error(error);
+  const accountDisabledPayload = getAccountDisabledDialogPayload(error);
+  if (accountDisabledPayload) {
+    showAccountDisabledDialog(accountDisabledPayload);
+    return;
+  }
+
+  if (
+    typeof error === 'string' &&
+    error === lastAccountDisabledDialogMessage &&
+    Date.now() - lastAccountDisabledDialogAt < 1500
+  ) {
+    return;
+  }
+
   if (error.message) {
     if (error.name === 'AxiosError') {
       switch (error.response.status) {

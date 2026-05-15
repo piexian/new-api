@@ -20,6 +20,8 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   getUserIdFromLocalStorage,
   showError,
+  getAccountDisabledDialogPayload,
+  showAccountDisabledDialog,
   formatMessageForAPI,
   isValidMessage,
 } from './utils';
@@ -36,7 +38,6 @@ export let API = axios.create({
   },
 });
 
-
 function redirectToOAuthUrl(url, options = {}) {
   const { openInNewTab = false } = options;
   const targetUrl = typeof url === 'string' ? url : url.toString();
@@ -48,7 +49,6 @@ function redirectToOAuthUrl(url, options = {}) {
 
   window.location.assign(targetUrl);
 }
-
 
 function patchAPIInstance(instance) {
   const originalGet = instance.get.bind(instance);
@@ -95,7 +95,15 @@ export function updateAPI() {
 }
 
 API.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const accountDisabledPayload = getAccountDisabledDialogPayload(
+      response?.data,
+    );
+    if (accountDisabledPayload) {
+      showAccountDisabledDialog(accountDisabledPayload);
+    }
+    return response;
+  },
   (error) => {
     // 如果请求配置中显式要求跳过全局错误处理，则不弹出默认错误提示
     if (error.config && error.config.skipErrorHandler) {
@@ -313,6 +321,18 @@ export async function onLinuxDOOAuthClicked(
   redirectToOAuthUrl(
     `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}`,
   );
+}
+
+export async function onQQOAuthClicked(qq_client_id, options = {}) {
+  const state = await prepareOAuthState(options);
+  if (!state) return;
+  const url = new URL('https://graph.qq.com/oauth2.0/authorize');
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('client_id', qq_client_id);
+  url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/qq`);
+  url.searchParams.set('state', state);
+  url.searchParams.set('scope', 'get_user_info');
+  redirectToOAuthUrl(url, options);
 }
 
 /**

@@ -33,6 +33,24 @@ func validUserInfo(username string, role int) bool {
 	return true
 }
 
+func disabledUserBusinessResponse(c *gin.Context, reason string) {
+	message := common.TranslateMessage(c, i18n.MsgAuthUserBanned)
+	if strings.TrimSpace(reason) != "" {
+		message = common.TranslateMessage(c, i18n.MsgUserDisabledWithReason, map[string]any{
+			"Reason": strings.TrimSpace(reason),
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": message,
+		"data": gin.H{
+			"error_type":     "user_disabled",
+			"disable_reason": strings.TrimSpace(reason),
+		},
+	})
+	c.Abort()
+}
+
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
 	username := session.Get("username")
@@ -121,11 +139,13 @@ func authHelper(c *gin.Context, minRole int) {
 		return
 	}
 	if status.(int) == common.UserStatusDisabled {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
-		})
-		c.Abort()
+		reason := ""
+		if userID, ok := id.(int); ok {
+			if userCache, err := model.GetUserCache(userID); err == nil {
+				reason = userCache.DisableReason
+			}
+		}
+		disabledUserBusinessResponse(c, reason)
 		return
 	}
 	if role.(int) < minRole {
@@ -258,11 +278,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 			return
 		}
 		if userCache.Status != common.UserStatusEnabled {
-			c.JSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
-			})
-			c.Abort()
+			disabledUserBusinessResponse(c, userCache.DisableReason)
 			return
 		}
 

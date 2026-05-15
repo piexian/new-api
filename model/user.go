@@ -15,7 +15,10 @@ import (
 	"gorm.io/gorm"
 )
 
-const UserNameMaxLength = 20
+const (
+	UserNameMaxLength      = 20
+	DisableReasonMaxLength = 5000
+)
 
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
@@ -27,12 +30,14 @@ type User struct {
 	DisplayName      string         `json:"display_name" gorm:"index" validate:"max=20"`
 	Role             int            `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status           int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
+	DisableReason    string         `json:"disable_reason,omitempty" gorm:"type:text;column:disable_reason" validate:"max=5000"`
 	Email            string         `json:"email" gorm:"index" validate:"max=50"`
 	GitHubId         string         `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId        string         `json:"discord_id" gorm:"column:discord_id;index"`
 	OidcId           string         `json:"oidc_id" gorm:"column:oidc_id;index"`
 	WeChatId         string         `json:"wechat_id" gorm:"column:wechat_id;index"`
 	TelegramId       string         `json:"telegram_id" gorm:"column:telegram_id;index"`
+	QQId             string         `json:"qq_id" gorm:"column:qq_id;index"`
 	VerificationCode string         `json:"verification_code" gorm:"-:all"`                                    // this field is only for Email verification, don't save it to database!
 	AccessToken      *string        `json:"access_token" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota            int            `json:"quota" gorm:"type:int;default:0"`
@@ -62,13 +67,14 @@ func (user User) MarshalJSON() ([]byte, error) {
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:       user.Id,
-		Group:    user.Group,
-		Quota:    user.Quota,
-		Status:   user.Status,
-		Username: user.Username,
-		Setting:  user.Setting,
-		Email:    user.Email,
+		Id:            user.Id,
+		Group:         user.Group,
+		Quota:         user.Quota,
+		Status:        user.Status,
+		Username:      user.Username,
+		Setting:       user.Setting,
+		Email:         user.Email,
+		DisableReason: user.DisableReason,
 	}
 	return cache
 }
@@ -510,10 +516,11 @@ func (user *User) Edit(updatePassword bool) error {
 
 	newUser := *user
 	updates := map[string]interface{}{
-		"username":     newUser.Username,
-		"display_name": newUser.DisplayName,
-		"group":        newUser.Group,
-		"remark":       newUser.Remark,
+		"username":       newUser.Username,
+		"display_name":   newUser.DisplayName,
+		"group":          newUser.Group,
+		"remark":         newUser.Remark,
+		"disable_reason": newUser.DisableReason,
 	}
 	if updatePassword {
 		updates["password"] = newUser.Password
@@ -541,6 +548,7 @@ func (user *User) ClearBinding(bindingType string) error {
 		"wechat":   "wechat_id",
 		"telegram": "telegram_id",
 		"linuxdo":  "linux_do_id",
+		"qq":       "qq_id",
 	}
 
 	column, ok := bindingColumnMap[bindingType]
@@ -598,8 +606,11 @@ func (user *User) ValidateAndFill() (err error) {
 		return fmt.Errorf("%w: %v", ErrDatabase, err)
 	}
 	okay := common.ValidatePasswordAndHash(password, user.Password)
-	if !okay || user.Status != common.UserStatusEnabled {
+	if !okay {
 		return ErrInvalidCredentials
+	}
+	if user.Status != common.UserStatusEnabled {
+		return ErrUserDisabled
 	}
 	return nil
 }
@@ -671,6 +682,14 @@ func (user *User) FillUserByTelegramId() error {
 	return nil
 }
 
+func (user *User) FillUserByQQId() error {
+	if user.QQId == "" {
+		return errors.New("QQ id 为空！")
+	}
+	DB.Where(User{QQId: user.QQId}).First(user)
+	return nil
+}
+
 func IsEmailAlreadyTaken(email string) bool {
 	return DB.Unscoped().Where("email = ?", email).Find(&User{}).RowsAffected == 1
 }
@@ -697,6 +716,10 @@ func IsOidcIdAlreadyTaken(oidcId string) bool {
 
 func IsTelegramIdAlreadyTaken(telegramId string) bool {
 	return DB.Unscoped().Where("telegram_id = ?", telegramId).Find(&User{}).RowsAffected == 1
+}
+
+func IsQQIdAlreadyTaken(qqId string) bool {
+	return DB.Unscoped().Where("qq_id = ?", qqId).Find(&User{}).RowsAffected == 1
 }
 
 func ResetUserPasswordByEmail(email string, password string) error {

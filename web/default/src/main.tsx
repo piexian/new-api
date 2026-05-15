@@ -17,6 +17,7 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
 import { ThemeProvider } from './context/theme-provider'
+import { AccountDisabledDialog } from './components/account-disabled-dialog'
 import { FrontendSwitchGuideDialog } from './components/frontend-switch-guide-dialog'
 import './i18n/config'
 // Generated Routes
@@ -154,6 +155,7 @@ if (!rootElement.innerHTML) {
             <DirectionProvider>
               <RouterProvider router={router} />
               <FrontendSwitchGuideDialog />
+              <AccountDisabledDialog />
             </DirectionProvider>
           </FontProvider>
         </ThemeProvider>

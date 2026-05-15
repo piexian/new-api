@@ -24,6 +24,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { UserSubscriptionsDialog } from '@/features/subscriptions/components/dialogs/user-subscriptions-dialog'
 import { manageUser, resetUserPasskey, resetUserTwoFA } from '../api'
@@ -33,7 +34,7 @@ import {
   ERROR_MESSAGES,
   isUserDeleted,
 } from '../constants'
-import { getUserActionMessage } from '../lib'
+import { DISABLE_REASON_MAX_LENGTH, getUserActionMessage } from '../lib'
 import { type User, type ManageUserAction } from '../types'
 import { UserBindingDialog } from './dialogs/user-binding-dialog'
 import { useUsers } from './users-provider'
@@ -50,6 +51,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [resetTwoFAOpen, setResetTwoFAOpen] = useState(false)
   const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [subscriptionsDialogOpen, setSubscriptionsDialogOpen] = useState(false)
+  const [disableDialogOpen, setDisableDialogOpen] = useState(false)
+  const [disableReason, setDisableReason] = useState(user.disable_reason || '')
 
   const handleEdit = () => {
     setCurrentRow(user)
@@ -63,10 +66,20 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
   const handleManage = async (action: Exclude<ManageUserAction, 'delete'>) => {
     try {
-      const result = await manageUser(user.id, action)
+      const result =
+        action === 'disable'
+          ? await manageUser({
+              id: user.id,
+              action,
+              disable_reason: disableReason.trim(),
+            })
+          : await manageUser(user.id, action)
       if (result.success) {
         toast.success(t(getUserActionMessage(action)))
         triggerRefresh()
+        if (action === 'disable') {
+          setDisableDialogOpen(false)
+        }
       } else {
         toast.error(
           result.message || t('Failed to {{action}} user', { action })
@@ -150,7 +163,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             </DropdownMenuItem>
           ) : (
             <DropdownMenuItem
-              onClick={() => handleManage('disable')}
+              onClick={(event) => {
+                event.preventDefault()
+                setDisableReason(user.disable_reason || '')
+                setDisableDialogOpen(true)
+              }}
               disabled={isRoot}
             >
               {t('Disable')}
@@ -244,6 +261,26 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ConfirmDialog
+        open={disableDialogOpen}
+        onOpenChange={setDisableDialogOpen}
+        title={t('Disable User')}
+        desc={t(
+          'Please fill in the disable reason. The user will see this reason the next time they log in.'
+        )}
+        confirmText={t('Disable')}
+        destructive
+        handleConfirm={() => handleManage('disable')}
+      >
+        <Textarea
+          value={disableReason}
+          onChange={(event) => setDisableReason(event.target.value)}
+          placeholder={t('Enter disable reason')}
+          maxLength={DISABLE_REASON_MAX_LENGTH}
+          rows={8}
+        />
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={resetPasskeyOpen}

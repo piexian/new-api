@@ -7,6 +7,7 @@ import type {
   UserFormData,
   ManageUserAction,
   ManageUserQuotaPayload,
+  ManageUserPayload,
   ApiResponse,
 } from './types'
 
@@ -78,10 +79,12 @@ export async function deleteUser(id: number): Promise<ApiResponse> {
  * Manage user (promote, demote, enable, disable, delete)
  */
 export async function manageUser(
-  id: number,
-  action: ManageUserAction
+  idOrPayload: number | ManageUserPayload,
+  action?: ManageUserAction
 ): Promise<ApiResponse<Partial<User>>> {
-  const res = await api.post('/api/user/manage', { id, action })
+  const payload =
+    typeof idOrPayload === 'number' ? { id: idOrPayload, action } : idOrPayload
+  const res = await api.post('/api/user/manage', payload)
   return res.data
 }
 

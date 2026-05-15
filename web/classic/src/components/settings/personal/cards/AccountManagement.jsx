@@ -39,7 +39,13 @@ import {
   IconDelete,
   IconEdit,
 } from '@douyinfe/semi-icons';
-import { SiTelegram, SiWechat, SiLinux, SiDiscord } from 'react-icons/si';
+import {
+  SiTelegram,
+  SiWechat,
+  SiLinux,
+  SiDiscord,
+  SiTencentqq,
+} from 'react-icons/si';
 import { UserPlus, ShieldCheck } from 'lucide-react';
 import TelegramLoginButton from 'react-telegram-login';
 import {
@@ -50,6 +56,7 @@ import {
   onOIDCClicked,
   onLinuxDOOAuthClicked,
   onDiscordOAuthClicked,
+  onQQOAuthClicked,
   onCustomOAuthClicked,
   getOAuthProviderIcon,
 } from '../../../../helpers';
@@ -666,6 +673,39 @@ const AccountManagement = ({
                       }
                     >
                       {status.linuxdo_oauth ? t('绑定') : t('未启用')}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* QQ绑定 */}
+              <Card className='!rounded-xl'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div className='flex items-center flex-1 min-w-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                      <SiTencentqq
+                        size={20}
+                        className='text-slate-600 dark:text-slate-300'
+                      />
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='font-medium text-gray-900'>{t('QQ')}</div>
+                      <div className='text-sm text-gray-500 truncate'>
+                        {renderAccountInfo(userState.user?.qq_id, t('QQ ID'))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className='flex-shrink-0'>
+                    <Button
+                      type='primary'
+                      theme='outline'
+                      size='small'
+                      onClick={() => onQQOAuthClicked(status.qq_client_id)}
+                      disabled={
+                        isBound(userState.user?.qq_id) || !status.qq_oauth
+                      }
+                    >
+                      {status.qq_oauth ? t('绑定') : t('未启用')}
                     </Button>
                   </div>
                 </div>

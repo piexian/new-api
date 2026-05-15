@@ -2,6 +2,7 @@ import axios from 'axios'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
+import { showAccountDisabledDialog } from '@/lib/account-disabled-dialog'
 
 // ============================================================================
 // Axios Instance Configuration
@@ -51,6 +52,51 @@ api.get = ((url: string, config = {}) => {
 // Response Interceptor
 // ============================================================================
 
+type BusinessErrorData = {
+  error_type?: unknown
+  disable_reason?: unknown
+}
+
+function isAccountDisabledResponse(data: unknown) {
+  if (!data || typeof data !== 'object') return false
+
+  const responseData = data as {
+    message?: unknown
+    data?: BusinessErrorData
+  }
+
+  return responseData.data?.error_type === 'user_disabled'
+}
+
+function showBusinessError(data: unknown) {
+  if (isAccountDisabledResponse(data)) {
+    const responseData = data as {
+      message?: unknown
+      data?: BusinessErrorData
+    }
+    const message =
+      typeof responseData.message === 'string' ? responseData.message : ''
+    const reason =
+      typeof responseData.data?.disable_reason === 'string'
+        ? responseData.data.disable_reason
+        : ''
+
+    showAccountDisabledDialog({
+      title: i18next.t('Account disabled'),
+      message,
+      reason,
+    })
+    return
+  }
+
+  const responseData = data as { message?: unknown }
+  const msg =
+    typeof responseData.message === 'string' && responseData.message
+      ? responseData.message
+      : 'Request failed'
+  toast.error(msg)
+}
+
 // Handle business logic errors and HTTP errors globally
 api.interceptors.response.use(
   (response) => {
@@ -65,9 +111,7 @@ api.interceptors.response.use(
       typeof response.data.success === 'boolean'
     ) {
       if (!response.data.success) {
-        // Show error toast for business failures
-        const msg = response.data.message || 'Request failed'
-        toast.error(msg)
+        showBusinessError(response.data)
       }
     }
     return response

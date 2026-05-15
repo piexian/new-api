@@ -40,6 +40,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createUser, updateUser, getUser, getGroups } from '../api'
 import { BINDING_FIELDS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
+  DISABLE_REASON_MAX_LENGTH,
   userFormSchema,
   type UserFormValues,
   USER_FORM_DEFAULT_VALUES,
@@ -372,6 +373,30 @@ export function UsersMutateDrawer({
                             rows={3}
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='disable_reason'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Disabled Reason')}</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            placeholder={t('Enter disable reason')}
+                            maxLength={DISABLE_REASON_MAX_LENGTH}
+                            rows={8}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Users will see this reason the next time they try to log in.'
+                          )}
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

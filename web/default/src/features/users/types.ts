@@ -18,9 +18,11 @@ export const userSchema = z.object({
   display_name: z.string(),
   password: z.string().optional(),
   github_id: z.string().optional(),
+  discord_id: z.string().optional(),
   oidc_id: z.string().optional(),
   wechat_id: z.string().optional(),
   telegram_id: z.string().optional(),
+  qq_id: z.string().optional(),
   email: z.string().optional(),
   quota: z.number(),
   used_quota: z.number(),
@@ -39,6 +41,7 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
+  disable_reason: z.string().optional(),
 })
 export type User = z.infer<typeof userSchema>
 
@@ -86,6 +89,7 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+  disable_reason?: string // Only used when updating user
 }
 
 export type ManageUserAction =
@@ -103,6 +107,12 @@ export interface ManageUserQuotaPayload {
   action: 'add_quota'
   mode: QuotaAdjustMode
   value: number
+}
+
+export interface ManageUserPayload {
+  id: number
+  action: Exclude<ManageUserAction, 'add_quota'>
+  disable_reason?: string
 }
 
 // ============================================================================

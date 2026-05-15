@@ -30,6 +30,30 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+func disabledUserMessage(c *gin.Context, user *model.User) string {
+	if user != nil && strings.TrimSpace(user.DisableReason) != "" {
+		return i18n.T(c, i18n.MsgUserDisabledWithReason, map[string]any{
+			"Reason": strings.TrimSpace(user.DisableReason),
+		})
+	}
+	return i18n.T(c, i18n.MsgUserDisabled)
+}
+
+func apiDisabledUser(c *gin.Context, user *model.User) {
+	reason := ""
+	if user != nil {
+		reason = strings.TrimSpace(user.DisableReason)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": disabledUserMessage(c, user),
+		"data": gin.H{
+			"error_type":     "user_disabled",
+			"disable_reason": reason,
+		},
+	})
+}
+
 const (
 	usernameChangeLimit         = 3
 	usernameChangeWindowSeconds = 365 * 24 * 60 * 60
@@ -113,6 +137,8 @@ func Login(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		case errors.Is(err, model.ErrUserEmptyCredentials):
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		case errors.Is(err, model.ErrUserDisabled):
+			apiDisabledUser(c, &user)
 		default:
 			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
 		}
@@ -461,6 +487,7 @@ func GetSelf(c *gin.Context) {
 		"oidc_id":                      user.OidcId,
 		"wechat_id":                    user.WeChatId,
 		"telegram_id":                  user.TelegramId,
+		"qq_id":                        user.QQId,
 		"group":                        user.Group,
 		"quota":                        user.Quota,
 		"used_quota":                   user.UsedQuota,
@@ -1000,10 +1027,11 @@ func CreateUser(c *gin.Context) {
 }
 
 type ManageRequest struct {
-	Id     int    `json:"id"`
-	Action string `json:"action"`
-	Value  int    `json:"value"`
-	Mode   string `json:"mode"`
+	Id            int    `json:"id"`
+	Action        string `json:"action"`
+	Value         int    `json:"value"`
+	Mode          string `json:"mode"`
+	DisableReason string `json:"disable_reason"`
 }
 
 // ManageUser Only admin user can do this
@@ -1031,13 +1059,20 @@ func ManageUser(c *gin.Context) {
 	}
 	switch req.Action {
 	case "disable":
+		disableReason := strings.TrimSpace(req.DisableReason)
+		if len([]rune(disableReason)) > model.DisableReasonMaxLength {
+			common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": fmt.Sprintf("disable_reason max %d", model.DisableReasonMaxLength)})
+			return
+		}
 		user.Status = common.UserStatusDisabled
+		user.DisableReason = disableReason
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDisableRootUser)
 			return
 		}
 	case "enable":
 		user.Status = common.UserStatusEnabled
+		user.DisableReason = ""
 	case "delete":
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDeleteRootUser)
@@ -1124,15 +1159,23 @@ func ManageUser(c *gin.Context) {
 		return
 	}
 
-	if err := user.Update(false); err != nil {
+	if req.Action == "disable" || req.Action == "enable" {
+		if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Updates(map[string]any{
+			"status":         user.Status,
+			"disable_reason": user.DisableReason,
+		}).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	} else if err := user.Update(false); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	// 禁用 / 角色调整后，强制失效用户缓存与其全部令牌缓存，
+	// 启用 / 禁用 / 角色调整后，强制失效用户缓存与其全部令牌缓存，
 	// 避免在 Redis TTL 过期前仍使用旧状态（尤其是禁用后仍可发起请求的问题）。
 	// InvalidateUserCache 会让下一次 GetUserCache 从数据库重新加载，
 	// InvalidateUserTokensCache 则确保令牌侧的缓存也同步刷新。
-	if req.Action == "disable" || req.Action == "promote" || req.Action == "demote" {
+	if req.Action == "disable" || req.Action == "enable" || req.Action == "promote" || req.Action == "demote" {
 		if err := model.InvalidateUserCache(user.Id); err != nil {
 			common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d: %s", user.Id, err.Error()))
 		}
@@ -1141,8 +1184,9 @@ func ManageUser(c *gin.Context) {
 		}
 	}
 	clearUser := model.User{
-		Role:   user.Role,
-		Status: user.Status,
+		Role:          user.Role,
+		Status:        user.Status,
+		DisableReason: user.DisableReason,
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

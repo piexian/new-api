@@ -119,7 +119,7 @@ func HandleOAuth(c *gin.Context) {
 
 	// 8. Check user status
 	if user.Status != common.UserStatusEnabled {
-		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
+		apiDisabledUser(c, user)
 		return
 	}
 
@@ -313,6 +313,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 				"linux_do_id": user.LinuxDOId,
 				"wechat_id":   user.WeChatId,
 				"telegram_id": user.TelegramId,
+				"qq_id":       user.QQId,
 			}).Error; err != nil {
 				return err
 			}

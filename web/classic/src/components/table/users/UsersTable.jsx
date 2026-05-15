@@ -60,6 +60,7 @@ const UsersTable = (usersData) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [modalUser, setModalUser] = useState(null);
   const [enableDisableAction, setEnableDisableAction] = useState('');
+  const [disableReason, setDisableReason] = useState('');
   const [showResetPasskeyModal, setShowResetPasskeyModal] = useState(false);
   const [showResetTwoFAModal, setShowResetTwoFAModal] = useState(false);
   const [showUserSubscriptionsModal, setShowUserSubscriptionsModal] =
@@ -79,6 +80,7 @@ const UsersTable = (usersData) => {
   const showEnableDisableUserModal = (user, action) => {
     setModalUser(user);
     setEnableDisableAction(action);
+    setDisableReason(action === 'disable' ? user?.disable_reason || '' : '');
     setShowEnableDisableModal(true);
   };
 
@@ -114,7 +116,14 @@ const UsersTable = (usersData) => {
   };
 
   const handleEnableDisableConfirm = () => {
-    manageUser(modalUser.id, enableDisableAction, modalUser);
+    manageUser(
+      modalUser.id,
+      enableDisableAction,
+      modalUser,
+      enableDisableAction === 'disable'
+        ? { disable_reason: disableReason.trim() }
+        : {},
+    );
     setShowEnableDisableModal(false);
   };
 
@@ -223,6 +232,8 @@ const UsersTable = (usersData) => {
         onConfirm={handleEnableDisableConfirm}
         user={modalUser}
         action={enableDisableAction}
+        disableReason={disableReason}
+        setDisableReason={setDisableReason}
         t={t}
       />
 

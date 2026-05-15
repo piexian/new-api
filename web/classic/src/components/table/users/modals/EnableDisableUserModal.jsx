@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal, TextArea, Typography } from '@douyinfe/semi-ui';
 
 const EnableDisableUserModal = ({
   visible,
@@ -26,9 +26,12 @@ const EnableDisableUserModal = ({
   onConfirm,
   user,
   action,
+  disableReason,
+  setDisableReason,
   t,
 }) => {
   const isDisable = action === 'disable';
+  const { Text } = Typography;
 
   return (
     <Modal
@@ -38,7 +41,25 @@ const EnableDisableUserModal = ({
       onOk={onConfirm}
       type='warning'
     >
-      {isDisable ? t('此操作将禁用用户账户') : t('此操作将启用用户账户')}
+      {isDisable ? (
+        <div>
+          <Text>{t('此操作将禁用用户账户')}</Text>
+          <TextArea
+            value={disableReason}
+            onChange={(value) => setDisableReason(value)}
+            placeholder={t('请输入禁用原因')}
+            autosize
+            maxCount={5000}
+            showClear
+            style={{ marginTop: 12 }}
+          />
+          <Text type='tertiary' size='small'>
+            {t('用户下次登录时将看到该原因')}
+          </Text>
+        </div>
+      ) : (
+        t('此操作将启用用户账户')
+      )}
     </Modal>
   );
 };
