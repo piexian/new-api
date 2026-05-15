@@ -17,6 +17,7 @@ import (
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/cohere"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
 	"github.com/QuantumNous/new-api/service"
@@ -1080,6 +1081,9 @@ func FetchModels(c *gin.Context) {
 	}
 
 	client := &http.Client{}
+	if req.Type == constant.ChannelTypeMiniMax {
+		baseURL = minimax.NormalizeBaseURL(baseURL)
+	}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
 	if req.Type == constant.ChannelTypeKilo {
 		url = fmt.Sprintf("%s/models", baseURL)
@@ -1131,6 +1135,9 @@ func FetchModels(c *gin.Context) {
 	var models []string
 	for _, model := range result.Data {
 		models = append(models, model.ID)
+	}
+	if req.Type == constant.ChannelTypeMiniMax {
+		models = mergeModelNames(models, minimax.NativeEndpointModelList)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

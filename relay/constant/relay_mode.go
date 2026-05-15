@@ -36,6 +36,10 @@ const (
 	RelayModeAudioTranscription // whisper
 	RelayModeAudioTranslation   // whisper
 
+	RelayModeMiniMaxMusicGeneration
+	RelayModeMiniMaxMusicCoverPreprocess
+	RelayModeMiniMaxLyricsGeneration
+
 	RelayModeSunoFetch
 	RelayModeSunoFetchByID
 	RelayModeSunoSubmit
@@ -82,6 +86,12 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeAudioTranscription
 	} else if strings.HasPrefix(path, "/v1/audio/translations") {
 		relayMode = RelayModeAudioTranslation
+	} else if strings.HasPrefix(path, "/v1/music_generation") {
+		relayMode = RelayModeMiniMaxMusicGeneration
+	} else if strings.HasPrefix(path, "/v1/music_cover_preprocess") {
+		relayMode = RelayModeMiniMaxMusicCoverPreprocess
+	} else if strings.HasPrefix(path, "/v1/lyrics_generation") {
+		relayMode = RelayModeMiniMaxLyricsGeneration
 	} else if strings.HasPrefix(path, "/v1/rerank") {
 		relayMode = RelayModeRerank
 	} else if strings.HasPrefix(path, "/v1/realtime") {

@@ -49,6 +49,10 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 		err = relay.EmbeddingHelper(c, info)
 	case relayconstant.RelayModeResponses, relayconstant.RelayModeResponsesCompact:
 		err = relay.ResponsesHelper(c, info)
+	case relayconstant.RelayModeMiniMaxMusicGeneration,
+		relayconstant.RelayModeMiniMaxMusicCoverPreprocess,
+		relayconstant.RelayModeMiniMaxLyricsGeneration:
+		err = relay.MiniMaxNativeHelper(c, info)
 	default:
 		err = relay.TextHelper(c, info)
 	}

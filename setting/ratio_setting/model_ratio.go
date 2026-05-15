@@ -333,6 +333,8 @@ var defaultModelPrice = map[string]float64{
 	"music-cover":                    1.00 / USD2RMB,
 	"music-2.6-free":                 0,
 	"music-cover-free":               0,
+	"music_cover_preprocess":         0,
+	"lyrics_generation":              0.05 / USD2RMB,
 }
 
 var defaultAudioRatio = map[string]float64{

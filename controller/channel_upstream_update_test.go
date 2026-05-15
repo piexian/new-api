@@ -1,10 +1,14 @@
 package controller
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/stretchr/testify/require"
 )
 
@@ -125,6 +129,31 @@ func TestCollectPendingUpstreamModelChangesFromModels_WithIgnoredRegexPatterns(t
 
 	require.Equal(t, []string{"claude-3-5-sonnet"}, pendingAddModels)
 	require.Equal(t, []string{}, pendingRemoveModels)
+}
+
+func TestFetchChannelUpstreamModelIDsMiniMaxNormalizesBaseURLAndKeepsNativeEndpointModels(t *testing.T) {
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		require.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"MiniMax-M2.7","object":"model"}]}`))
+	}))
+	defer server.Close()
+
+	baseURL := server.URL + "/v1"
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeMiniMax,
+		Key:     "test-key",
+		BaseURL: &baseURL,
+	}
+
+	models, err := fetchChannelUpstreamModelIDs(channel)
+	require.NoError(t, err)
+	require.Equal(t, "/v1/models", gotPath)
+	require.Contains(t, models, "MiniMax-M2.7")
+	require.Contains(t, models, minimax.MusicCoverPreprocessModel)
+	require.Contains(t, models, minimax.LyricsGenerationModel)
 }
 
 func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *testing.T) {

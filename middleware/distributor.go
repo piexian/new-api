@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -262,6 +263,24 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
 		}
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/music_generation") {
+		req, err := getModelFromRequest(c)
+		if err != nil {
+			return nil, false, err
+		}
+		modelRequest.Model = req.Model
+		c.Set("relay_mode", relayconstant.RelayModeMiniMaxMusicGeneration)
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/music_cover_preprocess") {
+		req, err := getModelFromRequest(c)
+		if err != nil {
+			return nil, false, err
+		}
+		common.SetContextKey(c, constant.ContextKeyMiniMaxUpstreamModel, req.Model)
+		modelRequest.Model = minimax.MusicCoverPreprocessModel
+		c.Set("relay_mode", relayconstant.RelayModeMiniMaxMusicCoverPreprocess)
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/lyrics_generation") {
+		modelRequest.Model = minimax.LyricsGenerationModel
+		c.Set("relay_mode", relayconstant.RelayModeMiniMaxLyricsGeneration)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini

@@ -418,6 +418,12 @@ func GenRelayInfoImage(c *gin.Context, request dto.Request) *RelayInfo {
 	return info
 }
 
+func GenRelayInfoMiniMax(c *gin.Context, request dto.Request) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	info.RelayFormat = types.RelayFormatMiniMax
+	return info
+}
+
 func GenRelayInfoOpenAI(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatOpenAI
@@ -552,6 +558,8 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoGemini(c, request)
 	case types.RelayFormatEmbedding:
 		info = GenRelayInfoEmbedding(c, request)
+	case types.RelayFormatMiniMax:
+		info = GenRelayInfoMiniMax(c, request)
 	case types.RelayFormatOpenAIResponses:
 		if request, ok := request.(*dto.OpenAIResponsesRequest); ok {
 			info = GenRelayInfoResponses(c, request)

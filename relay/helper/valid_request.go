@@ -47,10 +47,49 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidAudioRequest(c, relayMode)
 	case types.RelayFormatOpenAIRealtime:
 		request = &dto.BaseRequest{}
+	case types.RelayFormatMiniMax:
+		request, err = GetAndValidateMiniMaxRequest(c, relayMode)
 	default:
 		return nil, fmt.Errorf("unsupported relay format: %s", format)
 	}
 	return request, err
+}
+
+func GetAndValidateMiniMaxRequest(c *gin.Context, relayMode int) (dto.Request, error) {
+	switch relayMode {
+	case relayconstant.RelayModeMiniMaxMusicGeneration:
+		request := &dto.MiniMaxMusicGenerationRequest{}
+		if err := common.UnmarshalBodyReusable(c, request); err != nil {
+			return nil, err
+		}
+		if request.Model == "" {
+			return nil, errors.New("model is required")
+		}
+		return request, nil
+	case relayconstant.RelayModeMiniMaxMusicCoverPreprocess:
+		request := &dto.MiniMaxMusicCoverPreprocessRequest{}
+		if err := common.UnmarshalBodyReusable(c, request); err != nil {
+			return nil, err
+		}
+		if request.Model == "" {
+			return nil, errors.New("model is required")
+		}
+		if request.AudioURL == "" && request.AudioBase64 == "" {
+			return nil, errors.New("audio_url or audio_base64 is required")
+		}
+		return request, nil
+	case relayconstant.RelayModeMiniMaxLyricsGeneration:
+		request := &dto.MiniMaxLyricsGenerationRequest{}
+		if err := common.UnmarshalBodyReusable(c, request); err != nil {
+			return nil, err
+		}
+		if request.Mode == "" {
+			return nil, errors.New("mode is required")
+		}
+		return request, nil
+	default:
+		return nil, fmt.Errorf("unsupported minimax relay mode: %d", relayMode)
+	}
 }
 
 func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, error) {

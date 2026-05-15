@@ -139,6 +139,17 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIAudio)
 		})
 
+		// MiniMax native music routes
+		httpRouter.POST("/music_generation", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatMiniMax)
+		})
+		httpRouter.POST("/music_cover_preprocess", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatMiniMax)
+		})
+		httpRouter.POST("/lyrics_generation", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatMiniMax)
+		})
+
 		// rerank related routes
 		httpRouter.POST("/rerank", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatRerank)

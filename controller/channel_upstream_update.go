@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/cohere"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
 	"github.com/QuantumNous/new-api/service"
@@ -269,6 +270,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypePoe {
 		baseURL = poe.NormalizeBaseURL(baseURL)
 	}
+	if channel.Type == constant.ChannelTypeMiniMax {
+		baseURL = minimax.NormalizeBaseURL(baseURL)
+	}
 
 	if channel.Type == constant.ChannelTypeOllama {
 		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])
@@ -367,6 +371,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		}
 		return item.ID
 	})
+	if channel.Type == constant.ChannelTypeMiniMax {
+		ids = mergeModelNames(ids, minimax.NativeEndpointModelList)
+	}
 
 	return normalizeModelNames(ids), nil
 }
