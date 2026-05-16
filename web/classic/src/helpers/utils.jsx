@@ -146,6 +146,15 @@ export function getAccountDisabledDialogPayload(error) {
       typeof businessData.disable_reason === 'string'
         ? businessData.disable_reason
         : '',
+    userId:
+      typeof businessData.user_id === 'number' ||
+      typeof businessData.user_id === 'string'
+        ? businessData.user_id
+        : undefined,
+    username:
+      typeof businessData.username === 'string'
+        ? businessData.username
+        : '',
   };
 }
 
@@ -154,7 +163,7 @@ export function showAccountDisabledDialog(payload) {
     return;
   }
 
-  const key = `${payload?.message || ''}\n${payload?.reason || ''}`;
+  const key = `${payload?.message || ''}\n${payload?.reason || ''}\n${payload?.userId || ''}\n${payload?.username || ''}`;
   const now = Date.now();
   if (key === lastAccountDisabledDialogKey && now - lastAccountDisabledDialogAt < 500) {
     return;

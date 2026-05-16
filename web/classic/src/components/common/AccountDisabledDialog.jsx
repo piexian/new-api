@@ -56,11 +56,57 @@ export default function AccountDisabledDialog() {
     );
   }, [payload, t]);
 
+  const accountMeta = useMemo(() => {
+    const items = [];
+    if (
+      payload?.userId !== undefined &&
+      payload?.userId !== null &&
+      String(payload.userId).trim() !== '' &&
+      String(payload.userId) !== '0'
+    ) {
+      items.push(`ID: ${payload.userId}`);
+    }
+    if (typeof payload?.username === 'string' && payload.username.trim()) {
+      items.push(payload.username.trim());
+    }
+    return items.join(' · ');
+  }, [payload]);
+
   const closeDialog = () => setPayload(null);
 
   return (
     <Modal
-      title={t('账号已被封禁')}
+      title={
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 8,
+          }}
+        >
+          {accountMeta && (
+            <span
+              style={{
+                maxWidth: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                border: '1px solid var(--semi-color-border)',
+                borderRadius: 6,
+                padding: '2px 8px',
+                color: 'var(--semi-color-text-2)',
+                background: 'var(--semi-color-fill-0)',
+                fontSize: 12,
+                fontWeight: 500,
+              }}
+            >
+              {accountMeta}
+            </span>
+          )}
+          <span>{t('账号已被封禁')}</span>
+        </div>
+      }
       visible={Boolean(payload)}
       onCancel={closeDialog}
       footer={<Button onClick={closeDialog}>{t('关闭')}</Button>}

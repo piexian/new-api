@@ -48,11 +48,34 @@ export function AccountDisabledDialog() {
     return t('This account has been disabled.')
   }, [payload, t])
 
+  const accountMeta = useMemo(() => {
+    const items: string[] = []
+    if (
+      payload?.userId !== undefined &&
+      payload.userId !== null &&
+      String(payload.userId).trim() !== '' &&
+      String(payload.userId) !== '0'
+    ) {
+      items.push(`ID: ${payload.userId}`)
+    }
+    if (hasContent(payload?.username)) {
+      items.push(payload.username.trim())
+    }
+    return items.join(' · ')
+  }, [payload])
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className='max-h-[calc(100dvh-2rem)] overflow-hidden sm:max-w-2xl'>
         <DialogHeader className='pr-8 text-start'>
-          <DialogTitle>{payload?.title || t('Account disabled')}</DialogTitle>
+          <div className='flex flex-wrap items-center gap-2'>
+            {accountMeta && (
+              <span className='inline-flex max-w-full items-center rounded-md border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground'>
+                <span className='truncate'>{accountMeta}</span>
+              </span>
+            )}
+            <DialogTitle>{payload?.title || t('Account disabled')}</DialogTitle>
+          </div>
         </DialogHeader>
         <div className='max-h-[min(70dvh,42rem)] overflow-y-auto rounded-lg border bg-muted/20 p-4'>
           <Markdown className='prose-neutral dark:prose-invert'>

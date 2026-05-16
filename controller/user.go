@@ -41,8 +41,12 @@ func disabledUserMessage(c *gin.Context, user *model.User) string {
 
 func apiDisabledUser(c *gin.Context, user *model.User) {
 	reason := ""
+	userId := 0
+	username := ""
 	if user != nil {
 		reason = strings.TrimSpace(user.DisableReason)
+		userId = user.Id
+		username = user.Username
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": false,
@@ -50,6 +54,8 @@ func apiDisabledUser(c *gin.Context, user *model.User) {
 		"data": gin.H{
 			"error_type":     "user_disabled",
 			"disable_reason": reason,
+			"user_id":        userId,
+			"username":       username,
 		},
 	})
 }

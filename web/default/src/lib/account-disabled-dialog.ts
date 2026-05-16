@@ -2,6 +2,8 @@ export type AccountDisabledDialogPayload = {
   title?: string
   message?: string
   reason?: string
+  userId?: number | string
+  username?: string
 }
 
 export const ACCOUNT_DISABLED_DIALOG_EVENT = 'newapi:account-disabled-dialog'

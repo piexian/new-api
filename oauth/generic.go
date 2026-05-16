@@ -240,8 +240,8 @@ func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToke
 
 	// Extract fields using gjson (supports JSONPath-like syntax)
 	userId := gjson.Get(bodyStr, p.config.UserIdField).String()
-	username := gjson.Get(bodyStr, p.config.UsernameField).String()
 	displayName := gjson.Get(bodyStr, p.config.DisplayNameField).String()
+	username := normalizeProviderUsername(displayName, gjson.Get(bodyStr, p.config.UsernameField).String())
 	email := gjson.Get(bodyStr, p.config.EmailField).String()
 
 	// If user ID field returns a number, convert it
@@ -323,6 +323,47 @@ func normalizeAuthorizationTokenType(tokenType string) string {
 		return "Bearer"
 	}
 	return tokenType
+}
+
+func normalizeProviderUsername(displayName string, username string) string {
+	if normalized := normalizeUsernameCandidate(displayName); normalized != "" {
+		return normalized
+	}
+	return normalizeUsernameCandidate(username)
+}
+
+func normalizeUsernameCandidate(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if len(value) <= model.UserNameMaxLength {
+		return value
+	}
+
+	if localPart, _, ok := strings.Cut(value, "@"); ok {
+		localPart = strings.TrimSpace(localPart)
+		if localPart == "" {
+			return ""
+		}
+		value = localPart
+	}
+
+	if len(value) <= model.UserNameMaxLength {
+		return value
+	}
+
+	end := 0
+	for index := range value {
+		if index > model.UserNameMaxLength {
+			break
+		}
+		end = index
+	}
+	if end == 0 {
+		return value[:model.UserNameMaxLength]
+	}
+	return value[:end]
 }
 
 // IsGenericProvider returns true for generic providers

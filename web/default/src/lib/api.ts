@@ -55,6 +55,8 @@ api.get = ((url: string, config = {}) => {
 type BusinessErrorData = {
   error_type?: unknown
   disable_reason?: unknown
+  user_id?: unknown
+  username?: unknown
 }
 
 function isAccountDisabledResponse(data: unknown) {
@@ -80,11 +82,22 @@ function showBusinessError(data: unknown) {
       typeof responseData.data?.disable_reason === 'string'
         ? responseData.data.disable_reason
         : ''
+    const rawUserId = responseData.data?.user_id
+    const userId =
+      typeof rawUserId === 'number' || typeof rawUserId === 'string'
+        ? rawUserId
+        : undefined
+    const username =
+      typeof responseData.data?.username === 'string'
+        ? responseData.data.username
+        : undefined
 
     showAccountDisabledDialog({
       title: i18next.t('Account disabled'),
       message,
       reason,
+      userId,
+      username,
     })
     return
   }
