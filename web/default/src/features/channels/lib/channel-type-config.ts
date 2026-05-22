@@ -116,6 +116,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://api.replicate.com',
     },
   },
+  62: {
+    id: 62,
+    name: CHANNEL_TYPES[62],
+    icon: 'xiaomimimo',
+    defaultBaseUrl: 'https://api.xiaomimimo.com',
+    hints: {
+      baseUrl: 'Default: https://api.xiaomimimo.com',
+      key: 'Xiaomi MiMo API Key',
+      models: 'mimo-v2.5-pro,mimo-v2.5,mimo-v2-pro,mimo-v2-omni,mimo-v2-flash',
+    },
+  },
 }
 
 /**

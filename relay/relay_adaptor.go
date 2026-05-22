@@ -45,6 +45,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
 	"github.com/QuantumNous/new-api/relay/channel/xai"
+	"github.com/QuantumNous/new-api/relay/channel/xiaomimimo"
 	"github.com/QuantumNous/new-api/relay/channel/xunfei"
 	xunfeimaasimage "github.com/QuantumNous/new-api/relay/channel/xunfei_maas_image"
 	"github.com/QuantumNous/new-api/relay/channel/zhipu"
@@ -126,6 +127,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &poe.Adaptor{}
 	case constant.APITypeXunfeiMaaSImage:
 		return &xunfeimaasimage.Adaptor{}
+	case constant.APITypeXiaomiMiMo:
+		return &xiaomimimo.Adaptor{}
 	}
 	return nil
 }

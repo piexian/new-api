@@ -83,6 +83,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeOpenAI
 	case constant.ChannelTypeXunfeiMaaSImage:
 		apiType = constant.APITypeXunfeiMaaSImage
+	case constant.ChannelTypeXiaomiMiMo:
+		apiType = constant.APITypeXiaomiMiMo
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

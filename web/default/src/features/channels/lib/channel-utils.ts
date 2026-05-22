@@ -101,6 +101,7 @@ export function getChannelTypeIcon(type: number): string {
     59: 'Poe', // Poe
     60: 'Spark', // Xunfei MaaS
     61: 'Spark', // Xunfei MaaS Image
+    62: 'XiaomiMiMo', // Xiaomi MiMo
   }
 
   return TYPE_TO_ICON[type] || 'OpenAI'

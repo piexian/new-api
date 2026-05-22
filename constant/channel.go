@@ -59,6 +59,7 @@ const (
 	ChannelTypePoe             = 59
 	ChannelTypeXunfeiMaaS      = 60
 	ChannelTypeXunfeiMaaSImage = 61
+	ChannelTypeXiaomiMiMo     = 62
 	ChannelTypeDummy           // this one is only for count, do not add any channel after this
 
 )
@@ -126,6 +127,7 @@ var ChannelBaseURLs = []string{
 	"https://api.poe.com",                       //59
 	"https://maas-api.cn-huabei-1.xf-yun.com/v2",     //60
 	"https://xingchen-api.cn-huabei-1.xf-yun.com/v2", //61
+	"https://api.xiaomimimo.com",                     //62
 }
 
 var ChannelTypeNames = map[int]string{
@@ -187,6 +189,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypePoe:             "Poe",
 	ChannelTypeXunfeiMaaS:      "XunfeiMaaS",
 	ChannelTypeXunfeiMaaSImage: "XunfeiMaaSImage",
+	ChannelTypeXiaomiMiMo:     "XiaomiMiMo",
 }
 
 func GetChannelTypeName(channelType int) string {

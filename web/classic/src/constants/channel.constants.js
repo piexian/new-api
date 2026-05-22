@@ -206,12 +206,17 @@ export const CHANNEL_OPTIONS = [
     color: 'cyan',
     label: '讯飞星辰MaaS图片生成',
   },
+  {
+    value: 62,
+    color: 'green',
+    label: 'XiaomiMiMo',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.
 export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
   1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, CHANNEL_TYPE_MINIMAX, 40,
-  42, 48, 43, 58, 59,
+  42, 48, 43, 58, 59, 62,
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;
