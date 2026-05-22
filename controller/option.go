@@ -165,6 +165,14 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "QQOAuthEnabled":
+		if option.Value == "true" && common.QQClientId == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用 QQ OAuth，请先填入 QQ App ID 以及 App Key！",
+			})
+			return
+		}
 	case "EmailDomainRestrictionEnabled":
 		if option.Value == "true" && len(common.EmailDomainWhitelist) == 0 {
 			c.JSON(http.StatusOK, gin.H{

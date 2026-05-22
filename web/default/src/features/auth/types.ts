@@ -83,6 +83,8 @@ export interface SystemStatus {
     oidc_client_id?: string
     linuxdo_oauth?: boolean
     linuxdo_client_id?: string
+    qq_oauth?: boolean
+    qq_client_id?: string
     telegram_oauth?: boolean
     passkey_login?: boolean
     wechat_login?: boolean
@@ -125,6 +127,8 @@ export interface SystemStatus {
   oidc_client_id?: string
   linuxdo_oauth?: boolean
   linuxdo_client_id?: string
+  qq_oauth?: boolean
+  qq_client_id?: string
   telegram_oauth?: boolean
   passkey_login?: boolean
   wechat_login?: boolean
@@ -161,7 +165,7 @@ export interface SystemStatus {
 
 export interface OAuthProvider {
   name: string
-  type: 'github' | 'discord' | 'oidc' | 'linuxdo' | 'telegram' | 'wechat'
+  type: 'github' | 'discord' | 'oidc' | 'linuxdo' | 'telegram' | 'qq' | 'wechat'
   enabled: boolean
   clientId?: string
   authEndpoint?: string

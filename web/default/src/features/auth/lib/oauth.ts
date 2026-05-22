@@ -5,6 +5,7 @@ export {
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
+  buildQQOAuthUrl,
 } from '@/lib/oauth'
 
 // ============================================================================
@@ -66,6 +67,15 @@ export function getAvailableOAuthProviders(
     })
   }
 
+  if (status.qq_oauth) {
+    providers.push({
+      name: 'QQ',
+      type: 'qq',
+      enabled: true,
+      clientId: status.qq_client_id,
+    })
+  }
+
   return providers
 }
 
@@ -80,6 +90,7 @@ export function hasOAuthProviders(status: SystemStatus | null): boolean {
     status.oidc_enabled ||
     status.linuxdo_oauth ||
     status.telegram_oauth ||
+    status.qq_oauth ||
     status.wechat_login
   )
 }

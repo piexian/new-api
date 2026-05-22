@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Mail, Shield, Send, Link2, Unlink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { SiGithub, SiWechat, SiLinux } from 'react-icons/si'
+import { SiGithub, SiWechat, SiLinux, SiQq } from 'react-icons/si'
 import { toast } from 'sonner'
 import { IconDiscord } from '@/assets/brand-icons'
 import {
@@ -9,6 +9,7 @@ import {
   handleOIDCOAuth,
   handleDiscordOAuth,
   handleLinuxDOOAuth,
+  handleQQOAuth,
 } from '@/lib/oauth'
 import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
@@ -234,6 +235,21 @@ export function AccountBindingsTab({
         onBind: () => {
           if (status?.linuxdo_client_id) {
             handleLinuxDOOAuth(status.linuxdo_client_id)
+          }
+        },
+      },
+      {
+        id: 'qq',
+        label: t('QQ'),
+        icon: SiQq as React.ComponentType<{ className?: string }>,
+        value: (profile as unknown as Record<string, unknown>).qq_id as
+          | string
+          | undefined,
+        isBound: Boolean((profile as unknown as Record<string, unknown>).qq_id),
+        isEnabled: status?.qq_oauth || false,
+        onBind: () => {
+          if (status?.qq_client_id) {
+            handleQQOAuth(status.qq_client_id)
           }
         },
       },

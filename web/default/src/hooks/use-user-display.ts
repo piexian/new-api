@@ -30,6 +30,7 @@ export function useUserDisplay(user: AuthUser | null | undefined) {
       if (user.wechat_id) return `WeChat ID: ${user.wechat_id}`
       if (user.telegram_id) return `Telegram ID: ${user.telegram_id}`
       if (user.linux_do_id) return `LinuxDO ID: ${user.linux_do_id}`
+      if (user.qq_id) return `QQ ID: ${user.qq_id}`
       if (user.username) return user.username
       if (user.display_name) return user.display_name
       return ''

@@ -63,6 +63,8 @@ export interface UserProfile {
   telegram_id?: string
   /** LinuxDO ID (OAuth) */
   linux_do_id?: string
+  /** QQ ID (OAuth) */
+  qq_id?: string
   /** Whether the account has a password set */
   has_password?: boolean
   /** Yearly username change limit */

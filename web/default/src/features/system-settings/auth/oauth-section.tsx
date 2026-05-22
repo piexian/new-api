@@ -45,6 +45,9 @@ const oauthSchema = z.object({
   LinuxDOClientId: z.string().optional(),
   LinuxDOClientSecret: z.string().optional(),
   LinuxDOMinimumTrustLevel: z.string().optional(),
+  QQOAuthEnabled: z.boolean(),
+  QQClientId: z.string().optional(),
+  QQClientSecret: z.string().optional(),
   WeChatAuthEnabled: z.boolean(),
   WeChatServerAddress: z.string().optional(),
   WeChatServerToken: z.string().optional(),
@@ -81,6 +84,8 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     LinuxDOClientId: defaultValues.LinuxDOClientId ?? '',
     LinuxDOClientSecret: defaultValues.LinuxDOClientSecret ?? '',
     LinuxDOMinimumTrustLevel: defaultValues.LinuxDOMinimumTrustLevel ?? '',
+    QQClientId: defaultValues.QQClientId ?? '',
+    QQClientSecret: defaultValues.QQClientSecret ?? '',
     WeChatServerAddress: defaultValues.WeChatServerAddress ?? '',
     WeChatServerToken: defaultValues.WeChatServerToken ?? '',
     WeChatAccountQRCodeImageURL:
@@ -241,12 +246,13 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
             <FormDirtyIndicator isDirty={form.formState.isDirty} />
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className='grid w-full grid-cols-6'>
+              <TabsList className='grid w-full grid-cols-7'>
                 <TabsTrigger value='github'>{t('GitHub')}</TabsTrigger>
                 <TabsTrigger value='discord'>{t('Discord')}</TabsTrigger>
                 <TabsTrigger value='oidc'>{t('OIDC')}</TabsTrigger>
                 <TabsTrigger value='telegram'>{t('Telegram')}</TabsTrigger>
                 <TabsTrigger value='linuxdo'>{t('LinuxDO')}</TabsTrigger>
+                <TabsTrigger value='qq'>{t('QQ')}</TabsTrigger>
                 <TabsTrigger value='wechat'>{t('WeChat')}</TabsTrigger>
               </TabsList>
 
@@ -654,6 +660,73 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                       <FormDescription>
                         {t('Minimum LinuxDO trust level required')}
                       </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value='qq' className='space-y-4'>
+                <FormField
+                  control={form.control}
+                  name='QQOAuthEnabled'
+                  render={({ field }) => (
+                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-base'>
+                          {t('Enable QQ OAuth')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t('Allow users to sign in with QQ')}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='QQClientId'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('App ID')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('QQ Connect App ID')}
+                          autoComplete='off'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t('Callback URL: {{url}}', {
+                          url: `${window.location.origin}/oauth/qq`,
+                        })}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='QQClientSecret'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('App Key')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='password'
+                          placeholder={t('QQ Connect App Key')}
+                          autoComplete='new-password'
+                          {...field}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

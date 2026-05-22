@@ -10,6 +10,7 @@ import {
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
+  buildQQOAuthUrl,
 } from '../lib/oauth'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
 
@@ -171,6 +172,27 @@ export function useOAuthLogin(status: SystemStatus | null) {
     toast.info(t('Telegram login requires widget integration; coming soon'))
   }
 
+  const handleQQLogin = async () => {
+    if (!status?.qq_client_id) return
+
+    setIsLoading(true)
+    try {
+      await resetSession()
+      const state = await getOAuthState()
+      if (!state) {
+        toast.error(t('Failed to initialize OAuth'))
+        return
+      }
+
+      const url = buildQQOAuthUrl(status.qq_client_id, state)
+      window.open(url, '_self')
+    } catch (_error) {
+      toast.error(t('Failed to start QQ login'))
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleCustomOAuthLogin = async (provider: CustomOAuthProviderInfo) => {
     if (!provider.authorization_endpoint || !provider.client_id) return
 
@@ -212,6 +234,7 @@ export function useOAuthLogin(status: SystemStatus | null) {
     handleOIDCLogin,
     handleLinuxDOLogin,
     handleTelegramLogin,
+    handleQQLogin,
     handleCustomOAuthLogin,
   }
 }

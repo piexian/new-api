@@ -35,6 +35,7 @@ import {
   onDiscordOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
+  onQQOAuthClicked,
   onCustomOAuthClicked,
   prepareCredentialRequestOptions,
   buildAssertionResult,
@@ -65,7 +66,7 @@ import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
 import TwoFAVerification from './TwoFAVerification';
 import { useTranslation } from 'react-i18next';
-import { SiDiscord } from 'react-icons/si';
+import { SiDiscord, SiTencentqq } from 'react-icons/si';
 import { LOGIN_FEATURE_UPDATE_PROMPT_KEY } from '../../constants/common.constant';
 
 const LoginForm = () => {
@@ -96,6 +97,7 @@ const LoginForm = () => {
   const [discordLoading, setDiscordLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
+  const [qqLoading, setQqLoading] = useState(false);
   const [emailLoginLoading, setEmailLoginLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
@@ -144,6 +146,7 @@ const LoginForm = () => {
       status.oidc_enabled ||
       status.wechat_login ||
       status.linuxdo_oauth ||
+      status.qq_oauth ||
       status.telegram_oauth ||
       hasCustomOAuthProviders,
   );
@@ -197,7 +200,7 @@ const LoginForm = () => {
       const res = await API.get(
         `/api/oauth/wechat?code=${inputs.wechat_verification_code}`,
       );
-      const { success, message, data } = res.data;
+      const { success, data } = res.data;
       if (success) {
         markFeatureUpdatePromptPending();
         userDispatch({ type: 'login', payload: data });
@@ -208,7 +211,7 @@ const LoginForm = () => {
         showSuccess('登录成功！');
         setShowWeChatLoginModal(false);
       } else {
-        showError(message);
+        showError(res.data);
       }
     } catch (error) {
       showError('登录失败，请重试');
@@ -241,7 +244,7 @@ const LoginForm = () => {
             password,
           },
         );
-        const { success, message, data } = res.data;
+        const { success, data } = res.data;
         if (success) {
           // 检查是否需要2FA验证
           if (data && data.require_2fa) {
@@ -264,7 +267,7 @@ const LoginForm = () => {
           }
           navigate('/console');
         } else {
-          showError(message);
+          showError(res.data);
         }
       } else {
         showError('请输入用户名和密码！');
@@ -300,7 +303,7 @@ const LoginForm = () => {
     });
     try {
       const res = await API.get(`/api/oauth/telegram/login`, { params });
-      const { success, message, data } = res.data;
+      const { success, data } = res.data;
       if (success) {
         markFeatureUpdatePromptPending();
         userDispatch({ type: 'login', payload: data });
@@ -310,7 +313,7 @@ const LoginForm = () => {
         updateAPI();
         navigate('/');
       } else {
-        showError(message);
+        showError(res.data);
       }
     } catch (error) {
       showError('登录失败，请重试');
@@ -392,6 +395,19 @@ const LoginForm = () => {
     } finally {
       // 由于重定向，这里不会执行到，但为了完整性添加
       setTimeout(() => setLinuxdoLoading(false), 3000);
+    }
+  };
+
+  const handleQQClick = () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    setQqLoading(true);
+    try {
+      onQQOAuthClicked(status.qq_client_id, { shouldLogout: true });
+    } finally {
+      setTimeout(() => setQqLoading(false), 3000);
     }
   };
 
@@ -610,6 +626,27 @@ const LoginForm = () => {
                     loading={linuxdoLoading}
                   >
                     <span className='ml-3'>{t('使用 LinuxDO 继续')}</span>
+                  </Button>
+                )}
+
+                {status.qq_oauth && (
+                  <Button
+                    theme='outline'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    type='tertiary'
+                    icon={
+                      <SiTencentqq
+                        style={{
+                          color: '#12B7F5',
+                          width: '20px',
+                          height: '20px',
+                        }}
+                      />
+                    }
+                    onClick={handleQQClick}
+                    loading={qqLoading}
+                  >
+                    <span className='ml-3'>{t('使用 QQ 继续')}</span>
                   </Button>
                 )}
 

@@ -46,8 +46,19 @@ export function PresetSelector(props: PresetSelectorProps) {
     props.form.setValue('email_field', preset.email_field, {
       shouldDirty: true,
     })
+    props.form.setValue('well_known', preset.well_known || '', {
+      shouldDirty: true,
+    })
+    props.form.setValue('auth_style', preset.auth_style ?? 0, {
+      shouldDirty: true,
+    })
 
-    // Apply base URL if already entered
+    if (!preset.needsBaseUrl) {
+      setBaseUrl('')
+      applyEndpoints(preset, '')
+      return
+    }
+
     if (baseUrl) {
       applyEndpoints(preset, baseUrl)
     }
@@ -67,7 +78,7 @@ export function PresetSelector(props: PresetSelectorProps) {
     preset: (typeof OAUTH_PRESETS)[number],
     url: string
   ) => {
-    const cleanUrl = url.replace(/\/+$/, '')
+    const cleanUrl = preset.needsBaseUrl ? url.replace(/\/+$/, '') : ''
     props.form.setValue(
       'authorization_endpoint',
       cleanUrl + preset.authorization_endpoint,
@@ -119,6 +130,12 @@ export function PresetSelector(props: PresetSelectorProps) {
             placeholder={t('https://your-server.example.com')}
             value={baseUrl}
             onChange={(e) => handleBaseUrlChange(e.target.value)}
+            disabled={
+              selectedPreset
+                ? !OAUTH_PRESETS.find((p) => p.key === selectedPreset)
+                    ?.needsBaseUrl
+                : false
+            }
           />
         </div>
       </div>

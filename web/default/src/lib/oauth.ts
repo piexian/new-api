@@ -51,6 +51,19 @@ export function buildLinuxDOOAuthUrl(clientId: string, state: string): string {
   return `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${clientId}&state=${state}`
 }
 
+/**
+ * Build QQ OAuth URL
+ */
+export function buildQQOAuthUrl(clientId: string, state: string): string {
+  const url = new URL('https://graph.qq.com/oauth2.0/authorize')
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('client_id', clientId)
+  url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/qq`)
+  url.searchParams.set('state', state)
+  url.searchParams.set('scope', 'get_user_info')
+  return url.toString()
+}
+
 // ============================================================================
 // OAuth Helper Functions
 // ============================================================================
@@ -122,5 +135,16 @@ export async function handleLinuxDOOAuth(clientId: string): Promise<void> {
   if (!state) return
 
   const url = buildLinuxDOOAuthUrl(clientId, state)
+  window.open(url, '_blank')
+}
+
+/**
+ * Handle QQ OAuth binding/login
+ */
+export async function handleQQOAuth(clientId: string): Promise<void> {
+  const state = await getOAuthState()
+  if (!state) return
+
+  const url = buildQQOAuthUrl(clientId, state)
   window.open(url, '_blank')
 }

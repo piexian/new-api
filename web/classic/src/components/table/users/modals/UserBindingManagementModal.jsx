@@ -40,7 +40,13 @@ import {
   IconDelete,
   IconGithubLogo,
 } from '@douyinfe/semi-icons';
-import { SiDiscord, SiTelegram, SiWechat, SiLinux } from 'react-icons/si';
+import {
+  SiDiscord,
+  SiTelegram,
+  SiWechat,
+  SiLinux,
+  SiTencentqq,
+} from 'react-icons/si';
 
 const { Text } = Typography;
 
@@ -92,6 +98,7 @@ const UserBindingManagementModal = ({
           wechat_id: userData.wechat_id || '',
           telegram_id: userData.telegram_id || '',
           linux_do_id: userData.linux_do_id || '',
+          qq_id: userData.qq_id || '',
         });
       } else {
         showError(userRes.data?.message || t('操作失败'));
@@ -270,6 +277,16 @@ const UserBindingManagementModal = ({
       value: getBuiltInBindingValue('linux_do_id'),
       icon: (
         <SiLinux size={20} className='text-slate-600 dark:text-slate-300' />
+      ),
+    },
+    {
+      key: 'qq',
+      field: 'qq_id',
+      name: 'QQ',
+      enabled: Boolean(statusInfo.qq_oauth),
+      value: getBuiltInBindingValue('qq_id'),
+      icon: (
+        <SiTencentqq size={20} className='text-slate-600 dark:text-slate-300' />
       ),
     },
   ];

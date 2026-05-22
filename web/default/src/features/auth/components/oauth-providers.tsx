@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { SiQq } from 'react-icons/si'
 import {
   IconDiscord,
   IconGithub,
@@ -44,6 +45,7 @@ export function OAuthProviders({
     handleOIDCLogin,
     handleLinuxDOLogin,
     handleTelegramLogin,
+    handleQQLogin,
     handleCustomOAuthLogin,
   } = useOAuthLogin(status)
 
@@ -100,6 +102,15 @@ export function OAuthProviders({
       key: 'telegram',
       label: t('Continue with Telegram'),
       onClick: handleTelegramLogin,
+    })
+  }
+
+  if (status?.qq_oauth) {
+    providerButtons.push({
+      key: 'qq',
+      label: t('Continue with QQ'),
+      onClick: handleQQLogin,
+      icon: <SiQq className='h-4 w-4' />,
     })
   }
 

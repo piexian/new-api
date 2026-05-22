@@ -11,7 +11,7 @@ import {
   EyeOff,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { SiGithub, SiDiscord } from 'react-icons/si'
+import { SiGithub, SiDiscord, SiQq } from 'react-icons/si'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -66,6 +66,7 @@ interface StatusInfo {
   wechat_login?: boolean
   telegram_oauth?: boolean
   linuxdo_oauth?: boolean
+  qq_oauth?: boolean
   custom_oauth_providers?: Array<{
     id: string
     name: string
@@ -128,6 +129,13 @@ const BUILTIN_BINDINGS: ReadonlyArray<{
     label: 'LinuxDO',
     icon: <Globe className='h-4 w-4' />,
     statusKey: 'linuxdo_oauth',
+  },
+  {
+    key: 'qq_id',
+    field: 'qq_id',
+    label: 'QQ',
+    icon: <SiQq className='h-4 w-4' />,
+    statusKey: 'qq_oauth',
   },
 ]
 
