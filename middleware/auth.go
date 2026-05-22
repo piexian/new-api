@@ -33,19 +33,25 @@ func validUserInfo(username string, role int) bool {
 	return true
 }
 
-func disabledUserBusinessResponse(c *gin.Context, reason string, userId int, username string) {
-	message := common.TranslateMessage(c, i18n.MsgAuthUserBanned)
-	if strings.TrimSpace(reason) != "" {
-		message = common.TranslateMessage(c, i18n.MsgUserDisabledWithReason, map[string]any{
-			"Reason": strings.TrimSpace(reason),
-		})
+func disabledUserMessage(c *gin.Context, reason string) string {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return common.TranslateMessage(c, i18n.MsgAuthUserBanned)
 	}
+	return common.TranslateMessage(c, i18n.MsgUserDisabledWithReason, map[string]any{
+		"Reason": reason,
+	})
+}
+
+func disabledUserBusinessResponse(c *gin.Context, reason string, userId int, username string) {
+	reason = strings.TrimSpace(reason)
+	message := disabledUserMessage(c, reason)
 	c.JSON(http.StatusOK, gin.H{
 		"success": false,
 		"message": message,
 		"data": gin.H{
 			"error_type":     "user_disabled",
-			"disable_reason": strings.TrimSpace(reason),
+			"disable_reason": reason,
 			"user_id":        userId,
 			"username":       username,
 		},
@@ -397,7 +403,7 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		userEnabled := userCache.Status == common.UserStatusEnabled
 		if !userEnabled {
-			abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgAuthUserBanned))
+			abortWithOpenAiMessage(c, http.StatusForbidden, disabledUserMessage(c, userCache.DisableReason))
 			return
 		}
 
