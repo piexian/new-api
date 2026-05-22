@@ -418,7 +418,10 @@ func TokenAuth() func(c *gin.Context) {
 					return
 				}
 			}
-			userGroup = tokenGroup
+			// 仅当 token group 与用户 group 一致时才允许覆盖，防止降级用户通过旧 token 分组越权
+			if userGroup == tokenGroup {
+				userGroup = tokenGroup
+			}
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 
