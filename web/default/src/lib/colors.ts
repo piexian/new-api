@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 export type SemanticColor =
   | 'blue'
   | 'green'
@@ -15,24 +33,26 @@ export type SemanticColor =
   | 'indigo'
   | 'violet'
   | 'grey'
+  | 'slate'
 
 export const colorToBgClass: Record<SemanticColor, string> = {
-  blue: 'bg-chart-1',
-  green: 'bg-success',
-  cyan: 'bg-chart-2',
-  purple: 'bg-chart-4',
-  pink: 'bg-chart-5',
-  red: 'bg-destructive',
-  orange: 'bg-warning',
-  amber: 'bg-warning',
-  yellow: 'bg-warning',
-  lime: 'bg-chart-3',
-  'light-green': 'bg-success',
-  teal: 'bg-chart-2',
-  'light-blue': 'bg-info',
-  indigo: 'bg-chart-1',
-  violet: 'bg-chart-4',
-  grey: 'bg-neutral',
+  blue: 'bg-blue-500',
+  green: 'bg-green-500',
+  cyan: 'bg-cyan-500',
+  purple: 'bg-purple-500',
+  pink: 'bg-pink-500',
+  red: 'bg-red-500',
+  orange: 'bg-orange-500',
+  amber: 'bg-amber-500',
+  yellow: 'bg-yellow-500',
+  lime: 'bg-lime-500',
+  'light-green': 'bg-green-400',
+  teal: 'bg-teal-500',
+  'light-blue': 'bg-sky-400',
+  indigo: 'bg-indigo-500',
+  violet: 'bg-violet-500',
+  grey: 'bg-gray-400',
+  slate: 'bg-slate-500',
 }
 
 export const avatarColorMap: Record<SemanticColor, string> = {
@@ -52,6 +72,7 @@ export const avatarColorMap: Record<SemanticColor, string> = {
   indigo: 'bg-chart-1/10 text-chart-1',
   violet: 'bg-chart-4/10 text-chart-4',
   grey: 'bg-muted text-muted-foreground',
+  slate: 'bg-muted text-muted-foreground',
 }
 
 export function getAvatarColorClass(name: string): string {

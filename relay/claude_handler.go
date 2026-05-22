@@ -1,7 +1,6 @@
 package relay
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -181,10 +181,15 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			}
 		}
 
-		if common.DebugEnabled {
-			println("requestBody: ", string(jsonData))
+		logger.LogDebug(c, "requestBody: %s", jsonData)
+		body, size, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
-		requestBody = bytes.NewBuffer(jsonData)
+		defer closer.Close()
+		jsonData = nil
+		info.UpstreamRequestBodySize = size
+		requestBody = body
 	}
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")

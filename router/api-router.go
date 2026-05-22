@@ -37,7 +37,7 @@ func SetApiRouter(router *gin.Engine) {
 			perfMetricsRoute.GET("/summary", controller.GetPerfMetricsSummary)
 			perfMetricsRoute.GET("", controller.GetPerfMetrics)
 		}
-		apiRouter.GET("/rankings", controller.GetRankings)
+		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), controller.GetRankings)
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheckNoSession(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), controller.ResetPassword)
@@ -155,6 +155,7 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
 			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
 			subscriptionRoute.POST("/wallet/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWalletPay)
+			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())

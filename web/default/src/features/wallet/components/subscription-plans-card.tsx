@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -97,6 +115,7 @@ export function SubscriptionPlansCard({
 
   const enableStripe = !!topupInfo?.enable_stripe_topup
   const enableCreem = !!topupInfo?.enable_creem_topup
+  const enableWaffoPancake = !!topupInfo?.enable_waffo_pancake_topup
   const enableOnlineTopUp = !!topupInfo?.enable_online_topup
   const epayMethods = useMemo(
     () => getEpayMethods(topupInfo?.pay_methods),
@@ -240,7 +259,7 @@ export function SubscriptionPlansCard({
     <>
       <TitledCard
         title={t('Subscription Plans')}
-        description={t('Purchase a plan to enjoy model benefits')}
+        description={t('Subscribe to a plan for model access')}
         icon={<Crown className='h-4 w-4' />}
         contentClassName='space-y-4 sm:space-y-5'
       >
@@ -485,7 +504,7 @@ export function SubscriptionPlansCard({
 
           {!hasAny && (
             <p className='text-muted-foreground mt-2 text-xs'>
-              {t('Purchase a plan to enjoy model benefits')}
+              {t('Subscribe to a plan for model access')}
             </p>
           )}
         </div>
@@ -615,6 +634,7 @@ export function SubscriptionPlansCard({
         plan={selectedPlan}
         enableStripe={enableStripe}
         enableCreem={enableCreem}
+        enableWaffoPancake={enableWaffoPancake}
         enableOnlineTopUp={enableOnlineTopUp}
         epayMethods={epayMethods}
         purchaseLimit={

@@ -37,6 +37,11 @@ export type IntegrationSettings = Pick<
   PayMethods: string
   'payment_setting.amount_options': string
   'payment_setting.amount_discount': string
+  'payment_setting.compliance_confirmed': boolean
+  'payment_setting.compliance_terms_version': string
+  'payment_setting.compliance_confirmed_at': number
+  'payment_setting.compliance_confirmed_by': number
+  'payment_setting.compliance_confirmed_ip': string
   StripeApiSecret: string
   StripeWebhookSecret: string
   StripePriceId: string
@@ -144,6 +149,13 @@ const INTEGRATIONS_SECTIONS = [
           WaffoPancakeCurrency: settings.WaffoPancakeCurrency ?? 'USD',
           WaffoPancakeUnitPrice: settings.WaffoPancakeUnitPrice ?? 1,
           WaffoPancakeMinTopUp: settings.WaffoPancakeMinTopUp ?? 1,
+        }}
+        complianceDefaults={{
+          confirmed: settings['payment_setting.compliance_confirmed'] ?? false,
+          termsVersion:
+            settings['payment_setting.compliance_terms_version'] ?? '',
+          confirmedAt: settings['payment_setting.compliance_confirmed_at'] ?? 0,
+          confirmedBy: settings['payment_setting.compliance_confirmed_by'] ?? 0,
         }}
       />
     ),

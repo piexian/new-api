@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
@@ -47,6 +65,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
+import { formatPricingNumber } from './pricing-format'
 import { TieredPricingEditor } from './tiered-pricing-editor'
 
 const createModelPricingSchema = (t: (key: string) => string) =>
@@ -198,16 +217,10 @@ function toNumberOrNull(value: unknown): number | null {
   return Number.isFinite(num) ? num : null
 }
 
-function formatNumber(value: unknown): string {
-  const num = toNumberOrNull(value)
-  if (num === null) return ''
-  return Number.parseFloat(num.toFixed(12)).toString()
-}
-
 function ratioToBasePrice(ratio: unknown): string {
   const num = toNumberOrNull(ratio)
   if (num === null) return ''
-  return formatNumber(num * 2)
+  return formatPricingNumber(num * 2)
 }
 
 function deriveLanePrice(
@@ -218,7 +231,7 @@ function deriveLanePrice(
   const ratioNumber = toNumberOrNull(ratio)
   const denominatorNumber = toNumberOrNull(denominator)
   if (ratioNumber === null || denominatorNumber === null) return fallback
-  return formatNumber(ratioNumber * denominatorNumber)
+  return formatPricingNumber(ratioNumber * denominatorNumber)
 }
 
 function createInitialLaneState(data?: ModelRatioData | null) {
@@ -495,12 +508,12 @@ export function ModelPricingEditorPanel({
     if (lane === 'audioOutput') {
       const audioInputPrice = toNumberOrNull(nextLanePrices.audioInput)
       if (audioInputPrice === null || audioInputPrice === 0) return ''
-      return formatNumber(priceNumber / audioInputPrice)
+      return formatPricingNumber(priceNumber / audioInputPrice)
     }
 
     const inputPrice = toNumberOrNull(nextPromptPrice)
     if (inputPrice === null || inputPrice === 0) return ''
-    return formatNumber(priceNumber / inputPrice)
+    return formatPricingNumber(priceNumber / inputPrice)
   }
 
   const syncLaneRatios = (
@@ -511,7 +524,7 @@ export function ModelPricingEditorPanel({
     const inputPrice = toNumberOrNull(nextPromptPrice)
     setFormValue(
       'ratio',
-      inputPrice !== null ? formatNumber(inputPrice / 2) : ''
+      inputPrice !== null ? formatPricingNumber(inputPrice / 2) : ''
     )
 
     laneConfigs.forEach(({ key }) => {

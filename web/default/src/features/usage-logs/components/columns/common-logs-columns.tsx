@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { CircleAlert, Sparkles, KeyRound } from 'lucide-react'
@@ -413,9 +431,22 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                   {sensitiveVisible ? getUserAvatarFallback(log.username) : '•'}
                 </AvatarFallback>
               </Avatar>
-              <span className='text-muted-foreground truncate text-sm hover:underline'>
-                {sensitiveVisible ? log.username : '••••'}
-              </span>
+              <TooltipProvider delay={300}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline' />
+                    }
+                  >
+                    {sensitiveVisible ? log.username : '••••'}
+                  </TooltipTrigger>
+                  {sensitiveVisible && log.username.length > 12 && (
+                    <TooltipContent side='top'>
+                      {log.username}
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             </button>
           )
         },
@@ -450,15 +481,30 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       if (groupRatioText) metaParts.push(groupRatioText)
 
       return (
-        <div className='flex max-w-[150px] flex-col gap-0.5'>
-          <StatusBadge
-            label={displayName}
-            icon={KeyRound}
-            copyText={sensitiveVisible ? tokenName : undefined}
-            size='sm'
-            showDot={false}
-            className='border-border/60 bg-muted/30 text-foreground max-w-full overflow-hidden rounded-md border px-1.5 py-0.5 font-mono'
-          />
+        <div className='flex max-w-[200px] flex-col gap-0.5'>
+          <TooltipProvider delay={300}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <div className='max-w-full' />
+                }
+              >
+                <StatusBadge
+                  label={displayName}
+                  icon={KeyRound}
+                  copyText={sensitiveVisible ? tokenName : undefined}
+                  size='sm'
+                  showDot={false}
+                  className='border-border/60 bg-muted/30 text-foreground max-w-full overflow-hidden rounded-md border px-1.5 py-0.5 font-mono'
+                />
+              </TooltipTrigger>
+              {sensitiveVisible && tokenName.length > 16 && (
+                <TooltipContent side='top' className='max-w-xs break-all'>
+                  {tokenName}
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
           {metaParts.length > 0 && (
             <span className='text-muted-foreground/60 truncate text-[11px]'>
               {metaParts.join(' · ')}
@@ -468,7 +514,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       )
     },
     meta: { label: t('Token') },
-    size: 130,
+    size: 160,
   })
 
   columns.push(

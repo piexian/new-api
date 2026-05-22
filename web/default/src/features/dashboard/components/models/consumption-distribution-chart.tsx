@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { AreaChart, BarChart3, WalletCards } from 'lucide-react'
@@ -97,6 +115,15 @@ export function ConsumptionDistributionChart(
     ]
   )
   const spec = chartType === 'bar' ? chartData.spec_line : chartData.spec_area
+  const specType = typeof spec?.type === 'string' ? spec.type : chartType
+  const chartKey = [
+    chartType,
+    specType,
+    props.loading ? 'loading' : 'ready',
+    props.data.length,
+    resolvedTheme,
+    customization.preset,
+  ].join('-')
 
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -134,7 +161,7 @@ export function ConsumptionDistributionChart(
       <div className='h-[300px] p-1.5 sm:h-96 sm:p-2'>
         {themeReady && spec && (
           <VChart
-            key={`${chartType}-${resolvedTheme}-${customization.preset}`}
+            key={chartKey}
             spec={{
               ...spec,
               theme: resolvedTheme === 'dark' ? 'dark' : 'light',

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Search, Info, ChevronDown } from 'lucide-react'
@@ -47,6 +65,8 @@ type FetchModelsDialogProps = {
   onModelsSelected?: (models: string[]) => void
   redirectModels?: string[]
   redirectSourceModels?: string[]
+  customFetcher?: () => Promise<string[]>
+  existingModelsOverride?: string[]
 }
 
 export function FetchModelsDialog({
@@ -55,6 +75,8 @@ export function FetchModelsDialog({
   onModelsSelected,
   redirectModels = [],
   redirectSourceModels = [],
+  customFetcher,
+  existingModelsOverride,
 }: FetchModelsDialogProps) {
   const { t } = useTranslation()
   const { currentRow } = useChannels()
@@ -67,8 +89,10 @@ export function FetchModelsDialog({
 
   // Parse existing models
   const existingModels = useMemo(
-    () => parseModelsString(currentRow?.models || ''),
-    [currentRow?.models]
+    () =>
+      existingModelsOverride ??
+      parseModelsString(currentRow?.models || ''),
+    [existingModelsOverride, currentRow?.models]
   )
 
   // Categorize models with redirect models
@@ -103,26 +127,33 @@ export function FetchModelsDialog({
   }, [fetchedModelSet, redirectSourceKeysSet, searchKeyword, selectedModels])
 
   useEffect(() => {
-    if (open && currentRow) {
+    if (open && (currentRow || customFetcher)) {
       handleFetchModels()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, currentRow?.id])
+  }, [open, currentRow?.id, customFetcher])
 
   const handleFetchModels = async () => {
-    if (!currentRow) return
+    if (!currentRow && !customFetcher) return
 
     setIsFetching(true)
     try {
-      const response = await fetchUpstreamModels(currentRow.id)
-      if (response.success) {
-        const list = Array.isArray(response.data) ? response.data : []
+      if (customFetcher) {
+        const list = await customFetcher()
         setFetchedModels(list)
         setSelectedModels(existingModels)
         toast.success(t('Fetched {{count}} models', { count: list.length }))
       } else {
-        toast.error(response.message || t('Failed to fetch models'))
-        setFetchedModels([])
+        const response = await fetchUpstreamModels(currentRow!.id)
+        if (response.success) {
+          const list = Array.isArray(response.data) ? response.data : []
+          setFetchedModels(list)
+          setSelectedModels(existingModels)
+          toast.success(t('Fetched {{count}} models', { count: list.length }))
+        } else {
+          toast.error(response.message || t('Failed to fetch models'))
+          setFetchedModels([])
+        }
       }
     } catch (error: unknown) {
       toast.error(
@@ -135,8 +166,6 @@ export function FetchModelsDialog({
   }
 
   const handleSave = async () => {
-    if (!currentRow) return
-
     // If onModelsSelected callback is provided, use it (form filling mode)
     if (onModelsSelected) {
       onModelsSelected(selectedModels)
@@ -146,6 +175,7 @@ export function FetchModelsDialog({
     }
 
     // Otherwise, directly save to API (standalone mode)
+    if (!currentRow) return
     setIsSaving(true)
     try {
       const modelsString = selectedModels.join(',')
@@ -339,12 +369,16 @@ export function FetchModelsDialog({
         <DialogHeader>
           <DialogTitle>{t('Fetch Models')}</DialogTitle>
           <DialogDescription>
-            {t('Fetch available models for:')}{' '}
-            <strong>{currentRow?.name}</strong>
+            {currentRow
+              ? <>
+                  {t('Fetch available models for:')}{' '}
+                  <strong>{currentRow.name}</strong>
+                </>
+              : t('Fetch available models from upstream')}
           </DialogDescription>
         </DialogHeader>
 
-        {!currentRow ? (
+        {!currentRow && !customFetcher ? (
           <div className='text-muted-foreground py-8 text-center'>
             {t('No channel selected')}
           </div>

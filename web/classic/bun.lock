@@ -12,7 +12,7 @@
         "@visactor/react-vchart": "~1.8.8",
         "@visactor/vchart": "~1.8.8",
         "@visactor/vchart-semi-theme": "~1.8.8",
-        "axios": "1.15.0",
+        "axios": "1.15.2",
         "clsx": "^2.1.1",
         "dayjs": "^1.11.11",
         "history": "^5.3.0",
@@ -781,6 +781,8 @@
     "astring": ["astring@1.9.0", "https://registry.npmmirror.com/astring/-/astring-1.9.0.tgz", { "bin": { "astring": "bin/astring" } }, "sha512-LElXdjswlqjWrPpJFg1Fx4wpkOCxj1TDHlSV4PlaRxHGWko024xICaa97ZkMfs6DRKlCguiAI+rbXv5GWwXIkg=="],
 
     "async": ["async@3.2.6", "https://registry.npmmirror.com/async/-/async-3.2.6.tgz", {}, "sha512-htCUDlxyyCLMgaM3xXg0C0LW2xqfuQ6p05pCEIsXuyQ+a1koYKTuBMzRNwmybfLgvJDMd0r1LTn4+E0Ti6C2AA=="],
+
+    "axios": ["axios@1.15.2", "", { "dependencies": { "follow-redirects": "^1.15.11", "form-data": "^4.0.5", "proxy-from-env": "^2.1.0" } }, "sha512-wLrXxPtcrPTsNlJmKjkPnNPK2Ihe0hn0wGSaTEiHRPxwjvJwT3hKmXF4dpqxmPO9SoNb2FsYXj/xEo0gHN+D5A=="],
 
     "async-validator": ["async-validator@3.5.2", "https://registry.npmmirror.com/async-validator/-/async-validator-3.5.2.tgz", {}, "sha512-8eLCg00W9pIRZSB781UUX/H6Oskmm8xloZfr09lz5bikRpBVDlJ3hRVuxxP1SxcwsEYfJ4IU8Q19Y8/893r3rQ=="],
 

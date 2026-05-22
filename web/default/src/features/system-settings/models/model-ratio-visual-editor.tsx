@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useMemo, memo, useCallback, useEffect } from 'react'
 import {
   type ColumnDef,
@@ -47,6 +65,7 @@ import {
   ModelPricingSheet,
   type ModelRatioData,
 } from './model-pricing-sheet'
+import { formatPricingNumber } from './pricing-format'
 
 type ModelRatioVisualEditorProps = {
   modelPrice: string
@@ -88,15 +107,11 @@ const toNumberOrNull = (value?: string) => {
   return Number.isFinite(num) ? num : null
 }
 
-const formatPrice = (value: number) => {
-  return Number.parseFloat(value.toFixed(12)).toString()
-}
-
 const ratioToPrice = (ratio?: string, denominator?: string) => {
   const ratioNumber = toNumberOrNull(ratio)
   const denominatorNumber = denominator ? toNumberOrNull(denominator) : 2
   if (ratioNumber === null || denominatorNumber === null) return ''
-  return formatPrice(ratioNumber * denominatorNumber)
+  return formatPricingNumber(ratioNumber * denominatorNumber)
 }
 
 const filterBySelectedValues = (

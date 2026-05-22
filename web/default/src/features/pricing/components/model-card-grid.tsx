@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -42,9 +60,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
     const map = new Map<string, ModelPerfBadgeData>()
     if (perfQuery.data?.success === false) return map
     for (const model of perfQuery.data?.data?.models ?? []) {
-      if (model.request_count > 0) {
-        map.set(model.model_name, model)
-      }
+      map.set(model.model_name, model)
     }
     return map
   }, [perfQuery.data])
@@ -88,7 +104,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
               className='gap-1.5'
             >
               <ChevronLeft className='size-4' />
-              {t('Previous')}
+              {t('Previous page')}
             </Button>
             <Button
               type='button'
@@ -100,7 +116,7 @@ export function ModelCardGrid(props: ModelCardGridProps) {
               disabled={currentPage >= totalPages}
               className='gap-1.5'
             >
-              {t('Next')}
+              {t('Next page')}
               <ChevronRight className='size-4' />
             </Button>
           </div>

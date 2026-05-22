@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
@@ -5,6 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Edit, Trash2, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { getBgColorClass } from '@/lib/colors'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -80,20 +99,20 @@ const createApiInfoSchema = (t: (key: string) => string) =>
 type ApiInfoFormValues = z.infer<ReturnType<typeof createApiInfoSchema>>
 
 const colorOptions = [
-  { value: 'blue', label: 'Blue', bgClass: 'bg-blue-500' },
-  { value: 'green', label: 'Green', bgClass: 'bg-green-500' },
-  { value: 'cyan', label: 'Cyan', bgClass: 'bg-cyan-500' },
-  { value: 'purple', label: 'Purple', bgClass: 'bg-purple-500' },
-  { value: 'pink', label: 'Pink', bgClass: 'bg-pink-500' },
-  { value: 'red', label: 'Red', bgClass: 'bg-red-500' },
-  { value: 'orange', label: 'Orange', bgClass: 'bg-orange-500' },
-  { value: 'amber', label: 'Amber', bgClass: 'bg-amber-500' },
-  { value: 'yellow', label: 'Yellow', bgClass: 'bg-yellow-500' },
-  { value: 'lime', label: 'Lime', bgClass: 'bg-lime-500' },
-  { value: 'teal', label: 'Teal', bgClass: 'bg-teal-500' },
-  { value: 'indigo', label: 'Indigo', bgClass: 'bg-indigo-500' },
-  { value: 'violet', label: 'Violet', bgClass: 'bg-violet-500' },
-  { value: 'slate', label: 'Slate', bgClass: 'bg-slate-500' },
+  { value: 'blue', label: 'Blue' },
+  { value: 'green', label: 'Green' },
+  { value: 'cyan', label: 'Cyan' },
+  { value: 'purple', label: 'Purple' },
+  { value: 'pink', label: 'Pink' },
+  { value: 'red', label: 'Red' },
+  { value: 'orange', label: 'Orange' },
+  { value: 'amber', label: 'Amber' },
+  { value: 'yellow', label: 'Yellow' },
+  { value: 'lime', label: 'Lime' },
+  { value: 'teal', label: 'Teal' },
+  { value: 'indigo', label: 'Indigo' },
+  { value: 'violet', label: 'Violet' },
+  { value: 'slate', label: 'Slate' },
 ]
 
 export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
@@ -231,12 +250,13 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
 
   const handleSaveAll = async () => {
     try {
-      await updateOption.mutateAsync({
+      const result = await updateOption.mutateAsync({
         key: 'console_setting.api_info',
         value: JSON.stringify(apiInfoList),
       })
-      setHasChanges(false)
-      toast.success(t('API info saved successfully'))
+      if (result.success) {
+        setHasChanges(false)
+      }
     } catch {
       toast.error(t('Failed to save API info'))
     }
@@ -252,11 +272,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
     )
   }
 
-  const getColorClass = (color: string) => {
-    return (
-      colorOptions.find((opt) => opt.value === color)?.bgClass || 'bg-blue-500'
-    )
-  }
+  const getColorClass = (color: string) => getBgColorClass(color)
 
   return (
     <SettingsSection
@@ -470,7 +486,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                           label: (
                             <div className='flex items-center gap-2'>
                               <div
-                                className={`h-4 w-4 rounded-full ${option.bgClass}`}
+                                className={`h-4 w-4 rounded-full ${getBgColorClass(option.value)}`}
                               />
                               {option.label}
                             </div>
@@ -491,7 +507,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                             <SelectItem key={option.value} value={option.value}>
                               <div className='flex items-center gap-2'>
                                 <div
-                                  className={`h-4 w-4 rounded-full ${option.bgClass}`}
+                                  className={`h-4 w-4 rounded-full ${getBgColorClass(option.value)}`}
                                 />
                                 {option.label}
                               </div>

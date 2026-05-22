@@ -41,7 +41,13 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { createPlan, updatePlan, getGroups } from '../api'
+import {
+  createPlan,
+  updatePlan,
+  getGroups,
+  createWaffoPancakeSubscriptionProduct,
+  listWaffoPancakeSubscriptionProductOptions,
+} from '../api'
 import { getDurationUnitOptions, getResetPeriodOptions } from '../constants'
 import {
   getPlanFormSchema,
@@ -69,6 +75,10 @@ export function SubscriptionsMutateDrawer({
   const { triggerRefresh } = useSubscriptions()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [groupOptions, setGroupOptions] = useState<string[]>([])
+  const [creatingPancakeProduct, setCreatingPancakeProduct] = useState(false)
+  const [pancakeProducts, setPancakeProducts] = useState<
+    { id: string; name: string; status: string }[]
+  >([])
 
   const schema = getPlanFormSchema(t)
   const form = useForm<PlanFormValues>({
@@ -88,6 +98,22 @@ export function SubscriptionsMutateDrawer({
           if (res.success) setGroupOptions(res.data || [])
         })
         .catch(() => {})
+      listWaffoPancakeSubscriptionProductOptions()
+        .then((res) => {
+          if (
+            res.message === 'success' &&
+            typeof res.data === 'object' &&
+            res.data &&
+            Array.isArray((res.data as { products?: unknown }).products)
+          ) {
+            setPancakeProducts(
+              (res.data as { products: typeof pancakeProducts }).products
+            )
+          } else {
+            setPancakeProducts([])
+          }
+        })
+        .catch(() => setPancakeProducts([]))
     }
   }, [open, currentRow, form])
 
@@ -95,6 +121,12 @@ export function SubscriptionsMutateDrawer({
   const resetPeriod = form.watch('quota_reset_period')
   const modelRestrictMode = form.watch('model_restrict_mode')
   const quotaDisplayUnit = getCurrencyLabel()
+  const watchedTitle = form.watch('title')
+  const watchedPrice = form.watch('price_amount')
+  const pancakeCreateReady =
+    typeof watchedTitle === 'string' &&
+    watchedTitle.trim().length > 0 &&
+    Number(watchedPrice ?? 0) > 0
 
   const onSubmit = async (values: PlanFormValues) => {
     setIsSubmitting(true)
@@ -124,6 +156,65 @@ export function SubscriptionsMutateDrawer({
 
   const durationUnitOpts = getDurationUnitOptions(t)
   const resetPeriodOpts = getResetPeriodOptions(t)
+
+  const handleCreatePancakeProduct = async () => {
+    const title = form.getValues('title').trim()
+    const priceAmount = Number(form.getValues('price_amount') || 0)
+    if (!title) {
+      toast.error(t('Plan title is required'))
+      return
+    }
+    if (priceAmount <= 0) {
+      toast.error(t('Plan price must be greater than zero'))
+      return
+    }
+    setCreatingPancakeProduct(true)
+    try {
+      const res = await createWaffoPancakeSubscriptionProduct({
+        name: title,
+        amount: priceAmount.toFixed(2),
+      })
+      if (
+        res.message === 'success' &&
+        typeof res.data === 'object' &&
+        res.data
+      ) {
+        const created = res.data as { product_id: string; product_name: string }
+        form.setValue('waffo_pancake_product_id', created.product_id, {
+          shouldDirty: true,
+        })
+        try {
+          const refresh = await listWaffoPancakeSubscriptionProductOptions()
+          if (
+            refresh.message === 'success' &&
+            typeof refresh.data === 'object' &&
+            refresh.data &&
+            Array.isArray((refresh.data as { products?: unknown }).products)
+          ) {
+            setPancakeProducts(
+              (refresh.data as { products: typeof pancakeProducts }).products
+            )
+          }
+        } catch {
+          // Keep the returned product id in the form even if refresh fails.
+        }
+        toast.success(
+          `${t('Waffo Pancake product created')}: ${created.product_id}`
+        )
+      } else {
+        const reason = typeof res.data === 'string' ? res.data : undefined
+        toast.error(
+          reason
+            ? `${t('Waffo Pancake product creation failed')}: ${reason}`
+            : t('Waffo Pancake product creation failed')
+        )
+      }
+    } catch {
+      toast.error(t('Waffo Pancake product creation failed'))
+    } finally {
+      setCreatingPancakeProduct(false)
+    }
+  }
 
   return (
     <Sheet
@@ -737,6 +828,75 @@ export function SubscriptionsMutateDrawer({
                     <FormControl>
                       <Input {...field} placeholder='prod_...' />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='waffo_pancake_product_id'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Waffo Pancake Product ID</FormLabel>
+                    <div className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]'>
+                      <FormControl>
+                        <Select
+                          items={[
+                            ...pancakeProducts.map((product) => ({
+                              value: product.id,
+                              label: `${product.name} (${product.id})`,
+                            })),
+                            ...(field.value &&
+                            !pancakeProducts.some((p) => p.id === field.value)
+                              ? [{ value: field.value, label: field.value }]
+                              : []),
+                          ]}
+                          value={field.value || null}
+                          onValueChange={(value) =>
+                            field.onChange(value ?? '')
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder='PROD_...' />
+                          </SelectTrigger>
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              {pancakeProducts.map((product) => (
+                                <SelectItem key={product.id} value={product.id}>
+                                  {product.name} ({product.id})
+                                </SelectItem>
+                              ))}
+                              {field.value &&
+                                !pancakeProducts.some(
+                                  (product) => product.id === field.value
+                                ) && (
+                                  <SelectItem value={field.value}>
+                                    {field.value}
+                                  </SelectItem>
+                                )}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        onClick={handleCreatePancakeProduct}
+                        disabled={
+                          creatingPancakeProduct || !pancakeCreateReady
+                        }
+                      >
+                        {creatingPancakeProduct
+                          ? t('Creating...')
+                          : t('Create on Pancake')}
+                      </Button>
+                    </div>
+                    <FormDescription>
+                      {t(
+                        'Create a Pancake product from the current title and amount, or choose an existing product.'
+                      )}
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
@@ -91,24 +109,22 @@ function ModelChartsFallback() {
 
 function PerformanceOverviewFallback() {
   return (
-    <div className='space-y-3 sm:space-y-4'>
-      <div className='overflow-hidden rounded-lg border'>
-        <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-4'>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className='px-3 py-2.5 sm:px-5 sm:py-4'>
-              <Skeleton className='h-4 w-24' />
-              <Skeleton className='mt-2 h-7 w-20' />
-              <Skeleton className='mt-1.5 h-3.5 w-28' />
-            </div>
+    <div className='overflow-hidden rounded-lg border'>
+      <div className='flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-5'>
+        <div className='flex items-center gap-2'>
+          <Skeleton className='h-4 w-24' />
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className='flex items-center gap-1.5'>
+            <Skeleton className='h-3 w-14' />
+            <Skeleton className='h-4 w-16' />
+          </div>
+        ))}
+        <div className='ml-auto flex items-center gap-2'>
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className='h-5 w-28 rounded-full' />
           ))}
         </div>
-      </div>
-      <div className='overflow-hidden rounded-lg border'>
-        <div className='flex items-center justify-between border-b px-4 py-3 sm:px-5'>
-          <Skeleton className='h-5 w-40' />
-          <Skeleton className='h-4 w-48' />
-        </div>
-        <Skeleton className='h-44 w-full' />
       </div>
     </div>
   )
@@ -220,7 +236,7 @@ export function Dashboard() {
             <div className='flex flex-wrap items-center justify-between gap-1.5 sm:gap-2'>
               {showSectionTabs ? (
                 <Tabs value={activeSection} onValueChange={handleSectionChange}>
-                  <TabsList className='h-auto max-w-full flex-wrap justify-start'>
+                  <TabsList className='group-data-horizontal/tabs:h-auto max-w-full flex-wrap justify-start'>
                     {visibleSections.map((section) => (
                       <TabsTrigger key={section} value={section}>
                         {t(SECTION_META[section].titleKey)}
@@ -249,12 +265,14 @@ export function Dashboard() {
                   />
                 </Suspense>
               </FadeIn>
+              {isAdmin && (
+                <FadeIn delay={0.05}>
+                  <Suspense fallback={<PerformanceOverviewFallback />}>
+                    <LazyPerformanceOverview />
+                  </Suspense>
+                </FadeIn>
+              )}
               <FadeIn delay={0.1}>
-                <Suspense fallback={<PerformanceOverviewFallback />}>
-                  <LazyPerformanceOverview />
-                </Suspense>
-              </FadeIn>
-              <FadeIn delay={0.15}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyConsumptionDistributionChart
                     data={modelData}
@@ -268,7 +286,7 @@ export function Dashboard() {
                   />
                 </Suspense>
               </FadeIn>
-              <FadeIn delay={0.2}>
+              <FadeIn delay={0.15}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyModelCharts
                     data={modelData}

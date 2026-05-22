@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { type ChangeEvent, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
@@ -25,7 +43,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 export interface WaffoSettingsValues {
@@ -194,12 +211,17 @@ export function WaffoSettingsSection(props: Props) {
 
   return (
     <>
-      <SettingsSection
-        title={t('Waffo Payment Gateway')}
-        description={t(
-          'Configure Waffo payment aggregation platform integration'
-        )}
-      >
+      <div className='space-y-4 pt-4'>
+        <div>
+          <h3 className='text-lg font-medium'>
+            {t('Waffo Aggregator Gateway')}
+          </h3>
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'Payment aggregator mode — onboard with your own registered company (offshore entity). Built for Enterprise.'
+            )}
+          </p>
+        </div>
         <Alert>
           <AlertDescription className='text-xs'>
             {t(
@@ -398,7 +420,7 @@ export function WaffoSettingsSection(props: Props) {
         <Button onClick={handleSave} disabled={loading}>
           {loading ? t('Saving...') : t('Save Changes')}
         </Button>
-      </SettingsSection>
+      </div>
 
       <Dialog open={methodDialogOpen} onOpenChange={setMethodDialogOpen}>
         <DialogContent>
