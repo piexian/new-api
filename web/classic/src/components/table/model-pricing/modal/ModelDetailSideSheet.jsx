@@ -18,7 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { SideSheet, Typography, Button, Divider } from '@douyinfe/semi-ui';
+import {
+  SideSheet,
+  Typography,
+  Button,
+  Divider,
+  Tabs,
+  TabPane,
+} from '@douyinfe/semi-ui';
 import { IconClose } from '@douyinfe/semi-icons';
 
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
@@ -27,6 +34,8 @@ import ModelBasicInfo from './components/ModelBasicInfo';
 import ModelEndpoints from './components/ModelEndpoints';
 import ModelPricingTable from './components/ModelPricingTable';
 import DynamicPricingBreakdown from './components/DynamicPricingBreakdown';
+import ModelPerformancePanel from './components/ModelPerformancePanel';
+import ModelPerformanceSummary from './components/ModelPerformanceSummary';
 
 const { Text } = Typography;
 
@@ -44,6 +53,7 @@ const ModelDetailSideSheet = ({
   vendorsMap,
   endpointMap,
   autoGroups,
+  perfSummary,
   t,
 }) => {
   const isMobile = useIsMobile();
@@ -79,50 +89,57 @@ const ModelDetailSideSheet = ({
           </div>
         )}
         {modelData && (
-          <>
-            <div style={{ padding: '0 24px' }}>
-              <ModelBasicInfo
-                modelData={modelData}
-                vendorsMap={vendorsMap}
-                t={t}
-              />
-            </div>
-            <Divider margin={16} />
-            <div style={{ padding: '0 24px' }}>
-              <ModelEndpoints
-                modelData={modelData}
-                endpointMap={endpointMap}
-                t={t}
-              />
-            </div>
-            {modelData.billing_mode === 'tiered_expr' && modelData.billing_expr && (
-              <>
+          <Tabs type='button' defaultActiveKey='overview' className='px-6'>
+            <TabPane tab={t('概览')} itemKey='overview'>
+              <div className='pt-2'>
+                <ModelBasicInfo
+                  modelData={modelData}
+                  vendorsMap={vendorsMap}
+                  t={t}
+                />
+                {perfSummary && (
+                  <>
+                    <Divider margin={16} />
+                    <ModelPerformanceSummary perfSummary={perfSummary} t={t} />
+                  </>
+                )}
                 <Divider margin={16} />
-                <div style={{ padding: '0 24px' }}>
-                  <DynamicPricingBreakdown
-                    billingExpr={modelData.billing_expr}
-                    t={t}
-                  />
-                </div>
-              </>
-            )}
-            <Divider margin={16} />
-            <div style={{ padding: '0 24px' }}>
-              <ModelPricingTable
-                modelData={modelData}
-                groupRatio={groupRatio}
-                currency={currency}
-                siteDisplayType={siteDisplayType}
-                tokenUnit={tokenUnit}
-                displayPrice={displayPrice}
-                showRatio={showRatio}
-                usableGroup={usableGroup}
-                autoGroups={autoGroups}
-                t={t}
-              />
-            </div>
-            <Divider margin={16} />
-          </>
+                <ModelEndpoints
+                  modelData={modelData}
+                  endpointMap={endpointMap}
+                  t={t}
+                />
+                {modelData.billing_mode === 'tiered_expr' &&
+                  modelData.billing_expr && (
+                    <>
+                      <Divider margin={16} />
+                      <DynamicPricingBreakdown
+                        billingExpr={modelData.billing_expr}
+                        t={t}
+                      />
+                    </>
+                  )}
+                <Divider margin={16} />
+                <ModelPricingTable
+                  modelData={modelData}
+                  groupRatio={groupRatio}
+                  currency={currency}
+                  siteDisplayType={siteDisplayType}
+                  tokenUnit={tokenUnit}
+                  displayPrice={displayPrice}
+                  showRatio={showRatio}
+                  usableGroup={usableGroup}
+                  autoGroups={autoGroups}
+                  t={t}
+                />
+              </div>
+            </TabPane>
+            <TabPane tab={t('性能监控')} itemKey='performance'>
+              <div className='pt-2'>
+                <ModelPerformancePanel modelData={modelData} t={t} />
+              </div>
+            </TabPane>
+          </Tabs>
         )}
       </div>
     </SideSheet>

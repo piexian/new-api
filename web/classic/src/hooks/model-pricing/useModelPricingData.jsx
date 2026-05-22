@@ -51,6 +51,7 @@ export const useModelPricingData = () => {
   const [usableGroup, setUsableGroup] = useState({});
   const [endpointMap, setEndpointMap] = useState({});
   const [autoGroups, setAutoGroups] = useState([]);
+  const [perfMetricsMap, setPerfMetricsMap] = useState({});
 
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
@@ -260,8 +261,35 @@ export const useModelPricingData = () => {
     setLoading(false);
   };
 
+  const loadPerfMetricsSummary = async () => {
+    try {
+      const res = await API.get('/api/perf-metrics/summary', {
+        params: { hours: 24 },
+        skipErrorHandler: true,
+      });
+      if (!res.data?.success) {
+        setPerfMetricsMap({});
+        return;
+      }
+
+      const nextMap = {};
+      const perfModels = Array.isArray(res.data?.data?.models)
+        ? res.data.data.models
+        : [];
+      perfModels.forEach((model) => {
+        if (model?.model_name) {
+          nextMap[model.model_name] = model;
+        }
+      });
+      setPerfMetricsMap(nextMap);
+    } catch {
+      setPerfMetricsMap({});
+    }
+  };
+
   const refresh = async () => {
     await loadPricing();
+    await loadPerfMetricsSummary();
   };
 
   const copyText = async (text) => {
@@ -374,6 +402,7 @@ export const useModelPricingData = () => {
     usableGroup,
     endpointMap,
     autoGroups,
+    perfMetricsMap,
 
     // 计算属性
     priceRate,

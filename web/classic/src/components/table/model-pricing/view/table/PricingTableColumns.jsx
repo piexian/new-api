@@ -32,6 +32,7 @@ import {
   renderDescription,
 } from '../../../../common/ui/RenderUtils';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
+import ModelPerfBadge from '../../shared/ModelPerfBadge';
 
 function renderQuotaType(type, t) {
   switch (type) {
@@ -113,6 +114,7 @@ export const getPricingTableColumns = ({
   tokenUnit,
   displayPrice,
   showRatio,
+  perfMetricsMap = {},
 }) => {
   const isMobile = useIsMobile();
   const priceDataCache = new WeakMap();
@@ -163,6 +165,19 @@ export const getPricingTableColumns = ({
       return renderQuotaType(parseInt(text), t);
     },
     sorter: (a, b) => a.quota_type - b.quota_type,
+  };
+
+  const performanceColumn = {
+    title: t('性能'),
+    dataIndex: 'model_name',
+    width: 160,
+    render: (text) => {
+      const perf = perfMetricsMap[text];
+      if (!perf) {
+        return '-';
+      }
+      return <ModelPerfBadge perf={perf} t={t} />;
+    },
   };
 
   const descriptionColumn = {
@@ -254,6 +269,7 @@ export const getPricingTableColumns = ({
   if (showRatio) {
     columns.push(ratioColumn);
   }
+  columns.push(performanceColumn);
   columns.push(priceColumn);
   return columns;
 };

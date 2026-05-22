@@ -77,6 +77,9 @@ const PricingPage = () => {
         vendorsMap={pricingData.vendorsMap}
         endpointMap={pricingData.endpointMap}
         autoGroups={pricingData.autoGroups}
+        perfSummary={
+          pricingData.perfMetricsMap?.[pricingData.selectedModel?.model_name]
+        }
         t={pricingData.t}
       />
     </div>

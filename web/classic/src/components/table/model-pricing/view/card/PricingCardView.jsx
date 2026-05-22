@@ -45,6 +45,7 @@ import PricingCardSkeleton from './PricingCardSkeleton';
 import { useMinimumLoadingTime } from '../../../../../hooks/common/useMinimumLoadingTime';
 import { renderLimitedItems } from '../../../../common/ui/RenderUtils';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
+import ModelPerfBadge from '../../shared/ModelPerfBadge';
 
 const CARD_STYLES = {
   container:
@@ -76,6 +77,7 @@ const PricingCardView = ({
   selectedRowKeys = [],
   setSelectedRowKeys,
   openModelDetail,
+  perfMetricsMap = {},
 }) => {
   const showSkeleton = useMinimumLoadingTime(loading);
   const startIndex = (currentPage - 1) * pageSize;
@@ -240,6 +242,7 @@ const PricingCardView = ({
         {paginatedModels.map((model, index) => {
           const modelKey = getModelKey(model);
           const isSelected = selectedRowKeys.includes(modelKey);
+          const perf = perfMetricsMap[model.model_name];
 
           const priceData = calculateModelPrice({
             record: model,
@@ -268,11 +271,13 @@ const PricingCardView = ({
                         {model.model_name}
                       </h3>
                       <div className='flex flex-col gap-1 text-xs mt-1'>
-                        {priceData.isDynamicPricing ? (
-                          formatDynamicPriceSummary(priceData.billingExpr, t, priceData.usedGroupRatio)
-                        ) : (
-                          formatPriceInfo(priceData, t, siteDisplayType)
-                        )}
+                        {priceData.isDynamicPricing
+                          ? formatDynamicPriceSummary(
+                              priceData.billingExpr,
+                              t,
+                              priceData.usedGroupRatio,
+                            )
+                          : formatPriceInfo(priceData, t, siteDisplayType)}
                       </div>
                     </div>
                   </div>
@@ -317,6 +322,12 @@ const PricingCardView = ({
                 <div className='mt-auto'>
                   {/* 标签区域 */}
                   {renderTags(model)}
+
+                  {perf && (
+                    <div className='mt-3 flex justify-end'>
+                      <ModelPerfBadge perf={perf} t={t} />
+                    </div>
+                  )}
 
                   {/* 倍率信息（可选） */}
                   {showRatio && (
