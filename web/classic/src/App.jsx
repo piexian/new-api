@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, {
   lazy,
   Suspense,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -77,6 +78,7 @@ import PersonalSetting from './components/settings/PersonalSetting';
 import UpdateAnnouncementModal from './components/settings/personal/modals/UpdateAnnouncementModal';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
+import { isRouteModuleEnabled } from './helpers/navModules';
 
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -98,6 +100,15 @@ function App() {
   const [userState, userDispatch] = useContext(UserContext);
   const [showUpdateAnnouncement, setShowUpdateAnnouncement] = useState(false);
   const [announcementHasPassword, setAnnouncementHasPassword] = useState(true);
+  const routeGuard = useCallback(
+    (pathname, element) =>
+      isRouteModuleEnabled(statusState?.status, pathname) ? (
+        element
+      ) : (
+        <Forbidden />
+      ),
+    [statusState?.status],
+  );
 
   // 获取模型广场权限配置
   const pricingRequireAuth = useMemo(() => {
@@ -214,11 +225,12 @@ function App() {
         <Routes>
           <Route
             path='/'
-            element={
+            element={routeGuard(
+              '/',
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <Home />
-              </Suspense>
-            }
+              </Suspense>,
+            )}
           />
           <Route
             path='/setup'
@@ -231,67 +243,75 @@ function App() {
           <Route path='/forbidden' element={<Forbidden />} />
           <Route
             path='/console/models'
-            element={
+            element={routeGuard(
+              '/console/models',
               <AdminRoute>
                 <ModelPage />
-              </AdminRoute>
-            }
+              </AdminRoute>,
+            )}
           />
           <Route
             path='/console/deployment'
-            element={
+            element={routeGuard(
+              '/console/deployment',
               <AdminRoute>
                 <ModelDeploymentPage />
-              </AdminRoute>
-            }
+              </AdminRoute>,
+            )}
           />
           <Route
             path='/console/subscription'
-            element={
+            element={routeGuard(
+              '/console/subscription',
               <AdminRoute>
                 <Subscription />
-              </AdminRoute>
-            }
+              </AdminRoute>,
+            )}
           />
           <Route
             path='/console/channel'
-            element={
+            element={routeGuard(
+              '/console/channel',
               <AdminRoute>
                 <Channel />
-              </AdminRoute>
-            }
+              </AdminRoute>,
+            )}
           />
           <Route
             path='/console/token'
-            element={
+            element={routeGuard(
+              '/console/token',
               <PrivateRoute>
                 <Token />
-              </PrivateRoute>
-            }
+              </PrivateRoute>,
+            )}
           />
           <Route
             path='/console/playground'
-            element={
+            element={routeGuard(
+              '/console/playground',
               <PrivateRoute>
                 <Playground />
-              </PrivateRoute>
-            }
+              </PrivateRoute>,
+            )}
           />
           <Route
             path='/console/redemption'
-            element={
+            element={routeGuard(
+              '/console/redemption',
               <AdminRoute>
                 <Redemption />
-              </AdminRoute>
-            }
+              </AdminRoute>,
+            )}
           />
           <Route
             path='/console/user'
-            element={
+            element={routeGuard(
+              '/console/user',
               <AdminRoute>
                 <User />
-              </AdminRoute>
-            }
+              </AdminRoute>,
+            )}
           />
           <Route
             path='/user/reset'
@@ -371,7 +391,8 @@ function App() {
           />
           <Route
             path='/console/setting'
-            element={
+            element={routeGuard(
+              '/console/setting',
               <AdminRoute>
                 <Suspense
                   fallback={<Loading></Loading>}
@@ -379,12 +400,13 @@ function App() {
                 >
                   <Setting />
                 </Suspense>
-              </AdminRoute>
-            }
+              </AdminRoute>,
+            )}
           />
           <Route
             path='/console/personal'
-            element={
+            element={routeGuard(
+              '/console/personal',
               <PrivateRoute>
                 <Suspense
                   fallback={<Loading></Loading>}
@@ -392,12 +414,13 @@ function App() {
                 >
                   <PersonalSetting />
                 </Suspense>
-              </PrivateRoute>
-            }
+              </PrivateRoute>,
+            )}
           />
           <Route
             path='/console/topup'
-            element={
+            element={routeGuard(
+              '/console/topup',
               <PrivateRoute>
                 <Suspense
                   fallback={<Loading></Loading>}
@@ -405,20 +428,22 @@ function App() {
                 >
                   <TopUp />
                 </Suspense>
-              </PrivateRoute>
-            }
+              </PrivateRoute>,
+            )}
           />
           <Route
             path='/console/log'
-            element={
+            element={routeGuard(
+              '/console/log',
               <PrivateRoute>
                 <Log />
-              </PrivateRoute>
-            }
+              </PrivateRoute>,
+            )}
           />
           <Route
             path='/console'
-            element={
+            element={routeGuard(
+              '/console',
               <PrivateRoute>
                 <Suspense
                   fallback={<Loading></Loading>}
@@ -426,12 +451,13 @@ function App() {
                 >
                   <Dashboard />
                 </Suspense>
-              </PrivateRoute>
-            }
+              </PrivateRoute>,
+            )}
           />
           <Route
             path='/console/midjourney'
-            element={
+            element={routeGuard(
+              '/console/midjourney',
               <PrivateRoute>
                 <Suspense
                   fallback={<Loading></Loading>}
@@ -439,12 +465,13 @@ function App() {
                 >
                   <Midjourney />
                 </Suspense>
-              </PrivateRoute>
-            }
+              </PrivateRoute>,
+            )}
           />
           <Route
             path='/console/task'
-            element={
+            element={routeGuard(
+              '/console/task',
               <PrivateRoute>
                 <Suspense
                   fallback={<Loading></Loading>}
@@ -452,12 +479,13 @@ function App() {
                 >
                   <Task />
                 </Suspense>
-              </PrivateRoute>
-            }
+              </PrivateRoute>,
+            )}
           />
           <Route
             path='/pricing'
-            element={
+            element={routeGuard(
+              '/pricing',
               pricingRequireAuth ? (
                 <PrivateRoute>
                   <Suspense
@@ -474,12 +502,13 @@ function App() {
                 >
                   <Pricing />
                 </Suspense>
-              )
-            }
+              ),
+            )}
           />
           <Route
             path='/rankings'
-            element={
+            element={routeGuard(
+              '/rankings',
               rankingsRequireAuth ? (
                 <PrivateRoute>
                   <Suspense
@@ -496,45 +525,50 @@ function App() {
                 >
                   <Rankings />
                 </Suspense>
-              )
-            }
+              ),
+            )}
           />
           <Route
             path='/about'
-            element={
+            element={routeGuard(
+              '/about',
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <About />
-              </Suspense>
-            }
+              </Suspense>,
+            )}
           />
           <Route
             path='/user-agreement'
-            element={
+            element={routeGuard(
+              '/user-agreement',
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <UserAgreement />
-              </Suspense>
-            }
+              </Suspense>,
+            )}
           />
           <Route
             path='/privacy-policy'
-            element={
+            element={routeGuard(
+              '/privacy-policy',
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <PrivacyPolicy />
-              </Suspense>
-            }
+              </Suspense>,
+            )}
           />
           <Route
             path='/console/chat/:id?'
-            element={
+            element={routeGuard(
+              '/console/chat',
               <Suspense fallback={<Loading></Loading>} key={location.pathname}>
                 <Chat />
-              </Suspense>
-            }
+              </Suspense>,
+            )}
           />
           {/* 方便使用chat2link直接跳转聊天... */}
           <Route
             path='/chat2link'
-            element={
+            element={routeGuard(
+              '/chat2link',
               <PrivateRoute>
                 <Suspense
                   fallback={<Loading></Loading>}
@@ -542,8 +576,8 @@ function App() {
                 >
                   <Chat2Link />
                 </Suspense>
-              </PrivateRoute>
-            }
+              </PrivateRoute>,
+            )}
           />
           <Route path='*' element={<NotFound />} />
         </Routes>

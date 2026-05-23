@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-contrib/sessions"
@@ -131,7 +132,7 @@ func GitHubOAuth(c *gin.Context) {
 			return
 		}
 	} else {
-		if common.RegisterEnabled {
+		if isOAuthRegistrationEnabled() {
 			user.Username = "github_" + strconv.Itoa(model.GetMaxUserId()+1)
 			if githubUser.Name != "" {
 				user.DisplayName = githubUser.Name
@@ -141,10 +142,9 @@ func GitHubOAuth(c *gin.Context) {
 			user.Email = githubUser.Email
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
-			affCode := session.Get("aff")
-			inviterId := 0
-			if affCode != nil {
-				inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
+			inviterId, err := getOAuthRegisterInviterId(c)
+			if err != nil {
+				return
 			}
 
 			if err := user.Insert(inviterId); err != nil {
@@ -155,10 +155,7 @@ func GitHubOAuth(c *gin.Context) {
 				return
 			}
 		} else {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员关闭了新用户注册",
-			})
+			common.ApiErrorI18n(c, i18n.MsgUserOAuthRegisterDisabled)
 			return
 		}
 	}

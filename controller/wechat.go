@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-contrib/sessions"
@@ -90,13 +91,18 @@ func WeChatAuth(c *gin.Context) {
 			return
 		}
 	} else {
-		if common.RegisterEnabled {
+		if isOAuthRegistrationEnabled() {
 			user.Username = "wechat_" + strconv.Itoa(model.GetMaxUserId()+1)
 			user.DisplayName = "WeChat User"
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
 
-			if err := user.Insert(0); err != nil {
+			inviterId, err := getRegisterInviterId(c, c.Query("aff"))
+			if err != nil {
+				return
+			}
+
+			if err := user.Insert(inviterId); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),
@@ -104,10 +110,7 @@ func WeChatAuth(c *gin.Context) {
 				return
 			}
 		} else {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员关闭了新用户注册",
-			})
+			common.ApiErrorI18n(c, i18n.MsgUserOAuthRegisterDisabled)
 			return
 		}
 	}

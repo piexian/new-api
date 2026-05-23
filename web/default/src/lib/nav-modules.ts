@@ -21,6 +21,7 @@ import { getStatus } from '@/lib/api'
 export type ModuleAccess = { enabled: boolean; requireAuth: boolean }
 
 export type HeaderNavModule = 'rankings' | 'pricing'
+export type HeaderNavBooleanModule = 'home' | 'console' | 'docs' | 'about'
 
 export type HeaderNavModules = {
   home: boolean
@@ -169,43 +170,231 @@ export function getModuleAccessFromStatus(
   return parseHeaderNavModulesFromStatus(status)[module] ?? DEFAULTS[module]
 }
 
+export function getHeaderModuleEnabledFromStatus(
+  status: Record<string, unknown> | null,
+  module: HeaderNavModule | HeaderNavBooleanModule
+): boolean {
+  const modules = parseHeaderNavModulesFromStatus(status)
+  const value = modules[module]
+  if (typeof value === 'object') return value.enabled
+  if (typeof value === 'boolean') return value
+  return true
+}
+
 export function getModuleAccess(module: HeaderNavModule): ModuleAccess {
   return getModuleAccessFromStatus(getCachedStatus(), module)
+}
+
+async function getFreshStatus(): Promise<Record<string, unknown> | null> {
+  try {
+    const status = (await getStatus()) as Record<string, unknown> | null
+    cacheStatus(status)
+    return status
+  } catch {
+    return getCachedStatus()
+  }
 }
 
 export async function getFreshModuleAccess(
   module: HeaderNavModule
 ): Promise<ModuleAccess> {
+  return getModuleAccessFromStatus(await getFreshStatus(), module)
+}
+
+export async function getFreshHeaderModuleEnabled(
+  module: HeaderNavModule | HeaderNavBooleanModule
+): Promise<boolean> {
+  return getHeaderModuleEnabledFromStatus(await getFreshStatus(), module)
+}
+
+type SidebarSectionConfig = {
+  enabled?: boolean
+  [key: string]: boolean | undefined
+}
+
+type SidebarModulesAdminConfig = Record<string, SidebarSectionConfig>
+
+const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
+  chat: {
+    enabled: true,
+    playground: true,
+    chat: true,
+  },
+  console: {
+    enabled: true,
+    detail: true,
+    token: true,
+    log: true,
+    midjourney: true,
+    task: true,
+  },
+  personal: {
+    enabled: true,
+    topup: true,
+    personal: true,
+  },
+  admin: {
+    enabled: true,
+    channel: true,
+    models: true,
+    redemption: true,
+    user: true,
+    setting: true,
+    subscription: true,
+  },
+}
+
+function cloneSidebarDefaults(): SidebarModulesAdminConfig {
+  return Object.entries(DEFAULT_SIDEBAR_MODULES).reduce(
+    (acc, [section, config]) => {
+      acc[section] = { ...config }
+      return acc
+    },
+    {} as SidebarModulesAdminConfig
+  )
+}
+
+function parseSidebarAdminConfig(raw: unknown): SidebarModulesAdminConfig {
+  const defaults = cloneSidebarDefaults()
+  if (!raw || String(raw).trim() === '') return defaults
+
   try {
-    const status = (await getStatus()) as Record<string, unknown> | null
-    cacheStatus(status)
-    return getModuleAccessFromStatus(status, module)
+    const parsed =
+      typeof raw === 'string'
+        ? (JSON.parse(raw) as SidebarModulesAdminConfig)
+        : (raw as SidebarModulesAdminConfig)
+    if (!parsed || typeof parsed !== 'object') return defaults
+
+    const result = cloneSidebarDefaults()
+    Object.entries(parsed).forEach(([sectionKey, sectionValue]) => {
+      if (!sectionValue || typeof sectionValue !== 'object') return
+      const base = result[sectionKey] ?? { enabled: true }
+      result[sectionKey] = { ...base }
+      Object.entries(sectionValue).forEach(([moduleKey, moduleValue]) => {
+        result[sectionKey][moduleKey] = parseHeaderNavBoolean(
+          moduleValue,
+          base[moduleKey] ?? true
+        )
+      })
+    })
+    return result
   } catch {
-    return getModuleAccess(module)
+    return defaults
   }
+}
+
+export function isSidebarModuleEnabledFromStatus(
+  status: Record<string, unknown> | null,
+  section: string,
+  module: string
+): boolean {
+  const config = parseSidebarAdminConfig(status?.SidebarModulesAdmin)
+  const sectionConfig = config[section]
+  if (!sectionConfig) return true
+  if (sectionConfig.enabled === false) return false
+  if (sectionConfig[module] === false) return false
+  return true
 }
 
 export function isSidebarModuleEnabled(
   section: string,
   module: string
 ): boolean {
-  const status = getCachedStatus()
-  if (!status) return true
+  return isSidebarModuleEnabledFromStatus(getCachedStatus(), section, module)
+}
 
-  const raw = status.SidebarModulesAdmin
-  if (!raw || String(raw).trim() === '') return true
+type SidebarRouteRule = {
+  prefix: string
+  section: string
+  module: string
+}
 
-  try {
-    const parsed = JSON.parse(String(raw)) as Record<
-      string,
-      Record<string, boolean>
-    >
-    const sectionConfig = parsed[section]
-    if (!sectionConfig) return true
-    if (sectionConfig.enabled === false) return false
-    if (sectionConfig[module] === false) return false
-    return true
-  } catch {
-    return true
+const SIDEBAR_ROUTE_RULES: SidebarRouteRule[] = [
+  { prefix: '/usage-logs/drawing', section: 'console', module: 'midjourney' },
+  { prefix: '/usage-logs/task', section: 'console', module: 'task' },
+  { prefix: '/usage-logs', section: 'console', module: 'log' },
+  { prefix: '/console/log', section: 'console', module: 'log' },
+  { prefix: '/console/topup', section: 'personal', module: 'topup' },
+  { prefix: '/system-settings', section: 'admin', module: 'setting' },
+  { prefix: '/redemption-codes', section: 'admin', module: 'redemption' },
+  { prefix: '/subscriptions', section: 'admin', module: 'subscription' },
+  { prefix: '/dashboard', section: 'console', module: 'detail' },
+  { prefix: '/keys', section: 'console', module: 'token' },
+  { prefix: '/wallet', section: 'personal', module: 'topup' },
+  { prefix: '/profile', section: 'personal', module: 'personal' },
+  { prefix: '/channels', section: 'admin', module: 'channel' },
+  { prefix: '/models', section: 'admin', module: 'models' },
+  { prefix: '/users', section: 'admin', module: 'user' },
+  { prefix: '/playground', section: 'chat', module: 'playground' },
+  { prefix: '/chat2link', section: 'chat', module: 'chat' },
+  { prefix: '/chat', section: 'chat', module: 'chat' },
+]
+
+function normalizePathname(pathname: string): string {
+  if (!pathname || pathname === '/') return '/'
+  return pathname.replace(/\/+$/, '')
+}
+
+function matchesPrefix(pathname: string, prefix: string): boolean {
+  const normalized = normalizePathname(pathname)
+  const normalizedPrefix = normalizePathname(prefix)
+  return (
+    normalized === normalizedPrefix ||
+    normalized.startsWith(`${normalizedPrefix}/`)
+  )
+}
+
+export function isHeaderRouteEnabledFromStatus(
+  status: Record<string, unknown> | null,
+  pathname: string
+): boolean {
+  const path = normalizePathname(pathname)
+  if (path === '/') return getHeaderModuleEnabledFromStatus(status, 'home')
+  if (
+    matchesPrefix(path, '/user-agreement') ||
+    matchesPrefix(path, '/privacy-policy')
+  ) {
+    return getHeaderModuleEnabledFromStatus(status, 'docs')
+  }
+  if (matchesPrefix(path, '/about')) {
+    return getHeaderModuleEnabledFromStatus(status, 'about')
+  }
+  if (matchesPrefix(path, '/pricing')) {
+    return getHeaderModuleEnabledFromStatus(status, 'pricing')
+  }
+  if (matchesPrefix(path, '/rankings')) {
+    return getHeaderModuleEnabledFromStatus(status, 'rankings')
+  }
+  if (matchesPrefix(path, '/dashboard') || matchesPrefix(path, '/console')) {
+    return getHeaderModuleEnabledFromStatus(status, 'console')
+  }
+  return true
+}
+
+export function isSidebarRouteEnabledFromStatus(
+  status: Record<string, unknown> | null,
+  pathname: string
+): boolean {
+  const rule = SIDEBAR_ROUTE_RULES.find(({ prefix }) =>
+    matchesPrefix(pathname, prefix)
+  )
+  if (!rule) return true
+  return isSidebarModuleEnabledFromStatus(status, rule.section, rule.module)
+}
+
+export async function getFreshRouteEnabled(pathname: string): Promise<boolean> {
+  const status = await getFreshStatus()
+  if (!isHeaderRouteEnabledFromStatus(status, pathname)) {
+    return false
+  }
+  if (!isSidebarRouteEnabledFromStatus(status, pathname)) {
+    return false
+  }
+  return true
+}
+
+export async function ensureFreshRouteEnabled(pathname: string): Promise<void> {
+  if (!(await getFreshRouteEnabled(pathname))) {
+    throw new Error('route_disabled')
   }
 }

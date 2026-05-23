@@ -40,6 +40,16 @@ func GenerateOAuthCode(c *gin.Context) {
 	})
 }
 
+func getOAuthRegisterInviterId(c *gin.Context) (int, error) {
+	session := sessions.Default(c)
+	affCode, _ := session.Get("aff").(string)
+	return getRegisterInviterId(c, affCode)
+}
+
+func isOAuthRegistrationEnabled() bool {
+	return common.RegisterEnabled && common.OAuthRegisterEnabled
+}
+
 // HandleOAuth handles OAuth callback for all standard OAuth providers
 func HandleOAuth(c *gin.Context) {
 	providerName := c.Param("provider")
@@ -110,7 +120,7 @@ func HandleOAuth(c *gin.Context) {
 		case *OAuthUserDeletedError:
 			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
 		case *OAuthRegistrationDisabledError:
-			common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
+			common.ApiErrorI18n(c, i18n.MsgUserOAuthRegisterDisabled)
 		default:
 			common.ApiError(c, err)
 		}
@@ -232,8 +242,8 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		}
 	}
 
-	// User doesn't exist, create new user if registration is enabled
-	if !common.RegisterEnabled {
+	// User doesn't exist, create new user if OAuth registration is enabled
+	if !isOAuthRegistrationEnabled() {
 		return nil, &OAuthRegistrationDisabledError{}
 	}
 
@@ -263,10 +273,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Status = common.UserStatusEnabled
 
 	// Handle affiliate code
-	affCode := session.Get("aff")
-	inviterId := 0
-	if affCode != nil {
-		inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
+	inviterId, err := getOAuthRegisterInviterId(c)
+	if err != nil {
+		return nil, err
 	}
 
 	// Use transaction to ensure user creation and OAuth binding are atomic

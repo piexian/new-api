@@ -16,9 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { getFreshHeaderModuleEnabled } from '@/lib/nav-modules'
 import { About } from '@/features/about'
 
 export const Route = createFileRoute('/about/')({
+  beforeLoad: async () => {
+    if (!(await getFreshHeaderModuleEnabled('about'))) {
+      throw redirect({ to: '/403' })
+    }
+  },
   component: About,
 })

@@ -79,6 +79,7 @@ const RegisterForm = () => {
     password: '',
     password2: '',
     email: '',
+    aff_code: '',
     verification_code: '',
     wechat_verification_code: '',
   });
@@ -134,7 +135,12 @@ const RegisterForm = () => {
   }, [statusState?.status]);
   const hasCustomOAuthProviders =
     (status.custom_oauth_providers || []).length > 0;
-  const hasOAuthRegisterOptions = Boolean(
+  const registerEnabled = status.register_enabled !== false;
+  const passwordRegisterEnabled =
+    registerEnabled && status.password_register_enabled !== false;
+  const oauthRegisterEnabled =
+    registerEnabled && status.oauth_register_enabled !== false;
+  const hasAnyOAuthProvider = Boolean(
     status.github_oauth ||
       status.discord_oauth ||
       status.oidc_enabled ||
@@ -144,6 +150,11 @@ const RegisterForm = () => {
       status.telegram_oauth ||
       hasCustomOAuthProviders,
   );
+  const hasOAuthRegisterOptions = oauthRegisterEnabled && hasAnyOAuthProvider;
+  const savedAffCode = localStorage.getItem('aff') || '';
+  const inviteCodeRequired = Boolean(status.register_invite_code_required);
+  const showInviteCodeInput =
+    inviteCodeRequired && (passwordRegisterEnabled || hasOAuthRegisterOptions);
 
   const [showEmailVerification, setShowEmailVerification] = useState(false);
 
@@ -157,7 +168,10 @@ const RegisterForm = () => {
     // 从 status 获取用户协议和隐私政策的启用状态
     setHasUserAgreement(status?.user_agreement_enabled || false);
     setHasPrivacyPolicy(status?.privacy_policy_enabled || false);
-  }, [status]);
+    if (!inputs.aff_code && savedAffCode) {
+      setInputs((prev) => ({ ...prev, aff_code: savedAffCode }));
+    }
+  }, [status, inputs.aff_code, savedAffCode]);
 
   useEffect(() => {
     let countdownInterval = null;
@@ -181,6 +195,18 @@ const RegisterForm = () => {
   }, []);
 
   const onWeChatLoginClicked = () => {
+    const inviteCode = (
+      inputs.aff_code ||
+      localStorage.getItem('aff') ||
+      ''
+    ).trim();
+    if (inviteCodeRequired && !inviteCode) {
+      showInfo('请填写邀请码！');
+      return;
+    }
+    if (inviteCode) {
+      localStorage.setItem('aff', inviteCode);
+    }
     setWechatLoading(true);
     setShowWeChatLoginModal(true);
     setWechatLoading(false);
@@ -193,9 +219,13 @@ const RegisterForm = () => {
     }
     setWechatCodeSubmitLoading(true);
     try {
-      const res = await API.get(
-        `/api/oauth/wechat?code=${inputs.wechat_verification_code}`,
-      );
+      const inviteCode = inputs.aff_code || localStorage.getItem('aff') || '';
+      const res = await API.get('/api/oauth/wechat', {
+        params: {
+          code: inputs.wechat_verification_code,
+          aff: inviteCode || undefined,
+        },
+      });
       const { success, message, data } = res.data;
       if (success) {
         userDispatch({ type: 'login', payload: data });
@@ -220,6 +250,9 @@ const RegisterForm = () => {
   }
 
   async function handleSubmit(e) {
+    if (!passwordRegisterEnabled) {
+      return;
+    }
     if (password.length < 8) {
       showInfo('密码长度不得小于 8 位！');
       return;
@@ -233,12 +266,22 @@ const RegisterForm = () => {
         showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
         return;
       }
+      const inviteCode = (
+        inputs.aff_code ||
+        affCode ||
+        localStorage.getItem('aff') ||
+        ''
+      ).trim();
+      if (inviteCodeRequired && !inviteCode) {
+        showInfo('请填写邀请码！');
+        return;
+      }
+      if (inviteCode) {
+        localStorage.setItem('aff', inviteCode);
+      }
       setRegisterLoading(true);
       try {
-        if (!affCode) {
-          affCode = localStorage.getItem('aff');
-        }
-        inputs.aff_code = affCode;
+        inputs.aff_code = inviteCode;
         const res = await API.post(
           `/api/user/register?turnstile=${turnstileToken}`,
           inputs,
@@ -286,6 +329,18 @@ const RegisterForm = () => {
   };
 
   const handleGitHubClick = () => {
+    const inviteCode = (
+      inputs.aff_code ||
+      localStorage.getItem('aff') ||
+      ''
+    ).trim();
+    if (inviteCodeRequired && !inviteCode) {
+      showInfo('请填写邀请码！');
+      return;
+    }
+    if (inviteCode) {
+      localStorage.setItem('aff', inviteCode);
+    }
     if (githubButtonDisabled) {
       return;
     }
@@ -308,6 +363,18 @@ const RegisterForm = () => {
   };
 
   const handleDiscordClick = () => {
+    const inviteCode = (
+      inputs.aff_code ||
+      localStorage.getItem('aff') ||
+      ''
+    ).trim();
+    if (inviteCodeRequired && !inviteCode) {
+      showInfo('请填写邀请码！');
+      return;
+    }
+    if (inviteCode) {
+      localStorage.setItem('aff', inviteCode);
+    }
     setDiscordLoading(true);
     try {
       onDiscordOAuthClicked(status.discord_client_id, { shouldLogout: true });
@@ -317,6 +384,18 @@ const RegisterForm = () => {
   };
 
   const handleOIDCClick = () => {
+    const inviteCode = (
+      inputs.aff_code ||
+      localStorage.getItem('aff') ||
+      ''
+    ).trim();
+    if (inviteCodeRequired && !inviteCode) {
+      showInfo('请填写邀请码！');
+      return;
+    }
+    if (inviteCode) {
+      localStorage.setItem('aff', inviteCode);
+    }
     setOidcLoading(true);
     try {
       onOIDCClicked(
@@ -331,6 +410,18 @@ const RegisterForm = () => {
   };
 
   const handleLinuxDOClick = () => {
+    const inviteCode = (
+      inputs.aff_code ||
+      localStorage.getItem('aff') ||
+      ''
+    ).trim();
+    if (inviteCodeRequired && !inviteCode) {
+      showInfo('请填写邀请码！');
+      return;
+    }
+    if (inviteCode) {
+      localStorage.setItem('aff', inviteCode);
+    }
     setLinuxdoLoading(true);
     try {
       onLinuxDOOAuthClicked(status.linuxdo_client_id, { shouldLogout: true });
@@ -340,6 +431,18 @@ const RegisterForm = () => {
   };
 
   const handleQQClick = () => {
+    const inviteCode = (
+      inputs.aff_code ||
+      localStorage.getItem('aff') ||
+      ''
+    ).trim();
+    if (inviteCodeRequired && !inviteCode) {
+      showInfo('请填写邀请码！');
+      return;
+    }
+    if (inviteCode) {
+      localStorage.setItem('aff', inviteCode);
+    }
     setQqLoading(true);
     try {
       onQQOAuthClicked(status.qq_client_id, { shouldLogout: true });
@@ -349,6 +452,18 @@ const RegisterForm = () => {
   };
 
   const handleCustomOAuthClick = (provider) => {
+    const inviteCode = (
+      inputs.aff_code ||
+      localStorage.getItem('aff') ||
+      ''
+    ).trim();
+    if (inviteCodeRequired && !inviteCode) {
+      showInfo('请填写邀请码！');
+      return;
+    }
+    if (inviteCode) {
+      localStorage.setItem('aff', inviteCode);
+    }
     setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: true }));
     try {
       onCustomOAuthClicked(provider, { shouldLogout: true });
@@ -360,6 +475,9 @@ const RegisterForm = () => {
   };
 
   const handleEmailRegisterClick = () => {
+    if (!passwordRegisterEnabled) {
+      return;
+    }
     setEmailRegisterLoading(true);
     setShowEmailRegister(true);
     setEmailRegisterLoading(false);
@@ -424,6 +542,20 @@ const RegisterForm = () => {
               </Title>
             </div>
             <div className='px-2 py-8'>
+              {showInviteCodeInput && (
+                <Form className='mb-4'>
+                  <Form.Input
+                    field='aff_code'
+                    label={t('邀请码')}
+                    placeholder={t('请输入邀请码')}
+                    name='aff_code'
+                    value={inputs.aff_code}
+                    onChange={(value) => handleChange('aff_code', value)}
+                    prefix={<IconKey />}
+                  />
+                </Form>
+              )}
+
               <div className='space-y-3'>
                 {status.wechat_login && (
                   <Button
@@ -556,20 +688,24 @@ const RegisterForm = () => {
                   </div>
                 )}
 
-                <Divider margin='12px' align='center'>
-                  {t('或')}
-                </Divider>
+                {passwordRegisterEnabled && (
+                  <>
+                    <Divider margin='12px' align='center'>
+                      {t('或')}
+                    </Divider>
 
-                <Button
-                  theme='solid'
-                  type='primary'
-                  className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
-                  icon={<IconMail size='large' />}
-                  onClick={handleEmailRegisterClick}
-                  loading={emailRegisterLoading}
-                >
-                  <span className='ml-3'>{t('使用 用户名 注册')}</span>
-                </Button>
+                    <Button
+                      theme='solid'
+                      type='primary'
+                      className='w-full h-12 flex items-center justify-center bg-black text-white !rounded-full hover:bg-gray-800 transition-colors'
+                      icon={<IconMail size='large' />}
+                      onClick={handleEmailRegisterClick}
+                      loading={emailRegisterLoading}
+                    >
+                      <span className='ml-3'>{t('使用 用户名 注册')}</span>
+                    </Button>
+                  </>
+                )}
               </div>
 
               <div className='mt-6 text-center text-sm'>
@@ -637,6 +773,17 @@ const RegisterForm = () => {
                   onChange={(value) => handleChange('password2', value)}
                   prefix={<IconLock />}
                 />
+
+                {showInviteCodeInput && (
+                  <Form.Input
+                    field='aff_code'
+                    label={t('邀请码')}
+                    placeholder={t('请输入邀请码')}
+                    name='aff_code'
+                    onChange={(value) => handleChange('aff_code', value)}
+                    prefix={<IconKey />}
+                  />
+                )}
 
                 {showEmailVerification && (
                   <>
@@ -818,7 +965,25 @@ const RegisterForm = () => {
       />
       <div className='w-full max-w-sm mt-[60px]'>
         {showEmailRegister || !hasOAuthRegisterOptions
-          ? renderEmailRegisterForm()
+          ? passwordRegisterEnabled
+            ? renderEmailRegisterForm()
+            : (
+              <div className='flex flex-col items-center'>
+                <Card className='border-0 !rounded-2xl overflow-hidden'>
+                  <div className='px-6 py-8 text-center'>
+                    <Text>{t('注册暂不可用')}</Text>
+                    <div className='mt-6'>
+                      <Link
+                        to='/login'
+                        className='text-blue-600 hover:text-blue-800 font-medium'
+                      >
+                        {t('返回登录')}
+                      </Link>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )
           : renderOAuthOptions()}
         {renderWeChatLoginModal()}
 

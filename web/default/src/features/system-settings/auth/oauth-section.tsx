@@ -43,6 +43,7 @@ import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
 const oauthSchema = z.object({
+  OAuthRegisterEnabled: z.boolean(),
   GitHubOAuthEnabled: z.boolean(),
   GitHubClientId: z.string().optional(),
   GitHubClientSecret: z.string().optional(),
@@ -86,6 +87,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
   // Normalize empty strings for optional fields (only at mount)
   const normalizedDefaults: OAuthFormValues = {
     ...defaultValues,
+    OAuthRegisterEnabled: defaultValues.OAuthRegisterEnabled ?? true,
     GitHubClientId: defaultValues.GitHubClientId ?? '',
     GitHubClientSecret: defaultValues.GitHubClientSecret ?? '',
     'discord.client_id': defaultValues['discord.client_id'] ?? '',
@@ -262,6 +264,31 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
             <FormDirtyIndicator isDirty={form.formState.isDirty} />
+
+            <FormField
+              control={form.control}
+              name='OAuthRegisterEnabled'
+              render={({ field }) => (
+                <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                  <div className='space-y-0.5'>
+                    <FormLabel className='text-base'>
+                      {t('OAuth Registration')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Allow new users to register with third-party OAuth accounts'
+                      )}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className='grid w-full grid-cols-7'>

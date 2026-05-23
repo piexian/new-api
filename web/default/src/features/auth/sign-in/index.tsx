@@ -27,6 +27,26 @@ export function SignIn() {
   const { t } = useTranslation()
   const { redirect } = useSearch({ from: '/(auth)/sign-in' })
   const { status } = useStatus()
+  const hasOAuthRegistrationProvider = Boolean(
+    status?.wechat_login ||
+      status?.github_oauth ||
+      status?.discord_oauth ||
+      status?.oidc_enabled ||
+      status?.linuxdo_oauth ||
+      status?.telegram_oauth ||
+      status?.qq_oauth ||
+      (status?.custom_oauth_providers ?? status?.data?.custom_oauth_providers ?? [])
+        .length > 0
+  )
+  const hasRegistrationOption =
+    (status?.register_enabled ?? status?.data?.register_enabled ?? true) &&
+    ((status?.password_register_enabled ??
+      status?.data?.password_register_enabled ??
+      true) ||
+      ((status?.oauth_register_enabled ??
+        status?.data?.oauth_register_enabled ??
+        true) &&
+        hasOAuthRegistrationProvider))
 
   return (
     <AuthLayout>
@@ -35,18 +55,19 @@ export function SignIn() {
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
             {t('Sign in')}
           </h2>
-          {!status?.self_use_mode_enabled && status?.register_enabled !== false && (
-            <p className='text-muted-foreground text-left text-sm sm:text-base'>
-              {t("Don't have an account?")}{' '}
-              <Link
-                to='/sign-up'
-                className='hover:text-primary font-medium underline underline-offset-4'
-              >
-                {t('Sign up')}
-              </Link>
-              .
-            </p>
-          )}
+          {!status?.self_use_mode_enabled &&
+            hasRegistrationOption && (
+              <p className='text-muted-foreground text-left text-sm sm:text-base'>
+                {t("Don't have an account?")}{' '}
+                <Link
+                  to='/sign-up'
+                  className='hover:text-primary font-medium underline underline-offset-4'
+                >
+                  {t('Sign up')}
+                </Link>
+                .
+              </p>
+            )}
         </div>
 
         <UserAuthForm redirectTo={redirect} />

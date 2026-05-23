@@ -23,10 +23,15 @@ import { useTranslation } from 'react-i18next';
 import {
   compareObjects,
   API,
+  getCurrencyConfig,
   showError,
   showSuccess,
   showWarning,
 } from '../../../helpers';
+import {
+  displayAmountToQuota,
+  quotaToDisplayAmount,
+} from '../../../helpers/quota';
 
 export default function SettingsCreditLimit(props) {
   const { t } = useTranslation();
@@ -47,6 +52,28 @@ export default function SettingsCreditLimit(props) {
   const complianceConfirmed =
     props.options?.['payment_setting.compliance_confirmed'] === true ||
     props.options?.['payment_setting.compliance_confirmed'] === 'true';
+  const quotaAmountFields = [
+    'QuotaForNewUser',
+    'PreConsumedQuota',
+    'QuotaForInviter',
+    'QuotaForInvitee',
+  ];
+  const currencyConfig = getCurrencyConfig();
+  const tokensOnly = currencyConfig.type === 'TOKENS';
+  const quotaInputPrefix = tokensOnly ? undefined : currencyConfig.symbol;
+  const quotaInputSuffix = tokensOnly ? 'Token' : undefined;
+  const quotaInputStep = tokensOnly ? 1 : 0.000001;
+
+  const toDisplayAmount = (quota) =>
+    Number(quotaToDisplayAmount(quota || 0).toFixed(6));
+
+  const getRawQuotaPreview = (amount) =>
+    displayAmountToQuota(amount || 0).toLocaleString();
+
+  const getQuotaExtraText = (amount, extraText = '') =>
+    [extraText, `${t('原生额度')}：${getRawQuotaPreview(amount)}`]
+      .filter(Boolean)
+      .join(' · ');
 
   const parseDefaultSubscriptionPlans = (value) => {
     const raw = String(value || '').trim();
@@ -112,6 +139,8 @@ export default function SettingsCreditLimit(props) {
       let value = '';
       if (typeof inputs[item.key] === 'boolean') {
         value = String(inputs[item.key]);
+      } else if (quotaAmountFields.includes(item.key)) {
+        value = String(displayAmountToQuota(inputs[item.key]));
       } else {
         value = inputs[item.key];
       }
@@ -148,7 +177,9 @@ export default function SettingsCreditLimit(props) {
     const currentInputs = {};
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+        currentInputs[key] = quotaAmountFields.includes(key)
+          ? String(toDisplayAmount(props.options[key]))
+          : props.options[key];
       }
     }
     setInputs(currentInputs);
@@ -183,10 +214,13 @@ export default function SettingsCreditLimit(props) {
                 <Form.InputNumber
                   label={t('新用户初始额度')}
                   field={'QuotaForNewUser'}
-                  step={1}
+                  step={quotaInputStep}
                   min={0}
-                  suffix={'Token'}
-                  placeholder={''}
+                  prefix={quotaInputPrefix}
+                  suffix={quotaInputSuffix}
+                  precision={tokensOnly ? 0 : 6}
+                  placeholder={t('输入金额')}
+                  extraText={getQuotaExtraText(inputs.QuotaForNewUser)}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
@@ -199,11 +233,16 @@ export default function SettingsCreditLimit(props) {
                 <Form.InputNumber
                   label={t('请求预扣费额度')}
                   field={'PreConsumedQuota'}
-                  step={1}
+                  step={quotaInputStep}
                   min={0}
-                  suffix={'Token'}
-                  extraText={t('请求结束后多退少补')}
-                  placeholder={''}
+                  prefix={quotaInputPrefix}
+                  suffix={quotaInputSuffix}
+                  precision={tokensOnly ? 0 : 6}
+                  extraText={getQuotaExtraText(
+                    inputs.PreConsumedQuota,
+                    t('请求结束后多退少补'),
+                  )}
+                  placeholder={t('输入金额')}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
@@ -216,13 +255,16 @@ export default function SettingsCreditLimit(props) {
                 <Form.InputNumber
                   label={t('邀请新用户奖励额度')}
                   field={'QuotaForInviter'}
-                  step={1}
+                  step={quotaInputStep}
                   min={0}
-                  suffix={'Token'}
-                  extraText={
-                    !complianceConfirmed ? t('非零值需先确认合规声明') : ''
-                  }
-                  placeholder={t('例如：2000')}
+                  prefix={quotaInputPrefix}
+                  suffix={quotaInputSuffix}
+                  precision={tokensOnly ? 0 : 6}
+                  extraText={getQuotaExtraText(
+                    inputs.QuotaForInviter,
+                    !complianceConfirmed ? t('非零值需先确认合规声明') : '',
+                  )}
+                  placeholder={t('输入金额')}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
@@ -237,13 +279,16 @@ export default function SettingsCreditLimit(props) {
                 <Form.InputNumber
                   label={t('新用户使用邀请码奖励额度')}
                   field={'QuotaForInvitee'}
-                  step={1}
+                  step={quotaInputStep}
                   min={0}
-                  suffix={'Token'}
-                  extraText={
-                    !complianceConfirmed ? t('非零值需先确认合规声明') : ''
-                  }
-                  placeholder={t('例如：1000')}
+                  prefix={quotaInputPrefix}
+                  suffix={quotaInputSuffix}
+                  precision={tokensOnly ? 0 : 6}
+                  extraText={getQuotaExtraText(
+                    inputs.QuotaForInvitee,
+                    !complianceConfirmed ? t('非零值需先确认合规声明') : '',
+                  )}
+                  placeholder={t('输入金额')}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,

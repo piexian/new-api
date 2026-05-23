@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
+import { getFreshRouteEnabled } from '@/lib/nav-modules'
 import { AuthenticatedLayout } from '@/components/layout'
 
 // 内存中的验证标记，避免同一会话中重复验证
@@ -51,6 +52,12 @@ export const Route = createFileRoute('/_authenticated')({
           search: { redirect: location.href },
         })
       }
+    }
+
+    if (!(await getFreshRouteEnabled(location.pathname))) {
+      throw redirect({
+        to: '/403',
+      })
     }
   },
   component: AuthenticatedLayout,

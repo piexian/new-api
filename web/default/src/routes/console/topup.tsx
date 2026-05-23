@@ -18,12 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { getFreshRouteEnabled } from '@/lib/nav-modules'
 
 const topupSearchSchema = z.record(z.string(), z.unknown()).catch({})
 
 export const Route = createFileRoute('/console/topup')({
   validateSearch: topupSearchSchema,
-  beforeLoad: ({ search }) => {
+  beforeLoad: async ({ search }) => {
+    if (!(await getFreshRouteEnabled('/console/topup'))) {
+      throw redirect({ to: '/403' })
+    }
     throw redirect({
       to: '/wallet',
       search: { show_history: true, ...search },

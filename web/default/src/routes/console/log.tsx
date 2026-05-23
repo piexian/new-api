@@ -17,9 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { getFreshRouteEnabled } from '@/lib/nav-modules'
 
 export const Route = createFileRoute('/console/log')({
-  beforeLoad: () => {
+  beforeLoad: async () => {
+    if (!(await getFreshRouteEnabled('/console/log'))) {
+      throw redirect({ to: '/403' })
+    }
     throw redirect({ to: '/usage-logs' })
   },
 })

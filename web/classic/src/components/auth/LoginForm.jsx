@@ -150,6 +150,10 @@ const LoginForm = () => {
       status.telegram_oauth ||
       hasCustomOAuthProviders,
   );
+  const hasRegistrationOptions =
+    status.register_enabled !== false &&
+    (status.password_register_enabled !== false ||
+      (status.oauth_register_enabled !== false && hasOAuthLoginOptions));
 
   useEffect(() => {
     if (status?.turnstile_check) {
@@ -743,7 +747,7 @@ const LoginForm = () => {
                 </div>
               )}
 
-              {!status.self_use_mode_enabled && (
+              {!status.self_use_mode_enabled && hasRegistrationOptions && (
                 <div className='mt-6 text-center text-sm'>
                   <Text>
                     {t('没有账户？')}{' '}
@@ -896,7 +900,7 @@ const LoginForm = () => {
                 </>
               )}
 
-              {!status.self_use_mode_enabled && (
+              {!status.self_use_mode_enabled && hasRegistrationOptions && (
                 <div className='mt-6 text-center text-sm'>
                   <Text>
                     {t('没有账户？')}{' '}

@@ -222,6 +222,26 @@ func Logout(c *gin.Context) {
 	})
 }
 
+func getRegisterInviterId(c *gin.Context, affCode string) (int, error) {
+	affCode = strings.TrimSpace(affCode)
+	if affCode == "" {
+		if common.RegisterInviteCodeRequired {
+			common.ApiErrorI18n(c, i18n.MsgUserAffCodeEmpty)
+			return 0, fmt.Errorf("aff code required")
+		}
+		return 0, nil
+	}
+	inviterId, err := model.GetUserIdByAffCode(affCode)
+	if err != nil {
+		if common.RegisterInviteCodeRequired {
+			common.ApiErrorI18n(c, i18n.MsgUserAffCodeInvalid)
+			return 0, err
+		}
+		return 0, nil
+	}
+	return inviterId, nil
+}
+
 func Register(c *gin.Context) {
 	if !common.RegisterEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
@@ -262,7 +282,10 @@ func Register(c *gin.Context) {
 		return
 	}
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
-	inviterId, _ := model.GetUserIdByAffCode(affCode)
+	inviterId, err := getRegisterInviterId(c, affCode)
+	if err != nil {
+		return
+	}
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,

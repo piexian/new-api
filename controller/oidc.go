@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -142,7 +143,7 @@ func OidcAuth(c *gin.Context) {
 			return
 		}
 	} else {
-		if common.RegisterEnabled {
+		if isOAuthRegistrationEnabled() {
 			user.Email = oidcUser.Email
 			if oidcUser.PreferredUsername != "" {
 				user.Username = oidcUser.PreferredUsername
@@ -154,7 +155,11 @@ func OidcAuth(c *gin.Context) {
 			} else {
 				user.DisplayName = "OIDC User"
 			}
-			err := user.Insert(0)
+			inviterId, err := getOAuthRegisterInviterId(c)
+			if err != nil {
+				return
+			}
+			err = user.Insert(inviterId)
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
@@ -163,10 +168,7 @@ func OidcAuth(c *gin.Context) {
 				return
 			}
 		} else {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员关闭了新用户注册",
-			})
+			common.ApiErrorI18n(c, i18n.MsgUserOAuthRegisterDisabled)
 			return
 		}
 	}

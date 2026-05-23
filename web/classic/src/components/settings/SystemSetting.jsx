@@ -50,6 +50,8 @@ const SystemSetting = () => {
     PasswordLoginEnabled: '',
     PasswordRegisterEnabled: '',
     EmailVerificationEnabled: '',
+    RegisterInviteCodeRequired: '',
+    OAuthRegisterEnabled: '',
     GitHubOAuthEnabled: '',
     GitHubClientId: '',
     GitHubClientSecret: '',
@@ -184,6 +186,8 @@ const SystemSetting = () => {
           case 'PasswordLoginEnabled':
           case 'PasswordRegisterEnabled':
           case 'EmailVerificationEnabled':
+          case 'RegisterInviteCodeRequired':
+          case 'OAuthRegisterEnabled':
           case 'GitHubOAuthEnabled':
           case 'WeChatAuthEnabled':
           case 'TelegramOAuthEnabled':
@@ -1078,6 +1082,15 @@ const SystemSetting = () => {
                         {t('通过密码注册时需要进行邮箱验证')}
                       </Form.Checkbox>
                       <Form.Checkbox
+                        field='RegisterInviteCodeRequired'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('RegisterInviteCodeRequired', e)
+                        }
+                      >
+                        {t('注册时必须填写邀请码')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
                         field='RegisterEnabled'
                         noLabel
                         onChange={(e) =>
@@ -1098,13 +1111,22 @@ const SystemSetting = () => {
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Checkbox
+                        field='OAuthRegisterEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('OAuthRegisterEnabled', e)
+                        }
+                      >
+                        {t('允许通过第三方账户注册')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
                         field='GitHubOAuthEnabled'
                         noLabel
                         onChange={(e) =>
                           handleCheckboxChange('GitHubOAuthEnabled', e)
                         }
                       >
-                        {t('允许通过 GitHub 账户登录 & 注册')}
+                        {t('允许通过 GitHub 账户登录')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='discord.enabled'
@@ -1113,7 +1135,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('discord.enabled', e)
                         }
                       >
-                        {t('允许通过 Discord 账户登录 & 注册')}
+                        {t('允许通过 Discord 账户登录')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='LinuxDOOAuthEnabled'
@@ -1122,7 +1144,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('LinuxDOOAuthEnabled', e)
                         }
                       >
-                        {t('允许通过 Linux DO 账户登录 & 注册')}
+                        {t('允许通过 Linux DO 账户登录')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='QQOAuthEnabled'
@@ -1131,7 +1153,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('QQOAuthEnabled', e)
                         }
                       >
-                        {t('允许通过 QQ 账户登录 & 注册')}
+                        {t('允许通过 QQ 账户登录')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='WeChatAuthEnabled'
@@ -1140,7 +1162,7 @@ const SystemSetting = () => {
                           handleCheckboxChange('WeChatAuthEnabled', e)
                         }
                       >
-                        {t('允许通过微信登录 & 注册')}
+                        {t('允许通过微信登录')}
                       </Form.Checkbox>
                       <Form.Checkbox
                         field='TelegramOAuthEnabled'
