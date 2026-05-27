@@ -47,6 +47,8 @@ export const useUsersData = () => {
   const formInitValues = {
     searchKeyword: '',
     searchGroup: '',
+    searchStatus: '',
+    searchRole: '',
   };
 
   // Form API reference
@@ -58,6 +60,8 @@ export const useUsersData = () => {
     return {
       searchKeyword: formValues.searchKeyword || '',
       searchGroup: formValues.searchGroup || '',
+      searchStatus: formValues.searchStatus || '',
+      searchRole: formValues.searchRole || '',
     };
   };
 
@@ -91,22 +95,44 @@ export const useUsersData = () => {
     pageSize,
     searchKeyword = null,
     searchGroup = null,
+    searchStatus = null,
+    searchRole = null,
   ) => {
     // If no parameters passed, get values from form
-    if (searchKeyword === null || searchGroup === null) {
+    if (
+      searchKeyword === null ||
+      searchGroup === null ||
+      searchStatus === null ||
+      searchRole === null
+    ) {
       const formValues = getFormValues();
       searchKeyword = formValues.searchKeyword;
       searchGroup = formValues.searchGroup;
+      searchStatus = formValues.searchStatus;
+      searchRole = formValues.searchRole;
     }
 
-    if (searchKeyword === '' && searchGroup === '') {
+    if (
+      searchKeyword === '' &&
+      searchGroup === '' &&
+      searchStatus === '' &&
+      searchRole === ''
+    ) {
       // If keyword is blank, load files instead
       await loadUsers(startIdx, pageSize);
       return;
     }
     setSearching(true);
+    const params = new URLSearchParams({
+      keyword: searchKeyword,
+      group: searchGroup,
+      status: searchStatus,
+      role: searchRole,
+      p: String(startIdx),
+      page_size: String(pageSize),
+    });
     const res = await API.get(
-      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`,
+      `/api/user/search?${params.toString()}`,
     );
     const { success, message, data } = res.data;
     if (success) {
@@ -197,11 +223,24 @@ export const useUsersData = () => {
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
-    const { searchKeyword, searchGroup } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '') {
+    const { searchKeyword, searchGroup, searchStatus, searchRole } =
+      getFormValues();
+    if (
+      searchKeyword === '' &&
+      searchGroup === '' &&
+      searchStatus === '' &&
+      searchRole === ''
+    ) {
       loadUsers(page, pageSize).then();
     } else {
-      searchUsers(page, pageSize, searchKeyword, searchGroup).then();
+      searchUsers(
+        page,
+        pageSize,
+        searchKeyword,
+        searchGroup,
+        searchStatus,
+        searchRole,
+      ).then();
     }
   };
 
@@ -210,11 +249,29 @@ export const useUsersData = () => {
     localStorage.setItem('page-size', size + '');
     setPageSize(size);
     setActivePage(1);
-    loadUsers(activePage, size)
-      .then()
-      .catch((reason) => {
-        showError(reason);
-      });
+    const { searchKeyword, searchGroup, searchStatus, searchRole } =
+      getFormValues();
+    try {
+      if (
+        searchKeyword === '' &&
+        searchGroup === '' &&
+        searchStatus === '' &&
+        searchRole === ''
+      ) {
+        await loadUsers(1, size);
+      } else {
+        await searchUsers(
+          1,
+          size,
+          searchKeyword,
+          searchGroup,
+          searchStatus,
+          searchRole,
+        );
+      }
+    } catch (reason) {
+      showError(reason);
+    }
   };
 
   // Handle table row styling for disabled/deleted users
@@ -232,11 +289,24 @@ export const useUsersData = () => {
 
   // Refresh data
   const refresh = async (page = activePage) => {
-    const { searchKeyword, searchGroup } = getFormValues();
-    if (searchKeyword === '' && searchGroup === '') {
+    const { searchKeyword, searchGroup, searchStatus, searchRole } =
+      getFormValues();
+    if (
+      searchKeyword === '' &&
+      searchGroup === '' &&
+      searchStatus === '' &&
+      searchRole === ''
+    ) {
       await loadUsers(page, pageSize);
     } else {
-      await searchUsers(page, pageSize, searchKeyword, searchGroup);
+      await searchUsers(
+        page,
+        pageSize,
+        searchKeyword,
+        searchGroup,
+        searchStatus,
+        searchRole,
+      );
     }
   };
 

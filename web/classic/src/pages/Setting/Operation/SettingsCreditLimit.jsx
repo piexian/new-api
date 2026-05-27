@@ -33,6 +33,8 @@ import {
   quotaToDisplayAmount,
 } from '../../../helpers/quota';
 
+const CURRENT_COMPLIANCE_TERMS_VERSION = 'v1';
+
 export default function SettingsCreditLimit(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -50,8 +52,10 @@ export default function SettingsCreditLimit(props) {
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
   const complianceConfirmed =
-    props.options?.['payment_setting.compliance_confirmed'] === true ||
-    props.options?.['payment_setting.compliance_confirmed'] === 'true';
+    (props.options?.['payment_setting.compliance_confirmed'] === true ||
+      props.options?.['payment_setting.compliance_confirmed'] === 'true') &&
+    props.options?.['payment_setting.compliance_terms_version'] ===
+      CURRENT_COMPLIANCE_TERMS_VERSION;
   const quotaAmountFields = [
     'QuotaForNewUser',
     'PreConsumedQuota',

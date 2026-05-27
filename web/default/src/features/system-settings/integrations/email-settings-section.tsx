@@ -180,7 +180,7 @@ export function EmailSettingsSection({
                 <FormLabel>{t('Email Provider')}</FormLabel>
                 <Select
                   onValueChange={field.onChange}
-                  defaultValue={field.value}
+                  value={field.value}
                 >
                   <FormControl>
                     <SelectTrigger>

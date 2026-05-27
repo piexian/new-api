@@ -36,13 +36,29 @@ const languageOptions = [
 	{ value: "vi", label: "Tiếng Việt" },
 ];
 
+const logLanguageOptions = [
+	{ value: "follow", labelKey: "跟随管理员默认" },
+	{ value: "zh", label: "简体中文" },
+	{ value: "en", label: "English" },
+];
+
+const normalizeLogLanguage = (language) => {
+	if (!language) return "follow";
+	const normalized = language.trim().replace(/_/g, "-").toLowerCase();
+	if (normalized.startsWith("zh")) return "zh";
+	if (normalized.startsWith("en")) return "en";
+	return "follow";
+};
+
 const PreferencesSettings = ({ t }) => {
 	const { i18n } = useTranslation();
 	const [userState, userDispatch] = useContext(UserContext);
 	const [currentLanguage, setCurrentLanguage] = useState(
 		normalizeLanguage(i18n.language) || "zh-CN",
 	);
+	const [currentLogLanguage, setCurrentLogLanguage] = useState("follow");
 	const [loading, setLoading] = useState(false);
+	const [logLanguageLoading, setLogLanguageLoading] = useState(false);
 
 	// Load saved language preference from user settings
 	useEffect(() => {
@@ -57,6 +73,7 @@ const PreferencesSettings = ({ t }) => {
 						i18n.changeLanguage(lang);
 					}
 				}
+				setCurrentLogLanguage(normalizeLogLanguage(settings.log_language));
 			} catch (e) {
 				// Ignore parse errors
 			}
@@ -119,6 +136,52 @@ const PreferencesSettings = ({ t }) => {
 		}
 	};
 
+	const handleLogLanguagePreferenceChange = async (lang) => {
+		const nextLogLanguage = normalizeLogLanguage(lang);
+		if (nextLogLanguage === currentLogLanguage) return;
+
+		setLogLanguageLoading(true);
+		const previousLogLanguage = currentLogLanguage;
+
+		try {
+			setCurrentLogLanguage(nextLogLanguage);
+			const value = nextLogLanguage === "follow" ? "" : nextLogLanguage;
+			const res = await API.put("/api/user/self", {
+				log_language: value,
+			});
+
+			if (res.data.success) {
+				showSuccess(t("日志语言偏好已保存"));
+				let settings = {};
+				if (userState?.user?.setting) {
+					try {
+						settings = JSON.parse(userState.user.setting) || {};
+					} catch (e) {
+						settings = {};
+					}
+				}
+				settings.log_language = value;
+				const nextUser = {
+					...userState.user,
+					setting: JSON.stringify(settings),
+				};
+				userDispatch({
+					type: "login",
+					payload: nextUser,
+				});
+				localStorage.setItem("user", JSON.stringify(nextUser));
+			} else {
+				showError(res.data.message || t("保存失败"));
+				setCurrentLogLanguage(previousLogLanguage);
+			}
+		} catch (error) {
+			showError(t("保存失败，请重试"));
+			setCurrentLogLanguage(previousLogLanguage);
+		} finally {
+			setLogLanguageLoading(false);
+		}
+	};
+
 	return (
 		<Card className="!rounded-2xl shadow-sm border-0">
 			{/* Card Header */}
@@ -162,6 +225,37 @@ const PreferencesSettings = ({ t }) => {
 						optionList={languageOptions.map((opt) => ({
 							value: opt.value,
 							label: opt.label,
+						}))}
+					/>
+				</div>
+			</Card>
+
+			<Card className="!rounded-xl border dark:border-gray-700 mt-4">
+				<div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
+					<div className="flex items-start w-full sm:w-auto">
+						<div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mr-4 flex-shrink-0">
+							<Languages
+								size={20}
+								className="text-blue-600 dark:text-blue-400"
+							/>
+						</div>
+						<div>
+							<Typography.Title heading={6} className="mb-1">
+								{t("日志显示语言")}
+							</Typography.Title>
+							<Typography.Text type="tertiary" className="text-sm">
+								{t("控制 New API 日志内容的显示语言，默认跟随管理员偏好")}
+							</Typography.Text>
+						</div>
+					</div>
+					<Select
+						value={currentLogLanguage}
+						onChange={handleLogLanguagePreferenceChange}
+						style={{ width: 180 }}
+						loading={logLanguageLoading}
+						optionList={logLanguageOptions.map((opt) => ({
+							value: opt.value,
+							label: opt.label || t(opt.labelKey),
 						}))}
 					/>
 				</div>

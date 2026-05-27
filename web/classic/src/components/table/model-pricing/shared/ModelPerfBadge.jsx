@@ -27,15 +27,36 @@ import {
 
 const { Text } = Typography;
 
-const getStatusColorClass = (successRate) => {
+const getStatusConfig = (successRate, t) => {
   const rate = toNumber(successRate);
-  if (rate === null || rate < 99) {
-    return 'bg-red-500';
+  if (rate === null) {
+    return {
+      label: t('监控无数据'),
+      className: 'bg-gray-100 text-gray-500 ring-gray-200',
+    };
+  }
+  if (rate < 80) {
+    return {
+      label: t('监控异常'),
+      className: 'bg-red-50 text-red-600 ring-red-200',
+    };
+  }
+  if (rate < 99) {
+    return {
+      label: t('监控偏低'),
+      className: 'bg-sky-50 text-sky-700 ring-sky-200',
+    };
   }
   if (rate < 99.9) {
-    return 'bg-amber-500';
+    return {
+      label: t('监控波动'),
+      className: 'bg-amber-50 text-amber-700 ring-amber-200',
+    };
   }
-  return 'bg-emerald-500';
+  return {
+    label: t('监控正常'),
+    className: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  };
 };
 
 const ModelPerfBadge = ({ perf, t, className = '' }) => {
@@ -44,10 +65,13 @@ const ModelPerfBadge = ({ perf, t, className = '' }) => {
   }
 
   const successRate = toNumber(perf.success_rate);
+  const successRateText =
+    successRate === null ? '—' : `${successRate.toFixed(1)}%`;
+  const statusConfig = getStatusConfig(successRate, t);
 
   return (
     <div
-      className={`grid w-[136px] grid-cols-[42px_52px_30px] gap-x-2 text-right tabular-nums ${className}`}
+      className={`grid w-[154px] grid-cols-[42px_52px_44px] gap-x-2 text-right tabular-nums ${className}`}
     >
       <div title={t('平均延迟')} className='min-w-0'>
         <div className='text-[10px] leading-4 text-gray-400'>{t('延迟')}</div>
@@ -62,18 +86,16 @@ const ModelPerfBadge = ({ perf, t, className = '' }) => {
         </Text>
       </div>
       <div
-        title={`${t('成功率')}: ${
-          successRate === null ? '—' : `${successRate.toFixed(1)}%`
-        }`}
+        title={`${t('成功率')}: ${successRateText}`}
         className='min-w-0'
       >
         <div className='text-[10px] leading-4 text-gray-400'>{t('状态')}</div>
-        <div className='flex h-4 items-center justify-end gap-0.5'>
-          <span className='h-2 w-1 rounded-full bg-gray-200' />
-          <span className='h-2.5 w-1 rounded-full bg-gray-300' />
+        <div className='flex h-4 items-center justify-end'>
           <span
-            className={`h-3 w-1 rounded-full ${getStatusColorClass(successRate)}`}
-          />
+            className={`inline-flex max-w-full items-center rounded-full px-1.5 text-[10px] font-medium leading-4 ring-1 ring-inset ${statusConfig.className}`}
+          >
+            {statusConfig.label}
+          </span>
         </div>
       </div>
     </div>

@@ -67,8 +67,8 @@ const OPERATIONS_SECTIONS = [
   },
   {
     id: 'email',
-    titleKey: 'SMTP Email',
-    descriptionKey: 'Configure SMTP email settings',
+    titleKey: 'Email Settings',
+    descriptionKey: 'Configure email service settings',
     build: (settings: OperationsSettings) => (
       <EmailSettingsSection
         defaultValues={{

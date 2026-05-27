@@ -17,15 +17,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
-import { useLocation } from '@tanstack/react-router'
+import { Link, useLocation } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { ArrowLeft } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
 import { useLayout } from '@/context/layout-provider'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 import { useSidebarData } from '@/hooks/use-sidebar-data'
-import { Sidebar, SidebarContent, SidebarRail } from '@/components/ui/sidebar'
-import { getNavGroupsForPath } from '../lib/workspace-registry'
+import { DASHBOARD_DEFAULT_SECTION } from '@/features/dashboard/section-registry'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+  SidebarSeparator,
+  useSidebar,
+} from '@/components/ui/sidebar'
+import {
+  getNavGroupsForPath,
+  isInWorkspace,
+  WORKSPACE_IDS,
+} from '../lib/workspace-registry'
 import { NavGroup } from './nav-group'
 
 /**
@@ -42,6 +57,10 @@ export function AppSidebar() {
   const { pathname } = useLocation()
   const userRole = useAuthStore((state) => state.auth.user?.role)
   const sidebarData = useSidebarData()
+  const isSystemSettings = isInWorkspace(
+    pathname,
+    WORKSPACE_IDS.SYSTEM_SETTINGS
+  )
 
   // Get navigation group configuration corresponding to current path from workspace registry
   const allNavGroups = getNavGroupsForPath(pathname, t) || sidebarData.navGroups
@@ -64,6 +83,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
       <SidebarContent className='py-2'>
+        {isSystemSettings && <SystemSettingsBackItem />}
         {currentNavGroups.map((props) => {
           const key = props.id || props.title
           return <NavGroup key={key} {...props} />
@@ -71,5 +91,33 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarRail />
     </Sidebar>
+  )
+}
+
+function SystemSettingsBackItem() {
+  const { t } = useTranslation()
+  const { setOpenMobile } = useSidebar()
+
+  return (
+    <>
+      <SidebarMenu className='px-2'>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            tooltip={t('Back')}
+            render={
+              <Link
+                to='/dashboard/$section'
+                params={{ section: DASHBOARD_DEFAULT_SECTION }}
+                onClick={() => setOpenMobile(false)}
+              />
+            }
+          >
+            <ArrowLeft />
+            <span>{t('Back')}</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+      <SidebarSeparator className='my-1' />
+    </>
   )
 }

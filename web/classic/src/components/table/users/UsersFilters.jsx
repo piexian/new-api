@@ -34,6 +34,15 @@ const UsersFilters = ({
   t,
 }) => {
   const formApiRef = useRef(null);
+  const statusOptions = [
+    { value: '1', label: t('已启用') },
+    { value: '2', label: t('已禁用') },
+  ];
+  const roleOptions = [
+    { value: '1', label: t('普通用户') },
+    { value: '10', label: t('管理员') },
+    { value: '100', label: t('超级管理员') },
+  ];
 
   const handleReset = () => {
     if (!formApiRef.current) return;
@@ -78,6 +87,38 @@ const UsersFilters = ({
             optionList={groupOptions}
             onChange={(value) => {
               // Group change triggers automatic search
+              setTimeout(() => {
+                searchUsers(1, pageSize);
+              }, 100);
+            }}
+            className='w-full'
+            showClear
+            pure
+            size='small'
+          />
+        </div>
+        <div className='w-full md:w-36'>
+          <Form.Select
+            field='searchStatus'
+            placeholder={t('选择状态')}
+            optionList={statusOptions}
+            onChange={() => {
+              setTimeout(() => {
+                searchUsers(1, pageSize);
+              }, 100);
+            }}
+            className='w-full'
+            showClear
+            pure
+            size='small'
+          />
+        </div>
+        <div className='w-full md:w-36'>
+          <Form.Select
+            field='searchRole'
+            placeholder={t('选择角色')}
+            optionList={roleOptions}
+            onChange={() => {
               setTimeout(() => {
                 searchUsers(1, pageSize);
               }, 100);

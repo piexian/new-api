@@ -72,6 +72,16 @@ export async function updateUserLanguage(
 }
 
 /**
+ * Update log display language preference
+ */
+export async function updateUserLogLanguage(
+  logLanguage: string
+): Promise<ApiResponse> {
+  const res = await api.put('/api/user/self', { log_language: logLanguage })
+  return res.data
+}
+
+/**
  * Delete user account
  */
 export async function deleteUserAccount(

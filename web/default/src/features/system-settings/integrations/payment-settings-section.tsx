@@ -245,6 +245,7 @@ export function PaymentSettingsSection({
         toast.success(t('Compliance confirmed successfully'))
         setShowComplianceDialog(false)
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
+        queryClient.invalidateQueries({ queryKey: ['topup-info'] })
       } else {
         toast.error(data.message || t('Failed to confirm compliance'))
       }
