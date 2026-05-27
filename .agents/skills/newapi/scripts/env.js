@@ -52,9 +52,10 @@ function findProjectRoot(startDir) {
 const skillDir = path.resolve(__dirname, "..");
 const projectRoot = findProjectRoot(process.cwd());
 
-// Lower priority first, higher priority overwrites undefined keys
-loadEnv(path.join(projectRoot, ".env"));
+// loadEnv only sets keys that are still undefined, so the first file loaded wins.
+// Load skill dir first so it overrides project root, matching docs/setup.md priority.
 loadEnv(path.join(skillDir, ".env"));
+loadEnv(path.join(projectRoot, ".env"));
 
 const BASE_URL = process.env.NEWAPI_BASE_URL;
 const ACCESS_TOKEN = process.env.NEWAPI_ACCESS_TOKEN;

@@ -48,7 +48,7 @@ export function SubscriptionsProvider({
     queryFn: getTopupInfo,
   })
   const complianceConfirmed =
-    topupInfoResponse?.data?.payment_compliance_confirmed !== false
+    topupInfoResponse?.data?.payment_compliance_confirmed === true
 
   const triggerRefresh = () => setRefreshTrigger((prev) => prev + 1)
 

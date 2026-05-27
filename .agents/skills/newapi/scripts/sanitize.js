@@ -28,7 +28,7 @@ function sanitize(content) {
 
   // Rule 3: Credentials in connection strings (user:pass@host pattern)
   result = result.replace(
-    /[A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+@[^\s]+/g,
+    /[A-Za-z0-9_.\-%+]+:[A-Za-z0-9_.\-%+]+@[^\s]+/g,
     "<REDACTED>"
   );
 

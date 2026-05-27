@@ -55,7 +55,10 @@ async function main() {
     process.exit(1);
   }
 
-  const realCommand = commandTemplate.split(placeholder).join(fullKey);
+  // POSIX single-quote escape: key is interpolated into a `shell: true` exec, so any
+  // metacharacter ($, `, ;, etc.) in the key would otherwise be interpreted by the shell.
+  const escapedKey = "'" + fullKey.replace(/'/g, "'\\''") + "'";
+  const realCommand = commandTemplate.split(placeholder).join(escapedKey);
 
   let stdout = "";
   let stderr = "";

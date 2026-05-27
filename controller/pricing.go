@@ -33,6 +33,9 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 
 func publicPricingUsableGroups(groupRatio map[string]float64) map[string]string {
 	usableGroup := setting.GetUserUsableGroupsCopy()
+	if usableGroup == nil {
+		usableGroup = map[string]string{}
+	}
 	for group := range groupRatio {
 		if group == "" || group == "auto" {
 			continue

@@ -123,14 +123,13 @@ export const useUsersData = () => {
       return;
     }
     setSearching(true);
-    const params = new URLSearchParams({
-      keyword: searchKeyword,
-      group: searchGroup,
-      status: searchStatus,
-      role: searchRole,
-      p: String(startIdx),
-      page_size: String(pageSize),
-    });
+    const params = new URLSearchParams();
+    if (searchKeyword) params.append('keyword', searchKeyword);
+    if (searchGroup) params.append('group', searchGroup);
+    if (searchStatus) params.append('status', searchStatus);
+    if (searchRole) params.append('role', searchRole);
+    params.append('p', String(startIdx));
+    params.append('page_size', String(pageSize));
     const res = await API.get(
       `/api/user/search?${params.toString()}`,
     );

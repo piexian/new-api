@@ -32,9 +32,9 @@ function buildTempPath(targetPath) {
 
 function writeFileAtomically(targetPath, content) {
   const tempPath = buildTempPath(targetPath);
-  const stats = fs.statSync(targetPath);
 
   try {
+    const stats = fs.statSync(targetPath);
     fs.writeFileSync(tempPath, content, { encoding: "utf-8", mode: stats.mode });
     fs.renameSync(tempPath, targetPath);
   } catch {

@@ -30,7 +30,7 @@ async function fetchTokenKey(tokenId, { baseUrl, accessToken, userId }) {
 
   const body = await res.json();
 
-  if (!body.success && !body.data) {
+  if (!body.success) {
     throw new Error(body.message || "Unknown API error");
   }
 
