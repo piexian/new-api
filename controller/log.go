@@ -19,14 +19,10 @@ func resolveRequestLogLanguage(c *gin.Context) string {
 		}
 	}
 
-	fallback := ""
-	if rootUser := model.GetRootUser(); rootUser != nil && rootUser.Id > 0 {
-		fallback = rootUser.GetSetting().LogLanguage
-		if fallback == "" {
-			fallback = rootUser.GetSetting().Language
-		}
+	if model.NormalizeLogLanguage(userSetting) != "" {
+		return model.ResolveEffectiveLogLanguage(userSetting, "")
 	}
-	return model.ResolveEffectiveLogLanguage(userSetting, fallback)
+	return model.ResolveEffectiveLogLanguage(userSetting, model.GetRootLogLanguageFallback())
 }
 
 func GetAllLogs(c *gin.Context) {

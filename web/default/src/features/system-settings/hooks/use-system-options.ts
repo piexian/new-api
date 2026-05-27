@@ -23,8 +23,7 @@ export function useSystemOptions() {
   return useQuery({
     queryKey: ['system-options'],
     queryFn: getSystemOptions,
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 5 * 60 * 1000,
   })
 }
 

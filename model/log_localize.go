@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -11,6 +13,38 @@ const (
 	LogLanguageZH     = "zh"
 	LogLanguageEN     = "en"
 )
+
+// rootLogLanguageCacheTTL bounds how long we trust the cached root admin
+// fallback language between DB lookups.
+const rootLogLanguageCacheTTL = 60 * time.Second
+
+var (
+	rootLogLanguageMu       sync.Mutex
+	cachedRootLogLanguage   string
+	cachedRootLogLanguageAt time.Time
+)
+
+// GetRootLogLanguageFallback returns the root admin's log language preference
+// (falling back to the admin's interface language). Cached with a 60s TTL to
+// avoid a DB round-trip on every log listing request.
+func GetRootLogLanguageFallback() string {
+	rootLogLanguageMu.Lock()
+	defer rootLogLanguageMu.Unlock()
+	if !cachedRootLogLanguageAt.IsZero() && time.Since(cachedRootLogLanguageAt) < rootLogLanguageCacheTTL {
+		return cachedRootLogLanguage
+	}
+	fallback := ""
+	if rootUser := GetRootUser(); rootUser != nil && rootUser.Id > 0 {
+		setting := rootUser.GetSetting()
+		fallback = setting.LogLanguage
+		if fallback == "" {
+			fallback = setting.Language
+		}
+	}
+	cachedRootLogLanguage = fallback
+	cachedRootLogLanguageAt = time.Now()
+	return fallback
+}
 
 type logTranslationRule struct {
 	pattern *regexp.Regexp
