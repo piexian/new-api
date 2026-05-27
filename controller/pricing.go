@@ -4,6 +4,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -12,9 +13,6 @@ import (
 func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string]string) []model.Pricing {
 	if len(pricing) == 0 {
 		return pricing
-	}
-	if len(usableGroup) == 0 {
-		return []model.Pricing{}
 	}
 
 	filtered := make([]model.Pricing, 0, len(pricing))
@@ -31,6 +29,29 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 		}
 	}
 	return filtered
+}
+
+func publicPricingUsableGroups(groupRatio map[string]float64) map[string]string {
+	usableGroup := setting.GetUserUsableGroupsCopy()
+	for group := range groupRatio {
+		if group == "" || group == "auto" {
+			continue
+		}
+		if _, ok := usableGroup[group]; !ok {
+			usableGroup[group] = setting.GetUsableGroupDescription(group)
+		}
+	}
+	return usableGroup
+}
+
+func pricingAutoGroups(usableGroup map[string]string) []string {
+	autoGroups := make([]string, 0)
+	for _, group := range setting.GetAutoGroups() {
+		if _, ok := usableGroup[group]; ok {
+			autoGroups = append(autoGroups, group)
+		}
+	}
+	return autoGroups
 }
 
 func GetPricing(c *gin.Context) {
@@ -55,7 +76,11 @@ func GetPricing(c *gin.Context) {
 		}
 	}
 
-	usableGroup = service.GetUserUsableGroups(group)
+	if exists {
+		usableGroup = service.GetUserUsableGroups(group)
+	} else {
+		usableGroup = publicPricingUsableGroups(groupRatio)
+	}
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
@@ -71,7 +96,7 @@ func GetPricing(c *gin.Context) {
 		"group_ratio":        groupRatio,
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
-		"auto_groups":        service.GetUserAutoGroup(group),
+		"auto_groups":        pricingAutoGroups(usableGroup),
 		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
 }

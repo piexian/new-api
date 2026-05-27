@@ -361,8 +361,16 @@ func GetAllUsers(c *gin.Context) {
 func SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
+	status, _ := strconv.Atoi(c.Query("status"))
+	role, _ := strconv.Atoi(c.Query("role"))
+	if status != common.UserStatusEnabled && status != common.UserStatusDisabled {
+		status = 0
+	}
+	if !common.IsValidateRole(role) || role == common.RoleGuestUser {
+		role = 0
+	}
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsers(keyword, group, status, role, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -803,7 +811,9 @@ func UpdateSelf(c *gin.Context) {
 	}
 
 	// 检查是否是语言偏好更新请求
-	if language, langExists := requestData["language"]; langExists {
+	language, langExists := requestData["language"]
+	logLanguage, logLangExists := requestData["log_language"]
+	if langExists || logLangExists {
 		userId := c.GetInt("id")
 		user, err := model.GetUserById(userId, false)
 		if err != nil {
@@ -817,6 +827,9 @@ func UpdateSelf(c *gin.Context) {
 		// 更新language字段
 		if langStr, ok := language.(string); ok {
 			currentSetting.Language = langStr
+		}
+		if logLangStr, ok := logLanguage.(string); ok {
+			currentSetting.LogLanguage = model.NormalizeLogLanguage(logLangStr)
 		}
 
 		// 保存更新后的设置
@@ -1370,6 +1383,7 @@ type UpdateUserSettingRequest struct {
 	UpstreamModelUpdateNotifyEnabled *bool   `json:"upstream_model_update_notify_enabled,omitempty"`
 	AcceptUnsetModelRatioModel       bool    `json:"accept_unset_model_ratio_model"`
 	RecordIpLog                      bool    `json:"record_ip_log"`
+	LogLanguage                      *string `json:"log_language,omitempty"`
 }
 
 func UpdateUserSetting(c *gin.Context) {
@@ -1472,6 +1486,17 @@ func UpdateUserSetting(c *gin.Context) {
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
+		LogLanguage:                      existingSettings.LogLanguage,
+		Language:                         existingSettings.Language,
+		SidebarModules:                   existingSettings.SidebarModules,
+		BillingPreference:                existingSettings.BillingPreference,
+		SetupCompleted:                   existingSettings.SetupCompleted,
+		FeatureUpdateV1:                  existingSettings.FeatureUpdateV1,
+		UsernameChangeWindowStart:        existingSettings.UsernameChangeWindowStart,
+		UsernameChangeCount:              existingSettings.UsernameChangeCount,
+	}
+	if req.LogLanguage != nil {
+		settings.LogLanguage = model.NormalizeLogLanguage(*req.LogLanguage)
 	}
 
 	// 如果是webhook类型,添加webhook相关设置

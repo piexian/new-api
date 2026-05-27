@@ -10,6 +10,25 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func resolveRequestLogLanguage(c *gin.Context) string {
+	userId := c.GetInt("id")
+	userSetting := ""
+	if userId > 0 {
+		if settingMap, err := model.GetUserSetting(userId, false); err == nil {
+			userSetting = settingMap.LogLanguage
+		}
+	}
+
+	fallback := ""
+	if rootUser := model.GetRootUser(); rootUser != nil && rootUser.Id > 0 {
+		fallback = rootUser.GetSetting().LogLanguage
+		if fallback == "" {
+			fallback = rootUser.GetSetting().Language
+		}
+	}
+	return model.ResolveEffectiveLogLanguage(userSetting, fallback)
+}
+
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
@@ -22,7 +41,7 @@ func GetAllLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId)
+	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId, resolveRequestLogLanguage(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -44,7 +63,7 @@ func GetUserLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId)
+	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId, resolveRequestLogLanguage(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -80,7 +99,7 @@ func GetLogByKey(c *gin.Context) {
 		})
 		return
 	}
-	logs, err := model.GetLogByTokenId(tokenId)
+	logs, err := model.GetLogByTokenId(tokenId, resolveRequestLogLanguage(c))
 	if err != nil {
 		c.JSON(200, gin.H{
 			"success": false,

@@ -79,6 +79,43 @@ func TestOAuthRegistrationCanBeDisabledSeparately(t *testing.T) {
 	}
 }
 
+func TestOAuthRegistrationPersistsInviterId(t *testing.T) {
+	if err := newapii18n.Init(); err != nil {
+		t.Fatalf("failed to initialize i18n: %v", err)
+	}
+	db := setupUserSelfControllerTestDB(t)
+	withRequiredRegisterInviteCode(t)
+	inviter := seedSelfUser(t, db, "oauth-invite-owner", "")
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/oauth/mock", nil)
+	ctx.Request.Header.Set("Accept-Language", "en")
+	store := cookie.NewStore([]byte("oauth-invite-test"))
+	sessions.Sessions("new-api-session", store)(ctx)
+	session := sessions.Default(ctx)
+	session.Set("aff", inviter.AffCode)
+	if err := session.Save(); err != nil {
+		t.Fatalf("failed to save session: %v", err)
+	}
+
+	user, err := findOrCreateOAuthUser(ctx, mockOAuthProvider{}, &oauth.OAuthUser{
+		ProviderUserID: "provider-invite-user",
+		Username:       "provider-invite-user",
+	}, session)
+	if err != nil {
+		t.Fatalf("expected OAuth registration success, got error: %v", err)
+	}
+
+	var registered model.User
+	if err := db.First(&registered, user.Id).Error; err != nil {
+		t.Fatalf("failed to load registered OAuth user: %v", err)
+	}
+	if registered.InviterId != inviter.Id {
+		t.Fatalf("expected inviter id %d, got %d", inviter.Id, registered.InviterId)
+	}
+}
+
 type mockOAuthProvider struct{}
 
 func (mockOAuthProvider) GetName() string           { return "Mock" }

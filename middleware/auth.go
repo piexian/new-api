@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -57,6 +58,31 @@ func disabledUserBusinessResponse(c *gin.Context, reason string, userId int, use
 		},
 	})
 	c.Abort()
+}
+
+func resolveTokenUsingGroup(userGroup, tokenGroup string, userUsableGroups map[string]string) (string, bool) {
+	if tokenGroup == "" {
+		return userGroup, true
+	}
+	if tokenGroup == "auto" {
+		return tokenGroup, true
+	}
+	if _, ok := userUsableGroups[tokenGroup]; !ok {
+		return "", false
+	}
+	return tokenGroup, true
+}
+
+func formatAvailableGroups(userUsableGroups map[string]string) string {
+	if len(userUsableGroups) == 0 {
+		return "无"
+	}
+	groups := make([]string, 0, len(userUsableGroups))
+	for group := range userUsableGroups {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+	return strings.Join(groups, "、")
 }
 
 func authHelper(c *gin.Context, minRole int) {
@@ -412,9 +438,11 @@ func TokenAuth() func(c *gin.Context) {
 		userGroup := userCache.Group
 		tokenGroup := token.Group
 		if tokenGroup != "" {
-			// check common.UserUsableGroups[userGroup]
-			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
+			var ok bool
+			userUsableGroups := service.GetUserUsableGroups(userGroup)
+			userGroup, ok = resolveTokenUsingGroup(userGroup, tokenGroup, userUsableGroups)
+			if !ok {
+				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("当前用户无此分组，可用分组：%s", formatAvailableGroups(userUsableGroups)))
 				return
 			}
 			// check group in common.GroupRatio
@@ -423,10 +451,6 @@ func TokenAuth() func(c *gin.Context) {
 					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
 					return
 				}
-			}
-			// 仅当 token group 与用户 group 一致时才允许覆盖，防止降级用户通过旧 token 分组越权
-			if userGroup == tokenGroup {
-				userGroup = tokenGroup
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
