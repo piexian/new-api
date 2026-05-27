@@ -36,7 +36,6 @@ data/
 token_estimator_test.go
 skills-lock.json
 .ccg/
-.agents/
 plan/
 tmp/
 new-api.prev
