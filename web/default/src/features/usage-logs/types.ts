@@ -158,6 +158,9 @@ export interface LogOtherData {
   audio_input_price?: number
   image_generation_call?: boolean
   image_generation_call_price?: number
+  image_request?: Record<string, unknown>
+  image_generation_call_detail?: Record<string, unknown>
+  generation_params?: Record<string, unknown>
   is_system_prompt_overwritten?: boolean
   po?: string[]
   billing_source?: string
@@ -245,7 +248,17 @@ export interface TaskLog {
   progress?: string
   progress_message_en?: string
   data?: string // JSON string
+  properties?:
+    | {
+        input?: string
+        upstream_model_name?: string
+        origin_model_name?: string
+        [key: string]: unknown
+      }
+    | string
+    | Record<string, unknown>
   fail_reason?: string
+  result_url?: string
   status: string // NOT_START, SUBMITTED, IN_PROGRESS, SUCCESS, FAILURE, QUEUED, UNKNOWN
   other?: string
   created_at?: number

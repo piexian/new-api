@@ -5,6 +5,7 @@ import "strings"
 // https://platform.minimaxi.com/docs/api-reference/api-overview
 
 var ModelList = []string{
+	"MiniMax-M3",
 	"MiniMax-M2.7",
 	"MiniMax-M2.7-highspeed",
 	"MiniMax-M2.5",
@@ -49,13 +50,18 @@ const (
 	MusicCoverPreprocessEndpoint = "/v1/music_cover_preprocess"
 	LyricsGenerationEndpoint     = "/v1/lyrics_generation"
 	ChatCompletionsEndpoint      = "/v1/chat/completions"
+	ResponsesEndpoint            = "/v1/responses"
+	ResponsesInputTokensEndpoint = "/v1/responses/input_tokens"
 	AnthropicMessagesEndpoint    = "/v1/messages"
+	AnthropicCountTokensEndpoint = "/v1/messages/count_tokens"
 	SpeechEndpoint               = "/v1/audio/speech"
 	ImageGenerationEndpoint      = "/v1/image_generation"
 	MusicGenerationDocURL        = "https://platform.minimaxi.com/docs/api-reference/music-generation"
 	MusicCoverPreprocessDocURL   = "https://platform.minimaxi.com/docs/api-reference/music-cover-preprocess"
 	LyricsGenerationDocURL       = "https://platform.minimaxi.com/docs/api-reference/lyrics-generation"
 	OpenAIChatCompletionsDocURL  = "https://platform.minimaxi.com/docs/api-reference/text-chat-openai"
+	ResponsesDocURL              = "https://platform.minimaxi.com/docs/api-reference/responses-create"
+	ResponsesInputTokensDocURL   = "https://platform.minimaxi.com/docs/api-reference/responses-input-tokens"
 	AnthropicMessagesDocURL      = "https://platform.minimaxi.com/docs/api-reference/text-chat-anthropic"
 	SpeechDocURL                 = "https://platform.minimaxi.com/docs/api-reference/speech-t2a-http"
 	ImageGenerationDocURL        = "https://platform.minimaxi.com/docs/api-reference/image-generation-t2i"

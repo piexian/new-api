@@ -75,6 +75,9 @@ func expectedEndpointForModel(modelName string, relayFormat types.RelayFormat) (
 		if relayFormat == types.RelayFormatClaude {
 			return EndpointGuide{Endpoint: AnthropicMessagesEndpoint, DocURL: AnthropicMessagesDocURL, Label: "text model"}, true
 		}
+		if relayFormat == types.RelayFormatOpenAIResponses {
+			return EndpointGuide{Endpoint: ResponsesEndpoint, DocURL: ResponsesDocURL, Label: "text model"}, true
+		}
 		return EndpointGuide{Endpoint: ChatCompletionsEndpoint, DocURL: OpenAIChatCompletionsDocURL, Label: "text model"}, true
 	default:
 		return EndpointGuide{}, false
@@ -93,8 +96,10 @@ func endpointMatchesRelayMode(info *relaycommon.RelayInfo, endpoint string) bool
 	case LyricsGenerationEndpoint:
 		return info.RelayMode == relayconstant.RelayModeMiniMaxLyricsGeneration
 	case ChatCompletionsEndpoint:
-		return (info.RelayMode == relayconstant.RelayModeChatCompletions || info.RelayMode == relayconstant.RelayModeResponses) &&
-			info.RelayFormat != types.RelayFormatClaude
+		return info.RelayMode == relayconstant.RelayModeChatCompletions && info.RelayFormat != types.RelayFormatClaude
+	case ResponsesEndpoint:
+		return info.RelayFormat == types.RelayFormatOpenAIResponses &&
+			(info.RelayMode == relayconstant.RelayModeResponses || info.RelayMode == relayconstant.RelayModeResponsesInputTokens)
 	case AnthropicMessagesEndpoint:
 		return info.RelayFormat == types.RelayFormatClaude && strings.HasPrefix(info.RequestURLPath, AnthropicMessagesEndpoint)
 	case SpeechEndpoint:

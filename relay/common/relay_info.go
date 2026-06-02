@@ -386,7 +386,9 @@ func GenRelayInfoEmbedding(c *gin.Context, request dto.Request) *RelayInfo {
 
 func GenRelayInfoResponses(c *gin.Context, request *dto.OpenAIResponsesRequest) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
-	info.RelayMode = relayconstant.RelayModeResponses
+	if info.RelayMode == relayconstant.RelayModeUnknown {
+		info.RelayMode = relayconstant.RelayModeResponses
+	}
 	info.RelayFormat = types.RelayFormatOpenAIResponses
 
 	info.ResponsesUsageInfo = &ResponsesUsageInfo{
@@ -429,6 +431,24 @@ func GenRelayInfoImage(c *gin.Context, request dto.Request) *RelayInfo {
 func GenRelayInfoMiniMax(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatMiniMax
+	return info
+}
+
+func GenRelayInfoXAI(c *gin.Context, request dto.Request) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	info.RelayFormat = types.RelayFormatXAI
+	if info.RelayMode == relayconstant.RelayModeUnknown {
+		info.RelayMode = relayconstant.RelayModeXAINative
+	}
+	return info
+}
+
+func GenRelayInfoXAIRealtime(c *gin.Context, request dto.Request, ws *websocket.Conn) *RelayInfo {
+	info := GenRelayInfoXAI(c, request)
+	info.RelayFormat = types.RelayFormatXAIRealtime
+	info.RelayMode = relayconstant.RelayModeXAINative
+	info.ClientWs = ws
+	info.IsStream = true
 	return info
 }
 
@@ -568,6 +588,10 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoEmbedding(c, request)
 	case types.RelayFormatMiniMax:
 		info = GenRelayInfoMiniMax(c, request)
+	case types.RelayFormatXAI:
+		info = GenRelayInfoXAI(c, request)
+	case types.RelayFormatXAIRealtime:
+		info = GenRelayInfoXAIRealtime(c, request, ws)
 	case types.RelayFormatOpenAIResponses:
 		if request, ok := request.(*dto.OpenAIResponsesRequest); ok {
 			info = GenRelayInfoResponses(c, request)
@@ -713,26 +737,63 @@ func (t *TaskSubmitReq) HasImage() bool {
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
-	type Alias TaskSubmitReq
-	aux := &struct {
-		Metadata json.RawMessage `json:"metadata,omitempty"`
-		Duration json.RawMessage `json:"duration,omitempty"`
-		*Alias
-	}{
-		Alias: (*Alias)(t),
-	}
-
-	if err := common.Unmarshal(data, &aux); err != nil {
+	var rawMap map[string]json.RawMessage
+	if err := common.Unmarshal(data, &rawMap); err != nil {
 		return err
 	}
 
-	if len(aux.Duration) > 0 {
+	knownFields := map[string]struct{}{
+		"prompt":          {},
+		"model":           {},
+		"mode":            {},
+		"image":           {},
+		"images":          {},
+		"size":            {},
+		"duration":        {},
+		"seconds":         {},
+		"input_reference": {},
+		"metadata":        {},
+	}
+
+	if raw := rawMap["prompt"]; len(raw) > 0 {
+		_ = common.Unmarshal(raw, &t.Prompt)
+	}
+	if raw := rawMap["model"]; len(raw) > 0 {
+		_ = common.Unmarshal(raw, &t.Model)
+	}
+	if raw := rawMap["mode"]; len(raw) > 0 {
+		_ = common.Unmarshal(raw, &t.Mode)
+	}
+	if raw := rawMap["size"]; len(raw) > 0 {
+		_ = common.Unmarshal(raw, &t.Size)
+	}
+	if raw := rawMap["seconds"]; len(raw) > 0 {
+		_ = common.Unmarshal(raw, &t.Seconds)
+	}
+	if raw := rawMap["input_reference"]; len(raw) > 0 {
+		_ = common.Unmarshal(raw, &t.InputReference)
+	}
+
+	if raw := rawMap["image"]; len(raw) > 0 {
+		var image string
+		if err := common.Unmarshal(raw, &image); err == nil {
+			t.Image = image
+		}
+	}
+	if raw := rawMap["images"]; len(raw) > 0 {
+		var images []string
+		if err := common.Unmarshal(raw, &images); err == nil {
+			t.Images = images
+		}
+	}
+
+	if durationRaw := rawMap["duration"]; len(durationRaw) > 0 {
 		var durationInt int
-		if err := common.Unmarshal(aux.Duration, &durationInt); err == nil {
+		if err := common.Unmarshal(durationRaw, &durationInt); err == nil {
 			t.Duration = durationInt
 		} else {
 			var durationStr string
-			if err := common.Unmarshal(aux.Duration, &durationStr); err == nil && durationStr != "" {
+			if err := common.Unmarshal(durationRaw, &durationStr); err == nil && durationStr != "" {
 				if v, err := strconv.Atoi(durationStr); err == nil {
 					t.Duration = v
 				}
@@ -740,19 +801,41 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		}
 	}
 
-	if len(aux.Metadata) > 0 {
+	if metadataRaw := rawMap["metadata"]; len(metadataRaw) > 0 {
 		var metadataStr string
-		if err := common.Unmarshal(aux.Metadata, &metadataStr); err == nil && metadataStr != "" {
+		if err := common.Unmarshal(metadataRaw, &metadataStr); err == nil && metadataStr != "" {
 			var metadataObj map[string]interface{}
 			if err := common.Unmarshal([]byte(metadataStr), &metadataObj); err == nil {
 				t.Metadata = metadataObj
-				return nil
 			}
 		}
 
-		var metadataObj map[string]interface{}
-		if err := common.Unmarshal(aux.Metadata, &metadataObj); err == nil {
-			t.Metadata = metadataObj
+		if t.Metadata == nil {
+			var metadataObj map[string]interface{}
+			if err := common.Unmarshal(metadataRaw, &metadataObj); err == nil {
+				t.Metadata = metadataObj
+			}
+		}
+	}
+	if t.Metadata == nil {
+		t.Metadata = map[string]interface{}{}
+	}
+
+	for key, raw := range rawMap {
+		if _, known := knownFields[key]; known {
+			if key != "image" && key != "images" {
+				continue
+			}
+			if key == "image" && t.Image != "" {
+				continue
+			}
+			if key == "images" && len(t.Images) > 0 {
+				continue
+			}
+		}
+		var value interface{}
+		if err := common.Unmarshal(raw, &value); err == nil {
+			t.Metadata[key] = value
 		}
 	}
 

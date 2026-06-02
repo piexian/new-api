@@ -82,6 +82,15 @@ func SetRelayRouter(router *gin.Engine) {
 		wsRouter.GET("/realtime", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIRealtime)
 		})
+		wsRouter.GET("/tts", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAIRealtime)
+		})
+		wsRouter.GET("/stt", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAIRealtime)
+		})
+		wsRouter.GET("/responses", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAIRealtime)
+		})
 	}
 	{
 		//http router
@@ -89,6 +98,9 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.Use(middleware.Distribute())
 
 		// claude related routes
+		httpRouter.POST("/messages/count_tokens", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatClaude)
+		})
 		httpRouter.POST("/messages", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatClaude)
 		})
@@ -100,6 +112,9 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/chat/completions", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAI)
 		})
+		httpRouter.GET("/chat/deferred-completion/:request_id", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
 
 		// response related routes
 		httpRouter.POST("/responses", func(c *gin.Context) {
@@ -107,6 +122,15 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 		httpRouter.POST("/responses/compact", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIResponsesCompaction)
+		})
+		httpRouter.POST("/responses/input_tokens", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIResponses)
+		})
+		httpRouter.GET("/responses/:response_id", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
+		httpRouter.DELETE("/responses/:response_id", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
 		})
 
 		// image related routes
@@ -137,6 +161,41 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 		httpRouter.POST("/audio/speech", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIAudio)
+		})
+
+		// xAI native voice routes
+		httpRouter.POST("/realtime/client_secrets", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
+		httpRouter.POST("/tts", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
+		httpRouter.GET("/tts/voices", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
+		httpRouter.GET("/tts/voices/:voice_id", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
+		httpRouter.POST("/stt", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
+		httpRouter.POST("/custom-voices", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
+		httpRouter.GET("/custom-voices", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
+		httpRouter.GET("/custom-voices/:voice_id", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
+		httpRouter.PATCH("/custom-voices/:voice_id", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
+		httpRouter.DELETE("/custom-voices/:voice_id", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
+		})
+		httpRouter.GET("/custom-voices/:voice_id/audio", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatXAI)
 		})
 
 		// MiniMax native music routes

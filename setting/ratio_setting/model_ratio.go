@@ -250,6 +250,7 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-coder":         0.27 / 2,
 	"deepseek-reasoner":      0.55 / 2, // 0.55 / 1k tokens
 	// MiniMax: https://platform.minimaxi.com/docs/guides/pricing-paygo
+	"MiniMax-M3":             4.2 / 1000 * RMB, // ￥4.2 / 1M tokens
 	"MiniMax-M2.7":           2.1 / 1000 * RMB, // ￥2.1 / 1M tokens
 	"MiniMax-M2.7-highspeed": 4.2 / 1000 * RMB, // ￥4.2 / 1M tokens
 	"MiniMax-M2.5":           2.1 / 1000 * RMB,
@@ -364,6 +365,7 @@ var defaultCompletionRatio = map[string]float64{
 	"gpt-4o-gizmo-*":         3,
 	"gpt-4-all":              2,
 	"gpt-image-1":            8,
+	"MiniMax-M3":             4,
 	"MiniMax-M2.7":           4,
 	"MiniMax-M2.7-highspeed": 4,
 	"MiniMax-M2.5":           4,

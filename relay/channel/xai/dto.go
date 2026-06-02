@@ -1,6 +1,10 @@
 package xai
 
-import "github.com/QuantumNous/new-api/dto"
+import (
+	"encoding/json"
+
+	"github.com/QuantumNous/new-api/dto"
+)
 
 // ChatCompletionResponse represents the response from XAI chat completion API
 type ChatCompletionResponse struct {
@@ -13,15 +17,22 @@ type ChatCompletionResponse struct {
 	SystemFingerprint string                         `json:"system_fingerprint"`
 }
 
-// quality, size or style are not supported by xAI API at the moment.
+// ImageRequest represents xAI's JSON image request. xAI image edits use JSON
+// even when clients call the OpenAI-compatible multipart edit endpoint.
 type ImageRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt" binding:"required"`
-	N      int    `json:"n,omitempty"`
-	// Size           string          `json:"size,omitempty"`
-	// Quality        string          `json:"quality,omitempty"`
-	ResponseFormat string `json:"response_format,omitempty"`
-	// Style          string          `json:"style,omitempty"`
-	// User           string          `json:"user,omitempty"`
-	// ExtraFields    json.RawMessage `json:"extra_fields,omitempty"`
+	Model          string          `json:"model"`
+	Prompt         string          `json:"prompt" binding:"required"`
+	N              *uint           `json:"n,omitempty"`
+	ResponseFormat string          `json:"response_format,omitempty"`
+	User           json.RawMessage `json:"user,omitempty"`
+	AspectRatio    string          `json:"aspect_ratio,omitempty"`
+	Resolution     string          `json:"resolution,omitempty"`
+	Image          json.RawMessage `json:"image,omitempty"`
+	Images         json.RawMessage `json:"images,omitempty"`
+}
+
+type xAIImageSource struct {
+	Type   string `json:"type,omitempty"`
+	URL    string `json:"url,omitempty"`
+	FileID string `json:"file_id,omitempty"`
 }

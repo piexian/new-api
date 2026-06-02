@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
+	"github.com/QuantumNous/new-api/relay/channel/xai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -27,8 +28,11 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		if newAPIError = minimax.ValidateEndpointForModel(info); newAPIError != nil {
 			return newAPIError
 		}
+		if newAPIError = xai.ValidateEndpointForModel(info); newAPIError != nil {
+			return newAPIError
+		}
 		switch info.ApiType {
-		case appconstant.APITypeOpenAI, appconstant.APITypeCodex:
+		case appconstant.APITypeOpenAI, appconstant.APITypeCodex, appconstant.APITypeXai:
 		default:
 			return types.NewErrorWithStatusCode(
 				fmt.Errorf("unsupported endpoint %q for api type %d", "/v1/responses/compact", info.ApiType),
@@ -69,6 +73,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 	if newAPIError = minimax.ValidateEndpointForModel(info); newAPIError != nil {
+		return newAPIError
+	}
+	if newAPIError = xai.ValidateEndpointForModel(info); newAPIError != nil {
 		return newAPIError
 	}
 

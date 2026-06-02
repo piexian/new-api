@@ -12,7 +12,9 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
+	"github.com/QuantumNous/new-api/relay/channel/xai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -41,6 +43,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if newAPIError = minimax.ValidateEndpointForModel(info); newAPIError != nil {
 		return newAPIError
 	}
+	if newAPIError = xai.ValidateEndpointForModel(info); newAPIError != nil {
+		return newAPIError
+	}
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
@@ -50,16 +55,27 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	var requestBody io.Reader
 
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	passThroughRequest := model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled
+	if shouldForceConvertImageRequest(c, info) {
+		passThroughRequest = false
+	}
+	var imageLogDetails map[string]interface{}
+	if passThroughRequest {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		if info.ChannelType == constant.ChannelTypeXai {
+			imageLogDetails = xai.BuildImageLogDetails(*request, nil, info)
 		}
 		requestBody = common.ReaderOnly(storage)
 	} else {
 		convertedRequest, err := adaptor.ConvertImageRequest(c, info, *request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
+		}
+		if info.ChannelType == constant.ChannelTypeXai {
+			imageLogDetails = xai.BuildImageLogDetails(*request, convertedRequest, info)
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 
@@ -144,7 +160,9 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		usage.(*dto.Usage).PromptTokens = 1
 	}
 
-	imageLogDetails := request.GetLogDetails()
+	if len(imageLogDetails) == 0 {
+		imageLogDetails = request.GetLogDetails()
+	}
 	if len(imageLogDetails) > 0 {
 		c.Set("image_request_detail", imageLogDetails)
 	}
@@ -152,4 +170,14 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	logContent := request.GetLogContent()
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
 	return nil
+}
+
+func shouldForceConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo) bool {
+	return info != nil &&
+		info.ChannelMeta != nil &&
+		info.ChannelType == constant.ChannelTypeXai &&
+		info.RelayMode == relayconstant.RelayModeImagesEdits &&
+		c != nil &&
+		c.Request != nil &&
+		strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data")
 }

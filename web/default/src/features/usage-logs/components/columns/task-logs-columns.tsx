@@ -19,15 +19,29 @@ For commercial licensing, please contact support@quantumnous.com
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Music } from 'lucide-react'
+import { Music, Settings2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
 import { TASK_ACTIONS, TASK_STATUS } from '../../constants'
+import {
+  buildGenerationParamRows,
+  generationParamsSummary,
+  taskGenerationParams,
+} from '../../lib/generation-params'
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
 import type { TaskLog } from '../../types'
 import {
@@ -53,6 +67,119 @@ function parseTaskData(data: unknown): unknown[] {
     }
   }
   return []
+}
+
+function TaskDetailRow(props: {
+  label: React.ReactNode
+  value: React.ReactNode
+  mono?: boolean
+}) {
+  return (
+    <div className='grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-2 text-sm sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-3'>
+      <span className='text-muted-foreground min-w-0 text-xs'>
+        {props.label}
+      </span>
+      <span
+        className={cn(
+          'max-w-full min-w-0 text-xs break-all sm:break-words',
+          props.mono && 'font-mono'
+        )}
+      >
+        {props.value}
+      </span>
+    </div>
+  )
+}
+
+function TaskDetailSection(props: {
+  icon?: React.ReactNode
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className='min-w-0 space-y-1.5'>
+      <Label className='flex items-center gap-1.5 text-xs font-semibold'>
+        {props.icon}
+        {props.label}
+      </Label>
+      <div className='bg-muted/30 min-w-0 space-y-1 overflow-hidden rounded-md border p-2.5 max-sm:p-2'>
+        {props.children}
+      </div>
+    </div>
+  )
+}
+
+function TaskDetailsDialog(props: {
+  log: TaskLog
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const { t } = useTranslation()
+  const params = taskGenerationParams(props.log)
+  const rows = buildGenerationParamRows(params, t)
+  const actionLabel = taskActionMapper.getLabel(props.log.action)
+  const platformLabel = params?.provider === 'xai' ? 'xai' : props.log.platform
+
+  return (
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+      <DialogContent className='min-w-0 overflow-hidden max-sm:max-h-[calc(100dvh-1.5rem)] max-sm:w-[calc(100vw-1.5rem)] max-sm:max-w-[calc(100vw-1.5rem)] max-sm:p-4 sm:max-w-lg'>
+        <DialogHeader className='max-sm:gap-1'>
+          <DialogTitle className='flex items-center gap-2 text-base'>
+            {t('Task Details')}
+            <StatusBadge
+              label={t(taskStatusMapper.getLabel(props.log.status))}
+              variant={taskStatusMapper.getVariant(props.log.status)}
+              size='sm'
+              copyable={false}
+            />
+          </DialogTitle>
+          <DialogDescription className='sr-only'>
+            {t('View the complete details for this task')}
+          </DialogDescription>
+        </DialogHeader>
+
+        <ScrollArea className='max-h-[70vh] min-w-0 overflow-hidden pr-2 max-sm:max-h-[calc(100dvh-7rem)] sm:pr-4'>
+          <div className='w-full max-w-full min-w-0 space-y-2.5 overflow-hidden py-1 sm:space-y-3'>
+            <div className='min-w-0 space-y-1'>
+              <TaskDetailRow
+                label={t('Task ID')}
+                value={props.log.task_id}
+                mono
+              />
+              <TaskDetailRow
+                label={t('Platform')}
+                value={t(platformLabel)}
+                mono
+              />
+              <TaskDetailRow label={t('Action')} value={t(actionLabel)} />
+            </div>
+
+            {rows.length > 0 && (
+              <TaskDetailSection
+                icon={<Settings2 className='size-3.5' aria-hidden='true' />}
+                label={t('Generation Parameters')}
+              >
+                {rows.map((row) => (
+                  <TaskDetailRow
+                    key={row.key}
+                    label={row.label}
+                    value={row.value}
+                    mono={row.mono}
+                  />
+                ))}
+              </TaskDetailSection>
+            )}
+
+            {props.log.fail_reason && (
+              <TaskDetailSection label={t('Fail Reason')}>
+                <p className='text-xs break-words'>{props.log.fail_reason}</p>
+              </TaskDetailSection>
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 function AudioPreviewCell({ log }: { log: TaskLog }) {
@@ -174,6 +301,8 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
       cell: ({ row }) => {
         const log = row.original
         const taskId = row.getValue('task_id') as string
+        const params = taskGenerationParams(log)
+        const platformLabel = params?.provider === 'xai' ? 'xai' : log.platform
         if (!taskId) {
           return <span className='text-muted-foreground/60 text-xs'>-</span>
         }
@@ -187,7 +316,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               className='border-border/60 bg-muted/30 max-w-full truncate rounded-md border px-1.5 py-0.5 font-mono'
             />
             <span className='text-muted-foreground/60 truncate text-[11px]'>
-              {t(log.platform)} · {t(taskActionMapper.getLabel(log.action))}
+              {t(platformLabel)} · {t(taskActionMapper.getLabel(log.action))}
             </span>
           </div>
         )
@@ -231,6 +360,9 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         const failReason = row.getValue('fail_reason') as string
         const status = log.status
         const [dialogOpen, setDialogOpen] = useState(false)
+        const paramRows = buildGenerationParamRows(taskGenerationParams(log), t)
+        const hasParams = paramRows.length > 0
+        const paramSummary = generationParamsSummary(paramRows, t)
 
         const isSunoSuccess =
           log.platform === 'suno' && status === TASK_STATUS.SUCCESS
@@ -253,25 +385,46 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           log.action === TASK_ACTIONS.TEXT_GENERATE ||
           log.action === TASK_ACTIONS.FIRST_TAIL_GENERATE ||
           log.action === TASK_ACTIONS.REFERENCE_GENERATE ||
-          log.action === TASK_ACTIONS.REMIX_GENERATE
+          log.action === TASK_ACTIONS.REMIX_GENERATE ||
+          log.action === TASK_ACTIONS.VIDEO_EDIT ||
+          log.action === TASK_ACTIONS.VIDEO_EXTEND
         const isSuccess = status === TASK_STATUS.SUCCESS
-        const isUrl = failReason?.startsWith('http')
+        const resultUrl = log.result_url || failReason
+        const isUrl = resultUrl?.startsWith('http')
 
         if (isSuccess && isVideoTask && isUrl) {
           const videoUrl = `/v1/videos/${log.task_id}/content`
           return (
-            <a
-              href={videoUrl}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-foreground text-xs hover:underline'
-            >
-              {t('Click to preview video')}
-            </a>
+            <>
+              <div className='flex max-w-[220px] flex-col gap-1'>
+                <a
+                  href={videoUrl}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-foreground text-xs hover:underline'
+                >
+                  {t('Click to preview video')}
+                </a>
+                {hasParams && (
+                  <button
+                    type='button'
+                    className='text-muted-foreground text-left text-xs hover:underline'
+                    onClick={() => setDialogOpen(true)}
+                  >
+                    {paramSummary || t('View parameters')}
+                  </button>
+                )}
+              </div>
+              <TaskDetailsDialog
+                log={log}
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+              />
+            </>
           )
         }
 
-        if (!failReason) {
+        if (!failReason && !hasParams) {
           return <span className='text-muted-foreground/60 text-xs'>-</span>
         }
 
@@ -281,17 +434,36 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
               type='button'
               className='group flex max-w-[200px] items-center gap-1 text-left text-xs'
               onClick={() => setDialogOpen(true)}
-              title={t('Click to view full error message')}
+              title={
+                failReason
+                  ? t('Click to view full error message')
+                  : t('Click to view full details')
+              }
             >
-              <span className='truncate leading-snug text-red-600 group-hover:underline dark:text-red-400'>
-                {failReason}
+              <span
+                className={cn(
+                  'truncate leading-snug group-hover:underline',
+                  failReason
+                    ? 'text-red-600 dark:text-red-400'
+                    : 'text-foreground'
+                )}
+              >
+                {failReason || paramSummary || t('View parameters')}
               </span>
             </button>
-            <FailReasonDialog
-              failReason={failReason}
-              open={dialogOpen}
-              onOpenChange={setDialogOpen}
-            />
+            {hasParams ? (
+              <TaskDetailsDialog
+                log={log}
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+              />
+            ) : (
+              <FailReasonDialog
+                failReason={failReason}
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+              />
+            )}
           </>
         )
       },

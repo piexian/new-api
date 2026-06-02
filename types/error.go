@@ -38,9 +38,10 @@ const (
 type ErrorCode string
 
 const (
-	ErrorCodeInvalidRequest         ErrorCode = "invalid_request"
-	ErrorCodeSensitiveWordsDetected ErrorCode = "sensitive_words_detected"
-	ErrorCodeViolationFeeGrokCSAM   ErrorCode = "violation_fee.grok.csam"
+	ErrorCodeInvalidRequest             ErrorCode = "invalid_request"
+	ErrorCodeSensitiveWordsDetected     ErrorCode = "sensitive_words_detected"
+	ErrorCodeViolationFeeGrokCSAM       ErrorCode = "violation_fee.grok.csam"
+	ErrorCodeViolationFeeGrokModeration ErrorCode = "violation_fee.grok.moderation"
 
 	// new api error
 	ErrorCodeCountTokenFailed   ErrorCode = "count_token_failed"
@@ -400,6 +401,15 @@ func ErrOptionWithNoRecordErrorLog() NewAPIErrorOptions {
 func ErrOptionWithStatusCode(statusCode int) NewAPIErrorOptions {
 	return func(e *NewAPIError) {
 		e.StatusCode = statusCode
+	}
+}
+
+func ErrOptionWithMetadata(metadata json.RawMessage) NewAPIErrorOptions {
+	return func(e *NewAPIError) {
+		if len(metadata) == 0 {
+			return
+		}
+		e.Metadata = append(json.RawMessage(nil), metadata...)
 	}
 }
 

@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const GenerationParamsContextKey = "generation_params"
+
 func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
 	if other == nil {
 		return
@@ -127,6 +129,10 @@ func appendImageGenerationInfo(ctx *gin.Context, other map[string]interface{}) {
 	if detail, ok := contextMapStringAny(ctx, "image_generation_call_detail"); ok && len(detail) > 0 {
 		other["image_generation_call_detail"] = detail
 	}
+}
+
+func GenerationParamsFromContext(ctx *gin.Context) (map[string]interface{}, bool) {
+	return contextMapStringAny(ctx, GenerationParamsContextKey)
 }
 
 func contextMapStringAny(ctx *gin.Context, key string) (map[string]interface{}, bool) {

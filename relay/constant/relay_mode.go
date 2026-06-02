@@ -52,10 +52,14 @@ const (
 	RelayModeResponses
 
 	RelayModeRealtime
+	RelayModeXAINative
 
 	RelayModeGemini
 
 	RelayModeResponsesCompact
+
+	RelayModeResponsesInputTokens
+	RelayModeClaudeCountTokens
 )
 
 func Path2RelayMode(path string) int {
@@ -76,16 +80,29 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeImagesEdits
 	} else if strings.HasPrefix(path, "/v1/edits") {
 		relayMode = RelayModeEdits
+	} else if strings.HasPrefix(path, "/v1/messages/count_tokens") {
+		relayMode = RelayModeClaudeCountTokens
 	} else if strings.HasPrefix(path, "/v1/responses/compact") {
 		relayMode = RelayModeResponsesCompact
+	} else if strings.HasPrefix(path, "/v1/responses/input_tokens") {
+		relayMode = RelayModeResponsesInputTokens
+	} else if strings.HasPrefix(path, "/v1/responses/") {
+		relayMode = RelayModeXAINative
 	} else if strings.HasPrefix(path, "/v1/responses") {
 		relayMode = RelayModeResponses
+	} else if strings.HasPrefix(path, "/v1/chat/deferred-completion/") {
+		relayMode = RelayModeXAINative
 	} else if strings.HasPrefix(path, "/v1/audio/speech") {
 		relayMode = RelayModeAudioSpeech
 	} else if strings.HasPrefix(path, "/v1/audio/transcriptions") {
 		relayMode = RelayModeAudioTranscription
 	} else if strings.HasPrefix(path, "/v1/audio/translations") {
 		relayMode = RelayModeAudioTranslation
+	} else if strings.HasPrefix(path, "/v1/realtime/client_secrets") ||
+		strings.HasPrefix(path, "/v1/tts") ||
+		strings.HasPrefix(path, "/v1/stt") ||
+		strings.HasPrefix(path, "/v1/custom-voices") {
+		relayMode = RelayModeXAINative
 	} else if strings.HasPrefix(path, "/v1/music_generation") {
 		relayMode = RelayModeMiniMaxMusicGeneration
 	} else if strings.HasPrefix(path, "/v1/music_cover_preprocess") {

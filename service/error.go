@@ -91,6 +91,9 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		return
 	}
 	CloseResponseBodyGracefully(resp)
+	defer func() {
+		attachRelayErrorMetadata(newApiErr, responseBody)
+	}()
 	var errResponse dto.GeneralErrorResponse
 	buildErrWithBody := func(message string) error {
 		if message == "" {
@@ -126,6 +129,29 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		newApiErr.Err = buildErrWithBody(newApiErr.Error())
 	}
 	return
+}
+
+func attachRelayErrorMetadata(apiErr *types.NewAPIError, responseBody []byte) {
+	if apiErr == nil || len(responseBody) == 0 {
+		return
+	}
+	if !hasCostInUSDTicks(responseBody) {
+		return
+	}
+	apiErr.Metadata = append(json.RawMessage(nil), responseBody...)
+}
+
+func hasCostInUSDTicks(responseBody []byte) bool {
+	var payload struct {
+		Usage struct {
+			CostInUSDTicks json.RawMessage `json:"cost_in_usd_ticks"`
+		} `json:"usage"`
+	}
+	if err := common.Unmarshal(responseBody, &payload); err != nil {
+		return false
+	}
+	raw := strings.TrimSpace(string(payload.Usage.CostInUSDTicks))
+	return raw != "" && raw != "null"
 }
 
 func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) {

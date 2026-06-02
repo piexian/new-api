@@ -13,6 +13,9 @@ import (
 
 func GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseURL := miniMaxRootBaseURL(info)
+	if info.RelayMode == constant.RelayModeClaudeCountTokens {
+		return fmt.Sprintf("%s/anthropic/v1/messages/count_tokens", baseURL), nil
+	}
 	if shouldUseMiniMaxClaudeCompatibleAPI(info) {
 		return fmt.Sprintf("%s/anthropic/v1/messages", baseURL), nil
 	}
@@ -22,6 +25,10 @@ func GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	switch info.RelayMode {
 	case constant.RelayModeChatCompletions:
 		return fmt.Sprintf("%s/v1/chat/completions", baseURL), nil
+	case constant.RelayModeResponses:
+		return fmt.Sprintf("%s/v1/responses", baseURL), nil
+	case constant.RelayModeResponsesInputTokens:
+		return fmt.Sprintf("%s/v1/responses/input_tokens", baseURL), nil
 	case constant.RelayModeImagesGenerations:
 		return fmt.Sprintf("%s/v1/image_generation", baseURL), nil
 	case constant.RelayModeMiniMaxMusicGeneration:

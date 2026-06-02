@@ -5,7 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	appconstant "github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -190,4 +192,44 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "Codex CLI", upstreamReq.Header.Get("Originator"))
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
+}
+
+func TestEnforceStrictContentTypeKeepsXAIImageContentTypeJSONAfterHeaderPassthrough(t *testing.T) {
+	t.Parallel()
+
+	const multipartContentType = "multipart/form-data; boundary=test"
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
+	req.Header.Set("Content-Type", gin.MIMEJSON)
+	applyHeaderOverrideToRequest(req, map[string]string{
+		"content-type": multipartContentType,
+	})
+
+	enforceStrictContentType(req, &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: appconstant.ChannelTypeXai,
+		},
+	})
+
+	require.Equal(t, gin.MIMEJSON, req.Header.Get("Content-Type"))
+}
+
+func TestEnforceStrictContentTypeDoesNotForceImageContentTypeForOtherChannels(t *testing.T) {
+	t.Parallel()
+
+	const multipartContentType = "multipart/form-data; boundary=test"
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
+	req.Header.Set("Content-Type", gin.MIMEJSON)
+	applyHeaderOverrideToRequest(req, map[string]string{
+		"content-type": multipartContentType,
+	})
+
+	enforceStrictContentType(req, &relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: appconstant.ChannelTypeOpenAI,
+		},
+	})
+
+	require.Equal(t, multipartContentType, req.Header.Get("Content-Type"))
 }

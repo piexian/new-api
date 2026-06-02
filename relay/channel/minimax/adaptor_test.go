@@ -321,6 +321,25 @@ func TestPath2RelayModeSupportsMiniMaxNativeMusicEndpoints(t *testing.T) {
 	}
 }
 
+func TestPath2RelayModeSupportsMiniMaxTextAuxiliaryEndpoints(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		path string
+		want int
+	}{
+		{path: "/v1/responses", want: relayconstant.RelayModeResponses},
+		{path: "/v1/responses/input_tokens", want: relayconstant.RelayModeResponsesInputTokens},
+		{path: "/v1/messages/count_tokens", want: relayconstant.RelayModeClaudeCountTokens},
+	}
+	for _, tt := range tests {
+		got := relayconstant.Path2RelayMode(tt.path)
+		if got != tt.want {
+			t.Fatalf("Path2RelayMode(%q) = %d, want %d", tt.path, got, tt.want)
+		}
+	}
+}
+
 func TestGetRequestURLForMiniMaxNativeMusicEndpoints(t *testing.T) {
 	t.Parallel()
 
@@ -345,6 +364,41 @@ func TestGetRequestURLForMiniMaxNativeMusicEndpoints(t *testing.T) {
 		if got != tt.want {
 			t.Fatalf("GetRequestURL = %q, want %q", got, tt.want)
 		}
+	}
+}
+
+func TestGetRequestURLForMiniMaxTextAuxiliaryEndpoints(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		mode        int
+		relayFormat types.RelayFormat
+		want        string
+	}{
+		{name: "responses", mode: relayconstant.RelayModeResponses, relayFormat: types.RelayFormatOpenAIResponses, want: "https://api.minimaxi.com/v1/responses"},
+		{name: "responses input tokens", mode: relayconstant.RelayModeResponsesInputTokens, relayFormat: types.RelayFormatOpenAIResponses, want: "https://api.minimaxi.com/v1/responses/input_tokens"},
+		{name: "anthropic count tokens", mode: relayconstant.RelayModeClaudeCountTokens, relayFormat: types.RelayFormatClaude, want: "https://api.minimaxi.com/anthropic/v1/messages/count_tokens"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := GetRequestURL(&relaycommon.RelayInfo{
+				RelayMode:   tt.mode,
+				RelayFormat: tt.relayFormat,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelBaseUrl: "https://api.minimaxi.com/v1",
+				},
+			})
+			if err != nil {
+				t.Fatalf("GetRequestURL returned error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("GetRequestURL = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

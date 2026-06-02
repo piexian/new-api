@@ -60,6 +60,10 @@ import {
   getResponseTimeColor,
 } from '../../lib/format'
 import {
+  buildGenerationParamRows,
+  usageGenerationParams,
+} from '../../lib/generation-params'
+import {
   getLogTypeConfig,
   isPerCallBilling,
   isTimingLogType,
@@ -386,6 +390,29 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
     <DetailSection label={t('Token Breakdown')}>
       {rows.map((row, idx) => (
         <DetailRow key={idx} label={row.label} value={row.value} mono />
+      ))}
+    </DetailSection>
+  )
+}
+
+function GenerationParameters(props: { other: LogOtherData }) {
+  const { t } = useTranslation()
+  const rows = buildGenerationParamRows(usageGenerationParams(props.other), t)
+
+  if (rows.length === 0) return null
+
+  return (
+    <DetailSection
+      icon={<Settings2 className='size-3.5' aria-hidden='true' />}
+      label={t('Generation Parameters')}
+    >
+      {rows.map((row) => (
+        <DetailRow
+          key={row.key}
+          label={row.label}
+          value={row.value}
+          mono={row.mono}
+        />
       ))}
     </DetailSection>
   )
@@ -845,6 +872,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
               </DetailSection>
             )}
 
+            {/* Image/video generation parameters */}
+            {other && <GenerationParameters other={other} />}
+
             {/* Token breakdown (for consume/error types with token data) */}
             {isDisplayableType(props.log.type) && other && (
               <TokenBreakdown log={props.log} other={other} />
@@ -986,35 +1016,33 @@ export function DetailsDialog(props: DetailsDialogProps) {
             )}
 
             {/* Param override */}
-            {other?.po &&
-              Array.isArray(other.po) &&
-              other.po.length > 0 && (
-                <DetailSection
-                  icon={<Settings2 className='size-3.5' aria-hidden='true' />}
-                  label={`${t('Param Override')} (${other.po.length})`}
-                >
-                  {other.po.filter(Boolean).map((line, idx) => {
-                    const parsed = parseAuditLine(line)
-                    if (!parsed) return null
-                    return (
-                      <div
-                        key={idx}
-                        className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
-                      >
-                        <StatusBadge
-                          variant='neutral'
-                          label={getParamOverrideActionLabel(parsed.action, t)}
-                          className='shrink-0 font-medium'
-                          copyable={false}
-                        />
-                        <span className='min-w-0 font-mono text-[11px] leading-relaxed break-all sm:break-words'>
-                          {parsed.content}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </DetailSection>
-              )}
+            {other?.po && Array.isArray(other.po) && other.po.length > 0 && (
+              <DetailSection
+                icon={<Settings2 className='size-3.5' aria-hidden='true' />}
+                label={`${t('Param Override')} (${other.po.length})`}
+              >
+                {other.po.filter(Boolean).map((line, idx) => {
+                  const parsed = parseAuditLine(line)
+                  if (!parsed) return null
+                  return (
+                    <div
+                      key={idx}
+                      className='bg-background/60 flex min-w-0 flex-col gap-1.5 rounded border p-2 sm:flex-row sm:items-start sm:gap-2'
+                    >
+                      <StatusBadge
+                        variant='neutral'
+                        label={getParamOverrideActionLabel(parsed.action, t)}
+                        className='shrink-0 font-medium'
+                        copyable={false}
+                      />
+                      <span className='min-w-0 font-mono text-[11px] leading-relaxed break-all sm:break-words'>
+                        {parsed.content}
+                      </span>
+                    </div>
+                  )
+                })}
+              </DetailSection>
+            )}
 
             {/* Content */}
             {details && (

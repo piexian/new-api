@@ -47,12 +47,14 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 		err = relay.RerankHelper(c, info)
 	case relayconstant.RelayModeEmbeddings:
 		err = relay.EmbeddingHelper(c, info)
-	case relayconstant.RelayModeResponses, relayconstant.RelayModeResponsesCompact:
+	case relayconstant.RelayModeResponses, relayconstant.RelayModeResponsesCompact, relayconstant.RelayModeResponsesInputTokens:
 		err = relay.ResponsesHelper(c, info)
 	case relayconstant.RelayModeMiniMaxMusicGeneration,
 		relayconstant.RelayModeMiniMaxMusicCoverPreprocess,
 		relayconstant.RelayModeMiniMaxLyricsGeneration:
 		err = relay.MiniMaxNativeHelper(c, info)
+	case relayconstant.RelayModeXAINative:
+		err = relay.XAINativeHelper(c, info)
 	default:
 		err = relay.TextHelper(c, info)
 	}
@@ -80,7 +82,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		ws          *websocket.Conn
 	)
 
-	if relayFormat == types.RelayFormatOpenAIRealtime {
+	if isWebSocketRelayFormat(relayFormat) {
 		var err error
 		ws, err = upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
@@ -95,7 +97,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", newAPIError.Error()))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
-			case types.RelayFormatOpenAIRealtime:
+			case types.RelayFormatOpenAIRealtime, types.RelayFormatXAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
 			case types.RelayFormatClaude:
 				c.JSON(newAPIError.StatusCode, gin.H{
@@ -216,6 +218,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
+		case types.RelayFormatXAIRealtime:
+			newAPIError = relay.XAINativeWssHelper(c, relayInfo)
 		case types.RelayFormatClaude:
 			newAPIError = relay.ClaudeHelper(c, relayInfo)
 		case types.RelayFormatGemini:
@@ -249,6 +253,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
 	}
+}
+
+func isWebSocketRelayFormat(relayFormat types.RelayFormat) bool {
+	return relayFormat == types.RelayFormatOpenAIRealtime || relayFormat == types.RelayFormatXAIRealtime
 }
 
 var upgrader = websocket.Upgrader{
@@ -592,6 +600,12 @@ func RelayTask(c *gin.Context) {
 			OtherRatios:     relayInfo.PriceData.OtherRatios,
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+		}
+		if detail, ok := service.GenerationParamsFromContext(c); ok && len(detail) > 0 {
+			task.PrivateData.RequestParams = detail
+			if input, err := common.Marshal(detail); err == nil {
+				task.Properties.Input = string(input)
+			}
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

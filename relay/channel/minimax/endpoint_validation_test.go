@@ -28,6 +28,7 @@ func TestExpectedEndpointForModel(t *testing.T) {
 		{name: "lyrics", model: LyricsGenerationModel, wantEndpoint: LyricsGenerationEndpoint, wantDoc: LyricsGenerationDocURL, wantLabel: "lyrics generation model", wantOK: true},
 		{name: "speech", model: "speech-2.8-hd", wantEndpoint: SpeechEndpoint, wantDoc: SpeechDocURL, wantLabel: "speech model", wantOK: true},
 		{name: "image", model: "image-01", wantEndpoint: ImageGenerationEndpoint, wantDoc: ImageGenerationDocURL, wantLabel: "image model", wantOK: true},
+		{name: "m3 responses text", model: "MiniMax-M3", relayFormat: types.RelayFormatOpenAIResponses, wantEndpoint: ResponsesEndpoint, wantDoc: ResponsesDocURL, wantLabel: "text model", wantOK: true},
 		{name: "openai text", model: "MiniMax-M2.7", wantEndpoint: ChatCompletionsEndpoint, wantDoc: OpenAIChatCompletionsDocURL, wantLabel: "text model", wantOK: true},
 		{name: "anthropic text", model: "MiniMax-M2.7", relayFormat: types.RelayFormatClaude, wantEndpoint: AnthropicMessagesEndpoint, wantDoc: AnthropicMessagesDocURL, wantLabel: "text model", wantOK: true},
 		{name: "unknown", model: "custom-model", wantOK: false},
@@ -101,6 +102,41 @@ func TestValidateEndpointForModelAllowsResponsesConversionForTextModel(t *testin
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelType:       appconstant.ChannelTypeMiniMax,
 			UpstreamModelName: "MiniMax-M2.7",
+		},
+	}
+	if err := ValidateEndpointForModel(info); err != nil {
+		t.Fatalf("ValidateEndpointForModel returned error: %v", err)
+	}
+}
+
+func TestValidateEndpointForModelAllowsResponsesInputTokensForTextModel(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatOpenAIResponses,
+		RelayMode:       relayconstant.RelayModeResponsesInputTokens,
+		OriginModelName: "MiniMax-M3",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       appconstant.ChannelTypeMiniMax,
+			UpstreamModelName: "MiniMax-M3",
+		},
+	}
+	if err := ValidateEndpointForModel(info); err != nil {
+		t.Fatalf("ValidateEndpointForModel returned error: %v", err)
+	}
+}
+
+func TestValidateEndpointForModelAllowsAnthropicCountTokensForTextModel(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatClaude,
+		RelayMode:       relayconstant.RelayModeClaudeCountTokens,
+		RequestURLPath:  AnthropicCountTokensEndpoint,
+		OriginModelName: "MiniMax-M3",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       appconstant.ChannelTypeMiniMax,
+			UpstreamModelName: "MiniMax-M3",
 		},
 	}
 	if err := ValidateEndpointForModel(info); err != nil {

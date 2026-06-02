@@ -169,6 +169,8 @@ export const TASK_ACTIONS = {
   FIRST_TAIL_GENERATE: 'firstTailGenerate', // 首尾生视频
   REFERENCE_GENERATE: 'referenceGenerate', // 参照生视频
   REMIX_GENERATE: 'remixGenerate', // 视频 Remix
+  VIDEO_EDIT: 'videoEdit', // 视频编辑
+  VIDEO_EXTEND: 'videoExtend', // 视频延展
 } as const
 
 /**
@@ -193,6 +195,7 @@ export const TASK_PLATFORMS = {
   RUNWAY: 'runway',
   LUMA: 'luma',
   VIGGLE: 'viggle',
+  XAI: 'xai',
 } as const
 
 // ============================================================================
@@ -284,6 +287,14 @@ export const TASK_ACTION_MAPPINGS: Record<string, StatusMapping> = {
     label: 'Video Remix',
     variant: 'blue',
   },
+  [TASK_ACTIONS.VIDEO_EDIT]: {
+    label: 'Edit Video',
+    variant: 'blue',
+  },
+  [TASK_ACTIONS.VIDEO_EXTEND]: {
+    label: 'Extend Video',
+    variant: 'blue',
+  },
 }
 
 /**
@@ -308,6 +319,7 @@ export const TASK_PLATFORM_MAPPINGS: Record<string, StatusMapping> = {
   [TASK_PLATFORMS.RUNWAY]: { label: 'runway', variant: 'violet' },
   [TASK_PLATFORMS.LUMA]: { label: 'luma', variant: 'orange' },
   [TASK_PLATFORMS.VIGGLE]: { label: 'viggle', variant: 'pink' },
+  [TASK_PLATFORMS.XAI]: { label: 'xai', variant: 'blue' },
 }
 
 // ============================================================================

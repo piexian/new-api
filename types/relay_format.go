@@ -10,11 +10,13 @@ const (
 	RelayFormatOpenAIResponsesCompaction             = "openai_responses_compaction"
 	RelayFormatOpenAIAudio                           = "openai_audio"
 	RelayFormatOpenAIImage                           = "openai_image"
-		RelayFormatOpenAIRealtime                        = "openai_realtime"
-		RelayFormatRerank                                = "rerank"
-		RelayFormatEmbedding                             = "embedding"
-		RelayFormatMiniMax                               = "minimax"
+	RelayFormatOpenAIRealtime                        = "openai_realtime"
+	RelayFormatRerank                                = "rerank"
+	RelayFormatEmbedding                             = "embedding"
+	RelayFormatMiniMax                               = "minimax"
+	RelayFormatXAI                                   = "xai"
+	RelayFormatXAIRealtime                           = "xai_realtime"
 
-		RelayFormatTask    = "task"
-		RelayFormatMjProxy = "mj_proxy"
-	)
+	RelayFormatTask    = "task"
+	RelayFormatMjProxy = "mj_proxy"
+)

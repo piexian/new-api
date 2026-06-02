@@ -49,6 +49,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request = &dto.BaseRequest{}
 	case types.RelayFormatMiniMax:
 		request, err = GetAndValidateMiniMaxRequest(c, relayMode)
+	case types.RelayFormatXAI, types.RelayFormatXAIRealtime:
+		request = &dto.BaseRequest{}
 	default:
 		return nil, fmt.Errorf("unsupported relay format: %s", format)
 	}

@@ -237,7 +237,10 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	var modelRequest ModelRequest
 	shouldSelectChannel := true
 	var err error
-	if strings.Contains(c.Request.URL.Path, "/mj/") {
+	if isXAINativeRoute(c.Request.Method, c.Request.URL.Path) {
+		modelRequest.Model = xAINativeRouteModel(c.Request.URL.Path, c.Query("model"))
+		c.Set("relay_mode", relayconstant.RelayModeXAINative)
+	} else if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||
 			relayMode == relayconstant.RelayModeMidjourneyTaskFetchByCondition ||
@@ -350,7 +353,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		modelRequest.Model = req.Model
 	}
-	if strings.HasPrefix(c.Request.URL.Path, "/v1/realtime") {
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/realtime") && !strings.HasPrefix(c.Request.URL.Path, "/v1/realtime/client_secrets") {
 		//wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01
 		modelRequest.Model = c.Query("model")
 	}
@@ -415,6 +418,32 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 	}
 	return &modelRequest, shouldSelectChannel, nil
+}
+
+func isXAINativeRoute(method string, path string) bool {
+	if strings.HasPrefix(path, "/v1/responses/compact") {
+		return false
+	}
+	if strings.HasPrefix(path, "/v1/responses/input_tokens") {
+		return false
+	}
+	return (method == http.MethodGet && path == "/v1/responses") ||
+		strings.HasPrefix(path, "/v1/realtime/client_secrets") ||
+		strings.HasPrefix(path, "/v1/tts") ||
+		strings.HasPrefix(path, "/v1/stt") ||
+		strings.HasPrefix(path, "/v1/custom-voices") ||
+		strings.HasPrefix(path, "/v1/responses/") ||
+		strings.HasPrefix(path, "/v1/chat/deferred-completion/")
+}
+
+func xAINativeRouteModel(path string, queryModel string) string {
+	if queryModel != "" {
+		return queryModel
+	}
+	if strings.HasPrefix(path, "/v1/responses") || strings.HasPrefix(path, "/v1/chat/deferred-completion/") {
+		return "grok-4.3"
+	}
+	return "grok-voice-latest"
 }
 
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {

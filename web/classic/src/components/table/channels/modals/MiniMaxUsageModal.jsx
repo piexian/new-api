@@ -37,6 +37,11 @@ const toNumber = (value) => {
   return Number.isFinite(numericValue) ? numericValue : null;
 };
 
+const toOptionalNumber = (value) => {
+  if (value == null || value === '') return null;
+  return toNumber(value);
+};
+
 const normalizeEpochMs = (value) => {
   const numericValue = toNumber(value);
   if (numericValue == null || numericValue <= 0) return null;
@@ -68,13 +73,16 @@ const formatDurationMs = (value, t) => {
 };
 
 const formatCount = (value) => {
+  if (value == null || value === '') return '-';
   const numericValue = toNumber(value);
   if (numericValue == null) return '-';
   return numericValue.toLocaleString();
 };
 
 const formatPercent = (value) => {
-  return `${Math.floor(clampPercent(value))}%`;
+  const numericValue = toNumber(value);
+  if (numericValue == null) return '-';
+  return `${Math.floor(clampPercent(numericValue))}%`;
 };
 
 const toIntegerPercent = (value) => {
@@ -121,12 +129,36 @@ const resolveWindowQuota = ({ total, remaining, upstreamUsageCount }) => {
   };
 };
 
+const pickRemainingColor = (value) => {
+  const numericValue = toNumber(value);
+  if (numericValue == null) return 'grey';
+  if (numericValue <= 5) return 'red';
+  if (numericValue <= 20) return 'orange';
+  return 'green';
+};
+
+const formatWindowStatus = (status, t) => {
+  const numericValue = toNumber(status);
+  if (numericValue == null) return '-';
+  return numericValue === 1
+    ? `${numericValue} (${t('正常')})`
+    : `${numericValue}`;
+};
+
+const pickWindowStatusColor = (status) => {
+  const numericValue = toNumber(status);
+  if (numericValue == null) return 'grey';
+  return numericValue === 1 ? 'green' : 'orange';
+};
+
 const buildWindow = ({
   key,
   label,
   total,
   used,
   remaining,
+  remainingPercent,
+  status,
   remainsTime,
   startTime,
   endTime,
@@ -135,6 +167,8 @@ const buildWindow = ({
     total == null &&
     used == null &&
     remaining == null &&
+    remainingPercent == null &&
+    status == null &&
     remainsTime == null &&
     startTime == null &&
     endTime == null
@@ -152,22 +186,31 @@ const buildWindow = ({
     (total != null && total > 0) ||
     (used != null && used > 0) ||
     (remainValue != null && remainValue > 0);
-  if (!hasPositiveQuota) {
+  if (!hasPositiveQuota && remainingPercent == null && status == null) {
     return null;
   }
 
+  const remainingPercentValue =
+    remainingPercent ??
+    (total != null && total > 0 && remainValue != null
+      ? toIntegerPercent((remainValue / total) * 100)
+      : null);
   const percent =
     total != null && total > 0 && used != null
       ? toIntegerPercent((used / total) * 100)
-      : 0;
+      : remainingPercentValue != null
+        ? toIntegerPercent(100 - remainingPercentValue)
+        : 0;
 
   return {
     key,
     label,
-    total,
-    used,
-    remaining: remainValue,
+    total: hasPositiveQuota ? total : null,
+    used: hasPositiveQuota ? used : null,
+    remaining: hasPositiveQuota ? remainValue : null,
     percent,
+    remainingPercent: remainingPercentValue,
+    status,
     remainsTime,
     startTime,
     endTime,
@@ -197,6 +240,10 @@ const resolveModelWindows = (item, t) => {
       total: currentIntervalQuota.total,
       used: currentIntervalQuota.used,
       remaining: currentIntervalQuota.remaining,
+      remainingPercent: toOptionalNumber(
+        item?.current_interval_remaining_percent,
+      ),
+      status: toOptionalNumber(item?.current_interval_status),
       remainsTime: toNumber(item?.remains_time),
       startTime: currentStartTime,
       endTime: currentEndTime,
@@ -207,6 +254,10 @@ const resolveModelWindows = (item, t) => {
       total: currentWeeklyQuota.total,
       used: currentWeeklyQuota.used,
       remaining: currentWeeklyQuota.remaining,
+      remainingPercent: toOptionalNumber(
+        item?.current_weekly_remaining_percent,
+      ),
+      status: toOptionalNumber(item?.current_weekly_status),
       remainsTime: toNumber(item?.weekly_remains_time),
       startTime: weeklyStartTime,
       endTime: weeklyEndTime,
@@ -223,6 +274,19 @@ const WindowCard = ({ t, windowInfo }) => {
           <Tag color='grey' size='small'>
             {t('已用')} {formatPercent(windowInfo.percent)}
           </Tag>
+          {windowInfo.remainingPercent != null && (
+            <Tag
+              color={pickRemainingColor(windowInfo.remainingPercent)}
+              size='small'
+            >
+              {t('剩余')} {formatPercent(windowInfo.remainingPercent)}
+            </Tag>
+          )}
+          {windowInfo.status != null && (
+            <Tag color={pickWindowStatusColor(windowInfo.status)} size='small'>
+              {t('状态')} {formatWindowStatus(windowInfo.status, t)}
+            </Tag>
+          )}
           <Tag
             color={
               windowInfo.remaining === 0
@@ -249,11 +313,22 @@ const WindowCard = ({ t, windowInfo }) => {
           {t('已用')} {formatCount(windowInfo.used)}
         </div>
         <div>
+          {t('剩余')} {formatCount(windowInfo.remaining)}
+          {windowInfo.remainingPercent != null
+            ? ` (${formatPercent(windowInfo.remainingPercent)})`
+            : ''}
+        </div>
+        <div>
           {t('总量')} {formatCount(windowInfo.total)}
         </div>
         <div>
           {t('占比')} {formatPercent(windowInfo.percent)}
         </div>
+        {windowInfo.status != null && (
+          <div>
+            {t('状态')} {formatWindowStatus(windowInfo.status, t)}
+          </div>
+        )}
         <div>
           {t('距重置')} {formatDurationMs(windowInfo.remainsTime, t)}
         </div>

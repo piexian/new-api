@@ -170,6 +170,9 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
 		return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
 	}
+	if info.ChannelType == constant.ChannelTypeXai && !strings.HasPrefix(strings.ToLower(strings.TrimSpace(info.UpstreamModelName)), "grok-imagine-video") {
+		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("xAI video task model %q must be a video model", info.UpstreamModelName), "invalid_request", http.StatusBadRequest)
+	}
 
 	// 3. 预生成公开 task ID（仅首次）
 	if info.PublicTaskID == "" {
