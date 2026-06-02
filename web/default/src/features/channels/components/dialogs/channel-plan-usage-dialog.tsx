@@ -49,6 +49,8 @@ type UsageWindow = {
   used: number | null
   remaining: number | null
   percent: number
+  remainingPercent: number | null
+  status: number | null
   remainsTime: number | null
   startTime: number | null
   endTime: number | null
@@ -97,6 +99,11 @@ function toNumber(value: unknown): number | null {
   return Number.isFinite(numericValue) ? numericValue : null
 }
 
+function toOptionalNumber(value: unknown): number | null {
+  if (value == null || value === '') return null
+  return toNumber(value)
+}
+
 function clampPercent(value: unknown): number {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return 0
@@ -104,9 +111,17 @@ function clampPercent(value: unknown): number {
 }
 
 function formatCount(value: unknown): string {
+  if (value == null || value === '') return '-'
   const numericValue = toNumber(value)
   if (numericValue == null) return '-'
   return numericValue.toLocaleString()
+}
+
+function formatPercent(value: unknown): string {
+  if (value == null || value === '') return '-'
+  const numericValue = toNumber(value)
+  if (numericValue == null) return '-'
+  return `${Math.floor(clampPercent(numericValue))}%`
 }
 
 function normalizeEpochMs(value: unknown): number | null {
@@ -163,6 +178,30 @@ function getProgressVariant(percent: number): StatusBadgeProps['variant'] {
   return 'info'
 }
 
+function getRemainingVariant(
+  percent: number | null
+): StatusBadgeProps['variant'] {
+  if (percent == null) return 'neutral'
+  if (percent <= 5) return 'danger'
+  if (percent <= 20) return 'warning'
+  return 'success'
+}
+
+function getWindowStatusVariant(
+  status: number | null
+): StatusBadgeProps['variant'] {
+  if (status == null) return 'neutral'
+  return status === 1 ? 'success' : 'warning'
+}
+
+function formatWindowStatus(
+  status: number | null,
+  t: (key: string) => string
+): string {
+  if (status == null) return '-'
+  return status === 1 ? `${status} (${t('Normal')})` : String(status)
+}
+
 function resolveWindowQuota(input: {
   total: unknown
   remaining: unknown
@@ -189,6 +228,8 @@ function buildWindow(input: {
   total: number | null
   used: number | null
   remaining: number | null
+  remainingPercent: number | null
+  status: number | null
   remainsTime: number | null
   startTime: number | null
   endTime: number | null
@@ -197,6 +238,8 @@ function buildWindow(input: {
     input.total == null &&
     input.used == null &&
     input.remaining == null &&
+    input.remainingPercent == null &&
+    input.status == null &&
     input.remainsTime == null &&
     input.startTime == null &&
     input.endTime == null
@@ -214,14 +257,30 @@ function buildWindow(input: {
     (input.used != null && input.used > 0) ||
     (remaining != null && remaining > 0)
 
-  if (!hasQuota) return null
+  if (!hasQuota && input.remainingPercent == null && input.status == null) {
+    return null
+  }
 
+  const remainingPercent =
+    input.remainingPercent ??
+    (input.total != null && input.total > 0 && remaining != null
+      ? Math.floor(clampPercent((remaining / input.total) * 100))
+      : null)
   const percent =
     input.total != null && input.total > 0 && input.used != null
       ? Math.floor(clampPercent((input.used / input.total) * 100))
-      : 0
+      : remainingPercent != null
+        ? Math.floor(clampPercent(100 - remainingPercent))
+        : 0
 
-  return { ...input, remaining, percent }
+  return {
+    ...input,
+    total: hasQuota ? input.total : null,
+    used: hasQuota ? input.used : null,
+    remaining: hasQuota ? remaining : null,
+    remainingPercent,
+    percent,
+  }
 }
 
 function resolveCurrentWindowLabel(
@@ -272,6 +331,10 @@ function resolveModelWindows(
       total: currentIntervalQuota.total,
       used: currentIntervalQuota.used,
       remaining: currentIntervalQuota.remaining,
+      remainingPercent: toOptionalNumber(
+        item.current_interval_remaining_percent
+      ),
+      status: toOptionalNumber(item.current_interval_status),
       remainsTime: toNumber(item.remains_time),
       startTime: currentStartTime,
       endTime: currentEndTime,
@@ -282,6 +345,8 @@ function resolveModelWindows(
       total: currentWeeklyQuota.total,
       used: currentWeeklyQuota.used,
       remaining: currentWeeklyQuota.remaining,
+      remainingPercent: toOptionalNumber(item.current_weekly_remaining_percent),
+      status: toOptionalNumber(item.current_weekly_status),
       remainsTime: toNumber(item.weekly_remains_time),
       startTime: weeklyStartTime,
       endTime: weeklyEndTime,
@@ -401,7 +466,13 @@ function getPlanRegionLabel(
   return t('Unknown')
 }
 
-function MetaBlock({ label, value }: { label: string; value: React.ReactNode }) {
+function MetaBlock({
+  label,
+  value,
+}: {
+  label: string
+  value: React.ReactNode
+}) {
   return (
     <div className='bg-muted/30 min-w-0 rounded-lg border p-3'>
       <div className='text-muted-foreground mb-1 text-xs'>{label}</div>
@@ -413,16 +484,39 @@ function MetaBlock({ label, value }: { label: string; value: React.ReactNode }) 
 function UsageWindowCard({ windowInfo }: { windowInfo: UsageWindow }) {
   const { t } = useTranslation()
   const variant = getProgressVariant(windowInfo.percent)
+  const remainingVariant = getRemainingVariant(windowInfo.remainingPercent)
+  const statusVariant = getWindowStatusVariant(windowInfo.status)
 
   return (
     <div className='rounded-lg border p-3'>
       <div className='flex items-center justify-between gap-2'>
         <div className='text-sm font-medium'>{windowInfo.label}</div>
-        <StatusBadge
-          label={`${windowInfo.percent}%`}
-          variant={variant}
-          copyable={false}
-        />
+        <div className='flex flex-wrap items-center justify-end gap-2'>
+          <StatusBadge
+            label={`${t('Used')}: ${formatPercent(windowInfo.percent)}`}
+            variant={variant}
+            copyable={false}
+          />
+          {windowInfo.remainingPercent != null && (
+            <StatusBadge
+              label={`${t('Remaining')}: ${formatPercent(
+                windowInfo.remainingPercent
+              )}`}
+              variant={remainingVariant}
+              copyable={false}
+            />
+          )}
+          {windowInfo.status != null && (
+            <StatusBadge
+              label={`${t('Status')}: ${formatWindowStatus(
+                windowInfo.status,
+                t
+              )}`}
+              variant={statusVariant}
+              copyable={false}
+            />
+          )}
+        </div>
       </div>
       <div className='mt-3'>
         <Progress value={windowInfo.percent} />
@@ -433,10 +527,18 @@ function UsageWindowCard({ windowInfo }: { windowInfo: UsageWindow }) {
         </div>
         <div>
           {t('Remaining')}: {formatCount(windowInfo.remaining)}
+          {windowInfo.remainingPercent != null
+            ? ` (${formatPercent(windowInfo.remainingPercent)})`
+            : ''}
         </div>
         <div>
           {t('Total')}: {formatCount(windowInfo.total)}
         </div>
+        {windowInfo.status != null && (
+          <div>
+            {t('Status')}: {formatWindowStatus(windowInfo.status, t)}
+          </div>
+        )}
         <div>
           {t('Resets in:')} {formatDurationMs(windowInfo.remainsTime, t)}
         </div>
@@ -467,11 +569,7 @@ function MiniMaxModelCard({
         <div className='min-w-0 text-sm font-semibold break-all'>
           {modelName}
         </div>
-        <StatusBadge
-          label={t('Token Plan')}
-          variant='cyan'
-          copyable={false}
-        />
+        <StatusBadge label={t('Token Plan')} variant='cyan' copyable={false} />
       </div>
       <div className='grid gap-3 md:grid-cols-2'>
         {windows.map((windowInfo) => (
@@ -735,10 +833,7 @@ function formatKimiResetHint(
   t: (key: string) => string
 ): string | null {
   const resetCandidate =
-    detail.resetAt ??
-    detail.reset_at ??
-    detail.resetTime ??
-    detail.reset_time
+    detail.resetAt ?? detail.reset_at ?? detail.resetTime ?? detail.reset_time
   if (resetCandidate != null && resetCandidate !== '') {
     const epochMs = parseResetTime(resetCandidate)
     if (epochMs != null) {
@@ -1144,7 +1239,7 @@ export function ChannelPlanUsageDialog({
 
         <ScrollArea className='min-h-0 flex-1 pr-4'>
           {isRefreshing && !response ? (
-            <div className='flex min-h-64 items-center justify-center gap-2 text-sm text-muted-foreground'>
+            <div className='text-muted-foreground flex min-h-64 items-center justify-center gap-2 text-sm'>
               <Loader2 className='h-4 w-4 animate-spin' />
               {t('Loading...')}
             </div>
