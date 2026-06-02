@@ -19,6 +19,8 @@ import { API, showError } from '../../../../helpers';
 
 const { Text } = Typography;
 
+const INFINITE_QUOTA_LABEL = '∞';
+
 const clampPercent = (value) => {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) return 0;
@@ -79,6 +81,11 @@ const formatCount = (value) => {
   return numericValue.toLocaleString();
 };
 
+const formatWindowCount = (value, isUnlimited) => {
+  if (isUnlimited) return INFINITE_QUOTA_LABEL;
+  return formatCount(value);
+};
+
 const formatPercent = (value) => {
   const numericValue = toNumber(value);
   if (numericValue == null) return '-';
@@ -129,6 +136,28 @@ const resolveWindowQuota = ({ total, remaining, upstreamUsageCount }) => {
   };
 };
 
+const isMiniMaxUnlimitedWeeklyLimit = (item) => {
+  const weeklyStatus = toNumber(item?.current_weekly_status);
+  if (weeklyStatus === 3) return true;
+
+  const total = toNumber(item?.current_weekly_total_count);
+  const used = toNumber(item?.current_weekly_usage_count);
+  const remaining = toNumber(item?.current_weekly_remaining_count);
+  const remainingPercent = toNumber(item?.current_weekly_remaining_percent);
+  const hasWeeklyWindow =
+    toNumber(item?.weekly_remains_time) != null ||
+    normalizeEpochMs(item?.weekly_start_time) != null ||
+    normalizeEpochMs(item?.weekly_end_time) != null;
+
+  return (
+    hasWeeklyWindow &&
+    total === 0 &&
+    (used == null || used === 0) &&
+    (remaining == null || remaining === 0) &&
+    remainingPercent === 100
+  );
+};
+
 const pickRemainingColor = (value) => {
   const numericValue = toNumber(value);
   if (numericValue == null) return 'grey';
@@ -140,6 +169,7 @@ const pickRemainingColor = (value) => {
 const formatWindowStatus = (status, t) => {
   const numericValue = toNumber(status);
   if (numericValue == null) return '-';
+  if (numericValue === 3) return `${numericValue} (${INFINITE_QUOTA_LABEL})`;
   return numericValue === 1
     ? `${numericValue} (${t('正常')})`
     : `${numericValue}`;
@@ -148,6 +178,7 @@ const formatWindowStatus = (status, t) => {
 const pickWindowStatusColor = (status) => {
   const numericValue = toNumber(status);
   if (numericValue == null) return 'grey';
+  if (numericValue === 3) return 'purple';
   return numericValue === 1 ? 'green' : 'orange';
 };
 
@@ -162,8 +193,10 @@ const buildWindow = ({
   remainsTime,
   startTime,
   endTime,
+  isUnlimited,
 }) => {
   if (
+    !isUnlimited &&
     total == null &&
     used == null &&
     remaining == null &&
@@ -183,6 +216,7 @@ const buildWindow = ({
         ? Math.max(total - used, 0)
         : null;
   const hasPositiveQuota =
+    Boolean(isUnlimited) ||
     (total != null && total > 0) ||
     (used != null && used > 0) ||
     (remainValue != null && remainValue > 0);
@@ -205,9 +239,10 @@ const buildWindow = ({
   return {
     key,
     label,
-    total: hasPositiveQuota ? total : null,
+    total: isUnlimited ? null : hasPositiveQuota ? total : null,
     used: hasPositiveQuota ? used : null,
-    remaining: hasPositiveQuota ? remainValue : null,
+    remaining: isUnlimited ? null : hasPositiveQuota ? remainValue : null,
+    isUnlimited: Boolean(isUnlimited),
     percent,
     remainingPercent: remainingPercentValue,
     status,
@@ -232,6 +267,7 @@ const resolveModelWindows = (item, t) => {
     remaining: item?.current_weekly_remaining_count,
     upstreamUsageCount: item?.current_weekly_usage_count,
   });
+  const hasUnlimitedWeeklyLimit = isMiniMaxUnlimitedWeeklyLimit(item);
 
   return [
     buildWindow({
@@ -254,18 +290,21 @@ const resolveModelWindows = (item, t) => {
       total: currentWeeklyQuota.total,
       used: currentWeeklyQuota.used,
       remaining: currentWeeklyQuota.remaining,
-      remainingPercent: toOptionalNumber(
-        item?.current_weekly_remaining_percent,
-      ),
+      remainingPercent:
+        toOptionalNumber(item?.current_weekly_remaining_percent) ??
+        (hasUnlimitedWeeklyLimit ? 100 : null),
       status: toOptionalNumber(item?.current_weekly_status),
       remainsTime: toNumber(item?.weekly_remains_time),
       startTime: weeklyStartTime,
       endTime: weeklyEndTime,
+      isUnlimited: hasUnlimitedWeeklyLimit,
     }),
   ].filter(Boolean);
 };
 
 const WindowCard = ({ t, windowInfo }) => {
+  const isUnlimited = windowInfo.isUnlimited === true;
+
   return (
     <div className='rounded-lg border border-semi-color-border bg-semi-color-bg-0 p-3'>
       <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
@@ -276,10 +315,17 @@ const WindowCard = ({ t, windowInfo }) => {
           </Tag>
           {windowInfo.remainingPercent != null && (
             <Tag
-              color={pickRemainingColor(windowInfo.remainingPercent)}
+              color={
+                isUnlimited
+                  ? 'purple'
+                  : pickRemainingColor(windowInfo.remainingPercent)
+              }
               size='small'
             >
-              {t('剩余')} {formatPercent(windowInfo.remainingPercent)}
+              {t('剩余')}{' '}
+              {isUnlimited
+                ? INFINITE_QUOTA_LABEL
+                : formatPercent(windowInfo.remainingPercent)}
             </Tag>
           )}
           {windowInfo.status != null && (
@@ -289,37 +335,48 @@ const WindowCard = ({ t, windowInfo }) => {
           )}
           <Tag
             color={
-              windowInfo.remaining === 0
-                ? 'red'
-                : windowInfo.remaining == null
-                  ? 'grey'
-                  : 'blue'
+              isUnlimited
+                ? 'purple'
+                : windowInfo.remaining === 0
+                  ? 'red'
+                  : windowInfo.remaining == null
+                    ? 'grey'
+                    : 'blue'
             }
             size='small'
           >
-            {t('剩余')} {formatCount(windowInfo.remaining)}
+            {t('剩余')} {formatWindowCount(windowInfo.remaining, isUnlimited)}
           </Tag>
         </div>
       </div>
-      <div className='mt-2'>
-        <Progress
-          percent={windowInfo.percent}
-          stroke={pickStrokeColor(windowInfo.percent)}
-          showInfo={false}
-        />
-      </div>
+      {isUnlimited ? (
+        <div className='relative mt-2 h-4 overflow-hidden rounded-full bg-purple-100'>
+          <div className='absolute inset-0 rounded-full bg-purple-500' />
+          <div className='absolute inset-0 flex items-center justify-center text-xs font-semibold leading-none text-white'>
+            {INFINITE_QUOTA_LABEL}
+          </div>
+        </div>
+      ) : (
+        <div className='mt-2'>
+          <Progress
+            percent={windowInfo.percent}
+            stroke={pickStrokeColor(windowInfo.percent)}
+            showInfo={false}
+          />
+        </div>
+      )}
       <div className='mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-semi-color-text-1'>
         <div>
           {t('已用')} {formatCount(windowInfo.used)}
         </div>
         <div>
-          {t('剩余')} {formatCount(windowInfo.remaining)}
-          {windowInfo.remainingPercent != null
+          {t('剩余')} {formatWindowCount(windowInfo.remaining, isUnlimited)}
+          {!isUnlimited && windowInfo.remainingPercent != null
             ? ` (${formatPercent(windowInfo.remainingPercent)})`
             : ''}
         </div>
         <div>
-          {t('总量')} {formatCount(windowInfo.total)}
+          {t('总量')} {formatWindowCount(windowInfo.total, isUnlimited)}
         </div>
         <div>
           {t('占比')} {formatPercent(windowInfo.percent)}
@@ -497,6 +554,9 @@ const MiniMaxUsageView = ({
     .filter((entry) => entry.windows.length === 0)
     .map((entry) => String(entry.item?.model_name || entry.item?.model || ''))
     .filter(Boolean);
+  const hasUnlimitedWeeklyLimit = parsedModels.some((entry) =>
+    isMiniMaxUnlimitedWeeklyLimit(entry.item),
+  );
   const baseResp = upstreamData?.base_resp ?? null;
   const rawJSON = useMemo(
     () => JSON.stringify(payload?.data ?? payload ?? {}, null, 2),
@@ -549,6 +609,16 @@ const MiniMaxUsageView = ({
         <MetaBlock
           label={t('业务消息')}
           value={baseResp?.status_msg || payload?.message || '-'}
+        />
+        <MetaBlock
+          label={t('套餐')}
+          value={
+            parsedModels.length > 0
+              ? hasUnlimitedWeeklyLimit
+                ? t('旧套餐')
+                : t('新套餐')
+              : '-'
+          }
         />
       </div>
 

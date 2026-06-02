@@ -48,6 +48,7 @@ type UsageWindow = {
   total: number | null
   used: number | null
   remaining: number | null
+  isUnlimited?: boolean
   percent: number
   remainingPercent: number | null
   status: number | null
@@ -57,6 +58,8 @@ type UsageWindow = {
 }
 
 type MiniMaxModelRemain = Record<string, unknown>
+
+const INFINITE_QUOTA_LABEL = '∞'
 
 type ZhipuLimitCard = {
   key: string
@@ -115,6 +118,11 @@ function formatCount(value: unknown): string {
   const numericValue = toNumber(value)
   if (numericValue == null) return '-'
   return numericValue.toLocaleString()
+}
+
+function formatWindowCount(value: unknown, isUnlimited?: boolean): string {
+  if (isUnlimited) return INFINITE_QUOTA_LABEL
+  return formatCount(value)
 }
 
 function formatPercent(value: unknown): string {
@@ -191,6 +199,7 @@ function getWindowStatusVariant(
   status: number | null
 ): StatusBadgeProps['variant'] {
   if (status == null) return 'neutral'
+  if (status === 3) return 'purple'
   return status === 1 ? 'success' : 'warning'
 }
 
@@ -199,7 +208,30 @@ function formatWindowStatus(
   t: (key: string) => string
 ): string {
   if (status == null) return '-'
+  if (status === 3) return `${status} (${INFINITE_QUOTA_LABEL})`
   return status === 1 ? `${status} (${t('Normal')})` : String(status)
+}
+
+function isMiniMaxUnlimitedWeeklyLimit(item: MiniMaxModelRemain): boolean {
+  const weeklyStatus = toNumber(item.current_weekly_status)
+  if (weeklyStatus === 3) return true
+
+  const total = toNumber(item.current_weekly_total_count)
+  const used = toNumber(item.current_weekly_usage_count)
+  const remaining = toNumber(item.current_weekly_remaining_count)
+  const remainingPercent = toNumber(item.current_weekly_remaining_percent)
+  const hasWeeklyWindow =
+    toNumber(item.weekly_remains_time) != null ||
+    normalizeEpochMs(item.weekly_start_time) != null ||
+    normalizeEpochMs(item.weekly_end_time) != null
+
+  return (
+    hasWeeklyWindow &&
+    total === 0 &&
+    (used == null || used === 0) &&
+    (remaining == null || remaining === 0) &&
+    remainingPercent === 100
+  )
 }
 
 function resolveWindowQuota(input: {
@@ -233,8 +265,10 @@ function buildWindow(input: {
   remainsTime: number | null
   startTime: number | null
   endTime: number | null
+  isUnlimited?: boolean
 }): UsageWindow | null {
   if (
+    !input.isUnlimited &&
     input.total == null &&
     input.used == null &&
     input.remaining == null &&
@@ -253,6 +287,7 @@ function buildWindow(input: {
       ? Math.max(input.total - input.used, 0)
       : null)
   const hasQuota =
+    Boolean(input.isUnlimited) ||
     (input.total != null && input.total > 0) ||
     (input.used != null && input.used > 0) ||
     (remaining != null && remaining > 0)
@@ -275,9 +310,10 @@ function buildWindow(input: {
 
   return {
     ...input,
-    total: hasQuota ? input.total : null,
+    total: input.isUnlimited ? null : hasQuota ? input.total : null,
     used: hasQuota ? input.used : null,
-    remaining: hasQuota ? remaining : null,
+    remaining: input.isUnlimited ? null : hasQuota ? remaining : null,
+    isUnlimited: Boolean(input.isUnlimited),
     remainingPercent,
     percent,
   }
@@ -323,6 +359,7 @@ function resolveModelWindows(
     remaining: item.current_weekly_remaining_count,
     upstreamUsageCount: item.current_weekly_usage_count,
   })
+  const hasUnlimitedWeeklyLimit = isMiniMaxUnlimitedWeeklyLimit(item)
 
   return [
     buildWindow({
@@ -341,15 +378,18 @@ function resolveModelWindows(
     }),
     buildWindow({
       key: 'current_weekly',
-      label: t('Weekly Window'),
+      label: t('Weekly Quota'),
       total: currentWeeklyQuota.total,
       used: currentWeeklyQuota.used,
       remaining: currentWeeklyQuota.remaining,
-      remainingPercent: toOptionalNumber(item.current_weekly_remaining_percent),
+      remainingPercent:
+        toOptionalNumber(item.current_weekly_remaining_percent) ??
+        (hasUnlimitedWeeklyLimit ? 100 : null),
       status: toOptionalNumber(item.current_weekly_status),
       remainsTime: toNumber(item.weekly_remains_time),
       startTime: weeklyStartTime,
       endTime: weeklyEndTime,
+      isUnlimited: hasUnlimitedWeeklyLimit,
     }),
   ].filter(Boolean) as UsageWindow[]
 }
@@ -483,6 +523,7 @@ function MetaBlock({
 
 function UsageWindowCard({ windowInfo }: { windowInfo: UsageWindow }) {
   const { t } = useTranslation()
+  const isUnlimited = windowInfo.isUnlimited === true
   const variant = getProgressVariant(windowInfo.percent)
   const remainingVariant = getRemainingVariant(windowInfo.remainingPercent)
   const statusVariant = getWindowStatusVariant(windowInfo.status)
@@ -499,10 +540,12 @@ function UsageWindowCard({ windowInfo }: { windowInfo: UsageWindow }) {
           />
           {windowInfo.remainingPercent != null && (
             <StatusBadge
-              label={`${t('Remaining')}: ${formatPercent(
-                windowInfo.remainingPercent
-              )}`}
-              variant={remainingVariant}
+              label={`${t('Remaining')}: ${
+                isUnlimited
+                  ? INFINITE_QUOTA_LABEL
+                  : formatPercent(windowInfo.remainingPercent)
+              }`}
+              variant={isUnlimited ? 'purple' : remainingVariant}
               copyable={false}
             />
           )}
@@ -518,21 +561,31 @@ function UsageWindowCard({ windowInfo }: { windowInfo: UsageWindow }) {
           )}
         </div>
       </div>
-      <div className='mt-3'>
-        <Progress value={windowInfo.percent} />
-      </div>
+      {isUnlimited ? (
+        <div className='relative mt-3 h-4 overflow-hidden rounded-full bg-purple-100 dark:bg-purple-950/40'>
+          <div className='absolute inset-0 rounded-full bg-purple-500' />
+          <div className='absolute inset-0 flex items-center justify-center text-xs leading-none font-semibold text-white'>
+            {INFINITE_QUOTA_LABEL}
+          </div>
+        </div>
+      ) : (
+        <div className='mt-3'>
+          <Progress value={windowInfo.percent} />
+        </div>
+      )}
       <div className='text-muted-foreground mt-2 grid gap-1 text-xs sm:grid-cols-2'>
         <div>
           {t('Used')}: {formatCount(windowInfo.used)}
         </div>
         <div>
-          {t('Remaining')}: {formatCount(windowInfo.remaining)}
-          {windowInfo.remainingPercent != null
+          {t('Remaining')}:{' '}
+          {formatWindowCount(windowInfo.remaining, isUnlimited)}
+          {!isUnlimited && windowInfo.remainingPercent != null
             ? ` (${formatPercent(windowInfo.remainingPercent)})`
             : ''}
         </div>
         <div>
-          {t('Total')}: {formatCount(windowInfo.total)}
+          {t('Total')}: {formatWindowCount(windowInfo.total, isUnlimited)}
         </div>
         {windowInfo.status != null && (
           <div>
@@ -610,6 +663,9 @@ function MiniMaxUsageView({
     .filter((entry) => entry.windows.length === 0)
     .map((entry) => String(entry.item.model_name || entry.item.model || ''))
     .filter(Boolean)
+  const hasUnlimitedWeeklyLimit = parsedModels.some((entry) =>
+    isMiniMaxUnlimitedWeeklyLimit(entry.item)
+  )
   const baseResp = toRecord(upstreamData?.base_resp)
   const shouldShowEmptyState = response != null && response.success !== false
 
@@ -640,6 +696,16 @@ function MiniMaxUsageView({
         <MetaBlock
           label={t('Business Message')}
           value={String(baseResp?.status_msg || response?.message || '-')}
+        />
+        <MetaBlock
+          label={t('Plan')}
+          value={
+            parsedModels.length > 0
+              ? hasUnlimitedWeeklyLimit
+                ? t('Old Plan')
+                : t('New Plan')
+              : '-'
+          }
         />
       </div>
 
