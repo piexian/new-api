@@ -43,6 +43,10 @@ const UsersFilters = ({
     { value: '10', label: t('管理员') },
     { value: '100', label: t('超级管理员') },
   ];
+  const quotaOrderOptions = [
+    { value: 'asc', label: t('剩余额度升序') },
+    { value: 'desc', label: t('剩余额度降序') },
+  ];
 
   const handleReset = () => {
     if (!formApiRef.current) return;
@@ -118,6 +122,22 @@ const UsersFilters = ({
             field='searchRole'
             placeholder={t('选择角色')}
             optionList={roleOptions}
+            onChange={() => {
+              setTimeout(() => {
+                searchUsers(1, pageSize);
+              }, 100);
+            }}
+            className='w-full'
+            showClear
+            pure
+            size='small'
+          />
+        </div>
+        <div className='w-full md:w-40'>
+          <Form.Select
+            field='searchQuotaOrder'
+            placeholder={t('额度排序')}
+            optionList={quotaOrderOptions}
             onChange={() => {
               setTimeout(() => {
                 searchUsers(1, pageSize);

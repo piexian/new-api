@@ -49,6 +49,7 @@ export const useUsersData = () => {
     searchGroup: '',
     searchStatus: '',
     searchRole: '',
+    searchQuotaOrder: '',
   };
 
   // Form API reference
@@ -62,6 +63,7 @@ export const useUsersData = () => {
       searchGroup: formValues.searchGroup || '',
       searchStatus: formValues.searchStatus || '',
       searchRole: formValues.searchRole || '',
+      searchQuotaOrder: formValues.searchQuotaOrder || '',
     };
   };
 
@@ -97,26 +99,30 @@ export const useUsersData = () => {
     searchGroup = null,
     searchStatus = null,
     searchRole = null,
+    searchQuotaOrder = null,
   ) => {
     // If no parameters passed, get values from form
     if (
       searchKeyword === null ||
       searchGroup === null ||
       searchStatus === null ||
-      searchRole === null
+      searchRole === null ||
+      searchQuotaOrder === null
     ) {
       const formValues = getFormValues();
       searchKeyword = formValues.searchKeyword;
       searchGroup = formValues.searchGroup;
       searchStatus = formValues.searchStatus;
       searchRole = formValues.searchRole;
+      searchQuotaOrder = formValues.searchQuotaOrder;
     }
 
     if (
       searchKeyword === '' &&
       searchGroup === '' &&
       searchStatus === '' &&
-      searchRole === ''
+      searchRole === '' &&
+      searchQuotaOrder === ''
     ) {
       // If keyword is blank, load files instead
       await loadUsers(startIdx, pageSize);
@@ -128,6 +134,7 @@ export const useUsersData = () => {
     if (searchGroup) params.append('group', searchGroup);
     if (searchStatus) params.append('status', searchStatus);
     if (searchRole) params.append('role', searchRole);
+    if (searchQuotaOrder) params.append('quota_order', searchQuotaOrder);
     params.append('p', String(startIdx));
     params.append('page_size', String(pageSize));
     const res = await API.get(
@@ -222,13 +229,14 @@ export const useUsersData = () => {
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
-    const { searchKeyword, searchGroup, searchStatus, searchRole } =
+    const { searchKeyword, searchGroup, searchStatus, searchRole, searchQuotaOrder } =
       getFormValues();
     if (
       searchKeyword === '' &&
       searchGroup === '' &&
       searchStatus === '' &&
-      searchRole === ''
+      searchRole === '' &&
+      searchQuotaOrder === ''
     ) {
       loadUsers(page, pageSize).then();
     } else {
@@ -239,6 +247,7 @@ export const useUsersData = () => {
         searchGroup,
         searchStatus,
         searchRole,
+        searchQuotaOrder,
       ).then();
     }
   };
@@ -248,14 +257,15 @@ export const useUsersData = () => {
     localStorage.setItem('page-size', size + '');
     setPageSize(size);
     setActivePage(1);
-    const { searchKeyword, searchGroup, searchStatus, searchRole } =
+    const { searchKeyword, searchGroup, searchStatus, searchRole, searchQuotaOrder } =
       getFormValues();
     try {
       if (
         searchKeyword === '' &&
         searchGroup === '' &&
         searchStatus === '' &&
-        searchRole === ''
+        searchRole === '' &&
+        searchQuotaOrder === ''
       ) {
         await loadUsers(1, size);
       } else {
@@ -266,6 +276,7 @@ export const useUsersData = () => {
           searchGroup,
           searchStatus,
           searchRole,
+          searchQuotaOrder,
         );
       }
     } catch (reason) {
@@ -288,13 +299,14 @@ export const useUsersData = () => {
 
   // Refresh data
   const refresh = async (page = activePage) => {
-    const { searchKeyword, searchGroup, searchStatus, searchRole } =
+    const { searchKeyword, searchGroup, searchStatus, searchRole, searchQuotaOrder } =
       getFormValues();
     if (
       searchKeyword === '' &&
       searchGroup === '' &&
       searchStatus === '' &&
-      searchRole === ''
+      searchRole === '' &&
+      searchQuotaOrder === ''
     ) {
       await loadUsers(page, pageSize);
     } else {
@@ -305,6 +317,7 @@ export const useUsersData = () => {
         searchGroup,
         searchStatus,
         searchRole,
+        searchQuotaOrder,
       );
     }
   };
