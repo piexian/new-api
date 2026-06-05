@@ -35,6 +35,7 @@ import {
 } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
+import IPBan from './pages/IPBan';
 import {
   API,
   AuthRedirect,
@@ -310,6 +311,15 @@ function App() {
               '/console/user',
               <AdminRoute>
                 <User />
+              </AdminRoute>,
+            )}
+          />
+          <Route
+            path='/console/ip_ban'
+            element={routeGuard(
+              '/console/ip_ban',
+              <AdminRoute>
+                <IPBan />
               </AdminRoute>,
             )}
           />

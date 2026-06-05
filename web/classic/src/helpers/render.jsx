@@ -82,6 +82,7 @@ import {
   Package,
   Server,
   CalendarClock,
+  ShieldBan,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -146,6 +147,8 @@ export function getLucideIcon(key, selected = false) {
     case 'user':
     case 'personal':
       return <User {...commonProps} color={iconColor} />;
+    case 'ip_ban':
+      return <ShieldBan {...commonProps} color={iconColor} />;
     case 'models':
       return <Package {...commonProps} color={iconColor} />;
     case 'deployment':
