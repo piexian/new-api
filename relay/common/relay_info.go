@@ -720,6 +720,7 @@ type TaskSubmitReq struct {
 	Model          string                 `json:"model,omitempty"`
 	Mode           string                 `json:"mode,omitempty"`
 	Image          string                 `json:"image,omitempty"`
+	ImageURL       string                 `json:"image_url,omitempty"`
 	Images         []string               `json:"images,omitempty"`
 	Size           string                 `json:"size,omitempty"`
 	Duration       int                    `json:"duration,omitempty"`
@@ -733,7 +734,45 @@ func (t *TaskSubmitReq) GetPrompt() string {
 }
 
 func (t *TaskSubmitReq) HasImage() bool {
-	return len(t.Images) > 0
+	if strings.TrimSpace(t.Image) != "" ||
+		strings.TrimSpace(t.ImageURL) != "" ||
+		strings.TrimSpace(t.InputReference) != "" ||
+		len(t.Images) > 0 {
+		return true
+	}
+	if t.Metadata == nil {
+		return false
+	}
+	for _, key := range []string{"image", "image_url", "input_reference", "reference_images", "reference_image_urls"} {
+		if taskSubmitReqHasMediaValue(t.Metadata[key]) {
+			return true
+		}
+	}
+	return false
+}
+
+func taskSubmitReqHasMediaValue(value any) bool {
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed) != ""
+	case []string:
+		for _, item := range typed {
+			if strings.TrimSpace(item) != "" {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, item := range typed {
+			if taskSubmitReqHasMediaValue(item) {
+				return true
+			}
+		}
+	case map[string]interface{}:
+		if url, ok := typed["url"].(string); ok && strings.TrimSpace(url) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
@@ -747,6 +786,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		"model":           {},
 		"mode":            {},
 		"image":           {},
+		"image_url":       {},
 		"images":          {},
 		"size":            {},
 		"duration":        {},
@@ -772,6 +812,9 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	}
 	if raw := rawMap["input_reference"]; len(raw) > 0 {
 		_ = common.Unmarshal(raw, &t.InputReference)
+	}
+	if raw := rawMap["image_url"]; len(raw) > 0 {
+		_ = common.Unmarshal(raw, &t.ImageURL)
 	}
 
 	if raw := rawMap["image"]; len(raw) > 0 {
@@ -823,7 +866,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 
 	for key, raw := range rawMap {
 		if _, known := knownFields[key]; known {
-			if key != "image" && key != "images" {
+			if key != "image" && key != "images" && key != "image_url" {
 				continue
 			}
 			if key == "image" && t.Image != "" {

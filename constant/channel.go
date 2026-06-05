@@ -59,7 +59,8 @@ const (
 	ChannelTypePoe             = 59
 	ChannelTypeXunfeiMaaS      = 60
 	ChannelTypeXunfeiMaaSImage = 61
-	ChannelTypeXiaomiMiMo     = 62
+	ChannelTypeXiaomiMiMo      = 62
+	ChannelTypeAgnesAI         = 63
 	ChannelTypeDummy           // this one is only for count, do not add any channel after this
 
 )
@@ -99,7 +100,7 @@ var ChannelBaseURLs = []string{
 	"https://api.lingyiwanwu.com",               //31
 	"",                                          //32
 	"",                                          //33
-	"https://api.cohere.com",                     //34
+	"https://api.cohere.com",                    //34
 	"https://api.minimaxi.com",                  //35
 	"",                                          //36
 	"https://api.dify.ai",                       //37
@@ -128,6 +129,7 @@ var ChannelBaseURLs = []string{
 	"https://maas-api.cn-huabei-1.xf-yun.com/v2",     //60
 	"https://xingchen-api.cn-huabei-1.xf-yun.com/v2", //61
 	"https://api.xiaomimimo.com",                     //62
+	"https://apihub.agnes-ai.com",                    //63
 }
 
 var ChannelTypeNames = map[int]string{
@@ -189,7 +191,8 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypePoe:             "Poe",
 	ChannelTypeXunfeiMaaS:      "XunfeiMaaS",
 	ChannelTypeXunfeiMaaSImage: "XunfeiMaaSImage",
-	ChannelTypeXiaomiMiMo:     "XiaomiMiMo",
+	ChannelTypeXiaomiMiMo:      "XiaomiMiMo",
+	ChannelTypeAgnesAI:         "AgnesAI",
 }
 
 func GetChannelTypeName(channelType int) string {

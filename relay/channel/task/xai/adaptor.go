@@ -57,6 +57,31 @@ type videoError struct {
 	Message string `json:"message,omitempty"`
 }
 
+func (e *videoError) UnmarshalJSON(data []byte) error {
+	switch common.GetJsonType(data) {
+	case "string":
+		var message string
+		if err := common.Unmarshal(data, &message); err != nil {
+			return err
+		}
+		e.Message = message
+		return nil
+	case "object":
+		type alias videoError
+		var parsed alias
+		if err := common.Unmarshal(data, &parsed); err != nil {
+			return err
+		}
+		*e = videoError(parsed)
+		return nil
+	case "null", "":
+		return nil
+	default:
+		e.Message = strings.TrimSpace(string(data))
+		return nil
+	}
+}
+
 type videoResultResponse struct {
 	Status   string `json:"status"`
 	Progress *int   `json:"progress,omitempty"`
@@ -391,6 +416,9 @@ func xaiImageInputURL(req relaycommon.TaskSubmitReq) string {
 	if url := mediaSourceURL(req.Metadata["image_url"]); url != "" {
 		return url
 	}
+	if imageURL := strings.TrimSpace(req.ImageURL); imageURL != "" {
+		return imageURL
+	}
 	if image := strings.TrimSpace(req.Image); image != "" {
 		return image
 	}
@@ -532,7 +560,7 @@ func xaiHasReferenceModeConflict(body map[string]any, req relaycommon.TaskSubmit
 	if mediaSourceURL(body["video"]) != "" || mediaSourceURL(body["video_url"]) != "" {
 		return true
 	}
-	if strings.TrimSpace(req.Image) != "" || strings.TrimSpace(req.InputReference) != "" {
+	if strings.TrimSpace(req.Image) != "" || strings.TrimSpace(req.ImageURL) != "" || strings.TrimSpace(req.InputReference) != "" {
 		return true
 	}
 	if fromBody && len(req.Images) > 0 {
