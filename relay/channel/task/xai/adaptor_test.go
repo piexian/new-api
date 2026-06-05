@@ -342,6 +342,23 @@ func TestParseTaskResultUsesXAIProgressAndResultURL(t *testing.T) {
 	require.Equal(t, "https://example.com/out.mp4", done.Url)
 }
 
+func TestParseTaskResultAcceptsStringError(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &TaskAdaptor{}
+
+	result, err := adaptor.ParseTaskResult([]byte(`{
+		"status": "failed",
+		"progress": 100,
+		"error": "Cannot read properties of undefined (reading 'message')"
+	}`))
+
+	require.NoError(t, err)
+	require.Equal(t, model.TaskStatusFailure, result.Status)
+	require.Equal(t, "100%", result.Progress)
+	require.Equal(t, "Cannot read properties of undefined (reading 'message')", result.Reason)
+}
+
 func TestValidateRequestAndSetActionStoresRawNativeVideoRequest(t *testing.T) {
 	t.Parallel()
 

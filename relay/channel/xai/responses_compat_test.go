@@ -164,3 +164,28 @@ func TestConvertOpenAIRequestPreservesXAINativeJSONFields(t *testing.T) {
 	require.True(t, ok, "xai_native = %T", payload["xai_native"])
 	require.Equal(t, "bar", native["foo"])
 }
+
+func TestConvertOpenAIRequestSkipsOriginalFieldsWhenRequestBodyMissing(t *testing.T) {
+	t.Parallel()
+
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	request := &dto.GeneralOpenAIRequest{
+		Model: "grok-4.3",
+		Messages: []dto.Message{
+			{Role: "user", Content: "ping"},
+		},
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "grok-4.3",
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, info, request)
+
+	require.NoError(t, err)
+	require.Same(t, request, converted)
+}
