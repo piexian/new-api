@@ -214,6 +214,7 @@ const EditChannelModal = (props) => {
     allow_inference_geo: false,
     allow_speed: false,
     claude_beta_query: false,
+    xai_codex_compatibility_enabled: false,
     upstream_model_update_check_enabled: false,
     upstream_model_update_auto_sync_enabled: false,
     upstream_model_update_last_check_time: 0,
@@ -923,6 +924,8 @@ const EditChannelModal = (props) => {
             parsedSettings.allow_inference_geo || false;
           data.allow_speed = parsedSettings.allow_speed || false;
           data.claude_beta_query = parsedSettings.claude_beta_query || false;
+          data.xai_codex_compatibility_enabled =
+            parsedSettings.xai_codex_compatibility_enabled === true;
           data.upstream_model_update_check_enabled =
             parsedSettings.upstream_model_update_check_enabled === true;
           data.upstream_model_update_auto_sync_enabled =
@@ -953,6 +956,7 @@ const EditChannelModal = (props) => {
           data.allow_inference_geo = false;
           data.allow_speed = false;
           data.claude_beta_query = false;
+          data.xai_codex_compatibility_enabled = false;
           data.upstream_model_update_check_enabled = false;
           data.upstream_model_update_auto_sync_enabled = false;
           data.upstream_model_update_last_check_time = 0;
@@ -971,6 +975,7 @@ const EditChannelModal = (props) => {
         data.allow_inference_geo = false;
         data.allow_speed = false;
         data.claude_beta_query = false;
+        data.xai_codex_compatibility_enabled = false;
         data.upstream_model_update_check_enabled = false;
         data.upstream_model_update_auto_sync_enabled = false;
         data.upstream_model_update_last_check_time = 0;
@@ -1822,6 +1827,13 @@ const EditChannelModal = (props) => {
       }
     }
 
+    if (localInputs.type === 48) {
+      settings.xai_codex_compatibility_enabled =
+        localInputs.xai_codex_compatibility_enabled === true;
+    } else if ('xai_codex_compatibility_enabled' in settings) {
+      delete settings.xai_codex_compatibility_enabled;
+    }
+
     settings.upstream_model_update_check_enabled =
       localInputs.upstream_model_update_check_enabled === true;
     settings.upstream_model_update_auto_sync_enabled =
@@ -1868,6 +1880,7 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_inference_geo;
     delete localInputs.allow_speed;
     delete localInputs.claude_beta_query;
+    delete localInputs.xai_codex_compatibility_enabled;
     delete localInputs.upstream_model_update_check_enabled;
     delete localInputs.upstream_model_update_auto_sync_enabled;
     delete localInputs.upstream_model_update_last_check_time;
@@ -2710,6 +2723,24 @@ const EditChannelModal = (props) => {
                       }
                       extraText={t(
                         '开启后，该渠道的 /v1/chat/completions 请求将自动转换为 Responses API 处理',
+                      )}
+                    />
+                  )}
+
+                  {inputs.type === 48 && (
+                    <Form.Switch
+                      field='xai_codex_compatibility_enabled'
+                      label={t('xAI Codex Responses 兼容')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleChannelOtherSettingsChange(
+                          'xai_codex_compatibility_enabled',
+                          value,
+                        )
+                      }
+                      extraText={t(
+                        '仅当请求来自 Codex CLI 时，将 Responses 请求转换为 xAI 兼容格式，并映射会话 ID',
                       )}
                     />
                   )}
