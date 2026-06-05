@@ -84,6 +84,11 @@ func xAIWebsocketBaseURL(baseURL string) string {
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
 	req.Set("Authorization", "Bearer "+info.ApiKey)
+	if IsCodexCompatibilityRequest(c, info) {
+		if sessionID := strings.TrimSpace(c.GetHeader("Session_id")); sessionID != "" && req.Get(xaiGrokConversationID) == "" {
+			req.Set(xaiGrokConversationID, sessionID)
+		}
+	}
 	if info.RelayMode == constant.RelayModeImagesGenerations || info.RelayMode == constant.RelayModeImagesEdits {
 		req.Set("Content-Type", "application/json")
 	}
@@ -147,6 +152,9 @@ func originalJSONFields(c *gin.Context) (map[string]json.RawMessage, bool) {
 	if c == nil || c.Request == nil || !strings.Contains(c.Request.Header.Get("Content-Type"), "application/json") {
 		return nil, false
 	}
+	if c.Request.Body == nil {
+		return nil, false
+	}
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
 		return nil, false
@@ -196,6 +204,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		} else {
 			info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
 		}
+	}
+	if IsCodexCompatibilityRequest(c, info) {
+		return convertCodexResponsesRequestForXAI(request, info.RelayMode == constant.RelayModeResponsesCompact), nil
 	}
 	if original, ok := originalJSONFields(c); ok {
 		payload := make(map[string]any, len(original))

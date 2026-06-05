@@ -31,9 +31,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		if newAPIError = xai.ValidateEndpointForModel(info); newAPIError != nil {
 			return newAPIError
 		}
-		switch info.ApiType {
-		case appconstant.APITypeOpenAI, appconstant.APITypeCodex, appconstant.APITypeXai:
-		default:
+		if !supportsResponsesCompact(c, info) {
 			return types.NewErrorWithStatusCode(
 				fmt.Errorf("unsupported endpoint %q for api type %d", "/v1/responses/compact", info.ApiType),
 				types.ErrorCodeInvalidRequest,
@@ -177,4 +175,18 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
 	return nil
+}
+
+func supportsResponsesCompact(c *gin.Context, info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	switch info.ApiType {
+	case appconstant.APITypeOpenAI, appconstant.APITypeCodex:
+		return true
+	case appconstant.APITypeXai:
+		return xai.IsCodexCompatibilityRequest(c, info)
+	default:
+		return false
+	}
 }

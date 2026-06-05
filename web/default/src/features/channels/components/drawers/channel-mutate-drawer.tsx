@@ -162,8 +162,7 @@ import { StatusCodeRiskDialog } from '../dialogs/status-code-risk-dialog'
 import { ModelMappingEditor } from '../model-mapping-editor'
 
 const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan'
-const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL =
-  'glm-coding-plan-international'
+const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL = 'glm-coding-plan-international'
 const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan'
 const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn/v1'
 const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai/v1'
@@ -249,6 +248,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.pass_through_body_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
+    values.xai_codex_compatibility_enabled ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
     values.upstream_model_update_ignored_models?.trim()
@@ -3293,6 +3293,39 @@ export function ChannelMutateDrawer({
                       </div>
                     )}
 
+                    {currentType === 48 && (
+                      <div className='space-y-3 rounded-lg border p-4'>
+                        <SubHeading
+                          title={t('xAI Compatibility')}
+                          icon={<Code className='h-3.5 w-3.5' />}
+                        />
+                        <FormField
+                          control={form.control}
+                          name='xai_codex_compatibility_enabled'
+                          render={({ field }) => (
+                            <FormItem className='flex items-center justify-between gap-3'>
+                              <div className='space-y-0.5'>
+                                <FormLabel>
+                                  {t('Codex Responses Compatibility')}
+                                </FormLabel>
+                                <FormDescription>
+                                  {t(
+                                    'Convert Codex CLI Responses requests to xAI-compatible payloads when the request User-Agent is Codex.'
+                                  )}
+                                </FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch
+                                  checked={field.value}
+                                  onCheckedChange={field.onChange}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    )}
+
                     <div className='divide-border space-y-0 divide-y border-y'>
                       {currentType === 1 && (
                         <>
@@ -3624,7 +3657,9 @@ export function ChannelMutateDrawer({
         redirectSourceModels={redirectModelKeyList}
         customFetcher={!isEditing ? createModeFetcher : undefined}
         existingModelsOverride={
-          !isEditing ? parseModelsString(form.getValues('models') || '') : undefined
+          !isEditing
+            ? parseModelsString(form.getValues('models') || '')
+            : undefined
         }
       />
 
