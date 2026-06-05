@@ -57,6 +57,15 @@ function isDisabledUserRow(user: User) {
   return isUserDeleted(user) || user.status === USER_STATUS.DISABLED
 }
 
+function getSingleFilterValue(
+  columnFilters: { id: string; value: unknown }[],
+  id: string
+) {
+  const value = columnFilters.find((filter) => filter.id === id)?.value
+  if (Array.isArray(value)) return value.length > 0 ? String(value[0]) : ''
+  return typeof value === 'string' ? value : ''
+}
+
 export function UsersTable() {
   const { t } = useTranslation()
   const columns = useUsersColumns()
@@ -64,7 +73,9 @@ export function UsersTable() {
   const isMobile = useMediaQuery('(max-width: 640px)')
   const [rowSelection, setRowSelection] = useState({})
   const [sorting, setSorting] = useState<SortingState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    quota_order: false,
+  })
 
   const {
     globalFilter,
@@ -83,34 +94,38 @@ export function UsersTable() {
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: 'role', searchKey: 'role', type: 'array' },
       { columnId: 'group', searchKey: 'group', type: 'string' },
+      { columnId: 'quota_order', searchKey: 'quotaOrder', type: 'array' },
     ],
   })
 
-  // Check if any column filter has active values
-  const hasActiveColumnFilters = columnFilters.some(
-    (f) => Array.isArray(f.value) && f.value.length > 0
-  )
-
-  // When column filters are active without a search keyword, fetch all users
-  // for client-side filtering (otherwise column filters only apply to the
-  // currently loaded page which may not contain matching rows).
-  const useClientSideFiltering = hasActiveColumnFilters && !globalFilter?.trim()
+  const statusFilter = getSingleFilterValue(columnFilters, 'status')
+  const roleFilter = getSingleFilterValue(columnFilters, 'role')
+  const groupFilter = getSingleFilterValue(columnFilters, 'group')
+  const quotaOrderFilter = getSingleFilterValue(columnFilters, 'quota_order')
 
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
     queryKey: [
       'users',
-      useClientSideFiltering ? 1 : pagination.pageIndex + 1,
-      useClientSideFiltering ? 10000 : pagination.pageSize,
+      pagination.pageIndex + 1,
+      pagination.pageSize,
       globalFilter,
-      columnFilters,
+      statusFilter,
+      roleFilter,
+      groupFilter,
+      quotaOrderFilter,
       refreshTrigger,
     ],
     queryFn: async () => {
       const hasFilter = globalFilter?.trim()
-      const params = useClientSideFiltering
-        ? { p: 1, page_size: 10000 }
-        : { p: pagination.pageIndex + 1, page_size: pagination.pageSize }
+      const params = {
+        p: pagination.pageIndex + 1,
+        page_size: pagination.pageSize,
+        status: statusFilter,
+        role: roleFilter,
+        group: groupFilter,
+        quota_order: quotaOrderFilter,
+      }
 
       const result = hasFilter
         ? await searchUsers({ ...params, keyword: globalFilter })
@@ -170,10 +185,8 @@ export function UsersTable() {
     onPaginationChange,
     onGlobalFilterChange,
     onColumnFiltersChange,
-    manualPagination: !globalFilter && !useClientSideFiltering,
-    pageCount: useClientSideFiltering
-      ? undefined
-      : Math.ceil((data?.total || 0) / pagination.pageSize),
+    manualPagination: true,
+    pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
   })
 
   const pageCount = table.getPageCount()
@@ -205,6 +218,15 @@ export function UsersTable() {
             columnId: 'role',
             title: t('Role'),
             options: getUserRoleOptions(t),
+            singleSelect: true,
+          },
+          {
+            columnId: 'quota_order',
+            title: t('Quota Order'),
+            options: [
+              { label: t('Quota low to high'), value: 'quota_asc' },
+              { label: t('Quota high to low'), value: 'quota_desc' },
+            ],
             singleSelect: true,
           },
         ],

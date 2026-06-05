@@ -39,8 +39,24 @@ import type {
 export async function getUsers(
   params: GetUsersParams = {}
 ): Promise<GetUsersResponse> {
-  const { p = 1, page_size = 10 } = params
-  const res = await api.get(`/api/user/?p=${p}&page_size=${page_size}`)
+  const {
+    p = 1,
+    page_size = 10,
+    group = '',
+    status = '',
+    role = '',
+    quota_order = '',
+  } = params
+  const res = await api.get('/api/user/', {
+    params: {
+      p,
+      page_size,
+      group: group || undefined,
+      status: status || undefined,
+      role: role || undefined,
+      quota_order: quota_order || undefined,
+    },
+  })
   return res.data
 }
 
@@ -50,10 +66,26 @@ export async function getUsers(
 export async function searchUsers(
   params: SearchUsersParams
 ): Promise<GetUsersResponse> {
-  const { keyword = '', group = '', p = 1, page_size = 10 } = params
-  const res = await api.get(
-    `/api/user/search?keyword=${keyword}&group=${group}&p=${p}&page_size=${page_size}`
-  )
+  const {
+    keyword = '',
+    group = '',
+    status = '',
+    role = '',
+    quota_order = '',
+    p = 1,
+    page_size = 10,
+  } = params
+  const res = await api.get('/api/user/search', {
+    params: {
+      keyword,
+      group: group || undefined,
+      status: status || undefined,
+      role: role || undefined,
+      quota_order: quota_order || undefined,
+      p,
+      page_size,
+    },
+  })
   return res.data
 }
 

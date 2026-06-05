@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -121,7 +120,7 @@ func Login(c *gin.Context) {
 		return
 	}
 	var loginRequest LoginRequest
-	err := json.NewDecoder(c.Request.Body).Decode(&loginRequest)
+	err := common.DecodeJson(c.Request.Body, &loginRequest)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -252,7 +251,7 @@ func Register(c *gin.Context) {
 		return
 	}
 	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	err := common.DecodeJson(c.Request.Body, &user)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -345,7 +344,7 @@ func Register(c *gin.Context) {
 
 func GetAllUsers(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.GetAllUsers(pageInfo)
+	users, total, err := model.GetAllUsers(pageInfo, getUserListQuery(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -359,18 +358,8 @@ func GetAllUsers(c *gin.Context) {
 }
 
 func SearchUsers(c *gin.Context) {
-	keyword := c.Query("keyword")
-	group := c.Query("group")
-	status, _ := strconv.Atoi(c.Query("status"))
-	role, _ := strconv.Atoi(c.Query("role"))
-	if status != common.UserStatusEnabled && status != common.UserStatusDisabled {
-		status = 0
-	}
-	if !common.IsValidateRole(role) || role == common.RoleGuestUser {
-		role = 0
-	}
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, status, role, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsersWithQuery(getUserListQuery(c), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -380,6 +369,20 @@ func SearchUsers(c *gin.Context) {
 	pageInfo.SetItems(users)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+func getUserListQuery(c *gin.Context) model.UserListQuery {
+	role, _ := strconv.Atoi(c.Query("role"))
+	if !common.IsValidateRole(role) || role == common.RoleGuestUser {
+		role = 0
+	}
+	return model.UserListQuery{
+		Keyword:    c.Query("keyword"),
+		Group:      c.Query("group"),
+		Status:     c.Query("status"),
+		Role:       role,
+		QuotaOrder: c.Query("quota_order"),
+	}
 }
 
 func canManageTargetRole(myRole int, targetRole int) bool {
@@ -627,8 +630,10 @@ func generateDefaultSidebarConfig(userRole int) string {
 		// 管理员可以访问管理员区域，但不能访问系统设置
 		defaultConfig["admin"] = map[string]interface{}{
 			"enabled":    true,
+			"ip_ban":     true,
 			"channel":    true,
 			"models":     true,
+			"deployment": true,
 			"redemption": true,
 			"user":       true,
 			"setting":    false, // 管理员不能访问系统设置
@@ -637,8 +642,10 @@ func generateDefaultSidebarConfig(userRole int) string {
 		// 超级管理员可以访问所有功能
 		defaultConfig["admin"] = map[string]interface{}{
 			"enabled":    true,
+			"ip_ban":     true,
 			"channel":    true,
 			"models":     true,
+			"deployment": true,
 			"redemption": true,
 			"user":       true,
 			"setting":    true,
@@ -647,7 +654,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 	// 普通用户不包含admin区域
 
 	// 转换为JSON字符串
-	configBytes, err := json.Marshal(defaultConfig)
+	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
 		common.SysLog("生成默认边栏配置失败: " + err.Error())
 		return ""
@@ -685,7 +692,7 @@ func GetUserModels(c *gin.Context) {
 
 func UpdateUser(c *gin.Context) {
 	var updatedUser model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&updatedUser)
+	err := common.DecodeJson(c.Request.Body, &updatedUser)
 	if err != nil || updatedUser.Id == 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -1042,7 +1049,7 @@ func DeleteSelf(c *gin.Context) {
 
 func CreateUser(c *gin.Context) {
 	var user model.User
-	err := json.NewDecoder(c.Request.Body).Decode(&user)
+	err := common.DecodeJson(c.Request.Body, &user)
 	user.Username = strings.TrimSpace(user.Username)
 	if err != nil || user.Username == "" || user.Password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
@@ -1090,7 +1097,7 @@ type ManageRequest struct {
 // ManageUser Only admin user can do this
 func ManageUser(c *gin.Context) {
 	var req ManageRequest
-	err := json.NewDecoder(c.Request.Body).Decode(&req)
+	err := common.DecodeJson(c.Request.Body, &req)
 
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)

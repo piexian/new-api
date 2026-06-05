@@ -35,6 +35,7 @@ const usersSearchSchema = z.object({
     .optional()
     .catch([]),
   group: z.string().optional().catch(''),
+  quotaOrder: z.enum(['quota_asc', 'quota_desc']).optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/_authenticated/users/')({

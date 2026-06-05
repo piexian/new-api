@@ -337,6 +337,14 @@ export function useUsersColumns(): ColumnDef<User>[] {
       meta: { label: t('Invite Info'), mobileHidden: true },
     },
     {
+      id: 'quota_order',
+      accessorFn: () => '',
+      enableSorting: false,
+      enableHiding: false,
+      filterFn: (_row, _id, value) => Array.isArray(value),
+      meta: { label: t('Quota Order'), mobileHidden: true },
+    },
+    {
       accessorKey: 'created_at',
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Created At')} />

@@ -79,6 +79,10 @@ export interface ApiResponse<T = unknown> {
 export interface GetUsersParams {
   p?: number
   page_size?: number
+  group?: string
+  status?: string
+  role?: string
+  quota_order?: string
 }
 
 export interface GetUsersResponse {
@@ -95,6 +99,9 @@ export interface GetUsersResponse {
 export interface SearchUsersParams {
   keyword?: string
   group?: string
+  status?: string
+  role?: string
+  quota_order?: string
   p?: number
   page_size?: number
 }
