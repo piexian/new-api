@@ -19,6 +19,7 @@ const classicRouteMap: ClassicRouteMap[] = [
   { from: '/playground', to: '/console/playground' },
   { from: '/usage-logs', to: '/console/log' },
   { from: '/users', to: '/console/user' },
+  { from: '/ip-bans', to: '/console/ip_ban' },
   { from: '/redemption-codes', to: '/console/redemption' },
   { from: '/subscriptions', to: '/console/subscription' },
   { from: '/system-settings', to: '/console/setting' },
@@ -30,9 +31,8 @@ const classicRouteMap: ClassicRouteMap[] = [
 ]
 
 export function getClassicFrontendPath(pathname: string): string {
-  const match = classicRouteMap.find(
-    ({ from, preserveSuffix }) =>
-      preserveSuffix ? pathname.startsWith(from) : pathname === from
+  const match = classicRouteMap.find(({ from, preserveSuffix }) =>
+    preserveSuffix ? pathname.startsWith(from) : pathname === from
   )
   if (!match) return '/console'
   return match.preserveSuffix
@@ -41,6 +41,10 @@ export function getClassicFrontendPath(pathname: string): string {
 }
 
 export function switchToClassicFrontend(pathname = window.location.pathname) {
-  setCookie(FRONTEND_THEME_COOKIE_NAME, 'classic', FRONTEND_THEME_COOKIE_MAX_AGE)
+  setCookie(
+    FRONTEND_THEME_COOKIE_NAME,
+    'classic',
+    FRONTEND_THEME_COOKIE_MAX_AGE
+  )
   window.location.assign(getClassicFrontendPath(pathname))
 }

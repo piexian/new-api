@@ -128,6 +128,10 @@ export function SidebarModulesSection({
         title: t('Models'),
         description: t('Manage catalog visibility and pricing.'),
       },
+      ip_ban: {
+        title: t('IP Bans'),
+        description: t('Block abusive IP addresses and CIDR ranges.'),
+      },
       redemption: {
         title: t('Redeem codes'),
         description: t('Create and review invite or credit codes.'),

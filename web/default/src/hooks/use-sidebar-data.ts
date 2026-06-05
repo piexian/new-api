@@ -33,6 +33,7 @@ import {
   CreditCard,
   ListTodo,
   Settings,
+  ShieldBan,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -134,6 +135,11 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('IP Bans'),
+            url: '/ip-bans',
+            icon: ShieldBan,
           },
           {
             title: t('Redemption Codes'),

@@ -97,6 +97,9 @@ func main() {
 		go model.SyncChannelCache(common.SyncFrequency)
 	}
 
+	model.InitIPBanCache()
+	go model.SyncIPBanCache(common.SyncFrequency)
+
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
 
@@ -174,6 +177,7 @@ func main() {
 	server.Use(middleware.RequestId())
 	server.Use(middleware.PoweredBy())
 	server.Use(middleware.I18n())
+	server.Use(middleware.IPBan())
 	middleware.SetUpLogger(server)
 	// Initialize session store
 	store := cookie.NewStore([]byte(common.SessionSecret))
