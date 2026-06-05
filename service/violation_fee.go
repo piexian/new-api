@@ -1,16 +1,19 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/shopspring/decimal"
@@ -23,6 +26,9 @@ const (
 	CSAMViolationMarker              = "Failed check: SAFETY_CHECK_TYPE"
 	ContentViolatesUsageMarker       = "Content violates usage guidelines"
 	XAIImageModerationMarker         = "Generated image rejected by content moderation"
+	usageGuidelinesMarker            = "usage guidelines"
+	usageGuidelineMarker             = "usage guideline"
+	violationMarker                  = "violation"
 	XAICostInUSDTicksPerUSD    int64 = 10_000_000_000
 )
 
@@ -30,15 +36,68 @@ func IsViolationFeeCode(code types.ErrorCode) bool {
 	return strings.HasPrefix(string(code), ViolationFeeCodePrefix)
 }
 
+func IsGrokViolationFeeContext(relayInfo *relaycommon.RelayInfo) bool {
+	if relayInfo == nil {
+		return false
+	}
+	channelType := 0
+	if relayInfo.ChannelMeta != nil && relayInfo.ChannelMeta.ChannelType != 0 {
+		channelType = relayInfo.ChannelMeta.ChannelType
+	}
+	if channelType == constant.ChannelTypeXai {
+		return true
+	}
+	return common.IsGrokModel(relayInfo.OriginModelName) ||
+		common.IsGrokModel(relayInfo.UpstreamModelName) ||
+		(relayInfo.ChannelMeta != nil && common.IsGrokModel(relayInfo.ChannelMeta.UpstreamModelName))
+}
+
+func IsGrokViolationFeeContextFromFields(channelType int, modelNames ...string) bool {
+	if channelType == constant.ChannelTypeXai {
+		return true
+	}
+	for _, modelName := range modelNames {
+		if common.IsGrokModel(modelName) {
+			return true
+		}
+	}
+	return false
+}
+
+func HasViolationFeeMarkerText(text string) bool {
+	text = strings.ToLower(strings.TrimSpace(text))
+	if text == "" {
+		return false
+	}
+	if strings.Contains(text, strings.ToLower(CSAMViolationMarker)) ||
+		strings.Contains(text, strings.ToLower(ContentViolatesUsageMarker)) ||
+		strings.Contains(text, strings.ToLower(XAIImageModerationMarker)) {
+		return true
+	}
+	if strings.Contains(text, violationMarker) &&
+		(strings.Contains(text, usageGuidelinesMarker) || strings.Contains(text, usageGuidelineMarker)) {
+		return true
+	}
+	if strings.Contains(text, "violates") &&
+		(strings.Contains(text, usageGuidelinesMarker) || strings.Contains(text, usageGuidelineMarker)) {
+		return true
+	}
+	return false
+}
+
 func HasCSAMViolationMarker(err *types.NewAPIError) bool {
 	if err == nil {
 		return false
 	}
-	if strings.Contains(err.Error(), CSAMViolationMarker) || strings.Contains(err.Error(), ContentViolatesUsageMarker) {
+	if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(CSAMViolationMarker)) {
 		return true
 	}
-	msg := err.ToOpenAIError().Message
-	return strings.Contains(msg, CSAMViolationMarker) || strings.Contains(msg, ContentViolatesUsageMarker)
+	oai := err.ToOpenAIError()
+	return strings.Contains(strings.ToLower(oai.Message), strings.ToLower(CSAMViolationMarker)) ||
+		strings.Contains(strings.ToLower(oai.Type), strings.ToLower(CSAMViolationMarker)) ||
+		strings.Contains(strings.ToLower(fmt.Sprintf("%v", oai.Code)), strings.ToLower(CSAMViolationMarker)) ||
+		strings.Contains(strings.ToLower(string(oai.Metadata)), strings.ToLower(CSAMViolationMarker)) ||
+		strings.Contains(strings.ToLower(string(err.Metadata)), strings.ToLower(CSAMViolationMarker))
 }
 
 func HasXAIImageModerationMarker(err *types.NewAPIError) bool {
@@ -76,6 +135,16 @@ func WrapAsViolationFeeGrokModeration(err *types.NewAPIError) *types.NewAPIError
 	return types.WithOpenAIError(oai, err.StatusCode, types.ErrOptionWithSkipRetry(), types.ErrOptionWithMetadata(err.Metadata))
 }
 
+func NormalizeViolationFeeErrorForRelay(relayInfo *relaycommon.RelayInfo, err *types.NewAPIError) *types.NewAPIError {
+	if err == nil {
+		return nil
+	}
+	if !IsGrokViolationFeeContext(relayInfo) {
+		return err
+	}
+	return NormalizeViolationFeeError(err)
+}
+
 // NormalizeViolationFeeError ensures:
 // - if the CSAM marker is present, error.code is set to a stable violation-fee code and skip-retry is enabled.
 // - if error.code already has the violation-fee prefix, skip-retry is enabled.
@@ -86,11 +155,11 @@ func NormalizeViolationFeeError(err *types.NewAPIError) *types.NewAPIError {
 		return nil
 	}
 
-	if HasCSAMViolationMarker(err) {
-		return WrapAsViolationFeeGrokCSAM(err)
-	}
 	if HasXAIImageModerationMarker(err) {
 		return WrapAsViolationFeeGrokModeration(err)
+	}
+	if HasCSAMViolationMarker(err) {
+		return WrapAsViolationFeeGrokCSAM(err)
 	}
 
 	if IsViolationFeeCode(err.GetErrorCode()) {
@@ -101,15 +170,18 @@ func NormalizeViolationFeeError(err *types.NewAPIError) *types.NewAPIError {
 	return err
 }
 
-func shouldChargeViolationFee(err *types.NewAPIError) bool {
+func shouldChargeViolationFee(relayInfo *relaycommon.RelayInfo, err *types.NewAPIError) bool {
 	if err == nil {
+		return false
+	}
+	if !IsGrokViolationFeeContext(relayInfo) {
 		return false
 	}
 	if IsViolationFeeCode(err.GetErrorCode()) {
 		return true
 	}
 	// In case some callers didn't normalize, keep a safety net.
-	return HasCSAMViolationMarker(err) || HasXAIImageModerationMarker(err)
+	return HasXAIImageModerationMarker(err) || HasCSAMViolationMarker(err)
 }
 
 func calcViolationFeeQuota(amount, groupRatio float64) int {
@@ -207,7 +279,7 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 	//if relayInfo.IsPlayground {
 	//	return false
 	//}
-	if !shouldChargeViolationFee(apiErr) {
+	if !shouldChargeViolationFee(relayInfo, apiErr) {
 		return false
 	}
 
@@ -278,5 +350,83 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		Other:          other,
 	})
 
+	return true
+}
+
+func ShouldChargeTaskViolationFee(channelType int, task *model.Task, reason string) bool {
+	if task == nil || !HasViolationFeeMarkerText(reason) {
+		return false
+	}
+	return IsGrokViolationFeeContextFromFields(
+		channelType,
+		taskModelName(task),
+		task.Properties.OriginModelName,
+		task.Properties.UpstreamModelName,
+	)
+}
+
+func taskViolationGroupRatio(task *model.Task) float64 {
+	if task == nil {
+		return 0
+	}
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.GroupRatio > 0 {
+		return bc.GroupRatio
+	}
+	if task.Group != "" {
+		return ratio_setting.GetGroupRatio(task.Group)
+	}
+	return 1
+}
+
+func ChargeTaskViolationFeeIfNeeded(ctx context.Context, task *model.Task, channelType int, statusCode int, reason string) bool {
+	if task == nil || !ShouldChargeTaskViolationFee(channelType, task, reason) {
+		return false
+	}
+
+	settings := model_setting.GetGrokSettings()
+	if settings == nil || !settings.ViolationDeductionEnabled {
+		return false
+	}
+
+	groupRatio := taskViolationGroupRatio(task)
+	feeQuota := calcViolationFeeQuota(settings.ViolationDeductionAmount, groupRatio)
+	if feeQuota <= 0 {
+		return false
+	}
+
+	if err := taskAdjustFunding(task, feeQuota); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("failed to charge task violation fee: %s", err.Error()))
+		return false
+	}
+
+	taskAdjustTokenQuota(ctx, task, feeQuota)
+	model.UpdateUserUsedQuotaAndRequestCount(task.UserId, feeQuota)
+	model.UpdateChannelUsedQuota(task.ChannelId, feeQuota)
+
+	other := taskBillingOther(task)
+	other["task_id"] = task.TaskID
+	other["violation_fee"] = true
+	other["violation_fee_code"] = string(types.ErrorCodeViolationFeeGrokCSAM)
+	other["fee_quota"] = feeQuota
+	other["base_amount"] = settings.ViolationDeductionAmount
+	other["group_ratio"] = groupRatio
+	other["status_code"] = statusCode
+	other["channel_type"] = channelType
+	other["violation_fee_marker"] = CSAMViolationMarker
+	if reason != "" {
+		other["reason"] = reason
+	}
+
+	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+		UserId:    task.UserId,
+		LogType:   model.LogTypeConsume,
+		Content:   "Violation fee charged",
+		ChannelId: task.ChannelId,
+		ModelName: taskModelName(task),
+		Quota:     feeQuota,
+		TokenId:   task.PrivateData.TokenId,
+		Group:     task.Group,
+		Other:     other,
+	})
 	return true
 }

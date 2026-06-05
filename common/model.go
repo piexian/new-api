@@ -11,6 +11,9 @@ var (
 		"o3-deep-research",
 		"o4-mini-deep-research",
 	}
+	GrokModels = []string{
+		"grok-",
+	}
 	ImageGenerationModels = []string{
 		"dall-e-3",
 		"dall-e-2",
@@ -30,6 +33,16 @@ var (
 
 func IsOpenAIResponseOnlyModel(modelName string) bool {
 	for _, m := range OpenAIResponseOnlyModels {
+		if strings.Contains(modelName, m) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsGrokModel(modelName string) bool {
+	modelName = strings.ToLower(strings.TrimSpace(modelName))
+	for _, m := range GrokModels {
 		if strings.Contains(modelName, m) {
 			return true
 		}
