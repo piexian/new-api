@@ -889,6 +889,44 @@ export const getLogsColumns = ({
       },
     },
     {
+      key: COLUMN_KEYS.USER_AGENT,
+      title: (
+        <div className='flex items-center gap-1'>
+          {t('User Agent')}
+          <Tooltip
+            content={t(
+              '只有当用户设置开启IP记录时，才会进行请求和错误类型日志的User Agent记录',
+            )}
+          >
+            <IconHelpCircle className='text-gray-400 cursor-help' />
+          </Tooltip>
+        </div>
+      ),
+      dataIndex: 'user_agent',
+      render: (text, record, index) => {
+        const showUA =
+          (record.type === 2 ||
+            record.type === 5 ||
+            (isAdminUser && record.type === 1)) &&
+          text;
+        return showUA ? (
+          <Tooltip content={text}>
+            <Typography.Text
+              ellipsis={{ showTooltip: true }}
+              style={{ width: 180, fontFamily: 'monospace', fontSize: '12px' }}
+              onClick={(event) => {
+                copyText(event, text);
+              }}
+            >
+              {text}
+            </Typography.Text>
+          </Tooltip>
+        ) : (
+          <></>
+        );
+      },
+    },
+    {
       key: COLUMN_KEYS.RETRY,
       title: t('重试'),
       dataIndex: 'retry',

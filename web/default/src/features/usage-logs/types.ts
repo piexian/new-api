@@ -53,6 +53,8 @@ export interface CommonLogFilters extends CommonFilters {
   username?: string
   requestId?: string
   upstreamRequestId?: string
+  ip?: string
+  userAgent?: string
 }
 
 /**
@@ -282,6 +284,8 @@ export interface GetLogsParams {
   group?: string
   request_id?: string
   upstream_request_id?: string
+  user_agent?: string
+  ip?: string
 }
 
 export interface GetLogsResponse {

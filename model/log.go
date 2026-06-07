@@ -35,6 +35,7 @@ type Log struct {
 	TokenId           int    `json:"token_id" gorm:"default:0;index"`
 	Group             string `json:"group" gorm:"index"`
 	Ip                string `json:"ip" gorm:"index;default:''"`
+	UserAgent         string `json:"user_agent" gorm:"type:text;default:''"`
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
 	Other             string `json:"other"`
@@ -182,6 +183,12 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 			}
 			return ""
 		}(),
+		UserAgent: func() string {
+			if needRecordIp {
+				return c.Request.Header.Get("User-Agent")
+			}
+			return ""
+		}(),
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
@@ -245,6 +252,12 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			}
 			return ""
 		}(),
+		UserAgent: func() string {
+			if needRecordIp {
+				return c.Request.Header.Get("User-Agent")
+			}
+			return ""
+		}(),
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
@@ -303,7 +316,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, logLanguage ...string) (logs []*Log, total int64, err error) {
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, userAgent string, ip string, logLanguage ...string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
@@ -315,10 +328,16 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		tx = tx.Where("logs.model_name like ?", modelName)
 	}
 	if username != "" {
-		tx = tx.Where("logs.username = ?", username)
+		tx = tx.Where("logs.username LIKE ?", username)
 	}
 	if tokenName != "" {
-		tx = tx.Where("logs.token_name = ?", tokenName)
+		tx = tx.Where("logs.token_name LIKE ?", tokenName)
+	}
+	if userAgent != "" {
+		tx = tx.Where("logs.user_agent LIKE ?", userAgent)
+	}
+	if ip != "" {
+		tx = tx.Where("logs.ip LIKE ?", ip)
 	}
 	if requestId != "" {
 		tx = tx.Where("logs.request_id = ?", requestId)
@@ -395,7 +414,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, logLanguage ...string) (logs []*Log, total int64, err error) {
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, userAgent string, ip string, logLanguage ...string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.user_id = ?", userId)
@@ -411,7 +430,13 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		tx = tx.Where("logs.model_name LIKE ? ESCAPE '!'", modelNamePattern)
 	}
 	if tokenName != "" {
-		tx = tx.Where("logs.token_name = ?", tokenName)
+		tx = tx.Where("logs.token_name LIKE ?", tokenName)
+	}
+	if userAgent != "" {
+		tx = tx.Where("logs.user_agent LIKE ?", userAgent)
+	}
+	if ip != "" {
+		tx = tx.Where("logs.ip LIKE ?", ip)
 	}
 	if requestId != "" {
 		tx = tx.Where("logs.request_id = ?", requestId)

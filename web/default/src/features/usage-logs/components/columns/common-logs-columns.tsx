@@ -763,6 +763,38 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     },
 
     {
+      accessorKey: 'ip',
+      header: t('IP Address'),
+      cell: ({ row }) => {
+        const ip = row.original.ip
+        return ip ? (
+          <span className='font-mono text-xs'>{ip}</span>
+        ) : (
+          <span className='text-muted-foreground'>-</span>
+        )
+      },
+      enableSorting: false,
+      meta: { label: t('IP Address'), mobileHidden: true },
+    },
+
+    {
+      accessorKey: 'user_agent',
+      header: t('User Agent'),
+      cell: ({ row }) => {
+        const ua = row.original.user_agent
+        return ua ? (
+          <div className='max-w-xs truncate font-mono text-xs' title={ua}>
+            {ua}
+          </div>
+        ) : (
+          <span className='text-muted-foreground'>-</span>
+        )
+      },
+      enableSorting: false,
+      meta: { label: t('User Agent'), mobileHidden: true },
+    },
+
+    {
       accessorKey: 'content',
       header: t('Details'),
       cell: function DetailsCell({ row }) {

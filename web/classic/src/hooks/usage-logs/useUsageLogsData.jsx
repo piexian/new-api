@@ -61,6 +61,7 @@ export const useLogsData = () => {
     COST: 'cost',
     RETRY: 'retry',
     IP: 'ip',
+    USER_AGENT: 'user_agent',
     DETAILS: 'details',
   };
 
@@ -124,6 +125,7 @@ export const useLogsData = () => {
       [COLUMN_KEYS.COST]: true,
       [COLUMN_KEYS.RETRY]: isAdminUser,
       [COLUMN_KEYS.IP]: true,
+      [COLUMN_KEYS.USER_AGENT]: true,
       [COLUMN_KEYS.DETAILS]: true,
     };
   };
@@ -819,6 +821,8 @@ export const useLogsData = () => {
       channel,
       group,
       request_id,
+      ip,
+      user_agent,
       logType: formLogType,
     } = getFormValues();
 
@@ -831,10 +835,14 @@ export const useLogsData = () => {
 
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+
+    const ipParam = ip ? `%${ip.trim()}%` : '';
+    const userAgentParam = user_agent ? `%${user_agent.trim()}%` : '';
+
     if (isAdminUser) {
-      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}&ip=${ipParam}&user_agent=${userAgentParam}`;
     } else {
-      url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
+      url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}&ip=${ipParam}&user_agent=${userAgentParam}`;
     }
     url = encodeURI(url);
     const res = await API.get(url);

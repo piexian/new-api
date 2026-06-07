@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useDeferredValue } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import { type Table } from '@tanstack/react-table'
@@ -77,6 +77,30 @@ export function CommonLogsFilterBar<TData>(
   })
   const [logType, setLogType] = useState<LogTypeValue | ''>('')
 
+  // Separate display state for IP and UA inputs to avoid showing %...% to user
+  const [ipDisplay, setIpDisplay] = useState('')
+  const [uaDisplay, setUaDisplay] = useState('')
+
+  // Defer non-urgent updates to avoid blocking user input
+  const deferredIp = useDeferredValue(ipDisplay)
+  const deferredUa = useDeferredValue(uaDisplay)
+
+  const handleChange = useCallback(
+    (field: keyof CommonLogFilters, value: Date | string | undefined) => {
+      setFilters((prev) => ({ ...prev, [field]: value }))
+    },
+    []
+  )
+
+  // Sync deferred values to filters
+  useEffect(() => {
+    handleChange('ip', deferredIp ? `%${deferredIp}%` : '')
+  }, [deferredIp, handleChange])
+
+  useEffect(() => {
+    handleChange('userAgent', deferredUa ? `%${deferredUa}%` : '')
+  }, [deferredUa, handleChange])
+
   useEffect(() => {
     const next: Partial<CommonLogFilters> = {}
     if (searchParams.startTime)
@@ -99,25 +123,7 @@ export function CommonLogsFilterBar<TData>(
     if (Array.isArray(typeArr) && typeArr.length === 1) {
       setLogType(typeArr[0])
     }
-  }, [
-    searchParams.startTime,
-    searchParams.endTime,
-    searchParams.channel,
-    searchParams.model,
-    searchParams.token,
-    searchParams.group,
-    searchParams.username,
-    searchParams.requestId,
-    searchParams.upstreamRequestId,
-    searchParams.type,
-  ])
-
-  const handleChange = useCallback(
-    (field: keyof CommonLogFilters, value: Date | string | undefined) => {
-      setFilters((prev) => ({ ...prev, [field]: value }))
-    },
-    []
-  )
+  }, [searchParams])
 
   const handleApply = useCallback(() => {
     const filterParams = buildSearchParams(filters, 'common')
@@ -139,6 +145,8 @@ export function CommonLogsFilterBar<TData>(
     const resetFilters: CommonLogFilters = { startTime: start, endTime: end }
     setFilters(resetFilters)
     setLogType('')
+    setIpDisplay('')
+    setUaDisplay('')
 
     navigate({
       to: '/usage-logs/$section',
@@ -165,7 +173,9 @@ export function CommonLogsFilterBar<TData>(
     !!filters.username ||
     !!filters.channel ||
     !!filters.requestId ||
-    !!filters.upstreamRequestId
+    !!filters.upstreamRequestId ||
+    !!filters.ip ||
+    !!filters.userAgent
 
   const hasAdditionalFilters =
     !!filters.model || !!filters.group || !!logType || hasExpandedFilters
@@ -300,6 +310,20 @@ export function CommonLogsFilterBar<TData>(
             onChange={(e) =>
               handleChange('upstreamRequestId', e.target.value)
             }
+            onKeyDown={handleKeyDown}
+            className={inputClass}
+          />
+          <Input
+            placeholder={t('Search IP (fuzzy)')}
+            value={ipDisplay}
+            onChange={(e) => setIpDisplay(e.target.value.trim())}
+            onKeyDown={handleKeyDown}
+            className={inputClass}
+          />
+          <Input
+            placeholder={t('Search User Agent (fuzzy)')}
+            value={uaDisplay}
+            onChange={(e) => setUaDisplay(e.target.value.trim())}
             onKeyDown={handleKeyDown}
             className={inputClass}
           />

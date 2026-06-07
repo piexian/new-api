@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -54,6 +55,7 @@ import type {
 
 interface WalletProps {
   initialShowHistory?: boolean
+  paymentStatus?: 'success' | 'fail' | 'pending'
 }
 
 export function Wallet(props: WalletProps) {
@@ -73,6 +75,10 @@ export function Wallet(props: WalletProps) {
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+
+  // Track if payment was initiated to enable auto-refresh
+  const paymentInitiatedRef = useRef(false)
+  const lastBalanceRef = useRef<number | null>(null)
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -123,12 +129,89 @@ export function Wallet(props: WalletProps) {
     fetchUser()
   }, [fetchUser])
 
+  // Auto-refresh user data when page becomes visible after payment
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === 'visible' &&
+        paymentInitiatedRef.current
+      ) {
+        // Delay slightly to allow backend to process callback
+        setTimeout(() => {
+          fetchUser()
+        }, 500)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () =>
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [fetchUser])
+
+  // Show notification when balance changes after payment
+  useEffect(() => {
+    if (user && lastBalanceRef.current !== null) {
+      const balanceChanged = user.quota !== lastBalanceRef.current
+      if (balanceChanged && paymentInitiatedRef.current) {
+        // Balance updated successfully
+        paymentInitiatedRef.current = false
+        // Toast notification handled by backend response
+      }
+    }
+    if (user) {
+      lastBalanceRef.current = user.quota
+    }
+  }, [user])
+
   useEffect(() => {
     if (props.initialShowHistory) {
       setBillingDialogOpen(true)
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [props.initialShowHistory])
+
+  // Handle payment status from URL (after epay redirect)
+  useEffect(() => {
+    if (!props.paymentStatus) return
+
+    // Clear URL parameter
+    const url = new URL(window.location.href)
+    url.searchParams.delete('pay')
+    window.history.replaceState({}, '', url.pathname + url.search)
+
+    // Refresh user data immediately
+    fetchUser()
+
+    // Show appropriate toast based on status
+    switch (props.paymentStatus) {
+      case 'success':
+        toast.success(t('Payment completed! Balance updated.'))
+        break
+      case 'pending':
+        toast.warning(
+          t(
+            'Payment is still processing. Please wait a moment and refresh manually if needed.'
+          )
+        )
+        // Keep polling for pending payments
+        paymentInitiatedRef.current = true
+        const pollInterval = setInterval(async () => {
+          if (!paymentInitiatedRef.current) {
+            clearInterval(pollInterval)
+            return
+          }
+          await fetchUser()
+        }, 5000)
+        setTimeout(() => {
+          clearInterval(pollInterval)
+          paymentInitiatedRef.current = false
+        }, 120000) // Poll for 2 minutes for pending payments
+        break
+      case 'fail':
+        toast.error(t('Payment failed. Please try again.'))
+        break
+    }
+  }, [props.paymentStatus, fetchUser, t])
 
   // Initialize topup amount when topup info is loaded
   useEffect(() => {
@@ -191,8 +274,24 @@ export function Wallet(props: WalletProps) {
       : await processPayment(topupAmount, selectedPaymentMethod.type)
 
     if (success) {
+      // Mark that payment was initiated - will auto-refresh when user returns
+      paymentInitiatedRef.current = true
       setConfirmDialogOpen(false)
-      await fetchUser()
+
+      // Start polling for balance changes (fallback if visibility API doesn't work)
+      const pollInterval = setInterval(async () => {
+        if (!paymentInitiatedRef.current) {
+          clearInterval(pollInterval)
+          return
+        }
+        await fetchUser()
+      }, 5000) // Poll every 5 seconds
+
+      // Stop polling after 5 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval)
+        paymentInitiatedRef.current = false
+      }, 300000)
     }
   }
 
@@ -239,7 +338,26 @@ export function Wallet(props: WalletProps) {
     setPaymentLoading(loadingKey)
 
     try {
-      await processWaffoPayment(topupAmount, index)
+      const success = await processWaffoPayment(topupAmount, index)
+      if (success) {
+        // Mark that payment was initiated
+        paymentInitiatedRef.current = true
+
+        // Start polling for balance changes
+        const pollInterval = setInterval(async () => {
+          if (!paymentInitiatedRef.current) {
+            clearInterval(pollInterval)
+            return
+          }
+          await fetchUser()
+        }, 5000)
+
+        // Stop polling after 5 minutes
+        setTimeout(() => {
+          clearInterval(pollInterval)
+          paymentInitiatedRef.current = false
+        }, 300000)
+      }
     } finally {
       setPaymentLoading(null)
     }
