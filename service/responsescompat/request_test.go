@@ -121,3 +121,16 @@ func TestConvertToNonStreamOpenAIChatRequestRejectsStream(t *testing.T) {
 
 	require.ErrorContains(t, err, "does not support stream yet")
 }
+
+func TestConvertToOpenAIChatRequestPreservesExtraBody(t *testing.T) {
+	extraBody := []byte(`{"google":{"cached_content":"cachedContents/cache-123"}}`)
+
+	req, err := ConvertToOpenAIChatRequest(dto.OpenAIResponsesRequest{
+		Model:     "gemini-2.5-flash",
+		Input:     []byte(`"hello"`),
+		ExtraBody: extraBody,
+	})
+
+	require.NoError(t, err)
+	require.JSONEq(t, string(extraBody), string(req.ExtraBody))
+}

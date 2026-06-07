@@ -251,6 +251,17 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 
 		// eg. {"google":{"thinking_config":{"thinking_budget":5324,"include_thoughts":true}}}
 		if googleBody, ok := extraBody["google"].(map[string]interface{}); ok {
+			if _, hasErrorParam := googleBody["cachedContent"]; hasErrorParam {
+				return nil, errors.New("extra_body.google.cachedContent is not supported, use extra_body.google.cached_content instead")
+			}
+			if cachedContent, exists := googleBody["cached_content"]; exists {
+				cachedContentValue, ok := cachedContent.(string)
+				if !ok {
+					return nil, errors.New("extra_body.google.cached_content must be a string")
+				}
+				geminiRequest.CachedContent = strings.TrimSpace(cachedContentValue)
+			}
+
 			if !strings.HasSuffix(info.UpstreamModelName, "-nothinking") {
 				adaptorWithExtraBody = true
 				// check error param name like thinkingConfig, should be thinking_config

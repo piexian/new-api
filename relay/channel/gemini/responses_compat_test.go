@@ -58,6 +58,60 @@ func TestConvertOpenAIResponsesRequestUsesDirectGeminiCompat(t *testing.T) {
 	require.Equal(t, "hello", geminiReq.Contents[0].Parts[0].Text)
 }
 
+func TestConvertOpenAIResponsesRequestMapsCachedContentExtraBody(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeResponses,
+		RelayFormat: types.RelayFormatOpenAIResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeGemini,
+			UpstreamModelName: "gemini-2.5-flash",
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		Model:     "gemini-2.5-flash",
+		Input:     []byte(`"hello"`),
+		ExtraBody: []byte(`{"google":{"cached_content":"cachedContents/cache-123"}}`),
+	})
+
+	require.NoError(t, err)
+	geminiReq, ok := converted.(*dto.GeminiChatRequest)
+	require.True(t, ok, "ConvertOpenAIResponsesRequest returned %T, want *dto.GeminiChatRequest", converted)
+	require.Equal(t, "cachedContents/cache-123", geminiReq.CachedContent)
+}
+
+func TestConvertOpenAIRequestMapsCachedContentExtraBody(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeChatCompletions,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeGemini,
+			UpstreamModelName: "gemini-2.5-flash",
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{
+		Model: "gemini-2.5-flash",
+		Messages: []dto.Message{
+			{Role: "user", Content: "hello"},
+		},
+		ExtraBody: []byte(`{"google":{"cached_content":"cachedContents/cache-123"}}`),
+	})
+
+	require.NoError(t, err)
+	geminiReq, ok := converted.(*dto.GeminiChatRequest)
+	require.True(t, ok, "ConvertOpenAIRequest returned %T, want *dto.GeminiChatRequest", converted)
+	require.Equal(t, "cachedContents/cache-123", geminiReq.CachedContent)
+}
+
 func TestConvertOpenAIResponsesRequestMapsFunctionItemsToGemini(t *testing.T) {
 	t.Parallel()
 

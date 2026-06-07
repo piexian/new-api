@@ -55,6 +55,7 @@ func ConvertToOpenAIChatRequest(req dto.OpenAIResponsesRequest) (*dto.GeneralOpe
 		ServiceTier:          rawServiceTier(req.ServiceTier),
 		TopLogProbs:          req.TopLogProbs,
 		PromptCacheRetention: req.PromptCacheRetention,
+		ExtraBody:            req.ExtraBody,
 	}
 	if req.Reasoning != nil {
 		out.ReasoningEffort = req.Reasoning.Effort
