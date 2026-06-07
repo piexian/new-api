@@ -976,10 +976,15 @@ export const getLogsColumns = ({
                 rows: 2,
                 showTooltip: {
                   type: 'popover',
-                  opts: { style: { width: 240 } },
+                  opts: {
+                    style: { width: 240 },
+                    trigger: 'click',
+                    clickToHide: false, // 防止点击内容时关闭
+                  },
                 },
               }}
               style={{ maxWidth: 200, marginBottom: 0 }}
+              copyable // 添加一键复制按钮
             >
               {text}
             </Typography.Paragraph>
