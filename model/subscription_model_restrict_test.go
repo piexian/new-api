@@ -125,6 +125,20 @@ func TestIsSubscriptionGroupModelAllowed(t *testing.T) {
 	})
 }
 
+func TestIsSubscriptionGroupRequestAllowedRequiresRequestGroup(t *testing.T) {
+	seedModelEnableGroupsForTest(t, map[string][]string{
+		"gpt-shared": {"default", "vip"},
+	})
+
+	plan := &SubscriptionPlan{
+		ModelRestrictMode:  "group",
+		ModelRestrictGroup: "vip",
+	}
+
+	assert.True(t, isSubscriptionModelAllowedForRequestGroup(plan, "gpt-shared", "default", "vip"))
+	assert.False(t, isSubscriptionModelAllowedForRequestGroup(plan, "gpt-shared", "default", "default"))
+}
+
 func TestIsSubscriptionModelAllowed(t *testing.T) {
 	seedModelEnableGroupsForTest(t, map[string][]string{
 		"gpt-vip":     {"vip"},
@@ -250,15 +264,15 @@ func TestPreConsumeUserSubscriptionPrefersHigherSortOrderPlan(t *testing.T) {
 		ModelRestrictMode:  "group",
 		ModelRestrictGroup: "default",
 	}
-	vipPlan := &SubscriptionPlan{
+	priorityPlan := &SubscriptionPlan{
 		Id:                 9202,
-		Title:              "vip-plan",
+		Title:              "priority-plan",
 		SortOrder:          1,
 		ModelRestrictMode:  "group",
-		ModelRestrictGroup: "vip",
+		ModelRestrictGroup: "default",
 	}
 	seedSubscriptionTestPlan(t, generalPlan)
-	seedSubscriptionTestPlan(t, vipPlan)
+	seedSubscriptionTestPlan(t, priorityPlan)
 
 	now := time.Now()
 	seedSubscriptionTestUserSubscription(t, &UserSubscription{
@@ -271,7 +285,7 @@ func TestPreConsumeUserSubscriptionPrefersHigherSortOrderPlan(t *testing.T) {
 	seedSubscriptionTestUserSubscription(t, &UserSubscription{
 		Id:          9302,
 		UserId:      9101,
-		PlanId:      vipPlan.Id,
+		PlanId:      priorityPlan.Id,
 		AmountTotal: 100,
 		EndTime:     now.Add(48 * time.Hour).Unix(),
 	})
@@ -285,7 +299,63 @@ func TestPreConsumeUserSubscriptionPrefersHigherSortOrderPlan(t *testing.T) {
 	require.NoError(t, DB.Where("id = ?", 9301).First(&generalSub).Error)
 	assert.Equal(t, int64(0), generalSub.AmountUsed)
 
+	var prioritySub UserSubscription
+	require.NoError(t, DB.Where("id = ?", 9302).First(&prioritySub).Error)
+	assert.Equal(t, int64(10), prioritySub.AmountUsed)
+}
+
+func TestPreConsumeUserSubscriptionForGroupSkipsRestrictedPlanForOtherRequestGroup(t *testing.T) {
+	truncateSubscriptionTables(t)
+
+	seedModelEnableGroupsForTest(t, map[string][]string{
+		"gpt-shared": {"default", "vip"},
+	})
+
+	seedSubscriptionTestUser(t, 9102, "default")
+
+	vipPlan := &SubscriptionPlan{
+		Id:                 9211,
+		Title:              "vip-plan",
+		SortOrder:          1,
+		ModelRestrictMode:  "group",
+		ModelRestrictGroup: "vip",
+	}
+	generalPlan := &SubscriptionPlan{
+		Id:                 9212,
+		Title:              "general-plan",
+		SortOrder:          0,
+		ModelRestrictMode:  "group",
+		ModelRestrictGroup: "default",
+	}
+	seedSubscriptionTestPlan(t, vipPlan)
+	seedSubscriptionTestPlan(t, generalPlan)
+
+	now := time.Now()
+	seedSubscriptionTestUserSubscription(t, &UserSubscription{
+		Id:          9311,
+		UserId:      9102,
+		PlanId:      vipPlan.Id,
+		AmountTotal: 100,
+		EndTime:     now.Add(48 * time.Hour).Unix(),
+	})
+	seedSubscriptionTestUserSubscription(t, &UserSubscription{
+		Id:          9312,
+		UserId:      9102,
+		PlanId:      generalPlan.Id,
+		AmountTotal: 100,
+		EndTime:     now.Add(24 * time.Hour).Unix(),
+	})
+
+	result, err := PreConsumeUserSubscriptionForGroup("req-request-default-group", 9102, "gpt-shared", "default", 0, 10)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, 9312, result.UserSubscriptionId)
+
 	var vipSub UserSubscription
-	require.NoError(t, DB.Where("id = ?", 9302).First(&vipSub).Error)
-	assert.Equal(t, int64(10), vipSub.AmountUsed)
+	require.NoError(t, DB.Where("id = ?", 9311).First(&vipSub).Error)
+	assert.Equal(t, int64(0), vipSub.AmountUsed)
+
+	var generalSub UserSubscription
+	require.NoError(t, DB.Where("id = ?", 9312).First(&generalSub).Error)
+	assert.Equal(t, int64(10), generalSub.AmountUsed)
 }

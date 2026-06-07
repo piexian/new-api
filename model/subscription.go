@@ -448,7 +448,7 @@ func isModelEnabledForGroup(modelGroups []string, targetGroup string) bool {
 	return false
 }
 
-func isSubscriptionGroupModelAllowed(plan *SubscriptionPlan, modelName string, userGroup string) bool {
+func isSubscriptionGroupRequestAllowedWithGroups(plan *SubscriptionPlan, modelGroups []string, userGroup string, requestGroup string) bool {
 	if plan == nil {
 		return false
 	}
@@ -456,11 +456,22 @@ func isSubscriptionGroupModelAllowed(plan *SubscriptionPlan, modelName string, u
 	if targetGroup == "" {
 		return false
 	}
-	modelGroups := GetModelEnableGroups(strings.TrimSpace(modelName))
+	if strings.TrimSpace(requestGroup) != targetGroup {
+		return false
+	}
 	return isModelEnabledForGroup(modelGroups, targetGroup)
 }
 
-func isSubscriptionModelAllowed(plan *SubscriptionPlan, modelName string, userGroup string) bool {
+func isSubscriptionGroupRequestAllowed(plan *SubscriptionPlan, modelName string, userGroup string, requestGroup string) bool {
+	modelGroups := GetModelEnableGroups(strings.TrimSpace(modelName))
+	return isSubscriptionGroupRequestAllowedWithGroups(plan, modelGroups, userGroup, requestGroup)
+}
+
+func isSubscriptionGroupModelAllowed(plan *SubscriptionPlan, modelName string, userGroup string) bool {
+	return isSubscriptionGroupRequestAllowed(plan, modelName, userGroup, resolveSubscriptionModelRestrictGroup(plan, userGroup))
+}
+
+func isSubscriptionModelAllowedForRequestGroupWithGroups(plan *SubscriptionPlan, modelName string, modelGroups []string, userGroup string, requestGroup string) bool {
 	if plan == nil {
 		return false
 	}
@@ -468,7 +479,7 @@ func isSubscriptionModelAllowed(plan *SubscriptionPlan, modelName string, userGr
 	case "":
 		return true
 	case "group":
-		return isSubscriptionGroupModelAllowed(plan, modelName, userGroup)
+		return isSubscriptionGroupRequestAllowedWithGroups(plan, modelGroups, userGroup, requestGroup)
 	case "custom":
 		modelName = strings.TrimSpace(modelName)
 		if modelName == "" {
@@ -494,6 +505,15 @@ func isSubscriptionModelAllowed(plan *SubscriptionPlan, modelName string, userGr
 	default:
 		return true
 	}
+}
+
+func isSubscriptionModelAllowedForRequestGroup(plan *SubscriptionPlan, modelName string, userGroup string, requestGroup string) bool {
+	modelGroups := GetModelEnableGroups(strings.TrimSpace(modelName))
+	return isSubscriptionModelAllowedForRequestGroupWithGroups(plan, modelName, modelGroups, userGroup, requestGroup)
+}
+
+func isSubscriptionModelAllowed(plan *SubscriptionPlan, modelName string, userGroup string) bool {
+	return isSubscriptionModelAllowedForRequestGroup(plan, modelName, userGroup, resolveSubscriptionModelRestrictGroup(plan, userGroup))
 }
 
 func maybeResetSubscriptionQuotaWindow(start *int64, used *int64, limit int64, now int64, windowSeconds int64) bool {
@@ -1475,6 +1495,15 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscription(requestId, userId, modelName, "", false, quotaType, amount)
+}
+
+// PreConsumeUserSubscriptionForGroup pre-consumes from an active subscription that is usable by the request group.
+func PreConsumeUserSubscriptionForGroup(requestId string, userId int, modelName string, requestGroup string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscription(requestId, userId, modelName, requestGroup, true, quotaType, amount)
+}
+
+func preConsumeUserSubscription(requestId string, userId int, modelName string, requestGroup string, enforceRequestGroup bool, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -1485,6 +1514,8 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		return nil, errors.New("amount must be > 0")
 	}
 	now := GetDBTimestamp()
+	modelName = strings.TrimSpace(modelName)
+	modelGroups := GetModelEnableGroups(modelName)
 
 	returnValue := &SubscriptionPreConsumeResult{}
 
@@ -1514,6 +1545,12 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		currentUserGroup, err := getUserGroupByIdTx(tx, userId)
 		if err != nil {
 			return err
+		}
+		if enforceRequestGroup {
+			requestGroup = strings.TrimSpace(requestGroup)
+			if requestGroup == "" {
+				requestGroup = currentUserGroup
+			}
 		}
 		type preConsumeCandidate struct {
 			sub           UserSubscription
@@ -1572,7 +1609,11 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
 					return err
 				}
-				if !isSubscriptionModelAllowed(plan, modelName, subscriptionUserGroup) {
+				allowed := isSubscriptionModelAllowedForRequestGroupWithGroups(plan, modelName, modelGroups, subscriptionUserGroup, resolveSubscriptionModelRestrictGroup(plan, subscriptionUserGroup))
+				if enforceRequestGroup {
+					allowed = isSubscriptionModelAllowedForRequestGroupWithGroups(plan, modelName, modelGroups, subscriptionUserGroup, requestGroup)
+				}
+				if !allowed {
 					continue
 				}
 				if prepareSubscriptionQuotaWindows(&sub, plan, now) {

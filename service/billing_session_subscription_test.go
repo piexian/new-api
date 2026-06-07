@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -71,6 +73,30 @@ func newSubscriptionRelayInfo(userId int, requestId string, preference string) *
 			BillingPreference: preference,
 		},
 	}
+}
+
+func seedModelGroups(t *testing.T, modelName string, groups ...string) {
+	t.Helper()
+	channel := &model.Channel{
+		Id:     9000 + len(groups),
+		Type:   constant.ChannelTypeOpenAI,
+		Key:    "test-key",
+		Status: common.ChannelStatusEnabled,
+		Name:   "test-channel",
+		Group:  "default",
+		Models: modelName,
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+	for _, group := range groups {
+		require.NoError(t, model.DB.Create(&model.Ability{
+			Group:     group,
+			Model:     modelName,
+			ChannelId: channel.Id,
+			Enabled:   true,
+		}).Error)
+	}
+	model.InvalidatePricingCache()
+	t.Cleanup(model.InvalidatePricingCache)
 }
 
 func TestNewBillingSession_SubscriptionFirstUsesNextAccessibleSubscription(t *testing.T) {
@@ -158,6 +184,43 @@ func TestNewBillingSession_SubscriptionFirstFallsBackToWalletWhenNoAccessibleSub
 
 	var sub model.UserSubscription
 	require.NoError(t, model.DB.Where("id = ?", 3201).First(&sub).Error)
+	assert.Equal(t, int64(0), sub.AmountUsed)
+}
+
+func TestNewBillingSession_SubscriptionFirstFallsBackWhenRequestGroupDoesNotMatchRestrictedSubscription(t *testing.T) {
+	truncate(t)
+	seedUser(t, 1104, 100)
+	seedModelGroups(t, "gpt-4o", "default", "vip")
+
+	plan := &model.SubscriptionPlan{
+		Id:                 2401,
+		Title:              "vip-only",
+		ModelRestrictMode:  "group",
+		ModelRestrictGroup: "vip",
+	}
+	seedSubscriptionPlan(t, plan)
+	seedSubscriptionWithPlan(t, &model.UserSubscription{
+		Id:          3401,
+		UserId:      1104,
+		PlanId:      plan.Id,
+		AmountTotal: 100,
+	})
+
+	relayInfo := newSubscriptionRelayInfo(1104, "req-subscription-default-group-wallet-fallback", "subscription_first")
+	relayInfo.UsingGroup = "default"
+
+	session, apiErr := NewBillingSession(newBillingTestContext(), relayInfo, 10)
+	require.Nil(t, apiErr)
+	require.NotNil(t, session)
+
+	assert.Equal(t, BillingSourceWallet, session.relayInfo.BillingSource)
+
+	var user model.User
+	require.NoError(t, model.DB.Where("id = ?", 1104).First(&user).Error)
+	assert.Equal(t, 90, user.Quota)
+
+	var sub model.UserSubscription
+	require.NoError(t, model.DB.Where("id = ?", 3401).First(&sub).Error)
 	assert.Equal(t, int64(0), sub.AmountUsed)
 }
 
