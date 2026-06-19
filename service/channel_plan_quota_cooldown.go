@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	planQuotaCooldownTickInterval = time.Minute
-	planQuotaCooldownBatchSize    = 500
+	planQuotaCooldownTickInterval              = time.Minute
+	planQuotaCooldownBatchSize                 = 500
+	planQuotaCooldownAlreadyActiveDedupeSecond = int64(300)
 )
 
 var (
@@ -97,7 +98,7 @@ func DisableChannelUntil(channelError types.ChannelError, reason string, until i
 
 	success := model.UpdateChannelStatusUntil(channelError.ChannelId, channelError.UsingKey, common.ChannelStatusAutoDisabled, reason, until)
 	if success {
-		recordPlanQuotaCooldownManageLog(channelError, reason, until, disabledUntilText)
+		recordPlanQuotaCooldownManageLog(channelError, reason, until, disabledUntilText, "entered", true, 0)
 		subject := fmt.Sprintf("通道「%s」（#%d）已按套餐限额冷却", channelError.ChannelName, channelError.ChannelId)
 		content := fmt.Sprintf("通道「%s」（#%d）已按套餐限额冷却至 %s，原因：%s",
 			channelError.ChannelName,
@@ -106,13 +107,48 @@ func DisableChannelUntil(channelError types.ChannelError, reason string, until i
 			reason,
 		)
 		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content)
+		return
+	}
+	if isPlanQuotaCooldownAlreadyActive(channelError, until) {
+		recordPlanQuotaCooldownManageLog(channelError, reason, until, disabledUntilText, "already_active", false, planQuotaCooldownAlreadyActiveDedupeSecond)
 	}
 }
 
-func recordPlanQuotaCooldownManageLog(channelError types.ChannelError, reason string, until int64, disabledUntilText string) {
+func DisableChannelModelUntil(channelError types.ChannelError, modelName string, reason string, until int64) {
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" || until <= common.GetTimestamp() {
+		return
+	}
+	disabledUntilText := time.Unix(until, 0).Format(time.RFC3339)
+	common.SysLog(fmt.Sprintf("通道「%s」（#%d）模型「%s」触发套餐限额冷却，禁用至 %s，原因：%s",
+		channelError.ChannelName,
+		channelError.ChannelId,
+		modelName,
+		disabledUntilText,
+		reason,
+	))
+
+	success := model.UpdateChannelModelStatusUntil(channelError.ChannelId, modelName, reason, until)
+	if success {
+		recordPlanQuotaCooldownManageLog(channelError, reason, until, disabledUntilText, "entered", true, 0, modelName)
+		return
+	}
+	if isPlanQuotaModelCooldownAlreadyActive(channelError, modelName, until) {
+		recordPlanQuotaCooldownManageLog(channelError, reason, until, disabledUntilText, "already_active", false, planQuotaCooldownAlreadyActiveDedupeSecond, modelName)
+	}
+}
+
+func recordPlanQuotaCooldownManageLog(channelError types.ChannelError, reason string, until int64, disabledUntilText string, state string, statusChanged bool, dedupeSeconds int64, modelNames ...string) {
+	modelName := ""
+	if len(modelNames) > 0 {
+		modelName = strings.TrimSpace(modelNames[0])
+	}
 	scope := "channel"
 	if channelError.IsMultiKey {
 		scope = "current_key"
+	}
+	if modelName != "" {
+		scope = "model"
 	}
 	adminInfo := map[string]interface{}{
 		"event":               "channel_plan_quota_cooldown",
@@ -124,19 +160,52 @@ func recordPlanQuotaCooldownManageLog(channelError types.ChannelError, reason st
 		"disabled_until":      until,
 		"disabled_until_text": disabledUntilText,
 		"reason":              reason,
+		"state":               state,
+		"status_changed":      statusChanged,
 		"version":             common.Version,
 	}
-	if keyIndex, ok := resolvePlanQuotaCooldownKeyIndex(channelError); ok {
+	if modelName != "" {
+		adminInfo["model_name"] = modelName
+	}
+	keyIndex, hasKeyIndex := resolvePlanQuotaCooldownKeyIndex(channelError)
+	if hasKeyIndex {
 		adminInfo["multi_key_index"] = keyIndex
 	}
 
-	content := fmt.Sprintf("通道「%s」（#%d）进入套餐限额冷却，禁用至 %s，原因：%s",
+	content := buildPlanQuotaCooldownManageLogContent(channelError, reason, disabledUntilText, state, keyIndex, hasKeyIndex, modelName)
+	if dedupeSeconds > 0 && model.ChannelManageLogExistsSince(channelError.ChannelId, content, common.GetTimestamp()-dedupeSeconds) {
+		return
+	}
+	model.RecordChannelManageLog(channelError.ChannelId, content, adminInfo)
+}
+
+func buildPlanQuotaCooldownManageLogContent(channelError types.ChannelError, reason string, disabledUntilText string, state string, keyIndex int, hasKeyIndex bool, modelName string) string {
+	keyText := ""
+	if hasKeyIndex {
+		keyText = fmt.Sprintf("密钥 #%d ", keyIndex+1)
+	}
+	modelText := ""
+	if modelName != "" {
+		modelText = fmt.Sprintf("模型「%s」", modelName)
+	}
+	if state == "already_active" {
+		return fmt.Sprintf("通道「%s」（#%d）%s%s已处于套餐限额冷却，禁用至 %s，原因：%s",
+			channelError.ChannelName,
+			channelError.ChannelId,
+			keyText,
+			modelText,
+			disabledUntilText,
+			reason,
+		)
+	}
+	return fmt.Sprintf("通道「%s」（#%d）%s%s进入套餐限额冷却，禁用至 %s，原因：%s",
 		channelError.ChannelName,
 		channelError.ChannelId,
+		keyText,
+		modelText,
 		disabledUntilText,
 		reason,
 	)
-	model.RecordChannelManageLog(channelError.ChannelId, content, adminInfo)
 }
 
 func resolvePlanQuotaCooldownKeyIndex(channelError types.ChannelError) (int, bool) {
@@ -147,12 +216,43 @@ func resolvePlanQuotaCooldownKeyIndex(channelError types.ChannelError) (int, boo
 	if err != nil {
 		return 0, false
 	}
+	return resolvePlanQuotaCooldownKeyIndexFromChannel(channel, channelError)
+}
+
+func resolvePlanQuotaCooldownKeyIndexFromChannel(channel *model.Channel, channelError types.ChannelError) (int, bool) {
+	if channel == nil || !channel.ChannelInfo.IsMultiKey || channelError.UsingKey == "" {
+		return 0, false
+	}
 	for idx, key := range channel.GetKeys() {
 		if key == channelError.UsingKey {
 			return idx, true
 		}
 	}
 	return 0, false
+}
+
+func isPlanQuotaCooldownAlreadyActive(channelError types.ChannelError, until int64) bool {
+	channel, err := model.GetChannelById(channelError.ChannelId, true)
+	if err != nil || channel == nil {
+		return false
+	}
+	if channel.ChannelInfo.IsMultiKey || channelError.IsMultiKey {
+		keyIndex, ok := resolvePlanQuotaCooldownKeyIndexFromChannel(channel, channelError)
+		if !ok || channel.ChannelInfo.MultiKeyStatusList == nil || channel.ChannelInfo.MultiKeyDisabledUntil == nil {
+			return false
+		}
+		return channel.ChannelInfo.MultiKeyStatusList[keyIndex] == common.ChannelStatusAutoDisabled &&
+			channel.ChannelInfo.MultiKeyDisabledUntil[keyIndex] == until
+	}
+	return channel.Status == common.ChannelStatusAutoDisabled && channel.GetStatusUntil() == until
+}
+
+func isPlanQuotaModelCooldownAlreadyActive(channelError types.ChannelError, modelName string, until int64) bool {
+	channel, err := model.GetChannelById(channelError.ChannelId, true)
+	if err != nil || channel == nil {
+		return false
+	}
+	return channel.GetModelStatusUntil(modelName) == until
 }
 
 func StartChannelPlanQuotaCooldownTask() {
@@ -179,13 +279,13 @@ func runChannelPlanQuotaCooldownOnce() {
 	}
 	defer planQuotaCooldownRunning.Store(false)
 
-	releasedChannels, releasedKeys, err := model.ReleaseExpiredPlanQuotaCooldowns(common.GetTimestamp(), planQuotaCooldownBatchSize)
+	releasedChannels, releasedKeys, releasedModels, err := model.ReleaseExpiredPlanQuotaCooldowns(common.GetTimestamp(), planQuotaCooldownBatchSize)
 	if err != nil {
 		logger.LogWarn(context.Background(), fmt.Sprintf("channel plan quota cooldown release failed: %v", err))
 		return
 	}
-	if releasedChannels > 0 || releasedKeys > 0 {
+	if releasedChannels > 0 || releasedKeys > 0 || releasedModels > 0 {
 		model.InitChannelCache()
-		logger.LogInfo(context.Background(), fmt.Sprintf("channel plan quota cooldown released: channels=%d keys=%d", releasedChannels, releasedKeys))
+		logger.LogInfo(context.Background(), fmt.Sprintf("channel plan quota cooldown released: channels=%d keys=%d models=%d", releasedChannels, releasedKeys, releasedModels))
 	}
 }

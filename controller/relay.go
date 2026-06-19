@@ -378,6 +378,13 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 				gopool.Go(func() {
 					service.DisableChannelUntil(channelError, err.ErrorWithStatusCode(), until)
 				})
+			} else if isMiniMaxTokenPlanLimitError(channelError, err) {
+				planQuotaCooldownApplied = true
+				modelName := c.GetString("original_model")
+				reason := err.ErrorWithStatusCode()
+				gopool.Go(func() {
+					resolveAndDisableMiniMaxTokenPlanCooldown(channelError, reason, modelName)
+				})
 			}
 		}
 	}

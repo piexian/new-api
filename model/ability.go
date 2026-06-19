@@ -133,6 +133,9 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 		if !channel.HasAvailableKey() {
 			continue
 		}
+		if channel.IsModelCoolingDown(model, common.GetTimestamp()) {
+			continue
+		}
 		candidates = append(candidates, candidate{ability: ability, channel: channel})
 		prioritySet[int(lo.FromPtr(ability.Priority))] = true
 	}

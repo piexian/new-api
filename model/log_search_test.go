@@ -100,3 +100,22 @@ func TestRecordChannelManageLog(t *testing.T) {
 	require.Equal(t, "channel_plan_quota_cooldown", adminInfo["event"])
 	require.Equal(t, float64(1781865600), adminInfo["disabled_until"])
 }
+
+func TestChannelManageLogExistsSince(t *testing.T) {
+	truncateTables(t)
+
+	insertLogSearchTestLog(t, &Log{
+		UserId:    0,
+		Username:  "system",
+		CreatedAt: 100,
+		Type:      LogTypeManage,
+		Content:   "通道已处于套餐限额冷却",
+		ChannelId: 42,
+	})
+
+	require.True(t, ChannelManageLogExistsSince(42, "通道已处于套餐限额冷却", 99))
+	require.True(t, ChannelManageLogExistsSince(42, "通道已处于套餐限额冷却", 100))
+	require.False(t, ChannelManageLogExistsSince(42, "通道已处于套餐限额冷却", 101))
+	require.False(t, ChannelManageLogExistsSince(43, "通道已处于套餐限额冷却", 99))
+	require.False(t, ChannelManageLogExistsSince(42, "其他日志", 99))
+}

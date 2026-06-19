@@ -173,7 +173,12 @@ func (c *ChannelInfo) Scan(value interface{}) error {
 	return common.Unmarshal(bytesValue, c)
 }
 
-const channelStatusUntilKey = "status_until"
+const (
+	channelStatusUntilKey       = "status_until"
+	channelModelStatusUntilKey  = "model_status_until"
+	channelModelStatusReasonKey = "model_status_reason"
+	channelModelStatusTimeKey   = "model_status_time"
+)
 
 func getInt64FromInterface(value interface{}) int64 {
 	switch v := value.(type) {
@@ -191,8 +196,103 @@ func getInt64FromInterface(value interface{}) int64 {
 	}
 }
 
+func getStringInt64MapFromInterface(value interface{}) map[string]int64 {
+	result := make(map[string]int64)
+	switch v := value.(type) {
+	case map[string]int64:
+		for key, val := range v {
+			result[key] = val
+		}
+	case map[string]interface{}:
+		for key, val := range v {
+			result[key] = getInt64FromInterface(val)
+		}
+	}
+	return result
+}
+
+func getStringStringMapFromInterface(value interface{}) map[string]string {
+	result := make(map[string]string)
+	switch v := value.(type) {
+	case map[string]string:
+		for key, val := range v {
+			result[key] = val
+		}
+	case map[string]interface{}:
+		for key, val := range v {
+			if text, ok := val.(string); ok {
+				result[key] = text
+			}
+		}
+	}
+	return result
+}
+
 func (channel *Channel) getStatusUntil() int64 {
 	return getInt64FromInterface(channel.GetOtherInfo()[channelStatusUntilKey])
+}
+
+func (channel *Channel) GetStatusUntil() int64 {
+	if channel == nil {
+		return 0
+	}
+	return channel.getStatusUntil()
+}
+
+func (channel *Channel) GetModelStatusUntil(modelName string) int64 {
+	if channel == nil || strings.TrimSpace(modelName) == "" {
+		return 0
+	}
+	info := channel.GetOtherInfo()
+	return getStringInt64MapFromInterface(info[channelModelStatusUntilKey])[modelName]
+}
+
+func (channel *Channel) IsModelCoolingDown(modelName string, now int64) bool {
+	return channel.GetModelStatusUntil(modelName) > now
+}
+
+func (channel *Channel) releaseExpiredModelCooldowns(now int64) int {
+	if channel == nil {
+		return 0
+	}
+	info := channel.GetOtherInfo()
+	untilMap := getStringInt64MapFromInterface(info[channelModelStatusUntilKey])
+	if len(untilMap) == 0 {
+		return 0
+	}
+	reasonMap := getStringStringMapFromInterface(info[channelModelStatusReasonKey])
+	timeMap := getStringInt64MapFromInterface(info[channelModelStatusTimeKey])
+
+	released := 0
+	for modelName, until := range untilMap {
+		if until <= 0 || until > now {
+			continue
+		}
+		delete(untilMap, modelName)
+		delete(reasonMap, modelName)
+		delete(timeMap, modelName)
+		released++
+	}
+	if released == 0 {
+		return 0
+	}
+	if len(untilMap) == 0 {
+		delete(info, channelModelStatusUntilKey)
+	} else {
+		info[channelModelStatusUntilKey] = untilMap
+	}
+	if len(reasonMap) == 0 {
+		delete(info, channelModelStatusReasonKey)
+	} else {
+		info[channelModelStatusReasonKey] = reasonMap
+	}
+	if len(timeMap) == 0 {
+		delete(info, channelModelStatusTimeKey)
+	} else {
+		info[channelModelStatusTimeKey] = timeMap
+	}
+	channel.SetOtherInfo(info)
+	return released
 }
 
 func (c *ChannelInfo) releaseExpiredCooldowns(now int64) bool {
@@ -815,6 +915,42 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 	return UpdateChannelStatusUntil(channelId, usingKey, status, reason, 0)
 }
 
+func UpdateChannelModelStatusUntil(channelId int, modelName string, reason string, disabledUntil int64) bool {
+	modelName = strings.TrimSpace(modelName)
+	if channelId <= 0 || modelName == "" || disabledUntil <= 0 {
+		return false
+	}
+	channelStatusLock.Lock()
+	defer channelStatusLock.Unlock()
+
+	channel, err := GetChannelById(channelId, true)
+	if err != nil || channel == nil {
+		return false
+	}
+	if channel.GetModelStatusUntil(modelName) == disabledUntil {
+		return false
+	}
+
+	info := channel.GetOtherInfo()
+	untilMap := getStringInt64MapFromInterface(info[channelModelStatusUntilKey])
+	reasonMap := getStringStringMapFromInterface(info[channelModelStatusReasonKey])
+	timeMap := getStringInt64MapFromInterface(info[channelModelStatusTimeKey])
+	untilMap[modelName] = disabledUntil
+	reasonMap[modelName] = reason
+	timeMap[modelName] = common.GetTimestamp()
+	info[channelModelStatusUntilKey] = untilMap
+	info[channelModelStatusReasonKey] = reasonMap
+	info[channelModelStatusTimeKey] = timeMap
+	channel.SetOtherInfo(info)
+
+	if err := channel.SaveWithoutKey(); err != nil {
+		common.SysLog(fmt.Sprintf("failed to update channel model status until: channel_id=%d, model=%s, error=%v", channel.Id, modelName, err))
+		return false
+	}
+	CacheUpdateChannel(channel)
+	return true
+}
+
 func UpdateChannelStatusUntil(channelId int, usingKey string, status int, reason string, disabledUntil int64) bool {
 	if common.MemoryCacheEnabled {
 		channelStatusLock.Lock()
@@ -906,13 +1042,14 @@ func UpdateChannelStatusUntil(channelId int, usingKey string, status int, reason
 	return true
 }
 
-func ReleaseExpiredPlanQuotaCooldowns(now int64, batchSize int) (int, int, error) {
+func ReleaseExpiredPlanQuotaCooldowns(now int64, batchSize int) (int, int, int, error) {
 	if batchSize <= 0 {
 		batchSize = 500
 	}
 
 	releasedChannels := 0
 	releasedKeys := 0
+	releasedModels := 0
 	offset := 0
 	for {
 		var channels []*Channel
@@ -923,7 +1060,7 @@ func ReleaseExpiredPlanQuotaCooldowns(now int64, batchSize int) (int, int, error
 			Offset(offset).
 			Find(&channels).Error
 		if err != nil {
-			return releasedChannels, releasedKeys, err
+			return releasedChannels, releasedKeys, releasedModels, err
 		}
 		if len(channels) == 0 {
 			break
@@ -937,6 +1074,11 @@ func ReleaseExpiredPlanQuotaCooldowns(now int64, batchSize int) (int, int, error
 
 			changed := false
 			abilityChanged := false
+
+			if released := channel.releaseExpiredModelCooldowns(now); released > 0 {
+				changed = true
+				releasedModels += released
+			}
 
 			if channel.Status == common.ChannelStatusAutoDisabled {
 				if until := channel.getStatusUntil(); until > 0 && until <= now {
@@ -970,11 +1112,12 @@ func ReleaseExpiredPlanQuotaCooldowns(now int64, batchSize int) (int, int, error
 				continue
 			}
 			if err := channel.SaveWithoutKey(); err != nil {
-				return releasedChannels, releasedKeys, err
+				return releasedChannels, releasedKeys, releasedModels, err
 			}
+			CacheUpdateChannel(channel)
 			if abilityChanged {
 				if err := UpdateAbilityStatus(channel.Id, channel.Status == common.ChannelStatusEnabled); err != nil {
-					return releasedChannels, releasedKeys, err
+					return releasedChannels, releasedKeys, releasedModels, err
 				}
 			}
 		}
@@ -984,7 +1127,7 @@ func ReleaseExpiredPlanQuotaCooldowns(now int64, batchSize int) (int, int, error
 		}
 	}
 
-	return releasedChannels, releasedKeys, nil
+	return releasedChannels, releasedKeys, releasedModels, nil
 }
 
 func EnableChannelByTag(tag string) error {

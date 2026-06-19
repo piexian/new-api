@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChannelHasAvailableKey(t *testing.T) {
@@ -89,4 +90,47 @@ func TestGetNextEnabledKeySkipsBlankMultiKeys(t *testing.T) {
 	if key != "valid-key" || index != 1 {
 		t.Fatalf("GetNextEnabledKey() = (%q, %d), want (%q, %d)", key, index, "valid-key", 1)
 	}
+}
+
+func TestChannelModelCooldown(t *testing.T) {
+	truncateTables(t)
+	initCol()
+
+	until := common.GetTimestamp() + 3600
+	channel := &Channel{
+		Id:     9001,
+		Name:   "minimax",
+		Key:    "test-key",
+		Status: common.ChannelStatusEnabled,
+		Group:  "default",
+		Models: "MiniMax-M2.7,MiniMax-Hailuo-02",
+	}
+	require.NoError(t, DB.Create(channel).Error)
+	require.NoError(t, channel.UpdateAbilities(nil))
+
+	require.True(t, UpdateChannelModelStatusUntil(channel.Id, "MiniMax-M2.7", "token plan limit", until))
+	require.False(t, UpdateChannelModelStatusUntil(channel.Id, "MiniMax-M2.7", "token plan limit", until))
+
+	var reloaded Channel
+	require.NoError(t, DB.First(&reloaded, channel.Id).Error)
+	require.True(t, reloaded.IsModelCoolingDown("MiniMax-M2.7", common.GetTimestamp()))
+	require.False(t, reloaded.IsModelCoolingDown("MiniMax-Hailuo-02", common.GetTimestamp()))
+
+	selected, err := GetChannel("default", "MiniMax-M2.7", 0)
+	require.NoError(t, err)
+	require.Nil(t, selected)
+
+	selected, err = GetChannel("default", "MiniMax-Hailuo-02", 0)
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	require.Equal(t, channel.Id, selected.Id)
+
+	releasedChannels, releasedKeys, releasedModels, err := ReleaseExpiredPlanQuotaCooldowns(until+1, 500)
+	require.NoError(t, err)
+	require.Equal(t, 0, releasedChannels)
+	require.Equal(t, 0, releasedKeys)
+	require.Equal(t, 1, releasedModels)
+
+	require.NoError(t, DB.First(&reloaded, channel.Id).Error)
+	require.False(t, reloaded.IsModelCoolingDown("MiniMax-M2.7", until+1))
 }

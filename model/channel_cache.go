@@ -117,12 +117,13 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	}
 
 	availableChannels := make([]int, 0, len(channels))
+	now := common.GetTimestamp()
 	for _, channelId := range channels {
 		channel, ok := channelsIDM[channelId]
 		if !ok {
 			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
-		if channel.HasAvailableKey() {
+		if channel.HasAvailableKey() && !channel.IsModelCoolingDown(model, now) {
 			availableChannels = append(availableChannels, channelId)
 		}
 	}

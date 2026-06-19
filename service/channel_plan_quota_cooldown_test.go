@@ -3,6 +3,12 @@ package service
 import (
 	"testing"
 	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParsePlanQuotaResetUntil(t *testing.T) {
@@ -71,4 +77,79 @@ func TestParsePlanQuotaResetUntil(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDisableChannelUntilRecordsManageLogWhenCooldownAlreadyActive(t *testing.T) {
+	truncate(t)
+
+	until := common.GetTimestamp() + 3600
+	reason := "status_code=429, 您已达到每周/每月使用上限，您的限额将在 2026-06-24 01:20:15 重置。"
+	channel := &model.Channel{
+		Id:     782,
+		Name:   "智谱coding",
+		Key:    "test-key",
+		Status: common.ChannelStatusAutoDisabled,
+	}
+	channel.SetOtherInfo(map[string]interface{}{
+		"status_until": until,
+	})
+	require.NoError(t, model.DB.Create(channel).Error)
+
+	channelError := types.ChannelError{
+		ChannelId:   channel.Id,
+		ChannelName: channel.Name,
+	}
+	DisableChannelUntil(channelError, reason, until)
+
+	var logs []model.Log
+	require.NoError(t, model.LOG_DB.Where("channel_id = ? AND type = ?", channel.Id, model.LogTypeManage).Find(&logs).Error)
+	require.Len(t, logs, 1)
+	require.Contains(t, logs[0].Content, "已处于套餐限额冷却")
+
+	other, err := common.StrToMap(logs[0].Other)
+	require.NoError(t, err)
+	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, "channel_plan_quota_cooldown", adminInfo["event"])
+	require.Equal(t, "already_active", adminInfo["state"])
+	require.Equal(t, false, adminInfo["status_changed"])
+
+	DisableChannelUntil(channelError, reason, until)
+
+	var count int64
+	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("channel_id = ? AND type = ?", channel.Id, model.LogTypeManage).Count(&count).Error)
+	require.Equal(t, int64(1), count)
+}
+
+func TestDisableChannelModelUntilRecordsManageLog(t *testing.T) {
+	truncate(t)
+
+	until := common.GetTimestamp() + 3600
+	channel := &model.Channel{
+		Id:     783,
+		Name:   "MiniMax",
+		Key:    "test-key",
+		Status: common.ChannelStatusEnabled,
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+
+	channelError := types.ChannelError{
+		ChannelId:   channel.Id,
+		ChannelType: constant.ChannelTypeMiniMax,
+		ChannelName: channel.Name,
+	}
+	DisableChannelModelUntil(channelError, "MiniMax-M2.7", "token plan limit", until)
+
+	var log model.Log
+	require.NoError(t, model.LOG_DB.Where("channel_id = ? AND type = ?", channel.Id, model.LogTypeManage).First(&log).Error)
+	require.Contains(t, log.Content, "模型「MiniMax-M2.7」进入套餐限额冷却")
+
+	other, err := common.StrToMap(log.Other)
+	require.NoError(t, err)
+	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, "model", adminInfo["scope"])
+	require.Equal(t, "MiniMax-M2.7", adminInfo["model_name"])
+	require.Equal(t, "entered", adminInfo["state"])
+	require.Equal(t, true, adminInfo["status_changed"])
 }

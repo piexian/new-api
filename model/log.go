@@ -139,6 +139,23 @@ func RecordChannelManageLog(channelId int, content string, adminInfo map[string]
 	}
 }
 
+func ChannelManageLogExistsSince(channelId int, content string, since int64) bool {
+	if LOG_DB == nil {
+		return false
+	}
+	query := LOG_DB.Model(&Log{}).
+		Where("channel_id = ? AND type = ? AND content = ?", channelId, LogTypeManage, content)
+	if since > 0 {
+		query = query.Where("created_at >= ?", since)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		common.SysLog("failed to check channel manage log: " + err.Error())
+		return false
+	}
+	return count > 0
+}
+
 func RecordTopupLog(userId int, content string, callerIp string, paymentMethod string, callbackPaymentMethod string) {
 	username, _ := GetUsernameById(userId, false)
 	adminInfo := map[string]interface{}{

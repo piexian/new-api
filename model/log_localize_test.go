@@ -67,6 +67,24 @@ func TestLocalizeLogContent(t *testing.T) {
 			language: "en",
 			expected: "自定义日志",
 		},
+		{
+			name:     "english channel cooldown already active",
+			content:  "通道「智谱coding」（#782）已处于套餐限额冷却，禁用至 2026-06-24T01:20:15+08:00，原因：status_code=429",
+			language: "en",
+			expected: "Channel \"智谱coding\" (#782) is already in plan quota cooldown until 2026-06-24T01:20:15+08:00, reason: status_code=429",
+		},
+		{
+			name:     "english multi key cooldown entered",
+			content:  "通道「智谱coding」（#782）密钥 #2 进入套餐限额冷却，禁用至 2026-06-24T01:20:15+08:00，原因：status_code=429",
+			language: "en",
+			expected: "Channel \"智谱coding\" (#782) key #2 entered plan quota cooldown until 2026-06-24T01:20:15+08:00, reason: status_code=429",
+		},
+		{
+			name:     "english model cooldown entered",
+			content:  "通道「MiniMax」（#783）模型「MiniMax-M2.7」进入套餐限额冷却，禁用至 2026-06-24T01:20:15+08:00，原因：status_code=429",
+			language: "en",
+			expected: "Channel \"MiniMax\" (#783) model \"MiniMax-M2.7\" entered plan quota cooldown until 2026-06-24T01:20:15+08:00, reason: status_code=429",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
