@@ -26,8 +26,10 @@ var (
 	planQuotaCooldownOnce    sync.Once
 	planQuotaCooldownRunning atomic.Bool
 
-	planQuotaResetAtPattern  = regexp.MustCompile(`(?i)(?:resets? at|will reset at|quota will reset at|it will reset at)\s+([0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\s*[+-][0-9]{2}:?[0-9]{2}(?:\s*[A-Z]{2,5})?)?)`)
-	planQuotaDurationPattern = regexp.MustCompile(`(?i)(?:reset after|resets in)\s+([0-9]+(?:h|m|s)(?:[0-9]+(?:h|m|s))*)`)
+	planQuotaResetDateTimePattern = `[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\s*[+-][0-9]{2}:?[0-9]{2}(?:\s*[A-Z]{2,5})?)?`
+	planQuotaResetAtPattern       = regexp.MustCompile(`(?i)(?:resets? at|will reset at|quota will reset at|it will reset at)\s+(` + planQuotaResetDateTimePattern + `)`)
+	planQuotaChineseResetPattern  = regexp.MustCompile(`(?:限额|限額|额度|額度)[^0-9]{0,16}(?:将在|將在)\s+(` + planQuotaResetDateTimePattern + `)\s*(?:重置|重設|恢复|恢復)?`)
+	planQuotaDurationPattern      = regexp.MustCompile(`(?i)(?:reset after|resets in)\s+([0-9]+(?:h|m|s)(?:[0-9]+(?:h|m|s))*)`)
 )
 
 func ParsePlanQuotaResetUntil(message string, now time.Time) (int64, bool) {
@@ -36,9 +38,11 @@ func ParsePlanQuotaResetUntil(message string, now time.Time) (int64, bool) {
 		return 0, false
 	}
 
-	if matches := planQuotaResetAtPattern.FindStringSubmatch(message); len(matches) == 2 {
-		if t, ok := parsePlanQuotaResetTime(matches[1], now.Location()); ok && t.After(now) {
-			return t.Unix(), true
+	for _, pattern := range []*regexp.Regexp{planQuotaResetAtPattern, planQuotaChineseResetPattern} {
+		if matches := pattern.FindStringSubmatch(message); len(matches) == 2 {
+			if t, ok := parsePlanQuotaResetTime(matches[1], now.Location()); ok && t.After(now) {
+				return t.Unix(), true
+			}
 		}
 	}
 

@@ -40,6 +40,12 @@ func TestParsePlanQuotaResetUntil(t *testing.T) {
 			wantOK:  true,
 		},
 		{
+			name:    "chinese quota reset time",
+			message: "status_code=429, 您已达到每周/每月使用上限，您的限额将在 2026-06-24 01:20:15 重置。",
+			want:    time.Date(2026, 6, 24, 1, 20, 15, 0, location),
+			wantOK:  true,
+		},
+		{
 			name:    "no reset time",
 			message: "token plan limit exhausted",
 			wantOK:  false,
