@@ -121,7 +121,7 @@ export function getChannelTypeIcon(type: number): string {
     61: 'Spark', // Xunfei MaaS Image
     62: 'XiaomiMiMo', // Xiaomi MiMo
     63: 'OpenAI', // AgnesAI
-    64: 'ZenMux', // ZenMux
+    64: 'ZenMux.Color', // ZenMux
   }
 
   return TYPE_TO_ICON[type] || 'OpenAI'
