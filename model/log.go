@@ -119,6 +119,26 @@ func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo m
 	}
 }
 
+func RecordChannelManageLog(channelId int, content string, adminInfo map[string]interface{}) {
+	log := &Log{
+		UserId:    0,
+		Username:  "system",
+		CreatedAt: common.GetTimestamp(),
+		Type:      LogTypeManage,
+		Content:   content,
+		ChannelId: channelId,
+	}
+	if len(adminInfo) > 0 {
+		other := map[string]interface{}{
+			"admin_info": adminInfo,
+		}
+		log.Other = common.MapToJsonStr(other)
+	}
+	if err := LOG_DB.Create(log).Error; err != nil {
+		common.SysLog("failed to record channel manage log: " + err.Error())
+	}
+}
+
 func RecordTopupLog(userId int, content string, callerIp string, paymentMethod string, callbackPaymentMethod string) {
 	username, _ := GetUsernameById(userId, false)
 	adminInfo := map[string]interface{}{

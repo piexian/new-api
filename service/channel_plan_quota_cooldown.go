@@ -83,24 +83,72 @@ func DisableChannelUntil(channelError types.ChannelError, reason string, until i
 	if until <= common.GetTimestamp() {
 		return
 	}
+	disabledUntilText := time.Unix(until, 0).Format(time.RFC3339)
 	common.SysLog(fmt.Sprintf("通道「%s」（#%d）触发套餐限额冷却，禁用至 %s，原因：%s",
 		channelError.ChannelName,
 		channelError.ChannelId,
-		time.Unix(until, 0).Format(time.RFC3339),
+		disabledUntilText,
 		reason,
 	))
 
 	success := model.UpdateChannelStatusUntil(channelError.ChannelId, channelError.UsingKey, common.ChannelStatusAutoDisabled, reason, until)
 	if success {
+		recordPlanQuotaCooldownManageLog(channelError, reason, until, disabledUntilText)
 		subject := fmt.Sprintf("通道「%s」（#%d）已按套餐限额冷却", channelError.ChannelName, channelError.ChannelId)
 		content := fmt.Sprintf("通道「%s」（#%d）已按套餐限额冷却至 %s，原因：%s",
 			channelError.ChannelName,
 			channelError.ChannelId,
-			time.Unix(until, 0).Format(time.RFC3339),
+			disabledUntilText,
 			reason,
 		)
 		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content)
 	}
+}
+
+func recordPlanQuotaCooldownManageLog(channelError types.ChannelError, reason string, until int64, disabledUntilText string) {
+	scope := "channel"
+	if channelError.IsMultiKey {
+		scope = "current_key"
+	}
+	adminInfo := map[string]interface{}{
+		"event":               "channel_plan_quota_cooldown",
+		"channel_id":          channelError.ChannelId,
+		"channel_type":        channelError.ChannelType,
+		"channel_name":        channelError.ChannelName,
+		"is_multi_key":        channelError.IsMultiKey,
+		"scope":               scope,
+		"disabled_until":      until,
+		"disabled_until_text": disabledUntilText,
+		"reason":              reason,
+		"version":             common.Version,
+	}
+	if keyIndex, ok := resolvePlanQuotaCooldownKeyIndex(channelError); ok {
+		adminInfo["multi_key_index"] = keyIndex
+	}
+
+	content := fmt.Sprintf("通道「%s」（#%d）进入套餐限额冷却，禁用至 %s，原因：%s",
+		channelError.ChannelName,
+		channelError.ChannelId,
+		disabledUntilText,
+		reason,
+	)
+	model.RecordChannelManageLog(channelError.ChannelId, content, adminInfo)
+}
+
+func resolvePlanQuotaCooldownKeyIndex(channelError types.ChannelError) (int, bool) {
+	if !channelError.IsMultiKey || channelError.UsingKey == "" {
+		return 0, false
+	}
+	channel, err := model.GetChannelById(channelError.ChannelId, true)
+	if err != nil {
+		return 0, false
+	}
+	for idx, key := range channel.GetKeys() {
+		if key == channelError.UsingKey {
+			return idx, true
+		}
+	}
+	return 0, false
 }
 
 func StartChannelPlanQuotaCooldownTask() {
