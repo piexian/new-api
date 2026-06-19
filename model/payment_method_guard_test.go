@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -13,9 +14,10 @@ func insertUserForPaymentGuardTest(t *testing.T, id int, quota int) {
 	t.Helper()
 	user := &User{
 		Id:       id,
-		Username: "payment_guard_user",
+		Username: fmt.Sprintf("payment_guard_user_%d", id),
 		Status:   common.UserStatusEnabled,
 		Quota:    quota,
+		AffCode:  fmt.Sprintf("guard%d", id),
 	}
 	require.NoError(t, DB.Create(user).Error)
 }

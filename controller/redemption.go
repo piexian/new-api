@@ -66,17 +66,22 @@ func AddRedemption(c *gin.Context) {
 		return
 	}
 
-	redemption := model.Redemption{}
-	err := c.ShouldBindJSON(&redemption)
+	redemption, maxRedemptionsProvided, err := bindRedemptionPayload(c)
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if !maxRedemptionsProvided {
+		redemption.MaxRedemptions = 1
 	}
 	if utf8.RuneCountInString(redemption.Name) == 0 || utf8.RuneCountInString(redemption.Name) > 20 {
 		common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
 		return
 	}
 	if !validateRedemptionTypePayload(c, &redemption) {
+		return
+	}
+	if !validateRedemptionMaxRedemptions(c, redemption.MaxRedemptions) {
 		return
 	}
 	if redemption.Count <= 0 {
@@ -103,6 +108,8 @@ func AddRedemption(c *gin.Context) {
 			Quota:              redemption.Quota,
 			SubscriptionPlanId: redemption.SubscriptionPlanId,
 			ExpiredTime:        redemption.ExpiredTime,
+			MaxRedemptions:     redemption.MaxRedemptions,
+			RedeemedCount:      0,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -140,8 +147,7 @@ func DeleteRedemption(c *gin.Context) {
 
 func UpdateRedemption(c *gin.Context) {
 	statusOnly := c.Query("status_only")
-	redemption := model.Redemption{}
-	err := c.ShouldBindJSON(&redemption)
+	redemption, maxRedemptionsProvided, err := bindRedemptionPayload(c)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -163,12 +169,18 @@ func UpdateRedemption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 			return
 		}
+		if maxRedemptionsProvided && !validateRedemptionMaxRedemptions(c, redemption.MaxRedemptions) {
+			return
+		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
 		cleanRedemption.Type = redemption.Type
 		cleanRedemption.Quota = redemption.Quota
 		cleanRedemption.SubscriptionPlanId = redemption.SubscriptionPlanId
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
+		if maxRedemptionsProvided {
+			cleanRedemption.MaxRedemptions = redemption.MaxRedemptions
+		}
 	}
 	if statusOnly != "" {
 		cleanRedemption.Status = redemption.Status
@@ -205,6 +217,31 @@ func validateExpiredTime(c *gin.Context, expired int64) (bool, string) {
 		return false, i18n.T(c, i18n.MsgRedemptionExpireTimeInvalid)
 	}
 	return true, ""
+}
+
+func bindRedemptionPayload(c *gin.Context) (model.Redemption, bool, error) {
+	var redemption model.Redemption
+	body, err := c.GetRawData()
+	if err != nil {
+		return redemption, false, err
+	}
+	if err := common.Unmarshal(body, &redemption); err != nil {
+		return redemption, false, err
+	}
+	var raw map[string]interface{}
+	if err := common.Unmarshal(body, &raw); err != nil {
+		return redemption, false, err
+	}
+	_, maxRedemptionsProvided := raw["max_redemptions"]
+	return redemption, maxRedemptionsProvided, nil
+}
+
+func validateRedemptionMaxRedemptions(c *gin.Context, maxRedemptions int) bool {
+	if maxRedemptions < 0 {
+		common.ApiError(c, errors.New("兑换次数不能小于0"))
+		return false
+	}
+	return true
 }
 
 func validateRedemptionTypePayload(c *gin.Context, redemption *model.Redemption) bool {

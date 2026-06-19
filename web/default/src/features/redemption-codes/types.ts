@@ -46,6 +46,8 @@ export const redemptionSchema = z.object({
   created_time: z.number(),
   redeemed_time: z.number(),
   expired_time: z.number(), // 0 for never expires
+  max_redemptions: z.preprocess((value) => value ?? 1, z.number()),
+  redeemed_count: z.preprocess((value) => value ?? 0, z.number()),
   used_user_id: z.number(),
 })
 
@@ -92,6 +94,7 @@ export interface RedemptionFormData {
   quota: number
   subscription_plan_id?: number
   expired_time: number
+  max_redemptions?: number
   count?: number // Only for create
   status?: number // Only for status update
 }

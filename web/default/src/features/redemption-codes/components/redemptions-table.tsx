@@ -44,7 +44,7 @@ import {
   getRedemptionStatusOptions,
   getRedemptionTypeOptions,
 } from '../constants'
-import { isRedemptionExpired } from '../lib'
+import { isRedemptionExhausted, isRedemptionExpired } from '../lib'
 import type { Redemption, RedemptionType } from '../types'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useRedemptionsColumns } from './redemptions-columns'
@@ -55,7 +55,12 @@ const route = getRouteApi('/_authenticated/redemption-codes/')
 function isDisabledRedemptionRow(redemption: Redemption) {
   return (
     redemption.status !== REDEMPTION_STATUS.ENABLED ||
-    isRedemptionExpired(redemption.expired_time, redemption.status)
+    isRedemptionExpired(redemption.expired_time, redemption.status) ||
+    isRedemptionExhausted(
+      redemption.max_redemptions,
+      redemption.redeemed_count,
+      redemption.status
+    )
   )
 }
 

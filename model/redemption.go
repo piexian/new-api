@@ -29,7 +29,9 @@ type Redemption struct {
 	SubscriptionPlanTitle string         `json:"subscription_plan_title,omitempty" gorm:"-"`
 	CreatedTime           int64          `json:"created_time" gorm:"bigint"`
 	RedeemedTime          int64          `json:"redeemed_time" gorm:"bigint"`
-	Count                 int            `json:"count" gorm:"-:all"` // only for api request
+	Count                 int            `json:"count" gorm:"-:all"`               // only for api request
+	MaxRedemptions        int            `json:"max_redemptions" gorm:"default:0"` // 兑换次数上限，0 表示不限次数
+	RedeemedCount         int            `json:"redeemed_count" gorm:"default:0"`  // 已兑换次数
 	UsedUserId            int            `json:"used_user_id"`
 	DeletedAt             gorm.DeletedAt `gorm:"index"`
 	ExpiredTime           int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
@@ -108,6 +110,37 @@ func applyRedemptionTypeFilter(query *gorm.DB, redemptionType string) *gorm.DB {
 		return query.Where(typeCol+" = ? OR "+typeCol+" = '' OR "+typeCol+" IS NULL", RedemptionTypeQuota)
 	}
 	return query.Where(typeCol+" = ?", redemptionType)
+}
+
+const redemptionMaxRedemptionsMigrationOptionKey = "RedemptionMaxRedemptionsMigratedV1"
+
+func MigrateRedemptionMaxRedemptionsOnce() error {
+	var existing Option
+	err := DB.Where("key = ?", redemptionMaxRedemptionsMigrationOptionKey).First(&existing).Error
+	if err == nil && existing.Value == "true" {
+		return nil
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var option Option
+		err := tx.Where("key = ?", redemptionMaxRedemptionsMigrationOptionKey).First(&option).Error
+		if err == nil && option.Value == "true" {
+			return nil
+		}
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err := tx.Model(&Redemption{}).Where("max_redemptions = ?", 0).Update("max_redemptions", 1).Error; err != nil {
+			return err
+		}
+		option = Option{Key: redemptionMaxRedemptionsMigrationOptionKey, Value: "true"}
+		if err := tx.FirstOrCreate(&option, Option{Key: redemptionMaxRedemptionsMigrationOptionKey}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&Option{}).Where("key = ?", redemptionMaxRedemptionsMigrationOptionKey).Update("value", "true").Error
+	})
 }
 
 func GetAllRedemptions(startIdx int, num int, redemptionType string) (redemptions []*Redemption, total int64, err error) {
@@ -231,6 +264,17 @@ func Redeem(key string, userId int) (result *RedemptionRedeemResult, err error) 
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
 			return errors.New("该兑换码已过期")
 		}
+		if redemption.MaxRedemptions < 0 {
+			return errors.New("无效的兑换次数")
+		}
+		if redemption.MaxRedemptions > 0 && redemption.RedeemedCount >= redemption.MaxRedemptions {
+			if err := tx.Model(&Redemption{}).
+				Where("id = ? AND status = ?", redemption.Id, common.RedemptionCodeStatusEnabled).
+				Update("status", common.RedemptionCodeStatusUsed).Error; err != nil {
+				return err
+			}
+			return errors.New("该兑换码已被使用")
+		}
 		redemption.Type = NormalizeRedemptionType(redemption.Type)
 		result = &RedemptionRedeemResult{
 			Type:               redemption.Type,
@@ -262,12 +306,18 @@ func Redeem(key string, userId int) (result *RedemptionRedeemResult, err error) 
 			return errors.New("无效的兑换码类型")
 		}
 		now := common.GetTimestamp()
+		newRedeemedCount := redemption.RedeemedCount + 1
+		nextStatus := common.RedemptionCodeStatusEnabled
+		if redemption.MaxRedemptions > 0 && newRedeemedCount >= redemption.MaxRedemptions {
+			nextStatus = common.RedemptionCodeStatusUsed
+		}
 		updateResult := tx.Model(&Redemption{}).
 			Where("id = ? AND status = ?", redemption.Id, common.RedemptionCodeStatusEnabled).
 			Updates(map[string]interface{}{
-				"redeemed_time": now,
-				"status":        common.RedemptionCodeStatusUsed,
-				"used_user_id":  userId,
+				"redeemed_time":  now,
+				"status":         nextStatus,
+				"used_user_id":   userId,
+				"redeemed_count": newRedeemedCount,
 			})
 		if updateResult.Error != nil {
 			return updateResult.Error
@@ -276,8 +326,9 @@ func Redeem(key string, userId int) (result *RedemptionRedeemResult, err error) 
 			return errors.New("该兑换码已被使用")
 		}
 		redemption.RedeemedTime = now
-		redemption.Status = common.RedemptionCodeStatusUsed
+		redemption.Status = nextStatus
 		redemption.UsedUserId = userId
+		redemption.RedeemedCount = newRedeemedCount
 		return nil
 	})
 	if err != nil {
@@ -306,7 +357,7 @@ func (redemption *Redemption) SelectUpdate() error {
 // Update Make sure your token's fields is completed, because this will update non-zero values
 func (redemption *Redemption) Update() error {
 	var err error
-	err = DB.Model(redemption).Select("name", "status", "type", "quota", "subscription_plan_id", "redeemed_time", "expired_time").Updates(redemption).Error
+	err = DB.Model(redemption).Select("name", "status", "type", "quota", "subscription_plan_id", "redeemed_time", "expired_time", "max_redemptions").Updates(redemption).Error
 	return err
 }
 
@@ -330,6 +381,12 @@ func DeleteRedemptionById(id int) (err error) {
 
 func DeleteInvalidRedemptions() (int64, error) {
 	now := common.GetTimestamp()
-	result := DB.Where("status IN ? OR (status = ? AND expired_time != 0 AND expired_time < ?)", []int{common.RedemptionCodeStatusUsed, common.RedemptionCodeStatusDisabled}, common.RedemptionCodeStatusEnabled, now).Delete(&Redemption{})
+	result := DB.Where(
+		"status IN ? OR (status = ? AND expired_time != 0 AND expired_time < ?) OR (status = ? AND max_redemptions > 0 AND redeemed_count >= max_redemptions)",
+		[]int{common.RedemptionCodeStatusUsed, common.RedemptionCodeStatusDisabled},
+		common.RedemptionCodeStatusEnabled,
+		now,
+		common.RedemptionCodeStatusEnabled,
+	).Delete(&Redemption{})
 	return result.RowsAffected, result.Error
 }

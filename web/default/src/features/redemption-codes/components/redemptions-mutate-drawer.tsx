@@ -397,6 +397,34 @@ export function RedemptionsMutateDrawer({
               )}
             />
 
+            <FormField
+              control={form.control}
+              name='max_redemptions'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Redeem Limit')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type='number'
+                      min='0'
+                      step='1'
+                      placeholder={t('Times this code can be redeemed')}
+                      onChange={(e) =>
+                        field.onChange(parseInt(e.target.value, 10) || 0)
+                      }
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Use 0 for unlimited redemptions. Expiration time still applies.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             {!isUpdate && (
               <FormField
                 control={form.control}

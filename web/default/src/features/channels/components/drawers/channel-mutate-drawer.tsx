@@ -650,6 +650,13 @@ export function ChannelMutateDrawer({
       }
     }
 
+    if (currentType === 64) {
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue === '') {
+        form.setValue('base_url', 'https://zenmux.ai')
+      }
+    }
+
     // Type 18 (Xunfei) - set default other (version)
     if (currentType === 18) {
       const currentOther = form.getValues('other')

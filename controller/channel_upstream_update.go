@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
+	"github.com/QuantumNous/new-api/relay/channel/zenmux"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -273,6 +274,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeMiniMax {
 		baseURL = minimax.NormalizeBaseURL(baseURL)
 	}
+	if channel.Type == constant.ChannelTypeZenMux {
+		baseURL = zenmux.OpenAIBaseURL(baseURL)
+	}
 
 	if channel.Type == constant.ChannelTypeOllama {
 		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])
@@ -339,6 +343,8 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 			url = fmt.Sprintf("%s/v1/models", baseURL)
 		}
 	case constant.ChannelTypeKilo:
+		url = fmt.Sprintf("%s/models", baseURL)
+	case constant.ChannelTypeZenMux:
 		url = fmt.Sprintf("%s/models", baseURL)
 	default:
 		url = fmt.Sprintf("%s/v1/models", baseURL)

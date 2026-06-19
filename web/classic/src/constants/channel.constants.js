@@ -22,6 +22,7 @@ export const CHANNEL_TYPE_CODEX = 57;
 export const CHANNEL_TYPE_ZHIPU_V4 = 26;
 export const CHANNEL_TYPE_MOONSHOT = 25;
 export const CHANNEL_TYPE_AGNES_AI = 63;
+export const CHANNEL_TYPE_ZENMUX = 64;
 
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
@@ -217,12 +218,37 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: 'AgnesAI',
   },
+  {
+    value: CHANNEL_TYPE_ZENMUX,
+    color: 'blue',
+    label: 'ZenMux',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.
 export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
-  1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, CHANNEL_TYPE_MINIMAX, 40,
-  42, 48, 43, 58, 59, 62,
+  1,
+  4,
+  14,
+  34,
+  17,
+  26,
+  27,
+  24,
+  47,
+  25,
+  20,
+  23,
+  31,
+  CHANNEL_TYPE_MINIMAX,
+  40,
+  42,
+  48,
+  43,
+  58,
+  59,
+  62,
+  CHANNEL_TYPE_ZENMUX,
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;

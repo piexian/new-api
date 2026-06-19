@@ -61,6 +61,7 @@ const (
 	ChannelTypeXunfeiMaaSImage = 61
 	ChannelTypeXiaomiMiMo      = 62
 	ChannelTypeAgnesAI         = 63
+	ChannelTypeZenMux          = 64
 	ChannelTypeDummy           // this one is only for count, do not add any channel after this
 
 )
@@ -130,6 +131,7 @@ var ChannelBaseURLs = []string{
 	"https://xingchen-api.cn-huabei-1.xf-yun.com/v2", //61
 	"https://api.xiaomimimo.com",                     //62
 	"https://apihub.agnes-ai.com",                    //63
+	"https://zenmux.ai",                              //64
 }
 
 var ChannelTypeNames = map[int]string{
@@ -193,6 +195,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeXunfeiMaaSImage: "XunfeiMaaSImage",
 	ChannelTypeXiaomiMiMo:      "XiaomiMiMo",
 	ChannelTypeAgnesAI:         "AgnesAI",
+	ChannelTypeZenMux:          "ZenMux",
 }
 
 func GetChannelTypeName(channelType int) string {

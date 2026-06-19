@@ -29,7 +29,11 @@ import { DataTableColumnHeader } from '@/components/data-table'
 import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { StatusBadge } from '@/components/status-badge'
 import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
-import { isRedemptionExpired, isTimestampExpired } from '../lib'
+import {
+  isRedemptionExpired,
+  isRedemptionExhausted,
+  isTimestampExpired,
+} from '../lib'
 import { REDEMPTION_TYPE, type Redemption } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -99,6 +103,22 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             <StatusBadge
               label={t('Expired')}
               variant='warning'
+              showDot={true}
+              copyable={false}
+            />
+          )
+        }
+        if (
+          isRedemptionExhausted(
+            redemption.max_redemptions,
+            redemption.redeemed_count,
+            statusValue
+          )
+        ) {
+          return (
+            <StatusBadge
+              label={t('Used')}
+              variant='neutral'
               showDot={true}
               copyable={false}
             />
@@ -259,10 +279,29 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       },
     },
     {
-      accessorKey: 'used_user_id',
-      meta: { label: t('Redeemed By'), mobileHidden: true },
+      accessorKey: 'redeemed_count',
+      meta: { label: t('Redeem Uses'), mobileHidden: true },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Redeemed By')} />
+        <DataTableColumnHeader column={column} title={t('Redeem Uses')} />
+      ),
+      cell: ({ row }) => {
+        const redemption = row.original
+        const used = redemption.redeemed_count || 0
+        const max = redemption.max_redemptions ?? 1
+        return (
+          <StatusBadge
+            label={max === 0 ? `${used}/${t('Unlimited')}` : `${used}/${max}`}
+            variant={max > 0 && used >= max ? 'neutral' : 'success'}
+            copyable={false}
+          />
+        )
+      },
+    },
+    {
+      accessorKey: 'used_user_id',
+      meta: { label: t('Last Redeemed By'), mobileHidden: true },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Last Redeemed By')} />
       ),
       cell: ({ row }) => {
         const userId = row.getValue('used_user_id') as number

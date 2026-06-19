@@ -38,6 +38,16 @@ export const isExpired = (record) => {
   );
 };
 
+export const isExhausted = (record) => {
+  const maxRedemptions = Number(record.max_redemptions ?? 1);
+  const redeemedCount = Number(record.redeemed_count || 0);
+  return (
+    record.status === REDEMPTION_STATUS.UNUSED &&
+    maxRedemptions > 0 &&
+    redeemedCount >= maxRedemptions
+  );
+};
+
 /**
  * Render timestamp
  */
@@ -53,6 +63,13 @@ const renderStatus = (status, record, t) => {
     return (
       <Tag color='orange' shape='circle'>
         {t('已过期')}
+      </Tag>
+    );
+  }
+  if (isExhausted(record)) {
+    return (
+      <Tag color='grey' shape='circle'>
+        {t('已使用')}
       </Tag>
     );
   }
@@ -94,6 +111,23 @@ const renderContent = (record, t) => {
   return (
     <Tag color='grey' shape='circle'>
       {renderQuota(parseInt(record.quota))}
+    </Tag>
+  );
+};
+
+const renderRedeemUses = (record, t) => {
+  const maxRedemptions = Number(record.max_redemptions ?? 1);
+  const redeemedCount = Number(record.redeemed_count || 0);
+  return (
+    <Tag
+      color={
+        maxRedemptions > 0 && redeemedCount >= maxRedemptions ? 'grey' : 'green'
+      }
+      shape='circle'
+    >
+      {maxRedemptions === 0
+        ? `${redeemedCount}/${t('不限')}`
+        : `${redeemedCount}/${maxRedemptions}`}
     </Tag>
   );
 };
@@ -158,7 +192,14 @@ export const getRedemptionsColumns = ({
       },
     },
     {
-      title: t('兑换人ID'),
+      title: t('兑换次数'),
+      dataIndex: 'redeemed_count',
+      render: (text, record) => {
+        return <div>{renderRedeemUses(record, t)}</div>;
+      },
+    },
+    {
+      title: t('最后兑换人ID'),
       dataIndex: 'used_user_id',
       render: (text) => {
         return <div>{text === 0 ? t('无') : text}</div>;
@@ -182,7 +223,11 @@ export const getRedemptionsColumns = ({
           },
         ];
 
-        if (record.status === REDEMPTION_STATUS.UNUSED && !isExpired(record)) {
+        if (
+          record.status === REDEMPTION_STATUS.UNUSED &&
+          !isExpired(record) &&
+          !isExhausted(record)
+        ) {
           moreMenuItems.push({
             node: 'item',
             name: t('禁用'),
@@ -191,7 +236,7 @@ export const getRedemptionsColumns = ({
               manageRedemption(record.id, REDEMPTION_ACTIONS.DISABLE, record);
             },
           });
-        } else if (!isExpired(record)) {
+        } else if (!isExpired(record) && !isExhausted(record)) {
           moreMenuItems.push({
             node: 'item',
             name: t('启用'),
@@ -229,7 +274,11 @@ export const getRedemptionsColumns = ({
                 setEditingRedemption(record);
                 setShowEdit(true);
               }}
-              disabled={record.status !== REDEMPTION_STATUS.UNUSED}
+              disabled={
+                record.status !== REDEMPTION_STATUS.UNUSED ||
+                isExpired(record) ||
+                isExhausted(record)
+              }
             >
               {t('编辑')}
             </Button>

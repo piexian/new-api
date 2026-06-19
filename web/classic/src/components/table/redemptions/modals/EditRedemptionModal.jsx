@@ -74,6 +74,7 @@ const EditRedemptionModal = (props) => {
     amount: Number(quotaToDisplayAmount(100000).toFixed(6)),
     subscription_plan_id: undefined,
     count: 1,
+    max_redemptions: 1,
     expired_time: null,
   });
 
@@ -151,6 +152,15 @@ const EditRedemptionModal = (props) => {
     setLoading(true);
     let localInputs = { ...values };
     localInputs.count = parseInt(localInputs.count) || 0;
+    localInputs.max_redemptions = parseInt(localInputs.max_redemptions, 10);
+    if (!Number.isFinite(localInputs.max_redemptions)) {
+      localInputs.max_redemptions = 1;
+    }
+    if (localInputs.max_redemptions < 0) {
+      showError(t('兑换次数不能小于0'));
+      setLoading(false);
+      return;
+    }
     localInputs.type = redemptionType;
     if (redemptionType === 'subscription') {
       localInputs.quota = 0;
@@ -487,6 +497,29 @@ const EditRedemptionModal = (props) => {
                         />
                       </Col>
                     )}
+                    <Col span={isEdit ? 24 : 12}>
+                      <Form.InputNumber
+                        field='max_redemptions'
+                        label={t('单码兑换次数')}
+                        min={0}
+                        step={1}
+                        precision={0}
+                        rules={[
+                          { required: true, message: t('请输入兑换次数') },
+                          {
+                            validator: (rule, v) => {
+                              const num = parseInt(v, 10);
+                              return num >= 0
+                                ? Promise.resolve()
+                                : Promise.reject(t('兑换次数不能小于0'));
+                            },
+                          },
+                        ]}
+                        extraText={t('填 0 表示不限次数，仍会受过期时间限制')}
+                        style={{ width: '100%' }}
+                        showClear
+                      />
+                    </Col>
                   </Row>
                 </Card>
               </div>

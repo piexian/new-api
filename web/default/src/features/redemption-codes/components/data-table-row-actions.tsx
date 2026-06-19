@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { updateRedemptionStatus } from '../api'
 import { REDEMPTION_STATUS, SUCCESS_MESSAGES } from '../constants'
-import { isRedemptionExpired } from '../lib'
+import { isRedemptionExhausted, isRedemptionExpired } from '../lib'
 import { redemptionSchema } from '../types'
 import { useRedemptions } from './redemptions-provider'
 
@@ -57,6 +57,11 @@ export function DataTableRowActions<TData>({
     redemption.expired_time,
     redemption.status
   )
+  const isExhausted = isRedemptionExhausted(
+    redemption.max_redemptions,
+    redemption.redeemed_count,
+    redemption.status
+  )
 
   const handleToggleStatus = async () => {
     const newStatus = isEnabled
@@ -73,8 +78,8 @@ export function DataTableRowActions<TData>({
     }
   }
 
-  const canEdit = isEnabled && !isExpired
-  const canToggle = !isUsed && !isExpired
+  const canEdit = isEnabled && !isExpired && !isExhausted
+  const canToggle = !isUsed && !isExpired && !isExhausted
 
   return (
     <DropdownMenu modal={false}>

@@ -43,3 +43,11 @@ export function isRedemptionExpired(
 ): boolean {
   return status === 1 && isTimestampExpired(expired_time)
 }
+
+export function isRedemptionExhausted(
+  maxRedemptions: number,
+  redeemedCount: number,
+  status: number
+): boolean {
+  return status === 1 && maxRedemptions > 0 && redeemedCount >= maxRedemptions
+}

@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
+	"github.com/QuantumNous/new-api/relay/channel/zenmux"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -1108,8 +1109,13 @@ func FetchModels(c *gin.Context) {
 	if req.Type == constant.ChannelTypeMiniMax {
 		baseURL = minimax.NormalizeBaseURL(baseURL)
 	}
+	if req.Type == constant.ChannelTypeZenMux {
+		baseURL = zenmux.OpenAIBaseURL(baseURL)
+	}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
 	if req.Type == constant.ChannelTypeKilo {
+		url = fmt.Sprintf("%s/models", baseURL)
+	} else if req.Type == constant.ChannelTypeZenMux {
 		url = fmt.Sprintf("%s/models", baseURL)
 	}
 

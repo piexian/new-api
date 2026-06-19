@@ -719,9 +719,21 @@ const EditChannelModal = (props) => {
           break;
         case 45:
           localModels = getChannelModels(value);
+          formApiRef.current?.setValue(
+            'base_url',
+            'https://ark.cn-beijing.volces.com',
+          );
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://ark.cn-beijing.volces.com',
+          }));
+          break;
+        case 64:
+          localModels = getChannelModels(value);
+          formApiRef.current?.setValue('base_url', 'https://zenmux.ai');
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://zenmux.ai',
           }));
           break;
         case 26:
@@ -1036,6 +1048,13 @@ const EditChannelModal = (props) => {
           (typeof data.base_url === 'string' && data.base_url.trim() === ''))
       ) {
         data.base_url = 'https://ark.cn-beijing.volces.com';
+      }
+      if (
+        data.type === 64 &&
+        (!data.base_url ||
+          (typeof data.base_url === 'string' && data.base_url.trim() === ''))
+      ) {
+        data.base_url = 'https://zenmux.ai';
       }
 
       initialBaseUrlRef.current = data.base_url || '';
@@ -2722,10 +2741,7 @@ const EditChannelModal = (props) => {
                         checkedText={t('开')}
                         uncheckedText={t('关')}
                         onChange={(value) =>
-                          handleChannelOtherSettingsChange(
-                            'allow_speed',
-                            value,
-                          )
+                          handleChannelOtherSettingsChange('allow_speed', value)
                         }
                         extraText={t(
                           'speed 字段用于控制 Claude 推理速度模式。默认关闭以避免意外切换到 fast 模式',
@@ -3855,7 +3871,10 @@ const EditChannelModal = (props) => {
                                   label={
                                     <span
                                       onClick={handleApiConfigSecretClick}
-                                      style={{ cursor: 'pointer', userSelect: 'none' }}
+                                      style={{
+                                        cursor: 'pointer',
+                                        userSelect: 'none',
+                                      }}
                                     >
                                       {t('API地址')}
                                     </span>

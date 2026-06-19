@@ -51,6 +51,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/xiaomimimo"
 	"github.com/QuantumNous/new-api/relay/channel/xunfei"
 	xunfeimaasimage "github.com/QuantumNous/new-api/relay/channel/xunfei_maas_image"
+	"github.com/QuantumNous/new-api/relay/channel/zenmux"
 	"github.com/QuantumNous/new-api/relay/channel/zhipu"
 	"github.com/QuantumNous/new-api/relay/channel/zhipu_4v"
 	"github.com/gin-gonic/gin"
@@ -134,6 +135,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &xiaomimimo.Adaptor{}
 	case constant.APITypeAgnesAI:
 		return &agnes.Adaptor{}
+	case constant.APITypeZenMux:
+		return &zenmux.Adaptor{}
 	}
 	return nil
 }

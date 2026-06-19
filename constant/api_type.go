@@ -40,5 +40,6 @@ const (
 	APITypeXunfeiMaaSImage
 	APITypeXiaomiMiMo
 	APITypeAgnesAI
+	APITypeZenMux
 	APITypeDummy // this one is only for count, do not add any channel after this
 )

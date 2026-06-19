@@ -145,6 +145,19 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'mimo-v2.5-pro,mimo-v2.5,mimo-v2-pro,mimo-v2-omni,mimo-v2-flash',
     },
   },
+  64: {
+    id: 64,
+    name: CHANNEL_TYPES[64],
+    icon: 'zenmux',
+    defaultBaseUrl: 'https://zenmux.ai',
+    hints: {
+      baseUrl: 'Default: https://zenmux.ai',
+      key: 'ZenMux API Key',
+      models: 'openai/gpt-4o,anthropic/claude-sonnet-4.5,google/gemini-2.5-pro',
+      other:
+        'Supports OpenAI Chat/Responses, Anthropic Messages, and Vertex AI GenerateContent endpoints',
+    },
+  },
 }
 
 /**
