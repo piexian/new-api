@@ -910,16 +910,76 @@ const TopUp = () => {
       </Modal>
 
       {/* 主布局区域 */}
-      <div className='grid grid-cols-1 gap-6'>
+      <div
+        className={`grid grid-cols-1 gap-6 ${
+          shouldShowMySubscriptions
+            ? 'lg:grid-cols-[minmax(340px,440px)_minmax(0,1fr)] lg:items-start'
+            : ''
+        }`}
+      >
         {shouldShowMySubscriptions && (
-          <SubscriptionPlansCard
+          <div className='min-w-0 lg:sticky lg:top-20 lg:self-start'>
+            <SubscriptionPlansCard
+              t={t}
+              loading={subscriptionLoading}
+              plans={subscriptionPlans}
+              payMethods={confirmPayMethods}
+              enableOnlineTopUp={enableOnlineTopUp}
+              enableStripeTopUp={enableStripeTopUp}
+              enableCreemTopUp={enableCreemTopUp}
+              billingPreference={billingPreference}
+              onChangeBillingPreference={updateBillingPreference}
+              activeSubscriptions={activeSubscriptions}
+              allSubscriptions={allSubscriptions}
+              reloadSubscriptionSelf={getSubscriptionSelf}
+              walletQuota={userState?.user?.quota || 0}
+              quotaPerUnit={getQuotaPerUnit()}
+              reloadUserQuota={getUserQuota}
+              withCard={false}
+              hidePlans
+            />
+          </div>
+        )}
+        <div className='min-w-0'>
+          <RechargeCard
             t={t}
-            loading={subscriptionLoading}
-            plans={subscriptionPlans}
-            payMethods={confirmPayMethods}
             enableOnlineTopUp={enableOnlineTopUp}
             enableStripeTopUp={enableStripeTopUp}
             enableCreemTopUp={enableCreemTopUp}
+            creemProducts={creemProducts}
+            creemPreTopUp={creemPreTopUp}
+            enableWaffoTopUp={enableWaffoTopUp}
+            enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
+            presetAmounts={presetAmounts}
+            selectedPreset={selectedPreset}
+            selectPresetAmount={selectPresetAmount}
+            formatLargeNumber={formatLargeNumber}
+            priceRatio={priceRatio}
+            topUpCount={topUpCount}
+            minTopUp={minTopUp}
+            renderQuotaWithAmount={renderQuotaWithAmount}
+            getAmount={getAmount}
+            setTopUpCount={setTopUpCount}
+            setSelectedPreset={setSelectedPreset}
+            renderAmount={renderAmount}
+            amountLoading={amountLoading}
+            payMethods={confirmPayMethods}
+            preTopUp={preTopUp}
+            paymentLoading={paymentLoading}
+            payWay={payWay}
+            redemptionCode={redemptionCode}
+            setRedemptionCode={setRedemptionCode}
+            topUp={topUp}
+            isSubmitting={isSubmitting}
+            topUpLink={topUpLink}
+            openTopUpLink={openTopUpLink}
+            userState={userState}
+            renderQuota={renderQuota}
+            statusLoading={statusLoading}
+            topupInfo={topupInfo}
+            onOpenHistory={handleOpenHistory}
+            subscriptionLoading={subscriptionLoading}
+            subscriptionPlans={subscriptionPlans}
             billingPreference={billingPreference}
             onChangeBillingPreference={updateBillingPreference}
             activeSubscriptions={activeSubscriptions}
@@ -928,59 +988,9 @@ const TopUp = () => {
             walletQuota={userState?.user?.quota || 0}
             quotaPerUnit={getQuotaPerUnit()}
             reloadUserQuota={getUserQuota}
-            withCard={false}
-            hidePlans
+            enableRedemption={topupInfo.enable_redemption !== false}
           />
-        )}
-        <RechargeCard
-          t={t}
-          enableOnlineTopUp={enableOnlineTopUp}
-          enableStripeTopUp={enableStripeTopUp}
-          enableCreemTopUp={enableCreemTopUp}
-          creemProducts={creemProducts}
-          creemPreTopUp={creemPreTopUp}
-          enableWaffoTopUp={enableWaffoTopUp}
-          enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
-          presetAmounts={presetAmounts}
-          selectedPreset={selectedPreset}
-          selectPresetAmount={selectPresetAmount}
-          formatLargeNumber={formatLargeNumber}
-          priceRatio={priceRatio}
-          topUpCount={topUpCount}
-          minTopUp={minTopUp}
-          renderQuotaWithAmount={renderQuotaWithAmount}
-          getAmount={getAmount}
-          setTopUpCount={setTopUpCount}
-          setSelectedPreset={setSelectedPreset}
-          renderAmount={renderAmount}
-          amountLoading={amountLoading}
-          payMethods={confirmPayMethods}
-          preTopUp={preTopUp}
-          paymentLoading={paymentLoading}
-          payWay={payWay}
-          redemptionCode={redemptionCode}
-          setRedemptionCode={setRedemptionCode}
-          topUp={topUp}
-          isSubmitting={isSubmitting}
-          topUpLink={topUpLink}
-          openTopUpLink={openTopUpLink}
-          userState={userState}
-          renderQuota={renderQuota}
-          statusLoading={statusLoading}
-          topupInfo={topupInfo}
-          onOpenHistory={handleOpenHistory}
-          subscriptionLoading={subscriptionLoading}
-          subscriptionPlans={subscriptionPlans}
-          billingPreference={billingPreference}
-          onChangeBillingPreference={updateBillingPreference}
-          activeSubscriptions={activeSubscriptions}
-          allSubscriptions={allSubscriptions}
-          reloadSubscriptionSelf={getSubscriptionSelf}
-          walletQuota={userState?.user?.quota || 0}
-          quotaPerUnit={getQuotaPerUnit()}
-          reloadUserQuota={getUserQuota}
-          enableRedemption={topupInfo.enable_redemption !== false}
-        />
+        </div>
       </div>
     </div>
   );
