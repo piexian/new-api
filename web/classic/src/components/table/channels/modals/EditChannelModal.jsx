@@ -550,6 +550,7 @@ const EditChannelModal = (props) => {
     pass_through_body_enabled: false,
     use_responses_api: false,
     system_prompt: '',
+    plan_quota_cooldown_enabled: false,
   });
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
   const getInitValues = () => ({ ...originInputs });
@@ -940,6 +941,8 @@ const EditChannelModal = (props) => {
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
+          data.plan_quota_cooldown_enabled =
+            parsedSettings.plan_quota_cooldown_enabled === true;
         } catch (error) {
           console.error('解析渠道设置失败:', error);
           data.force_format = false;
@@ -949,6 +952,7 @@ const EditChannelModal = (props) => {
           data.use_responses_api = false;
           data.system_prompt = '';
           data.system_prompt_override = false;
+          data.plan_quota_cooldown_enabled = false;
         }
       } else {
         data.force_format = false;
@@ -958,6 +962,7 @@ const EditChannelModal = (props) => {
         data.use_responses_api = false;
         data.system_prompt = '';
         data.system_prompt_override = false;
+        data.plan_quota_cooldown_enabled = false;
       }
 
       if (data.settings) {
@@ -1844,6 +1849,8 @@ const EditChannelModal = (props) => {
       use_responses_api: localInputs.use_responses_api === true,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
+      plan_quota_cooldown_enabled:
+        localInputs.plan_quota_cooldown_enabled === true,
     };
     localInputs.setting = JSON.stringify(channelExtraSettings);
 
@@ -1933,6 +1940,7 @@ const EditChannelModal = (props) => {
     delete localInputs.use_responses_api;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
+    delete localInputs.plan_quota_cooldown_enabled;
     delete localInputs.is_enterprise_account;
     // 顶层的 vertex_key_type 不应发送给后端
     delete localInputs.vertex_key_type;
@@ -2756,6 +2764,22 @@ const EditChannelModal = (props) => {
                   <Text className='text-sm font-medium text-gray-500 mb-3 block'>
                     {t('额外设置')}
                   </Text>
+
+                  <Form.Switch
+                    field='plan_quota_cooldown_enabled'
+                    label={t('套餐限额自动冷却')}
+                    checkedText={t('开')}
+                    uncheckedText={t('关')}
+                    onChange={(value) =>
+                      handleChannelSettingsChange(
+                        'plan_quota_cooldown_enabled',
+                        value,
+                      )
+                    }
+                    extraText={t(
+                      '仅当上游限额错误包含明确重置时间时，按时间禁用当前渠道或多密钥中的当前密钥，到期自动恢复',
+                    )}
+                  />
 
                   {inputs.type === 14 && (
                     <Form.Switch

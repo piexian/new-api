@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -107,40 +108,69 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	var abilities []Ability
 
 	var err error = nil
-	channelQuery, err := getChannelQuery(group, model, retry)
+	err = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+		Order("priority DESC, weight DESC").
+		Find(&abilities).Error
 	if err != nil {
 		return nil, err
 	}
-	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	} else {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
+
+	type candidate struct {
+		ability Ability
+		channel *Channel
 	}
-	if err != nil {
-		return nil, err
+
+	candidates := make([]candidate, 0, len(abilities))
+	prioritySet := make(map[int]bool)
+	for _, ability := range abilities {
+		channel := &Channel{}
+		if err := DB.First(channel, "id = ?", ability.ChannelId).Error; err != nil {
+			return nil, err
+		}
+		if channel.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		if !channel.HasAvailableKey() {
+			continue
+		}
+		candidates = append(candidates, candidate{ability: ability, channel: channel})
+		prioritySet[int(lo.FromPtr(ability.Priority))] = true
 	}
-	channel := Channel{}
-	if len(abilities) > 0 {
-		// Randomly choose one
-		weightSum := uint(0)
-		for _, ability_ := range abilities {
-			weightSum += ability_.Weight + 10
-		}
-		// Randomly choose one
-		weight := common.GetRandomInt(int(weightSum))
-		for _, ability_ := range abilities {
-			weight -= int(ability_.Weight) + 10
-			//log.Printf("weight: %d, ability weight: %d", weight, *ability_.Weight)
-			if weight <= 0 {
-				channel.Id = ability_.ChannelId
-				break
-			}
-		}
-	} else {
+	if len(candidates) == 0 {
 		return nil, nil
 	}
-	err = DB.First(&channel, "id = ?", channel.Id).Error
-	return &channel, err
+
+	priorities := make([]int, 0, len(prioritySet))
+	for priority := range prioritySet {
+		priorities = append(priorities, priority)
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(priorities)))
+	if retry >= len(priorities) {
+		retry = len(priorities) - 1
+	}
+	targetPriority := priorities[retry]
+
+	weightSum := uint(0)
+	targetCandidates := make([]candidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if int(lo.FromPtr(candidate.ability.Priority)) != targetPriority {
+			continue
+		}
+		weightSum += candidate.ability.Weight + 10
+		targetCandidates = append(targetCandidates, candidate)
+	}
+	if len(targetCandidates) == 0 {
+		return nil, nil
+	}
+
+	weight := common.GetRandomInt(int(weightSum))
+	for _, candidate := range targetCandidates {
+		weight -= int(candidate.ability.Weight) + 10
+		if weight <= 0 {
+			return candidate.channel, nil
+		}
+	}
+	return targetCandidates[0].channel, nil
 }
 
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {

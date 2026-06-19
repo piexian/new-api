@@ -2808,6 +2808,29 @@ export function ChannelMutateDrawer({
                           </FormItem>
                         )}
                       />
+
+                      <FormField
+                        control={form.control}
+                        name='plan_quota_cooldown_enabled'
+                        render={({ field }) => (
+                          <FormItem className='flex items-center justify-between'>
+                            <div className='space-y-0.5'>
+                              <FormLabel>{t('Plan Quota Cooldown')}</FormLabel>
+                              <FormDescription>
+                                {t(
+                                  'When upstream returns a plan quota reset time, temporarily disable this channel or current multi-key credential until reset.'
+                                )}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value === true}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
                     </div>
 
                     <div className='space-y-4 border-t pt-4'>

@@ -1,0 +1,139 @@
+package service
+
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/types"
+
+	"github.com/bytedance/gopkg/util/gopool"
+)
+
+const (
+	planQuotaCooldownTickInterval = time.Minute
+	planQuotaCooldownBatchSize    = 500
+)
+
+var (
+	planQuotaCooldownOnce    sync.Once
+	planQuotaCooldownRunning atomic.Bool
+
+	planQuotaResetAtPattern  = regexp.MustCompile(`(?i)(?:resets? at|will reset at|quota will reset at|it will reset at)\s+([0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\s*[+-][0-9]{2}:?[0-9]{2}(?:\s*[A-Z]{2,5})?)?)`)
+	planQuotaDurationPattern = regexp.MustCompile(`(?i)(?:reset after|resets in)\s+([0-9]+(?:h|m|s)(?:[0-9]+(?:h|m|s))*)`)
+)
+
+func ParsePlanQuotaResetUntil(message string, now time.Time) (int64, bool) {
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return 0, false
+	}
+
+	if matches := planQuotaResetAtPattern.FindStringSubmatch(message); len(matches) == 2 {
+		if t, ok := parsePlanQuotaResetTime(matches[1], now.Location()); ok && t.After(now) {
+			return t.Unix(), true
+		}
+	}
+
+	if matches := planQuotaDurationPattern.FindStringSubmatch(message); len(matches) == 2 {
+		duration, err := time.ParseDuration(strings.TrimSpace(matches[1]))
+		if err == nil && duration > 0 {
+			return now.Add(duration).Unix(), true
+		}
+	}
+
+	return 0, false
+}
+
+func parsePlanQuotaResetTime(value string, location *time.Location) (time.Time, bool) {
+	value = strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02T15:04:05-0700",
+		"2006-01-02 15:04:05 -0700 MST",
+		"2006-01-02 15:04:05 -0700",
+		"2006-01-02 15:04:05",
+	}
+
+	for _, layout := range layouts {
+		var (
+			t   time.Time
+			err error
+		)
+		if layout == "2006-01-02 15:04:05" {
+			t, err = time.ParseInLocation(layout, value, location)
+		} else {
+			t, err = time.Parse(layout, value)
+		}
+		if err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func DisableChannelUntil(channelError types.ChannelError, reason string, until int64) {
+	if until <= common.GetTimestamp() {
+		return
+	}
+	common.SysLog(fmt.Sprintf("通道「%s」（#%d）触发套餐限额冷却，禁用至 %s，原因：%s",
+		channelError.ChannelName,
+		channelError.ChannelId,
+		time.Unix(until, 0).Format(time.RFC3339),
+		reason,
+	))
+
+	success := model.UpdateChannelStatusUntil(channelError.ChannelId, channelError.UsingKey, common.ChannelStatusAutoDisabled, reason, until)
+	if success {
+		subject := fmt.Sprintf("通道「%s」（#%d）已按套餐限额冷却", channelError.ChannelName, channelError.ChannelId)
+		content := fmt.Sprintf("通道「%s」（#%d）已按套餐限额冷却至 %s，原因：%s",
+			channelError.ChannelName,
+			channelError.ChannelId,
+			time.Unix(until, 0).Format(time.RFC3339),
+			reason,
+		)
+		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content)
+	}
+}
+
+func StartChannelPlanQuotaCooldownTask() {
+	planQuotaCooldownOnce.Do(func() {
+		if !common.IsMasterNode {
+			return
+		}
+		gopool.Go(func() {
+			logger.LogInfo(context.Background(), fmt.Sprintf("channel plan quota cooldown task started: tick=%s", planQuotaCooldownTickInterval))
+			ticker := time.NewTicker(planQuotaCooldownTickInterval)
+			defer ticker.Stop()
+
+			runChannelPlanQuotaCooldownOnce()
+			for range ticker.C {
+				runChannelPlanQuotaCooldownOnce()
+			}
+		})
+	})
+}
+
+func runChannelPlanQuotaCooldownOnce() {
+	if !planQuotaCooldownRunning.CompareAndSwap(false, true) {
+		return
+	}
+	defer planQuotaCooldownRunning.Store(false)
+
+	releasedChannels, releasedKeys, err := model.ReleaseExpiredPlanQuotaCooldowns(common.GetTimestamp(), planQuotaCooldownBatchSize)
+	if err != nil {
+		logger.LogWarn(context.Background(), fmt.Sprintf("channel plan quota cooldown release failed: %v", err))
+		return
+	}
+	if releasedChannels > 0 || releasedKeys > 0 {
+		model.InitChannelCache()
+		logger.LogInfo(context.Background(), fmt.Sprintf("channel plan quota cooldown released: channels=%d keys=%d", releasedChannels, releasedKeys))
+	}
+}

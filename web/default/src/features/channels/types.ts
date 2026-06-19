@@ -87,6 +87,7 @@ export interface ChannelSettings {
   pass_through_body_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  plan_quota_cooldown_enabled?: boolean
 }
 
 export interface ChannelOtherSettings {
@@ -180,6 +181,7 @@ export interface KeyStatus {
   index: number
   status: number // 1: enabled, 2: manual disabled, 3: auto disabled
   disabled_time?: number
+  disabled_until?: number
   reason?: string
   key_preview?: string
 }

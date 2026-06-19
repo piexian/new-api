@@ -369,7 +369,19 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, err.Error()))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
-	if service.ShouldDisableChannel(err) && channelError.AutoBan {
+	planQuotaCooldownApplied := false
+	if err.StatusCode == http.StatusTooManyRequests {
+		channelSetting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+		if ok && channelSetting.PlanQuotaCooldownEnabled {
+			if until, ok := service.ParsePlanQuotaResetUntil(err.Error(), time.Now()); ok {
+				planQuotaCooldownApplied = true
+				gopool.Go(func() {
+					service.DisableChannelUntil(channelError, err.ErrorWithStatusCode(), until)
+				})
+			}
+		}
+	}
+	if !planQuotaCooldownApplied && service.ShouldDisableChannel(err) && channelError.AutoBan {
 		gopool.Go(func() {
 			service.DisableChannel(channelError, err.ErrorWithStatusCode())
 		})
