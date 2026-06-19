@@ -16,14 +16,32 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// ============================================================================
-// Affiliate Functions
-// ============================================================================
+export interface ApiResponse<T = unknown> {
+  success: boolean
+  message: string
+  data: T
+}
 
-/**
- * Generate affiliate registration link
- */
-export function generateAffiliateLink(affCode: string): string {
-  if (typeof window === 'undefined') return ''
-  return `${window.location.origin}/sign-up?aff=${affCode}`
+export interface InviteRewardsUserData {
+  id: number
+  username: string
+  quota: number
+  aff_quota: number
+  aff_history_quota: number
+  aff_count: number
+}
+
+export interface InvitedUser {
+  id: number
+  username: string
+  display_name?: string
+  created_at?: number
+}
+
+export interface AffiliateTransferRequest {
+  quota: number
+}
+
+export interface InviteTopupInfo {
+  payment_compliance_confirmed?: boolean
 }

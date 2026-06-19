@@ -406,15 +406,24 @@ function resolveZhipuLimitTitle(
   item: Record<string, unknown>,
   t: (key: string) => string
 ): string {
-  if (Number(item.unit) === 6) return t('Weekly Quota')
-  switch (item.type) {
-    case 'TOKENS_LIMIT':
-      return t('5-Hour Quota')
-    case 'TIME_LIMIT':
-      return t('MCP Tool Quota')
-    default:
-      return item.type ? String(item.type) : t('Quota Window')
-  }
+  if (isZhipuTimeLimit(item)) return t('MCP Tool Quota')
+  if (isZhipuWeeklyLimit(item)) return t('Weekly Quota')
+  if (isZhipuTokenLimit(item)) return t('5-Hour Quota')
+  return item.type ? String(item.type) : t('Quota Window')
+}
+
+function isZhipuTokenLimit(item: Record<string, unknown>): boolean {
+  const type = String(item.type || '')
+  return /token.*5\s*hour/i.test(type) || type === 'TOKENS_LIMIT'
+}
+
+function isZhipuTimeLimit(item: Record<string, unknown>): boolean {
+  const type = String(item.type || '')
+  return type === 'TIME_LIMIT' || /mcp.*1\s*month/i.test(type)
+}
+
+function isZhipuWeeklyLimit(item: Record<string, unknown>): boolean {
+  return String(item.type || '') === 'TOKENS_LIMIT' && Number(item.unit) === 6
 }
 
 function formatPlanLevel(value: unknown, t: (key: string) => string): string {
@@ -437,9 +446,9 @@ function normalizeZhipuLimitCards(
   const source = getZhipuCodingPlanSource(response)
   const limits = Array.isArray(source?.limits) ? source.limits : []
   const orderWeight = (item: Record<string, unknown>) => {
-    if (item.type === 'TOKENS_LIMIT') return 1
-    if (Number(item.unit) === 6) return 2
-    if (item.type === 'TIME_LIMIT') return 3
+    if (isZhipuTokenLimit(item) && !isZhipuWeeklyLimit(item)) return 1
+    if (isZhipuWeeklyLimit(item)) return 2
+    if (isZhipuTimeLimit(item)) return 3
     return 9
   }
 
@@ -448,8 +457,8 @@ function normalizeZhipuLimitCards(
     .filter(isRecordResult)
     .sort((left, right) => orderWeight(left) - orderWeight(right))
     .map((item, index) => {
-      const currentValue = toNumber(item.currentValue)
-      const totalValue = toNumber(item.usage)
+      const currentValue = toNumber(item.currentValue ?? item.currentUsage)
+      const totalValue = toNumber(item.usage ?? item.totol ?? item.total)
       const usageLabel =
         currentValue != null && totalValue != null
           ? `${currentValue.toLocaleString()}/${totalValue.toLocaleString()}`
@@ -481,7 +490,10 @@ function normalizeZhipuLimitCards(
       return {
         key: `${String(item.type || 'limit')}-${String(item.unit || 0)}-${index}`,
         title: resolveZhipuLimitTitle(item, t),
-        percentage: clampPercent(item.percentage),
+        percentage:
+          item.percentage == null && currentValue != null && totalValue
+            ? clampPercent((currentValue / totalValue) * 100)
+            : clampPercent(item.percentage),
         usageLabel,
         nextResetTime: formatResetTime(item.nextResetTime, t),
         details: details as ZhipuLimitCard['details'],

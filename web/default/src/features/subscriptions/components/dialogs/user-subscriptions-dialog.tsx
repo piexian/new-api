@@ -96,6 +96,16 @@ function SubscriptionStatusBadge(props: {
   )
 }
 
+function getSubscriptionPlanTitle(
+  record: UserSubscriptionRecord,
+  planTitleMap: Map<number, string>
+) {
+  const sub = record.subscription
+  return (
+    record.plan?.title || planTitleMap.get(sub.plan_id) || `#${sub.plan_id}`
+  )
+}
+
 export function UserSubscriptionsDialog(props: Props) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
@@ -191,7 +201,7 @@ export function UserSubscriptionsDialog(props: Props) {
   return (
     <>
       <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-        <SheetContent className='overflow-y-auto sm:max-w-2xl'>
+        <SheetContent className='w-full overflow-y-auto sm:max-w-2xl'>
           <SheetHeader>
             <SheetTitle>{t('User Subscription Management')}</SheetTitle>
             <SheetDescription>
@@ -199,15 +209,15 @@ export function UserSubscriptionsDialog(props: Props) {
             </SheetDescription>
           </SheetHeader>
 
-          <div className='mt-4 space-y-4'>
-            <div className='flex gap-2'>
+          <div className='mt-4 flex flex-col gap-4'>
+            <div className='flex flex-col gap-2 sm:flex-row'>
               <Select
                 items={[
                   ...plans.map((p) => ({
                     value: String(p.plan.id),
                     label: (
                       <>
-                        {p.plan.title}($
+                        {p.plan.title || `#${p.plan.id}`}($
                         {Number(p.plan.price_amount || 0).toFixed(2)})
                       </>
                     ),
@@ -223,7 +233,7 @@ export function UserSubscriptionsDialog(props: Props) {
                   <SelectGroup>
                     {plans.map((p) => (
                       <SelectItem key={p.plan.id} value={String(p.plan.id)}>
-                        {p.plan.title} ($
+                        {p.plan.title || `#${p.plan.id}`} ($
                         {Number(p.plan.price_amount || 0).toFixed(2)})
                       </SelectItem>
                     ))}
@@ -233,13 +243,14 @@ export function UserSubscriptionsDialog(props: Props) {
               <Button
                 onClick={handleCreate}
                 disabled={creating || !selectedPlanId}
+                className='w-full sm:w-auto'
               >
-                <Plus className='mr-1 h-4 w-4' />
+                <Plus data-icon='inline-start' />
                 {t('Add subscription')}
               </Button>
             </div>
 
-            <div className='rounded-md border'>
+            <div className='rounded-md border max-sm:hidden'>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -283,8 +294,7 @@ export function UserSubscriptionsDialog(props: Props) {
                           <TableCell>
                             <div>
                               <div className='font-medium'>
-                                {planTitleMap.get(sub.plan_id) ||
-                                  `#${sub.plan_id}`}
+                                {getSubscriptionPlanTitle(record, planTitleMap)}
                               </div>
                               <div className='text-muted-foreground text-xs'>
                                 {t('Source')}: {sub.source || '-'}
@@ -342,6 +352,101 @@ export function UserSubscriptionsDialog(props: Props) {
                   )}
                 </TableBody>
               </Table>
+            </div>
+
+            <div className='divide-y overflow-hidden rounded-md border sm:hidden'>
+              {loading ? (
+                <div className='py-8 text-center text-sm'>
+                  {t('Loading...')}
+                </div>
+              ) : subs.length === 0 ? (
+                <div className='text-muted-foreground py-8 text-center text-sm'>
+                  {t('No subscription records')}
+                </div>
+              ) : (
+                subs.map((record) => {
+                  const sub = record.subscription
+                  const now = Date.now() / 1000
+                  const isExpired =
+                    (sub.end_time || 0) > 0 && sub.end_time < now
+                  const isActive = sub.status === 'active' && !isExpired
+                  const total = Number(sub.amount_total || 0)
+                  const used = Number(sub.amount_used || 0)
+
+                  return (
+                    <div key={sub.id} className='flex flex-col gap-3 p-3'>
+                      <div className='flex items-start justify-between gap-2'>
+                        <div className='min-w-0'>
+                          <div className='truncate text-sm font-medium'>
+                            {getSubscriptionPlanTitle(record, planTitleMap)}
+                          </div>
+                          <div className='text-muted-foreground mt-0.5 text-xs'>
+                            #{sub.id} · {t('Source')}: {sub.source || '-'}
+                          </div>
+                        </div>
+                        <div className='shrink-0'>
+                          <SubscriptionStatusBadge sub={sub} t={t} />
+                        </div>
+                      </div>
+
+                      <div className='grid grid-cols-2 gap-2 text-xs'>
+                        <div className='min-w-0'>
+                          <div className='text-muted-foreground'>
+                            {t('Start')}
+                          </div>
+                          <div className='truncate'>
+                            {formatTimestamp(sub.start_time)}
+                          </div>
+                        </div>
+                        <div className='min-w-0'>
+                          <div className='text-muted-foreground'>
+                            {t('End')}
+                          </div>
+                          <div className='truncate'>
+                            {formatTimestamp(sub.end_time)}
+                          </div>
+                        </div>
+                        <div className='min-w-0'>
+                          <div className='text-muted-foreground'>
+                            {t('Total Quota')}
+                          </div>
+                          <div className='truncate'>
+                            {total > 0 ? `${used}/${total}` : t('Unlimited')}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className='grid grid-cols-2 gap-2'>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          disabled={!isActive}
+                          onClick={() =>
+                            setConfirmAction({
+                              type: 'invalidate',
+                              subId: sub.id,
+                            })
+                          }
+                        >
+                          {t('Invalidate')}
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='destructive'
+                          onClick={() =>
+                            setConfirmAction({
+                              type: 'delete',
+                              subId: sub.id,
+                            })
+                          }
+                        >
+                          {t('Delete')}
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
         </SheetContent>

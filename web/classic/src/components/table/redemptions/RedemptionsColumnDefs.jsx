@@ -73,6 +73,31 @@ const renderStatus = (status, record, t) => {
   );
 };
 
+const renderType = (record, t) => {
+  const type = record.type || 'quota';
+  return (
+    <Tag color={type === 'subscription' ? 'blue' : 'grey'} shape='circle'>
+      {type === 'subscription' ? t('套餐') : t('额度')}
+    </Tag>
+  );
+};
+
+const renderContent = (record, t) => {
+  if ((record.type || 'quota') === 'subscription') {
+    return (
+      <Tag color='blue' shape='circle'>
+        {record.subscription_plan_title ||
+          t('套餐') + ` #${record.subscription_plan_id || '-'}`}
+      </Tag>
+    );
+  }
+  return (
+    <Tag color='grey' shape='circle'>
+      {renderQuota(parseInt(record.quota))}
+    </Tag>
+  );
+};
+
 /**
  * Get redemption code table column definitions
  */
@@ -105,16 +130,17 @@ export const getRedemptionsColumns = ({
       },
     },
     {
-      title: t('额度'),
+      title: t('类型'),
+      dataIndex: 'type',
+      render: (text, record) => {
+        return <div>{renderType(record, t)}</div>;
+      },
+    },
+    {
+      title: t('内容'),
       dataIndex: 'quota',
-      render: (text) => {
-        return (
-          <div>
-            <Tag color='grey' shape='circle'>
-              {renderQuota(parseInt(text))}
-            </Tag>
-          </div>
-        );
+      render: (text, record) => {
+        return <div>{renderContent(record, t)}</div>;
       },
     },
     {

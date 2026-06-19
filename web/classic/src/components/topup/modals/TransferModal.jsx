@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Modal, Typography, Input, InputNumber } from '@douyinfe/semi-ui';
 import { CreditCard } from 'lucide-react';
 
@@ -32,6 +32,19 @@ const TransferModal = ({
   transferAmount,
   setTransferAmount,
 }) => {
+  const availableQuota = Number(userState?.user?.aff_quota || 0);
+  const quotaPerUnit = Number(getQuotaPerUnit() || 1);
+  const defaultAmount =
+    availableQuota > 0 && availableQuota < quotaPerUnit
+      ? availableQuota
+      : quotaPerUnit;
+
+  useEffect(() => {
+    if (openTransfer) {
+      setTransferAmount(defaultAmount);
+    }
+  }, [openTransfer, defaultAmount, setTransferAmount]);
+
   return (
     <Modal
       title={
@@ -59,15 +72,22 @@ const TransferModal = ({
         </div>
         <div>
           <Typography.Text strong className='block mb-2'>
-            {t('划转额度')} · {t('最低') + renderQuota(getQuotaPerUnit())}
+            {t('划转额度')}
           </Typography.Text>
           <InputNumber
-            min={getQuotaPerUnit()}
-            max={userState?.user?.aff_quota || 0}
+            min={1}
+            max={availableQuota}
+            step={1}
+            precision={0}
             value={transferAmount}
             onChange={(value) => setTransferAmount(value)}
             className='w-full !rounded-lg'
           />
+          <Typography.Text type='tertiary' size='small'>
+            {availableQuota < quotaPerUnit
+              ? t('低于原最低额度，已默认选择全部可用奖励')
+              : t('可划转任意正数奖励额度')}
+          </Typography.Text>
         </div>
       </div>
     </Modal>

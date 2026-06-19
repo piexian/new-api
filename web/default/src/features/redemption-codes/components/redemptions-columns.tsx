@@ -30,7 +30,7 @@ import { MaskedValueDisplay } from '@/components/masked-value-display'
 import { StatusBadge } from '@/components/status-badge'
 import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
 import { isRedemptionExpired, isTimestampExpired } from '../lib'
-import { type Redemption } from '../types'
+import { REDEMPTION_TYPE, type Redemption } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
@@ -136,6 +136,31 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       },
     },
     {
+      accessorKey: 'type',
+      meta: { label: t('Type'), mobileBadge: true },
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('Type')} />
+      ),
+      cell: ({ row }) => {
+        const type = row.getValue('type') || REDEMPTION_TYPE.QUOTA
+        return (
+          <StatusBadge
+            label={
+              type === REDEMPTION_TYPE.SUBSCRIPTION
+                ? t('Subscription')
+                : t('Quota')
+            }
+            variant='neutral'
+            copyable={false}
+          />
+        )
+      },
+      filterFn: (row, id, value) => {
+        const type = row.getValue(id) || REDEMPTION_TYPE.QUOTA
+        return value.includes(type)
+      },
+    },
+    {
       id: 'code',
       accessorKey: 'key',
       meta: { label: t('Code') },
@@ -161,11 +186,27 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
     },
     {
       accessorKey: 'quota',
-      meta: { label: t('Quota') },
+      meta: { label: t('Content') },
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Quota')} />
+        <DataTableColumnHeader column={column} title={t('Content')} />
       ),
       cell: ({ row }) => {
+        const redemption = row.original
+        if (
+          (redemption.type || REDEMPTION_TYPE.QUOTA) ===
+          REDEMPTION_TYPE.SUBSCRIPTION
+        ) {
+          return (
+            <StatusBadge
+              label={
+                redemption.subscription_plan_title ||
+                t('Plan {{id}}', { id: redemption.subscription_plan_id })
+              }
+              variant='neutral'
+              copyable={false}
+            />
+          )
+        }
         const quota = row.getValue('quota') as number
         return (
           <StatusBadge

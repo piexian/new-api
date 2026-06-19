@@ -33,6 +33,12 @@ func TestZhipuCodingPlanAPIBase(t *testing.T) {
 			ok:      true,
 		},
 		{
+			name:    "domestic dev api url",
+			baseURL: "https://dev.bigmodel.cn/api/anthropic",
+			want:    "https://dev.bigmodel.cn",
+			ok:      true,
+		},
+		{
 			name:    "international direct api url",
 			baseURL: "https://api.z.ai/api/coding/paas/v4",
 			want:    "https://api.z.ai",

@@ -48,21 +48,21 @@ type sqliteColumnInfo struct {
 }
 
 type legacyToken struct {
-	Id                 int            `gorm:"primaryKey"`
-	UserId             int            `gorm:"index"`
-	Key                string         `gorm:"column:key;type:char(48);uniqueIndex"`
-	Status             int            `gorm:"default:1"`
-	Name               string         `gorm:"index"`
-	CreatedTime        int64          `gorm:"bigint"`
-	AccessedTime       int64          `gorm:"bigint"`
-	ExpiredTime        int64          `gorm:"bigint;default:-1"`
-	RemainQuota        int            `gorm:"default:0"`
+	Id                 int    `gorm:"primaryKey"`
+	UserId             int    `gorm:"index"`
+	Key                string `gorm:"column:key;type:char(48);uniqueIndex"`
+	Status             int    `gorm:"default:1"`
+	Name               string `gorm:"index"`
+	CreatedTime        int64  `gorm:"bigint"`
+	AccessedTime       int64  `gorm:"bigint"`
+	ExpiredTime        int64  `gorm:"bigint;default:-1"`
+	RemainQuota        int    `gorm:"default:0"`
 	UnlimitedQuota     bool
 	ModelLimitsEnabled bool
-	ModelLimits        string         `gorm:"type:text"`
-	AllowIps           *string        `gorm:"default:''"`
-	UsedQuota          int            `gorm:"default:0"`
-	Group              string         `gorm:"column:group;default:''"`
+	ModelLimits        string  `gorm:"type:text"`
+	AllowIps           *string `gorm:"default:''"`
+	UsedQuota          int     `gorm:"default:0"`
+	Group              string  `gorm:"column:group;default:''"`
 	CrossGroupRetry    bool
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
@@ -182,6 +182,34 @@ func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string
 	return token
 }
 
+func setupAdminTokenControllerTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+
+	db := setupTokenControllerTestDB(t)
+	if err := db.AutoMigrate(&model.User{}); err != nil {
+		t.Fatalf("failed to migrate user table: %v", err)
+	}
+	return db
+}
+
+func seedUserWithRole(t *testing.T, db *gorm.DB, username string, role int) *model.User {
+	t.Helper()
+
+	user := &model.User{
+		Username:    username,
+		Password:    "password",
+		DisplayName: username,
+		Role:        role,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AffCode:     username + "-aff",
+	}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+	return user
+}
+
 func newAuthenticatedContext(t *testing.T, method string, target string, body any, userID int) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
 
@@ -203,6 +231,15 @@ func newAuthenticatedContext(t *testing.T, method string, target string, body an
 		ctx.Request.Header.Set("Content-Type", "application/json")
 	}
 	ctx.Set("id", userID)
+	return ctx, recorder
+}
+
+func newAdminContext(t *testing.T, method string, target string, body any, targetUserId int) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+
+	ctx, recorder := newAuthenticatedContext(t, method, target, body, 1)
+	ctx.Set("role", common.RoleAdminUser)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(targetUserId)}}
 	return ctx, recorder
 }
 
@@ -537,5 +574,93 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	}
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
+	}
+}
+
+func TestAdminGetUserTokensMasksAndScopesToTargetUser(t *testing.T) {
+	db := setupAdminTokenControllerTestDB(t)
+	targetUser := seedUserWithRole(t, db, "target-user", common.RoleCommonUser)
+	otherUser := seedUserWithRole(t, db, "other-user", common.RoleCommonUser)
+	targetToken := seedToken(t, db, targetUser.Id, "target-token", "admintarget123456")
+	otherToken := seedToken(t, db, otherUser.Id, "other-token", "adminother1234567")
+
+	ctx, recorder := newAdminContext(t, http.MethodGet, "/api/user/"+strconv.Itoa(targetUser.Id)+"/tokens?p=1&size=10", nil, targetUser.Id)
+	AdminGetUserTokens(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected admin token list to succeed, got message: %s", response.Message)
+	}
+
+	var page tokenPageResponse
+	if err := common.Unmarshal(response.Data, &page); err != nil {
+		t.Fatalf("failed to decode admin token page response: %v", err)
+	}
+	if len(page.Items) != 1 {
+		t.Fatalf("expected exactly one target token, got %d", len(page.Items))
+	}
+	if page.Items[0].ID != targetToken.Id {
+		t.Fatalf("expected target token id %d, got %d", targetToken.Id, page.Items[0].ID)
+	}
+	if page.Items[0].Key != targetToken.GetMaskedKey() {
+		t.Fatalf("expected masked target key %q, got %q", targetToken.GetMaskedKey(), page.Items[0].Key)
+	}
+	if strings.Contains(recorder.Body.String(), targetToken.Key) || strings.Contains(recorder.Body.String(), otherToken.Key) {
+		t.Fatalf("admin token list response leaked raw token key: %s", recorder.Body.String())
+	}
+}
+
+func TestAdminAddUserTokenCreatesForTargetAndMasksResponse(t *testing.T) {
+	db := setupAdminTokenControllerTestDB(t)
+	targetUser := seedUserWithRole(t, db, "token-owner", common.RoleCommonUser)
+
+	body := map[string]any{
+		"name":                 "admin-created",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+	}
+	ctx, recorder := newAdminContext(t, http.MethodPost, "/api/user/"+strconv.Itoa(targetUser.Id)+"/tokens", body, targetUser.Id)
+	AdminAddUserToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected admin token creation to succeed, got message: %s", response.Message)
+	}
+
+	var created tokenResponseItem
+	if err := common.Unmarshal(response.Data, &created); err != nil {
+		t.Fatalf("failed to decode created token response: %v", err)
+	}
+	var stored model.Token
+	if err := db.First(&stored, "id = ?", created.ID).Error; err != nil {
+		t.Fatalf("failed to load created token: %v", err)
+	}
+	if stored.UserId != targetUser.Id {
+		t.Fatalf("expected token user id %d, got %d", targetUser.Id, stored.UserId)
+	}
+	if created.Key != stored.GetMaskedKey() {
+		t.Fatalf("expected masked created key %q, got %q", stored.GetMaskedKey(), created.Key)
+	}
+	if strings.Contains(recorder.Body.String(), stored.Key) {
+		t.Fatalf("admin token creation response leaked raw token key: %s", recorder.Body.String())
+	}
+}
+
+func TestAdminUserTokenManagementRejectsSameLevelTarget(t *testing.T) {
+	db := setupAdminTokenControllerTestDB(t)
+	targetAdmin := seedUserWithRole(t, db, "target-admin", common.RoleAdminUser)
+	seedToken(t, db, targetAdmin.Id, "admin-owned-token", "samelevel12345678")
+
+	ctx, recorder := newAdminContext(t, http.MethodGet, "/api/user/"+strconv.Itoa(targetAdmin.Id)+"/tokens?p=1&size=10", nil, targetAdmin.Id)
+	AdminGetUserTokens(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected same-level admin token access to fail")
 	}
 }

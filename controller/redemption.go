@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"unicode/utf8"
@@ -15,7 +16,7 @@ import (
 
 func GetAllRedemptions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	redemptions, total, err := model.GetAllRedemptions(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), c.Query("type"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -29,7 +30,7 @@ func GetAllRedemptions(c *gin.Context) {
 func SearchRedemptions(c *gin.Context) {
 	keyword := c.Query("keyword")
 	pageInfo := common.GetPageQuery(c)
-	redemptions, total, err := model.SearchRedemptions(keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	redemptions, total, err := model.SearchRedemptions(keyword, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), c.Query("type"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -75,6 +76,9 @@ func AddRedemption(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
 		return
 	}
+	if !validateRedemptionTypePayload(c, &redemption) {
+		return
+	}
 	if redemption.Count <= 0 {
 		common.ApiErrorI18n(c, i18n.MsgRedemptionCountPositive)
 		return
@@ -91,12 +95,14 @@ func AddRedemption(c *gin.Context) {
 	for i := 0; i < redemption.Count; i++ {
 		key := common.GetUUID()
 		cleanRedemption := model.Redemption{
-			UserId:      c.GetInt("id"),
-			Name:        redemption.Name,
-			Key:         key,
-			CreatedTime: common.GetTimestamp(),
-			Quota:       redemption.Quota,
-			ExpiredTime: redemption.ExpiredTime,
+			UserId:             c.GetInt("id"),
+			Name:               redemption.Name,
+			Key:                key,
+			Type:               redemption.Type,
+			CreatedTime:        common.GetTimestamp(),
+			Quota:              redemption.Quota,
+			SubscriptionPlanId: redemption.SubscriptionPlanId,
+			ExpiredTime:        redemption.ExpiredTime,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -146,13 +152,22 @@ func UpdateRedemption(c *gin.Context) {
 		return
 	}
 	if statusOnly == "" {
+		if utf8.RuneCountInString(redemption.Name) == 0 || utf8.RuneCountInString(redemption.Name) > 20 {
+			common.ApiErrorI18n(c, i18n.MsgRedemptionNameLength)
+			return
+		}
+		if !validateRedemptionTypePayload(c, &redemption) {
+			return
+		}
 		if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 			return
 		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
+		cleanRedemption.Type = redemption.Type
 		cleanRedemption.Quota = redemption.Quota
+		cleanRedemption.SubscriptionPlanId = redemption.SubscriptionPlanId
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
 	}
 	if statusOnly != "" {
@@ -190,4 +205,40 @@ func validateExpiredTime(c *gin.Context, expired int64) (bool, string) {
 		return false, i18n.T(c, i18n.MsgRedemptionExpireTimeInvalid)
 	}
 	return true, ""
+}
+
+func validateRedemptionTypePayload(c *gin.Context, redemption *model.Redemption) bool {
+	if redemption == nil {
+		common.ApiError(c, errors.New("无效的兑换码"))
+		return false
+	}
+	redemption.Type = model.NormalizeRedemptionType(redemption.Type)
+	if !model.IsValidRedemptionType(redemption.Type) {
+		common.ApiError(c, errors.New("无效的兑换码类型"))
+		return false
+	}
+	switch redemption.Type {
+	case model.RedemptionTypeQuota:
+		if redemption.Quota <= 0 {
+			common.ApiError(c, errors.New("额度必须大于0"))
+			return false
+		}
+		redemption.SubscriptionPlanId = 0
+	case model.RedemptionTypeSubscription:
+		if redemption.SubscriptionPlanId <= 0 {
+			common.ApiError(c, errors.New("请选择套餐"))
+			return false
+		}
+		plan, err := model.GetSubscriptionPlanById(redemption.SubscriptionPlanId)
+		if err != nil || plan == nil {
+			common.ApiError(c, errors.New("套餐不存在"))
+			return false
+		}
+		if !plan.Enabled {
+			common.ApiError(c, errors.New("套餐已禁用"))
+			return false
+		}
+		redemption.Quota = 0
+	}
+	return true
 }

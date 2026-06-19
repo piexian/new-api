@@ -23,10 +23,14 @@ import type {
   GetUsersResponse,
   SearchUsersParams,
   UserFormData,
+  UserTokenFormData,
+  GetUserTokensParams,
+  GetUserTokensResponse,
   ManageUserAction,
   ManageUserQuotaPayload,
   ManageUserPayload,
   ApiResponse,
+  UserToken,
 } from './types'
 
 // ============================================================================
@@ -214,5 +218,65 @@ export async function adminUnbindCustomOAuth(
   const res = await api.delete(
     `/api/user/${userId}/oauth/bindings/${providerId}`
   )
+  return res.data
+}
+
+// ============================================================================
+// Admin User Token Management APIs
+// ============================================================================
+
+export async function getUserTokens(
+  userId: number,
+  params: GetUserTokensParams = {}
+): Promise<GetUserTokensResponse> {
+  const { p = 1, size = 5 } = params
+  const res = await api.get(`/api/user/${userId}/tokens`, {
+    params: { p, size },
+  })
+  return res.data
+}
+
+export async function getUserToken(
+  userId: number,
+  tokenId: number
+): Promise<ApiResponse<UserToken>> {
+  const res = await api.get(`/api/user/${userId}/tokens/${tokenId}`)
+  return res.data
+}
+
+export async function createUserToken(
+  userId: number,
+  data: UserTokenFormData
+): Promise<ApiResponse<UserToken>> {
+  const res = await api.post(`/api/user/${userId}/tokens`, data)
+  return res.data
+}
+
+export async function updateUserToken(
+  userId: number,
+  tokenId: number,
+  data: UserTokenFormData
+): Promise<ApiResponse<UserToken>> {
+  const res = await api.put(`/api/user/${userId}/tokens/${tokenId}`, data)
+  return res.data
+}
+
+export async function updateUserTokenStatus(
+  userId: number,
+  tokenId: number,
+  status: number
+): Promise<ApiResponse<UserToken>> {
+  const res = await api.put(
+    `/api/user/${userId}/tokens/${tokenId}?status_only=true`,
+    { status }
+  )
+  return res.data
+}
+
+export async function deleteUserToken(
+  userId: number,
+  tokenId: number
+): Promise<ApiResponse> {
+  const res = await api.delete(`/api/user/${userId}/tokens/${tokenId}`)
   return res.data
 }

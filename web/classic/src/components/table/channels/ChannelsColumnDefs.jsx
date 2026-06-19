@@ -63,6 +63,7 @@ const ZHIPU_CODING_PLAN_SPECIAL_KEYS = new Set([
 const ZHIPU_CODING_PLAN_DOMAINS = [
   'api.z.ai',
   'open.bigmodel.cn',
+  'dev.bigmodel.cn',
   'www.bigmodel.cn',
 ];
 

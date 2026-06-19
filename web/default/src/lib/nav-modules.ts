@@ -231,6 +231,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
   personal: {
     enabled: true,
     topup: true,
+    invite: true,
     personal: true,
   },
   admin: {
@@ -316,6 +317,7 @@ const SIDEBAR_ROUTE_RULES: SidebarRouteRule[] = [
   { prefix: '/usage-logs', section: 'console', module: 'log' },
   { prefix: '/console/log', section: 'console', module: 'log' },
   { prefix: '/console/topup', section: 'personal', module: 'topup' },
+  { prefix: '/invite-rewards', section: 'personal', module: 'invite' },
   { prefix: '/system-settings', section: 'admin', module: 'setting' },
   { prefix: '/redemption-codes', section: 'admin', module: 'redemption' },
   { prefix: '/subscriptions', section: 'admin', module: 'subscription' },

@@ -102,6 +102,8 @@ export const useLogsData = () => {
     channel: '',
     group: '',
     request_id: '',
+    ip: '',
+    user_agent: '',
     dateRange: [
       timestamp2string(getTodayStartTimestamp()),
       timestamp2string(now.getTime() / 1000 + 3600),
@@ -259,6 +261,8 @@ export const useLogsData = () => {
       channel: formValues.channel || '',
       group: formValues.group || '',
       request_id: formValues.request_id || '',
+      ip: formValues.ip || '',
+      user_agent: formValues.user_agent || '',
       logType: formValues.logType ? parseInt(formValues.logType) : 0,
     };
   };
@@ -836,7 +840,7 @@ export const useLogsData = () => {
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
 
-    const ipParam = ip ? `%${ip.trim()}%` : '';
+    const ipParam = ip ? ip.trim() : '';
     const userAgentParam = user_agent ? `%${user_agent.trim()}%` : '';
 
     if (isAdminUser) {

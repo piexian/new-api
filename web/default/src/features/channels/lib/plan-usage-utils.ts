@@ -13,6 +13,7 @@ const ZHIPU_CODING_PLAN_SPECIAL_BASE_URLS = new Set([
 const ZHIPU_CODING_PLAN_DOMAINS = [
   'api.z.ai',
   'open.bigmodel.cn',
+  'dev.bigmodel.cn',
   'www.bigmodel.cn',
 ]
 
@@ -45,7 +46,5 @@ export function isZhipuCodingPlanChannel(channel: Channel): boolean {
   }
 
   const normalized = baseURL.toLowerCase().replace(/\/+$/, '')
-  return ZHIPU_CODING_PLAN_DOMAINS.some((domain) =>
-    normalized.includes(domain)
-  )
+  return ZHIPU_CODING_PLAN_DOMAINS.some((domain) => normalized.includes(domain))
 }

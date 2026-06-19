@@ -244,15 +244,26 @@ const KeyPager = ({
 };
 
 const resolveLimitTitle = (item, t) => {
-  if (Number(item?.unit) === 6) return t('每周额度');
-  switch (item?.type) {
-    case 'TOKENS_LIMIT':
-      return t('5小时额度');
-    case 'TIME_LIMIT':
-      return t('MCP 工具额度');
-    default:
-      return item?.type || t('额度窗口');
-  }
+  if (isZhipuTimeLimit(item)) return t('MCP 工具额度');
+  if (isZhipuWeeklyLimit(item)) return t('每周额度');
+  if (isZhipuTokenLimit(item)) return t('5小时额度');
+  return item?.type || t('额度窗口');
+};
+
+const isZhipuTokenLimit = (item) => {
+  const type = String(item?.type || '');
+  return /token.*5\s*hour/i.test(type) || type === 'TOKENS_LIMIT';
+};
+
+const isZhipuTimeLimit = (item) => {
+  const type = String(item?.type || '');
+  return type === 'TIME_LIMIT' || /mcp.*1\s*month/i.test(type);
+};
+
+const isZhipuWeeklyLimit = (item) => {
+  return (
+    String(item?.type || '') === 'TOKENS_LIMIT' && Number(item?.unit) === 6
+  );
 };
 
 const getZhipuCodingPlanSource = (payload) => {
@@ -281,17 +292,17 @@ const normalizeLimitCards = (payload, t) => {
   const source = getZhipuCodingPlanSource(payload);
   const limits = Array.isArray(source?.limits) ? source.limits : [];
   const orderWeight = (item) => {
-    if (item?.type === 'TOKENS_LIMIT') return 1;
-    if (Number(item?.unit) === 6) return 2;
-    if (item?.type === 'TIME_LIMIT') return 3;
+    if (isZhipuTokenLimit(item) && !isZhipuWeeklyLimit(item)) return 1;
+    if (isZhipuWeeklyLimit(item)) return 2;
+    if (isZhipuTimeLimit(item)) return 3;
     return 9;
   };
 
   return [...limits]
     .sort((left, right) => orderWeight(left) - orderWeight(right))
     .map((item, index) => {
-      const currentValue = toNumber(item?.currentValue);
-      const totalValue = toNumber(item?.usage);
+      const currentValue = toNumber(item?.currentValue ?? item?.currentUsage);
+      const totalValue = toNumber(item?.usage ?? item?.totol ?? item?.total);
       const usageLabel =
         currentValue != null && totalValue != null
           ? `${currentValue.toLocaleString()}/${totalValue.toLocaleString()}`
@@ -300,7 +311,10 @@ const normalizeLimitCards = (payload, t) => {
       return {
         key: `${item?.type || 'limit'}-${item?.unit || 0}-${index}`,
         title: resolveLimitTitle(item, t),
-        percentage: clampPercent(item?.percentage),
+        percentage:
+          item?.percentage == null && currentValue != null && totalValue
+            ? clampPercent((currentValue / totalValue) * 100)
+            : clampPercent(item?.percentage),
         usageLabel,
         nextResetTime: formatResetTime(item?.nextResetTime, t),
         details: Array.isArray(item?.usageDetails)

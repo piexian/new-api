@@ -43,6 +43,7 @@ const DEFAULT_SIDEBAR_MODULES = {
   personal: {
     enabled: true,
     topup: true,
+    invite: true,
     personal: true,
   },
   admin: {
@@ -70,6 +71,7 @@ const SIDEBAR_ROUTE_RULES = [
   { prefix: '/console/playground', section: 'chat', module: 'playground' },
   { prefix: '/console/token', section: 'console', module: 'token' },
   { prefix: '/console/topup', section: 'personal', module: 'topup' },
+  { prefix: '/console/invite', section: 'personal', module: 'invite' },
   { prefix: '/console/personal', section: 'personal', module: 'personal' },
   { prefix: '/console/log', section: 'console', module: 'log' },
   { prefix: '/console/midjourney', section: 'console', module: 'midjourney' },
@@ -188,7 +190,8 @@ export function isHeaderRouteEnabled(status, pathname) {
   ) {
     return modules.docs !== false;
   }
-  if (matchesPrefix(path, '/pricing')) return modules.pricing?.enabled !== false;
+  if (matchesPrefix(path, '/pricing'))
+    return modules.pricing?.enabled !== false;
   if (matchesPrefix(path, '/rankings')) {
     return modules.rankings?.enabled !== false;
   }

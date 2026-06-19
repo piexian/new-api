@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef } from 'react';
-import { Form, Button } from '@douyinfe/semi-ui';
+import { Form, Button, Select } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 const RedemptionsFilters = ({
@@ -60,11 +60,18 @@ const RedemptionsFilters = ({
           <Form.Input
             field='searchKeyword'
             prefix={<IconSearch />}
-            placeholder={t('关键字(id或者名称)')}
+            placeholder={t('关键字(id、名称或兑换码)')}
             showClear
             pure
             size='small'
           />
+        </div>
+        <div className='w-full md:w-32'>
+          <Form.Select field='type' pure size='small' placeholder={t('类型')}>
+            <Select.Option value=''>{t('全部')}</Select.Option>
+            <Select.Option value='quota'>{t('额度')}</Select.Option>
+            <Select.Option value='subscription'>{t('套餐')}</Select.Option>
+          </Form.Select>
         </div>
         <div className='flex gap-2 w-full md:w-auto'>
           <Button

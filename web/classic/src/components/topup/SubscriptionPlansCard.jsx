@@ -121,10 +121,7 @@ const SubscriptionPlansCard = ({
 
   const getRequiredQuota = (planRecord) => {
     const requiredQuotaFromApi = Number(planRecord?.required_quota);
-    if (
-      Number.isFinite(requiredQuotaFromApi) &&
-      requiredQuotaFromApi >= 0
-    ) {
+    if (Number.isFinite(requiredQuotaFromApi) && requiredQuotaFromApi >= 0) {
       return requiredQuotaFromApi;
     }
     const plan = planRecord?.plan;
@@ -344,9 +341,7 @@ const SubscriptionPlansCard = ({
       if (!Array.isArray(parsed)) {
         return [];
       }
-      return parsed
-        .map((item) => String(item || '').trim())
-        .filter(Boolean);
+      return parsed.map((item) => String(item || '').trim()).filter(Boolean);
     } catch (error) {
       return [];
     }
@@ -374,7 +369,8 @@ const SubscriptionPlansCard = ({
     }
     const allowedModels = parseAllowedModels(plan?.allowed_models);
     const modeLabel = t('自定义模型限制');
-    const countSuffix = allowedModels.length > 0 ? ` (${allowedModels.length})` : '';
+    const countSuffix =
+      allowedModels.length > 0 ? ` (${allowedModels.length})` : '';
     return {
       label: `${t('模型限制')}: ${modeLabel}${countSuffix}`,
       tooltip:
@@ -559,7 +555,8 @@ const SubscriptionPlansCard = ({
                     const isActive =
                       subscription?.status === 'active' && !isExpired;
                     const planInfo = sub?.plan;
-                    const modelRestrictionMeta = getModelRestrictionMeta(planInfo);
+                    const modelRestrictionMeta =
+                      getModelRestrictionMeta(planInfo);
                     const windowUsageItems = getQuotaWindowItems(
                       planInfo,
                       subscription,
@@ -669,7 +666,7 @@ const SubscriptionPlansCard = ({
 
           {/* 可购买套餐 - 标准定价卡片 */}
           {plans.length > 0 ? (
-            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5 w-full px-1'>
+            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-5 w-full px-1 items-stretch'>
               {plans.map((p, index) => {
                 const plan = p?.plan;
                 const totalAmount = Number(plan?.total_amount || 0);
@@ -722,12 +719,12 @@ const SubscriptionPlansCard = ({
                 return (
                   <Card
                     key={plan?.id}
-                    className={`!rounded-xl transition-all hover:shadow-lg w-full h-full ${
+                    className={`!rounded-xl transition-all hover:shadow-lg w-full h-full min-h-[390px] max-h-[430px] overflow-hidden ${
                       isPopular ? 'ring-2 ring-purple-500' : ''
                     }`}
                     bodyStyle={{ padding: 0 }}
                   >
-                    <div className='p-4 h-full flex flex-col'>
+                    <div className='p-4 h-full min-h-[390px] max-h-[430px] flex flex-col'>
                       {/* 推荐标签 */}
                       {isPopular && (
                         <div className='mb-2'>
@@ -771,12 +768,14 @@ const SubscriptionPlansCard = ({
                       </div>
 
                       {/* 套餐权益描述 */}
-                      <div className='flex flex-col items-start gap-1 pb-2'>
+                      <div className='flex min-h-[120px] max-h-[140px] flex-col items-start gap-1 overflow-y-auto pr-1 pb-2'>
                         {planBenefits.map((item) => {
                           const content = (
                             <div className='flex items-center gap-2 text-xs text-gray-500'>
                               <Badge dot type='tertiary' />
-                              <span>{item.label}</span>
+                              <span className='min-w-0 break-words leading-relaxed'>
+                                {item.label}
+                              </span>
                             </div>
                           );
                           if (!item.tooltip) {

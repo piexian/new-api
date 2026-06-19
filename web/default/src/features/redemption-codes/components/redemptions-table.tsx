@@ -39,9 +39,13 @@ import {
   DataTablePage,
 } from '@/components/data-table'
 import { getRedemptions, searchRedemptions } from '../api'
-import { REDEMPTION_STATUS, getRedemptionStatusOptions } from '../constants'
+import {
+  REDEMPTION_STATUS,
+  getRedemptionStatusOptions,
+  getRedemptionTypeOptions,
+} from '../constants'
 import { isRedemptionExpired } from '../lib'
-import type { Redemption } from '../types'
+import type { Redemption, RedemptionType } from '../types'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useRedemptionsColumns } from './redemptions-columns'
 import { useRedemptions } from './redemptions-provider'
@@ -77,8 +81,15 @@ export function RedemptionsTable() {
     navigate: route.useNavigate(),
     pagination: { defaultPage: 1, defaultPageSize: isMobile ? 10 : 20 },
     globalFilter: { enabled: true, key: 'filter' },
-    columnFilters: [{ columnId: 'status', searchKey: 'status', type: 'array' }],
+    columnFilters: [
+      { columnId: 'status', searchKey: 'status', type: 'array' },
+      { columnId: 'type', searchKey: 'type', type: 'array' },
+    ],
   })
+
+  const typeFilter = columnFilters.find((filter) => filter.id === 'type')
+    ?.value as string[] | undefined
+  const redemptionType = typeFilter?.[0] as RedemptionType | undefined
 
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
@@ -87,6 +98,7 @@ export function RedemptionsTable() {
       pagination.pageIndex + 1,
       pagination.pageSize,
       globalFilter,
+      redemptionType,
       refreshTrigger,
     ],
     queryFn: async () => {
@@ -94,6 +106,7 @@ export function RedemptionsTable() {
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
+        type: redemptionType,
       }
 
       const result = hasFilter
@@ -128,9 +141,14 @@ export function RedemptionsTable() {
     globalFilterFn: (row, _columnId, filterValue) => {
       const name = String(row.getValue('name')).toLowerCase()
       const id = String(row.getValue('id'))
+      const key = String(row.getValue('code') || '').toLowerCase()
       const searchValue = String(filterValue).toLowerCase()
 
-      return name.includes(searchValue) || id.includes(searchValue)
+      return (
+        name.includes(searchValue) ||
+        id.includes(searchValue) ||
+        key.includes(searchValue)
+      )
     },
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -141,7 +159,7 @@ export function RedemptionsTable() {
     onPaginationChange,
     onGlobalFilterChange,
     onColumnFiltersChange,
-    manualPagination: !globalFilter,
+    manualPagination: true,
     pageCount: Math.ceil((data?.total || 0) / pagination.pageSize),
   })
 
@@ -154,6 +172,7 @@ export function RedemptionsTable() {
     () => getRedemptionStatusOptions(t),
     [t]
   )
+  const redemptionTypeOptions = useMemo(() => getRedemptionTypeOptions(t), [t])
 
   return (
     <DataTablePage
@@ -167,12 +186,18 @@ export function RedemptionsTable() {
       )}
       skeletonKeyPrefix='redemptions-skeleton'
       toolbarProps={{
-        searchPlaceholder: t('Filter by name or ID...'),
+        searchPlaceholder: t('Filter by name, ID, or code...'),
         filters: [
           {
             columnId: 'status',
             title: t('Status'),
             options: redemptionStatusOptions,
+            singleSelect: true,
+          },
+          {
+            columnId: 'type',
+            title: t('Type'),
+            options: redemptionTypeOptions,
             singleSelect: true,
           },
         ],

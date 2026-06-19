@@ -21,6 +21,7 @@ export const CHANNEL_TYPE_MINIMAX = 35;
 export const CHANNEL_TYPE_CODEX = 57;
 export const CHANNEL_TYPE_ZHIPU_V4 = 26;
 export const CHANNEL_TYPE_MOONSHOT = 25;
+export const CHANNEL_TYPE_AGNES_AI = 63;
 
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
@@ -210,6 +211,11 @@ export const CHANNEL_OPTIONS = [
     value: 62,
     color: 'green',
     label: 'XiaomiMiMo',
+  },
+  {
+    value: CHANNEL_TYPE_AGNES_AI,
+    color: 'blue',
+    label: 'AgnesAI',
   },
 ];
 

@@ -34,6 +34,7 @@ import {
   ListTodo,
   Settings,
   ShieldBan,
+  Gift,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
@@ -109,6 +110,11 @@ export function useSidebarData(): SidebarData {
             title: t('Wallet'),
             url: '/wallet',
             icon: Wallet,
+          },
+          {
+            title: t('Invite Rewards'),
+            url: '/invite-rewards',
+            icon: Gift,
           },
           {
             title: t('Profile'),

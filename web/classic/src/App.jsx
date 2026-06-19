@@ -64,6 +64,7 @@ import Channel from './pages/Channel';
 import Token from './pages/Token';
 import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
+import InviteRewards from './pages/InviteRewards';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
@@ -162,7 +163,8 @@ function App() {
 
     const shouldCheckPrompt =
       sessionStorage.getItem(LOGIN_FEATURE_UPDATE_PROMPT_KEY) === '1' ||
-      userState?.user?.feature_update_v1 !== FEATURE_UPDATE_FRONTEND_V2_DISMISSED;
+      userState?.user?.feature_update_v1 !==
+        FEATURE_UPDATE_FRONTEND_V2_DISMISSED;
     if (!shouldCheckPrompt) {
       return;
     }
@@ -442,6 +444,20 @@ function App() {
             )}
           />
           <Route
+            path='/console/invite'
+            element={routeGuard(
+              '/console/invite',
+              <PrivateRoute>
+                <Suspense
+                  fallback={<Loading></Loading>}
+                  key={location.pathname}
+                >
+                  <InviteRewards />
+                </Suspense>
+              </PrivateRoute>,
+            )}
+          />
+          <Route
             path='/console/log'
             element={routeGuard(
               '/console/log',
@@ -604,7 +620,9 @@ function App() {
           onSwitchFrontend={() =>
             switchFrontendTheme(
               'default',
-              t('即将切换到新版现代化前端，并跳转到对应页面。如果新版前端没有保留本地登录状态，请重新登录。'),
+              t(
+                '即将切换到新版现代化前端，并跳转到对应页面。如果新版前端没有保留本地登录状态，请重新登录。',
+              ),
             )
           }
         />

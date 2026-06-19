@@ -13,6 +13,7 @@ type ClassicRouteMap = {
 const classicRouteMap: ClassicRouteMap[] = [
   { from: '/profile', to: '/console/personal' },
   { from: '/wallet', to: '/console/topup' },
+  { from: '/invite-rewards', to: '/console/invite' },
   { from: '/keys', to: '/console/token' },
   { from: '/channels', to: '/console/channel' },
   { from: '/models', to: '/console/models' },

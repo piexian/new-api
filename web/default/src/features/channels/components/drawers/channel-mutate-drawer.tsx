@@ -164,6 +164,9 @@ import { ModelMappingEditor } from '../model-mapping-editor'
 const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan'
 const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL = 'glm-coding-plan-international'
 const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan'
+const DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan'
+const DOUBAO_AGENT_PLAN_BASE_URL = 'doubao-agent-plan'
+const DOUBAO_PLAN_DEFAULT_MODEL = 'ark-code-latest'
 const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn/v1'
 const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai/v1'
 const CUSTOM_BASE_URL_UNLOCK_TYPES = [25, 26, 45]
@@ -216,6 +219,10 @@ const createEmptyModelMappingGuardrail = (): ModelMappingGuardrail => ({
 
 const formatModelNames = (models: string[]): string =>
   models.map((model) => `"${model}"`).join(', ')
+
+const isDoubaoPlanBaseUrl = (baseUrl: string): boolean =>
+  baseUrl === DOUBAO_CODING_PLAN_BASE_URL ||
+  baseUrl === DOUBAO_AGENT_PLAN_BASE_URL
 
 const MODEL_MAPPING_PREVIEW_FALLBACK: Array<{
   source: string
@@ -798,6 +805,21 @@ export function ChannelMutateDrawer({
     }
     throw new Error(response.message || 'No models fetched from upstream')
   }, [form])
+
+  const handleVolcEngineBaseUrlChange = useCallback(
+    (value: string | null, onChange: (value: string) => void) => {
+      const nextValue = value || ''
+      onChange(nextValue)
+      if (isEditing || !isDoubaoPlanBaseUrl(nextValue)) {
+        return
+      }
+
+      if (parseModelsString(form.getValues('models') || '').length === 0) {
+        form.setValue('models', DOUBAO_PLAN_DEFAULT_MODEL)
+      }
+    },
+    [form, isEditing]
+  )
 
   // Handle adding custom models
   const handleAddCustomModels = useCallback(() => {
@@ -1921,11 +1943,17 @@ export function ChannelMutateDrawer({
                               ),
                             },
                             {
-                              value: 'doubao-coding-plan',
+                              value: DOUBAO_CODING_PLAN_BASE_URL,
                               label: t('Doubao Coding Plan'),
                             },
+                            {
+                              value: DOUBAO_AGENT_PLAN_BASE_URL,
+                              label: t('Doubao Agent Plan'),
+                            },
                           ]}
-                          onValueChange={field.onChange}
+                          onValueChange={(value) =>
+                            handleVolcEngineBaseUrlChange(value, field.onChange)
+                          }
                           value={
                             field.value || 'https://ark.cn-beijing.volces.com'
                           }
@@ -1943,8 +1971,11 @@ export function ChannelMutateDrawer({
                               <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
                                 {t('https://ark.ap-southeast.bytepluses.com')}
                               </SelectItem>
-                              <SelectItem value='doubao-coding-plan'>
+                              <SelectItem value={DOUBAO_CODING_PLAN_BASE_URL}>
                                 {t('Doubao Coding Plan')}
+                              </SelectItem>
+                              <SelectItem value={DOUBAO_AGENT_PLAN_BASE_URL}>
+                                {t('Doubao Agent Plan')}
                               </SelectItem>
                             </SelectGroup>
                           </SelectContent>

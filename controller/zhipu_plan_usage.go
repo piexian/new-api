@@ -182,6 +182,8 @@ func zhipuCodingPlanAPIBase(baseURL string) (string, bool) {
 		return "https://api.z.ai", true
 	case strings.Contains(lower, "open.bigmodel.cn"):
 		return "https://open.bigmodel.cn", true
+	case strings.Contains(lower, "dev.bigmodel.cn"):
+		return "https://dev.bigmodel.cn", true
 	case strings.Contains(lower, "www.bigmodel.cn"):
 		return "https://www.bigmodel.cn", true
 	default:

@@ -56,6 +56,7 @@ var logTranslationRulesEN = []logTranslationRule{
 	{regexp.MustCompile(`^使用邀请码赠送 (.+)$`), "Invite code bonus: %s"},
 	{regexp.MustCompile(`^邀请用户赠送 (.+)$`), "Inviter reward: %s"},
 	{regexp.MustCompile(`^通过兑换码充值 (.+)，兑换码ID (\d+)$`), "Redeemed %s with redemption code ID %s"},
+	{regexp.MustCompile(`^通过兑换码兑换套餐 (.+)，兑换码ID (\d+)$`), "Redeemed subscription plan %s with redemption code ID %s"},
 	{regexp.MustCompile(`^使用在线充值成功，充值金额: (.+)，支付金额：(.+)$`), "Online top-up successful, quota: %s, paid: %s"},
 	{regexp.MustCompile(`^使用Creem充值成功，充值额度: (.+)，支付金额：(.+)$`), "Creem top-up successful, quota: %s, paid: %s"},
 	{regexp.MustCompile(`^Waffo充值成功，充值额度: (.+)，支付金额: (.+)$`), "Waffo top-up successful, quota: %s, paid: %s"},

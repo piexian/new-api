@@ -43,3 +43,61 @@ func TestConvertOpenAIResponsesRequestPassesThroughOfficialResponsesAPI(t *testi
 	require.NoError(t, err)
 	require.Equal(t, "https://ark.cn-beijing.volces.com/api/v3/responses", url)
 }
+
+func TestGetRequestURLSwitchesDoubaoPlanEndpointsByRelayFormat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		baseURL     string
+		relayFormat types.RelayFormat
+		relayMode   int
+		want        string
+	}{
+		{
+			name:        "coding plan claude",
+			baseURL:     "doubao-coding-plan",
+			relayFormat: types.RelayFormatClaude,
+			want:        "https://ark.cn-beijing.volces.com/api/coding/v1/messages",
+		},
+		{
+			name:      "coding plan openai",
+			baseURL:   "doubao-coding-plan",
+			relayMode: relayconstant.RelayModeChatCompletions,
+			want:      "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions",
+		},
+		{
+			name:        "agent plan claude",
+			baseURL:     "doubao-agent-plan",
+			relayFormat: types.RelayFormatClaude,
+			want:        "https://ark.cn-beijing.volces.com/api/plan/v1/messages",
+		},
+		{
+			name:      "agent plan openai",
+			baseURL:   "doubao-agent-plan",
+			relayMode: relayconstant.RelayModeChatCompletions,
+			want:      "https://ark.cn-beijing.volces.com/api/plan/v3/chat/completions",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			info := &relaycommon.RelayInfo{
+				RelayMode:   tt.relayMode,
+				RelayFormat: tt.relayFormat,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelBaseUrl:    tt.baseURL,
+					ChannelType:       channelconstant.ChannelTypeVolcEngine,
+					UpstreamModelName: "ark-code-latest",
+				},
+			}
+
+			url, err := (&Adaptor{}).GetRequestURL(info)
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, url)
+		})
+	}
+}

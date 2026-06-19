@@ -679,7 +679,14 @@ const RechargeCard = ({
             }
             itemKey='subscription'
           >
-            <div className='py-2'>
+            <div
+              className='py-2'
+              style={{
+                maxHeight: 'calc(100vh - 260px)',
+                overflowY: 'auto',
+                paddingRight: 4,
+              }}
+            >
               <SubscriptionPlansCard
                 t={t}
                 loading={subscriptionLoading}
@@ -709,7 +716,16 @@ const RechargeCard = ({
             }
             itemKey='topup'
           >
-            <div className='py-2'>{topupContent}</div>
+            <div
+              className='py-2'
+              style={{
+                maxHeight: 'calc(100vh - 260px)',
+                overflowY: 'auto',
+                paddingRight: 4,
+              }}
+            >
+              {topupContent}
+            </div>
           </TabPane>
         </Tabs>
       ) : (

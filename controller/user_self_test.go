@@ -33,6 +33,22 @@ type selfResponseData struct {
 	UsernameChangeResetAt   int64  `json:"username_change_reset_at"`
 }
 
+type affCodeAPIResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    string `json:"data"`
+}
+
+type invitedUsersAPIResponse struct {
+	Success bool `json:"success"`
+	Data    []struct {
+		ID          int    `json:"id"`
+		Username    string `json:"username"`
+		DisplayName string `json:"display_name"`
+		CreatedAt   int64  `json:"created_at"`
+	} `json:"data"`
+}
+
 func setupUserSelfControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -125,6 +141,111 @@ func decodeSelfResponse(t *testing.T, recorder *httptest.ResponseRecorder) selfA
 		t.Fatalf("failed to decode self response: %v", err)
 	}
 	return response
+}
+
+func decodeAffCodeResponse(t *testing.T, recorder *httptest.ResponseRecorder) affCodeAPIResponse {
+	t.Helper()
+
+	var response affCodeAPIResponse
+	if err := common.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode affiliate code response: %v", err)
+	}
+	return response
+}
+
+func TestGetAffCodeCreatesSixCharacterCode(t *testing.T) {
+	db := setupUserSelfControllerTestDB(t)
+	user := seedSelfUser(t, db, "aff-code-empty-user", "")
+	if err := db.Model(user).Update("aff_code", "").Error; err != nil {
+		t.Fatalf("failed to clear aff code: %v", err)
+	}
+
+	ctx, recorder := newSelfContext(t, user.Id, user.Role)
+	GetAffCode(ctx)
+
+	response := decodeAffCodeResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+	if len(response.Data) != model.AffCodeLength {
+		t.Fatalf("expected %d-character aff code, got %q", model.AffCodeLength, response.Data)
+	}
+
+	var reloaded model.User
+	if err := db.First(&reloaded, user.Id).Error; err != nil {
+		t.Fatalf("failed to reload user: %v", err)
+	}
+	if reloaded.AffCode != response.Data {
+		t.Fatalf("expected persisted aff code %q, got %q", response.Data, reloaded.AffCode)
+	}
+}
+
+func TestResetAffCodeCreatesNewSixCharacterCode(t *testing.T) {
+	db := setupUserSelfControllerTestDB(t)
+	user := seedSelfUser(t, db, "aff-code-reset-user", "")
+	const oldCode = "ABC123"
+	if err := db.Model(user).Update("aff_code", oldCode).Error; err != nil {
+		t.Fatalf("failed to set aff code: %v", err)
+	}
+
+	ctx, recorder := newSelfContext(t, user.Id, user.Role)
+	ResetAffCode(ctx)
+
+	response := decodeAffCodeResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+	if len(response.Data) != model.AffCodeLength {
+		t.Fatalf("expected %d-character aff code, got %q", model.AffCodeLength, response.Data)
+	}
+	if response.Data == oldCode {
+		t.Fatalf("expected reset code to change, got same code %q", response.Data)
+	}
+
+	var reloaded model.User
+	if err := db.First(&reloaded, user.Id).Error; err != nil {
+		t.Fatalf("failed to reload user: %v", err)
+	}
+	if reloaded.AffCode != response.Data {
+		t.Fatalf("expected persisted aff code %q, got %q", response.Data, reloaded.AffCode)
+	}
+}
+
+func TestGetInvitedUsersReturnsOnlySafeInviteeFields(t *testing.T) {
+	db := setupUserSelfControllerTestDB(t)
+	inviter := seedSelfUser(t, db, "invite-list-owner", "")
+	invitee := seedSelfUser(t, db, "invite-list-user", "")
+	other := seedSelfUser(t, db, "invite-list-other", "")
+	if err := db.Model(invitee).Updates(map[string]any{
+		"inviter_id":   inviter.Id,
+		"display_name": "Invitee",
+		"email":        "invitee-secret@example.com",
+	}).Error; err != nil {
+		t.Fatalf("failed to update invitee: %v", err)
+	}
+	if err := db.Model(other).Update("inviter_id", inviter.Id+9999).Error; err != nil {
+		t.Fatalf("failed to update unrelated user: %v", err)
+	}
+
+	ctx, recorder := newSelfContext(t, inviter.Id, inviter.Role)
+	GetInvitedUsers(ctx)
+
+	var response invitedUsersAPIResponse
+	if err := common.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode invited users response: %v", err)
+	}
+	if !response.Success {
+		t.Fatalf("expected success response: %s", recorder.Body.String())
+	}
+	if len(response.Data) != 1 {
+		t.Fatalf("expected one invited user, got %d: %s", len(response.Data), recorder.Body.String())
+	}
+	if response.Data[0].ID != invitee.Id || response.Data[0].Username != invitee.Username {
+		t.Fatalf("unexpected invited user payload: %+v", response.Data[0])
+	}
+	if strings.Contains(recorder.Body.String(), "invitee-secret@example.com") {
+		t.Fatalf("response leaked invitee email: %s", recorder.Body.String())
+	}
 }
 
 func TestGetSelfReportsHasPasswordWhenPasswordExists(t *testing.T) {

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
@@ -35,6 +35,14 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Sheet,
   SheetClose,
   SheetContent,
@@ -44,8 +52,10 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { DateTimePicker } from '@/components/datetime-picker'
+import { getAdminPlans } from '@/features/subscriptions/api'
+import type { PlanRecord } from '@/features/subscriptions/types'
 import { createRedemption, updateRedemption, getRedemption } from '../api'
-import { SUCCESS_MESSAGES } from '../constants'
+import { SUCCESS_MESSAGES, getRedemptionTypeOptions } from '../constants'
 import {
   getRedemptionFormSchema,
   type RedemptionFormValues,
@@ -53,7 +63,7 @@ import {
   transformFormDataToPayload,
   transformRedemptionToFormDefaults,
 } from '../lib'
-import { type Redemption } from '../types'
+import { REDEMPTION_TYPE, type Redemption } from '../types'
 import { useRedemptions } from './redemptions-provider'
 
 type RedemptionsMutateDrawerProps = {
@@ -71,11 +81,32 @@ export function RedemptionsMutateDrawer({
   const isUpdate = !!currentRow
   const { triggerRefresh } = useRedemptions()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [plans, setPlans] = useState<PlanRecord[]>([])
+  const [plansLoading, setPlansLoading] = useState(false)
 
   const form = useForm<RedemptionFormValues>({
     resolver: zodResolver(getRedemptionFormSchema(t)),
     defaultValues: REDEMPTION_FORM_DEFAULT_VALUES,
   })
+
+  const redemptionType = form.watch('type')
+  const enabledPlans = useMemo(
+    () => plans.filter((record) => record.plan.enabled),
+    [plans]
+  )
+  const typeOptions = useMemo(() => getRedemptionTypeOptions(t), [t])
+
+  useEffect(() => {
+    if (!open) return
+    setPlansLoading(true)
+    getAdminPlans()
+      .then((result) => {
+        if (result.success) {
+          setPlans(result.data || [])
+        }
+      })
+      .finally(() => setPlansLoading(false))
+  }, [open])
 
   // Load existing data when updating
   useEffect(() => {
@@ -192,32 +223,122 @@ export function RedemptionsMutateDrawer({
 
             <FormField
               control={form.control}
-              name='quota_dollars'
+              name='type'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{quotaLabel}</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type='number'
-                      step={tokensOnly ? 1 : 0.01}
-                      placeholder={quotaPlaceholder}
-                      onChange={(e) =>
-                        field.onChange(parseFloat(e.target.value) || 0)
+                  <FormLabel>{t('Type')}</FormLabel>
+                  <Select
+                    items={typeOptions}
+                    value={field.value}
+                    onValueChange={(value) => {
+                      field.onChange(value)
+                      if (value === REDEMPTION_TYPE.QUOTA) {
+                        form.setValue('subscription_plan_id', undefined)
+                      } else {
+                        form.setValue('quota_dollars', 0)
                       }
-                    />
-                  </FormControl>
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('Select type')} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {typeOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                   <FormDescription>
-                    {tokensOnly
-                      ? t('Enter the quota amount in tokens')
-                      : t('Enter the quota amount in {{currency}}', {
-                          currency: currencyLabel,
-                        })}
+                    {t('Choose what this redemption code grants')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            {redemptionType === REDEMPTION_TYPE.SUBSCRIPTION ? (
+              <FormField
+                control={form.control}
+                name='subscription_plan_id'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Subscription Plan')}</FormLabel>
+                    <Select
+                      items={enabledPlans.map((record) => ({
+                        value: String(record.plan.id),
+                        label: record.plan.title,
+                      }))}
+                      value={field.value ? String(field.value) : undefined}
+                      onValueChange={(value) => field.onChange(Number(value))}
+                      disabled={plansLoading}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              plansLoading
+                                ? t('Loading...')
+                                : t('Select subscription plan')
+                            }
+                          />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent alignItemWithTrigger={false}>
+                        <SelectGroup>
+                          {enabledPlans.map((record) => (
+                            <SelectItem
+                              key={record.plan.id}
+                              value={String(record.plan.id)}
+                            >
+                              {record.plan.title}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      {t('The code will create this subscription for the user')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              <FormField
+                control={form.control}
+                name='quota_dollars'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{quotaLabel}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        type='number'
+                        step={tokensOnly ? 1 : 0.01}
+                        placeholder={quotaPlaceholder}
+                        onChange={(e) =>
+                          field.onChange(parseFloat(e.target.value) || 0)
+                        }
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {tokensOnly
+                        ? t('Enter the quota amount in tokens')
+                        : t('Enter the quota amount in {{currency}}', {
+                            currency: currencyLabel,
+                          })}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

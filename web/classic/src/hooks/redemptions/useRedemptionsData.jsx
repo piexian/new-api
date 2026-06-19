@@ -55,6 +55,7 @@ export const useRedemptionsData = () => {
   // Form state
   const formInitValues = {
     searchKeyword: '',
+    type: '',
   };
 
   // Get form values
@@ -62,6 +63,7 @@ export const useRedemptionsData = () => {
     const formValues = formApi ? formApi.getValues() : {};
     return {
       searchKeyword: formValues.searchKeyword || '',
+      type: formValues.type || '',
     };
   };
 
@@ -74,8 +76,10 @@ export const useRedemptionsData = () => {
   const loadRedemptions = async (page = 1, pageSize) => {
     setLoading(true);
     try {
+      const { type } = getFormValues();
+      const typeQuery = type ? `&type=${encodeURIComponent(type)}` : '';
       const res = await API.get(
-        `/api/redemption/?p=${page}&page_size=${pageSize}`,
+        `/api/redemption/?p=${page}&page_size=${pageSize}${typeQuery}`,
       );
       const { success, message, data } = res.data;
       if (success) {
@@ -94,7 +98,7 @@ export const useRedemptionsData = () => {
 
   // Search redemption codes
   const searchRedemptions = async () => {
-    const { searchKeyword } = getFormValues();
+    const { searchKeyword, type } = getFormValues();
     if (searchKeyword === '') {
       await loadRedemptions(1, pageSize);
       return;
@@ -102,8 +106,9 @@ export const useRedemptionsData = () => {
 
     setSearching(true);
     try {
+      const typeQuery = type ? `&type=${encodeURIComponent(type)}` : '';
       const res = await API.get(
-        `/api/redemption/search?keyword=${searchKeyword}&p=1&page_size=${pageSize}`,
+        `/api/redemption/search?keyword=${encodeURIComponent(searchKeyword)}&p=1&page_size=${pageSize}${typeQuery}`,
       );
       const { success, message, data } = res.data;
       if (success) {

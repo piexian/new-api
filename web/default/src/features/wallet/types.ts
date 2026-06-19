@@ -16,6 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type {
+  SubscriptionPlan,
+  UserSubscription,
+} from '@/features/subscriptions/types'
+
 // ============================================================================
 // Wallet Type Definitions
 // ============================================================================
@@ -33,14 +38,12 @@ export interface ApiResponse<T = unknown> {
  * Standard API response types
  */
 export type TopupInfoResponse = ApiResponse<TopupInfo>
-export type RedemptionResponse = ApiResponse<number>
+export type RedemptionResponse = ApiResponse<RedemptionResult | number>
 export type AmountResponse = ApiResponse<string>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
 }
 export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
-export type AffiliateCodeResponse = ApiResponse<string>
-export type AffiliateTransferResponse = ApiResponse
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
@@ -176,6 +179,15 @@ export interface RedemptionRequest {
   key: string
 }
 
+export interface RedemptionResult {
+  type: 'quota' | 'subscription'
+  quota?: number
+  redemption_id?: number
+  subscription_plan_id?: number
+  subscription_plan?: SubscriptionPlan
+  subscription?: UserSubscription
+}
+
 /**
  * Payment request parameters
  */
@@ -210,14 +222,6 @@ export interface WaffoPancakePaymentRequest {
 export interface AmountRequest {
   /** Topup amount to calculate */
   amount: number
-}
-
-/**
- * Affiliate quota transfer request
- */
-export interface AffiliateTransferRequest {
-  /** Quota amount to transfer */
-  quota: number
 }
 
 /**

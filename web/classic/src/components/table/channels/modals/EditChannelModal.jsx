@@ -131,6 +131,8 @@ const PARAM_OVERRIDE_OPERATIONS_TEMPLATE = {
 };
 
 const DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
+const DOUBAO_AGENT_PLAN_BASE_URL = 'doubao-agent-plan';
+const DOUBAO_PLAN_DEFAULT_MODEL = 'ark-code-latest';
 const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan';
 const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL =
   'glm-coding-plan-international';
@@ -162,6 +164,24 @@ function type2secretPrompt(type) {
       return '请输入渠道对应的鉴权密钥';
   }
 }
+
+const normalizeModelList = (models) =>
+  Array.isArray(models)
+    ? models.map((model) => (model || '').trim()).filter(Boolean)
+    : [];
+
+const areModelListsEqual = (a, b) => {
+  const left = normalizeModelList(a);
+  const right = normalizeModelList(b);
+  return (
+    left.length === right.length &&
+    left.every((model, index) => model === right[index])
+  );
+};
+
+const isDoubaoPlanBaseUrl = (baseUrl) =>
+  baseUrl === DOUBAO_CODING_PLAN_BASE_URL ||
+  baseUrl === DOUBAO_AGENT_PLAN_BASE_URL;
 
 const EditChannelModal = (props) => {
   const { t } = useTranslation();
@@ -447,6 +467,16 @@ const EditChannelModal = (props) => {
       </span>
     </Tooltip>
   );
+  const doubaoAgentPlanOptionLabel = (
+    <Tooltip
+      content='Doubao Agent Plan：使用火山方舟 Agent Plan 专属 Base URL，并按 Claude/OpenAI 端点自动切换。'
+      position='left'
+    >
+      <span className='inline-flex items-center gap-2'>
+        <span>Doubao Agent Plan</span>
+      </span>
+    </Tooltip>
+  );
 
   // 2FA状态更新辅助函数
   const updateTwoFAState = (updates) => {
@@ -629,6 +659,23 @@ const EditChannelModal = (props) => {
         },
       });
       return;
+    }
+    if (name === 'base_url' && isDoubaoPlanBaseUrl(value) && !isEdit) {
+      const planModels = [DOUBAO_PLAN_DEFAULT_MODEL];
+      const currentModels = normalizeModelList(inputs.models);
+      const defaultVolcEngineModels = getChannelModels(45);
+      if (
+        currentModels.length === 0 ||
+        areModelListsEqual(currentModels, defaultVolcEngineModels)
+      ) {
+        formApiRef.current?.setValue('models', planModels);
+        setInputs((inputs) => ({
+          ...inputs,
+          [name]: value,
+          models: planModels,
+        }));
+        return;
+      }
     }
     setInputs((inputs) => ({ ...inputs, [name]: value }));
     if (name === 'type') {
@@ -3788,6 +3835,10 @@ const EditChannelModal = (props) => {
                                   {
                                     value: DOUBAO_CODING_PLAN_BASE_URL,
                                     label: doubaoCodingPlanOptionLabel,
+                                  },
+                                  {
+                                    value: DOUBAO_AGENT_PLAN_BASE_URL,
+                                    label: doubaoAgentPlanOptionLabel,
                                   },
                                 ]}
                                 defaultValue='https://ark.cn-beijing.volces.com'

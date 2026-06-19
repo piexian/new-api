@@ -19,6 +19,9 @@ import (
 const (
 	UserNameMaxLength      = 20
 	DisableReasonMaxLength = 5000
+	AffCodeLength          = 6
+
+	affCodeRefreshOptionKey = "AffCodeRefreshV20260619"
 )
 
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
@@ -136,6 +139,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	defaultConfig["personal"] = map[string]interface{}{
 		"enabled":  true,
 		"topup":    true,
+		"invite":   true,
 		"personal": true,
 	}
 
@@ -365,6 +369,154 @@ func GetUserIdByAffCode(affCode string) (int, error) {
 	return user.Id, err
 }
 
+func GenerateUniqueAffCode(tx *gorm.DB, excludeUserID int) (string, error) {
+	if tx == nil {
+		tx = DB
+	}
+	for i := 0; i < 20; i++ {
+		code := common.GetRandomString(AffCodeLength)
+		var count int64
+		query := tx.Unscoped().Model(&User{}).Where("aff_code = ?", code)
+		if excludeUserID > 0 {
+			query = query.Where("id <> ?", excludeUserID)
+		}
+		if err := query.Count(&count).Error; err != nil {
+			return "", err
+		}
+		if count == 0 {
+			return code, nil
+		}
+	}
+	return "", errors.New("生成邀请码失败，请稍后重试")
+}
+
+func EnsureUserAffCode(userID int) (string, error) {
+	if userID == 0 {
+		return "", errors.New("id 为空！")
+	}
+	var affCode string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		user := User{}
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, "id = ?", userID).Error; err != nil {
+			return err
+		}
+		if len(user.AffCode) == AffCodeLength {
+			affCode = user.AffCode
+			return nil
+		}
+		code, err := GenerateUniqueAffCode(tx, userID)
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(&User{}).Where("id = ?", userID).Update("aff_code", code).Error; err != nil {
+			return err
+		}
+		affCode = code
+		return nil
+	})
+	return affCode, err
+}
+
+func ResetUserAffCode(userID int) (string, error) {
+	if userID == 0 {
+		return "", errors.New("id 为空！")
+	}
+	var affCode string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		user := User{}
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, "id = ?", userID).Error; err != nil {
+			return err
+		}
+		for i := 0; i < 20; i++ {
+			code, err := GenerateUniqueAffCode(tx, userID)
+			if err != nil {
+				return err
+			}
+			if code == user.AffCode {
+				continue
+			}
+			if err := tx.Model(&User{}).Where("id = ?", userID).Update("aff_code", code).Error; err != nil {
+				return err
+			}
+			affCode = code
+			return nil
+		}
+		return errors.New("重置邀请码失败，请稍后重试")
+	})
+	return affCode, err
+}
+
+type InvitedUser struct {
+	Id          int    `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	CreatedAt   int64  `json:"created_at"`
+}
+
+func GetInvitedUsers(inviterID int) ([]InvitedUser, error) {
+	if inviterID == 0 {
+		return nil, errors.New("id 为空！")
+	}
+	users := make([]InvitedUser, 0)
+	err := DB.Model(&User{}).
+		Select("id", "username", "display_name", "created_at").
+		Where("inviter_id = ?", inviterID).
+		Order("id desc").
+		Find(&users).Error
+	return users, err
+}
+
+func RefreshAllAffCodesOnce() error {
+	var existing Option
+	err := DB.First(&existing, "key = ?", affCodeRefreshOptionKey).Error
+	if err == nil && existing.Value == "done" {
+		return nil
+	}
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var option Option
+		err := tx.First(&option, "key = ?", affCodeRefreshOptionKey).Error
+		if err == nil && option.Value == "done" {
+			return nil
+		}
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		var users []User
+		if err := tx.Unscoped().Select("id", "aff_code").Find(&users).Error; err != nil {
+			return err
+		}
+
+		usedCodes := make(map[string]struct{}, len(users))
+		for _, user := range users {
+			var code string
+			for i := 0; i < 20; i++ {
+				next := common.GetRandomString(AffCodeLength)
+				if _, ok := usedCodes[next]; ok {
+					continue
+				}
+				usedCodes[next] = struct{}{}
+				code = next
+				break
+			}
+			if code == "" {
+				return errors.New("刷新邀请码失败，请稍后重试")
+			}
+			if err := tx.Unscoped().Model(&User{}).Where("id = ?", user.Id).Update("aff_code", code).Error; err != nil {
+				return err
+			}
+		}
+
+		option.Key = affCodeRefreshOptionKey
+		option.Value = "done"
+		return tx.Save(&option).Error
+	})
+}
+
 func DeleteUserById(id int) (err error) {
 	if id == 0 {
 		return errors.New("id 为空！")
@@ -393,9 +545,8 @@ func inviteUser(inviterId int) (err error) {
 }
 
 func (user *User) TransferAffQuotaToQuota(quota int) error {
-	// 检查quota是否小于最小额度
-	if float64(quota) < common.QuotaPerUnit {
-		return fmt.Errorf("转移额度最小为%s！", logger.LogQuota(int(common.QuotaPerUnit)))
+	if quota <= 0 {
+		return errors.New("转移额度必须大于 0！")
 	}
 
 	// 开始数据库事务
@@ -439,7 +590,10 @@ func (user *User) Insert(inviterId int) error {
 	}
 	user.Quota = common.QuotaForNewUser
 	//user.SetAccessToken(common.GetUUID())
-	user.AffCode = common.GetRandomString(4)
+	user.AffCode, err = GenerateUniqueAffCode(DB, 0)
+	if err != nil {
+		return err
+	}
 	user.InviterId = inviterId
 
 	// 初始化用户设置，包括默认的边栏配置
@@ -472,7 +626,10 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
-	user.AffCode = common.GetRandomString(4)
+	user.AffCode, err = GenerateUniqueAffCode(tx, 0)
+	if err != nil {
+		return err
+	}
 	user.InviterId = inviterId
 
 	// 初始化用户设置

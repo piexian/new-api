@@ -49,14 +49,18 @@ export function TransferDialog({
   transferring,
 }: TransferDialogProps) {
   const { t } = useTranslation()
-  const [amount, setAmount] = useState(QUOTA_PER_DOLLAR)
+  const getDefaultAmount = () => {
+    if (availableQuota <= 0) return 1
+    return availableQuota < QUOTA_PER_DOLLAR ? availableQuota : QUOTA_PER_DOLLAR
+  }
+  const [amount, setAmount] = useState(getDefaultAmount)
 
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAmount(QUOTA_PER_DOLLAR)
+      setAmount(getDefaultAmount())
     }
-  }, [open])
+  }, [open, availableQuota])
 
   const handleConfirm = async () => {
     const success = await onConfirm(amount)
@@ -99,13 +103,17 @@ export function TransferDialog({
               type='number'
               value={amount}
               onChange={(e) => setAmount(Number(e.target.value))}
-              min={QUOTA_PER_DOLLAR}
+              min={1}
               max={availableQuota}
-              step={QUOTA_PER_DOLLAR}
+              step={1}
               className='font-mono text-lg'
             />
             <p className='text-muted-foreground text-xs'>
-              {t('Minimum:')} {formatQuota(QUOTA_PER_DOLLAR)}
+              {availableQuota < QUOTA_PER_DOLLAR
+                ? t(
+                    'Below the previous minimum, all available rewards are selected by default.'
+                  )
+                : t('You can transfer any positive reward amount.')}
             </p>
           </div>
         </div>

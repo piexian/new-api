@@ -1,17 +1,17 @@
 import { useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { useStatus } from '@/hooks/use-status'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
-import { DataTableColumnHeader } from '@/components/data-table'
-import { GroupBadge } from '@/components/group-badge'
-import { StatusBadge } from '@/components/status-badge'
+import { useStatus } from '@/hooks/use-status'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { DataTableColumnHeader } from '@/components/data-table'
+import { GroupBadge } from '@/components/group-badge'
+import { StatusBadge } from '@/components/status-badge'
 import {
   formatDuration,
   formatResetPeriod,
@@ -49,9 +49,10 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         ),
         cell: ({ row }) => {
           const plan = row.original.plan
+          const title = plan.title || `#${plan.id}`
           return (
-            <div className='max-w-[200px]'>
-              <div className='truncate font-medium'>{plan.title}</div>
+            <div className='w-full max-w-[200px] min-w-0'>
+              <div className='truncate font-medium'>{title}</div>
               {plan.subtitle && (
                 <div className='text-muted-foreground truncate text-xs'>
                   {plan.subtitle}
@@ -246,7 +247,11 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
               {restriction &&
                 (restriction.tooltip ? (
                   <Tooltip>
-                    <TooltipTrigger render={<div className='text-muted-foreground truncate' />}>
+                    <TooltipTrigger
+                      render={
+                        <div className='text-muted-foreground truncate' />
+                      }
+                    >
                       {restriction.label}
                     </TooltipTrigger>
                     <TooltipContent>{restriction.tooltip}</TooltipContent>
@@ -257,7 +262,10 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
                   </div>
                 ))}
               {windows.map((item) => (
-                <div key={item.label} className='text-muted-foreground truncate'>
+                <div
+                  key={item.label}
+                  className='text-muted-foreground truncate'
+                >
                   {item.label}
                 </div>
               ))}

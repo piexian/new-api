@@ -186,6 +186,12 @@ export function buildApiParams(config: {
     }
     return undefined
   }
+  const toTrimmedString = (value: unknown) => {
+    const trimmed = String(value ?? '').trim()
+    return trimmed || undefined
+  }
+  const ip = toTrimmedString(searchParams.ip)
+  const userAgent = toTrimmedString(searchParams.userAgent)
 
   // Build base params from search params
   const params: GetLogsParams = {
@@ -207,6 +213,8 @@ export function buildApiParams(config: {
     ...(searchParams.upstreamRequestId
       ? { upstream_request_id: String(searchParams.upstreamRequestId) }
       : {}),
+    ...(ip ? { ip } : {}),
+    ...(userAgent ? { user_agent: `%${userAgent}%` } : {}),
     ...buildTimeRangeParams(searchParams, false),
   }
 

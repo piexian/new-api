@@ -1,10 +1,12 @@
 export const FRONTEND_THEME_COOKIE = 'new-api-frontend';
 export const FRONTEND_THEME_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-export const FRONTEND_RETURN_TIP_PENDING = 'new-api-default-frontend-return-tip-pending';
+export const FRONTEND_RETURN_TIP_PENDING =
+  'new-api-default-frontend-return-tip-pending';
 
 const defaultFrontendRoutes = [
   { from: '/console/personal', to: '/profile' },
   { from: '/console/topup', to: '/wallet' },
+  { from: '/console/invite', to: '/invite-rewards' },
   { from: '/console/token', to: '/keys' },
   { from: '/console/channel', to: '/channels' },
   { from: '/console/models', to: '/models' },
@@ -34,7 +36,9 @@ function getSwitchTargetPath(theme, pathname) {
     }
     return pathname;
   }
-  return match.preserveSuffix ? `${match.to}${pathname.slice(match.from.length)}` : match.to;
+  return match.preserveSuffix
+    ? `${match.to}${pathname.slice(match.from.length)}`
+    : match.to;
 }
 
 export function switchFrontendTheme(theme, confirmMessage) {

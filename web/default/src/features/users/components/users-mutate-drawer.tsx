@@ -67,6 +67,7 @@ import {
 } from '../lib'
 import { type User } from '../types'
 import { UserQuotaDialog } from './user-quota-dialog'
+import { UserTokensPanel } from './user-tokens-panel'
 import { useUsers } from './users-provider'
 
 type UsersMutateDrawerProps = {
@@ -432,6 +433,8 @@ export function UsersMutateDrawer({
                   />
                 </div>
               )}
+
+              {isUpdate && currentRow && <UserTokensPanel user={currentRow} />}
 
               {/* Binding Information (Read-only) */}
               {isUpdate && (

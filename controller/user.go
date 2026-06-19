@@ -478,27 +478,37 @@ func TransferAffQuota(c *gin.Context) {
 
 func GetAffCode(c *gin.Context) {
 	id := c.GetInt("id")
-	user, err := model.GetUserById(id, true)
+	affCode, err := model.EnsureUserAffCode(id)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	if user.AffCode == "" {
-		user.AffCode = common.GetRandomString(4)
-		if err := user.Update(false); err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": err.Error(),
-			})
-			return
-		}
-	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    user.AffCode,
+		"data":    affCode,
 	})
 	return
+}
+
+func ResetAffCode(c *gin.Context) {
+	id := c.GetInt("id")
+	affCode, err := model.ResetUserAffCode(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, affCode)
+}
+
+func GetInvitedUsers(c *gin.Context) {
+	id := c.GetInt("id")
+	users, err := model.GetInvitedUsers(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, users)
 }
 
 func GetSelf(c *gin.Context) {
@@ -622,6 +632,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 	defaultConfig["personal"] = map[string]interface{}{
 		"enabled":  true,
 		"topup":    true,
+		"invite":   true,
 		"personal": true,
 	}
 
@@ -1361,7 +1372,7 @@ func TopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	quota, err := model.Redeem(req.Key, id)
+	result, err := model.Redeem(req.Key, id)
 	if err != nil {
 		if errors.Is(err, model.ErrRedeemFailed) {
 			common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
@@ -1373,7 +1384,7 @@ func TopUp(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    quota,
+		"data":    result,
 	})
 }
 

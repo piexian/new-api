@@ -79,6 +79,22 @@ export function getRedemptionStatusOptions(t: TFunction) {
 }
 
 // ============================================================================
+// Redemption Type Configuration
+// ============================================================================
+
+export const REDEMPTION_TYPES = {
+  QUOTA: 'quota',
+  SUBSCRIPTION: 'subscription',
+} as const
+
+export function getRedemptionTypeOptions(t: TFunction) {
+  return [
+    { label: t('Quota'), value: REDEMPTION_TYPES.QUOTA },
+    { label: t('Subscription'), value: REDEMPTION_TYPES.SUBSCRIPTION },
+  ]
+}
+
+// ============================================================================
 // Validation Constants
 // ============================================================================
 

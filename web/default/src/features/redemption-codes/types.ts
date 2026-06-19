@@ -22,13 +22,27 @@ import { z } from 'zod'
 // Redemption Schema & Types
 // ============================================================================
 
+export const REDEMPTION_TYPE = {
+  QUOTA: 'quota',
+  SUBSCRIPTION: 'subscription',
+} as const
+
+export type RedemptionType =
+  (typeof REDEMPTION_TYPE)[keyof typeof REDEMPTION_TYPE]
+
 export const redemptionSchema = z.object({
   id: z.number(),
   user_id: z.number(),
   name: z.string(),
   key: z.string(),
   status: z.number(), // 1: enabled, 2: disabled, 3: used
+  type: z.preprocess(
+    (value) => value || REDEMPTION_TYPE.QUOTA,
+    z.enum([REDEMPTION_TYPE.QUOTA, REDEMPTION_TYPE.SUBSCRIPTION])
+  ),
   quota: z.number(),
+  subscription_plan_id: z.preprocess((value) => value || 0, z.number()),
+  subscription_plan_title: z.string().optional(),
   created_time: z.number(),
   redeemed_time: z.number(),
   expired_time: z.number(), // 0 for never expires
@@ -50,6 +64,7 @@ export interface ApiResponse<T = unknown> {
 export interface GetRedemptionsParams {
   p?: number
   page_size?: number
+  type?: RedemptionType
 }
 
 export interface GetRedemptionsResponse {
@@ -67,12 +82,15 @@ export interface SearchRedemptionsParams {
   keyword?: string
   p?: number
   page_size?: number
+  type?: RedemptionType
 }
 
 export interface RedemptionFormData {
   id?: number
   name: string
+  type: RedemptionType
   quota: number
+  subscription_plan_id?: number
   expired_time: number
   count?: number // Only for create
   status?: number // Only for status update

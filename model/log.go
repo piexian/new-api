@@ -337,7 +337,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 		tx = tx.Where("logs.user_agent LIKE ?", userAgent)
 	}
 	if ip != "" {
-		tx = tx.Where("logs.ip LIKE ?", ip)
+		tx = tx.Where("logs.ip = ?", ip)
 	}
 	if requestId != "" {
 		tx = tx.Where("logs.request_id = ?", requestId)
@@ -436,7 +436,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 		tx = tx.Where("logs.user_agent LIKE ?", userAgent)
 	}
 	if ip != "" {
-		tx = tx.Where("logs.ip LIKE ?", ip)
+		tx = tx.Where("logs.ip = ?", ip)
 	}
 	if requestId != "" {
 		tx = tx.Where("logs.request_id = ?", requestId)

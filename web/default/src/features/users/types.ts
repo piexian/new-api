@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
+import type { ApiKey, ApiKeyFormData } from '@/features/keys/types'
 
 // ============================================================================
 // User Schema & Types
@@ -90,6 +91,25 @@ export interface GetUsersResponse {
   message?: string
   data?: {
     items: User[]
+    total: number
+    page: number
+    page_size: number
+  }
+}
+
+export type UserToken = ApiKey
+export type UserTokenFormData = ApiKeyFormData
+
+export interface GetUserTokensParams {
+  p?: number
+  size?: number
+}
+
+export interface GetUserTokensResponse {
+  success: boolean
+  message?: string
+  data?: {
+    items: UserToken[]
     total: number
     page: number
     page_size: number
