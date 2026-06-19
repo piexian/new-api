@@ -54,6 +54,44 @@ code {
 }
 
 /* ==================== 布局相关样式 ==================== */
+.topup-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.topup-grid-panel {
+  min-width: 0;
+  width: 100%;
+  max-width: none;
+}
+
+.topup-subscriptions-panel,
+.topup-subscriptions-panel > *,
+.topup-subscriptions-panel .semi-space,
+.topup-subscriptions-panel .semi-space-item,
+.topup-subscriptions-panel .semi-card,
+.topup-subscriptions-panel .semi-card-body {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1024px) {
+  .topup-main-grid--split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .topup-subscriptions-panel {
+    position: sticky;
+    top: 5rem;
+    align-self: start;
+    justify-self: stretch;
+  }
+}
+
 .semi-layout::-webkit-scrollbar,
 .semi-layout-content::-webkit-scrollbar,
 .semi-sider::-webkit-scrollbar {
@@ -367,7 +405,9 @@ code {
   line-height: 1;
   background-color: var(--semi-color-fill-0);
   color: var(--semi-color-text-2);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .sbg-badge-active {
@@ -885,7 +925,8 @@ html.dark .with-pastel-balls::before {
     max-width: 80px;
   }
 
-  .semi-input-prefix-text, .semi-input-suffix-text {
+  .semi-input-prefix-text,
+  .semi-input-suffix-text {
     margin: 0;
   }
 
@@ -1023,4 +1064,6 @@ html.dark .with-pastel-balls::before {
   }
 }
 
-.ec-dbcd0a3c01b55203 { forced-color-adjust: auto; }
+.ec-dbcd0a3c01b55203 {
+  forced-color-adjust: auto;
+}

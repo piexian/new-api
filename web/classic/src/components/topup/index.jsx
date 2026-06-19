@@ -911,11 +911,11 @@ const TopUp = () => {
 
       {/* 主布局区域 */}
       <div
-        className={`grid grid-cols-1 gap-6 ${
-          shouldShowMySubscriptions ? 'lg:grid-cols-2 lg:items-start' : ''
+        className={`topup-main-grid ${
+          shouldShowMySubscriptions ? 'topup-main-grid--split' : ''
         }`}
       >
-        <div className='min-w-0 w-full'>
+        <div className='topup-grid-panel'>
           <RechargeCard
             t={t}
             enableOnlineTopUp={enableOnlineTopUp}
@@ -967,7 +967,7 @@ const TopUp = () => {
           />
         </div>
         {shouldShowMySubscriptions && (
-          <div className='min-w-0 w-full lg:sticky lg:top-20 lg:self-start'>
+          <div className='topup-grid-panel topup-subscriptions-panel'>
             <SubscriptionPlansCard
               t={t}
               loading={subscriptionLoading}
