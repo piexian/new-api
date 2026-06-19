@@ -912,35 +912,10 @@ const TopUp = () => {
       {/* 主布局区域 */}
       <div
         className={`grid grid-cols-1 gap-6 ${
-          shouldShowMySubscriptions
-            ? 'lg:grid-cols-[minmax(340px,440px)_minmax(0,1fr)] lg:items-start'
-            : ''
+          shouldShowMySubscriptions ? 'lg:grid-cols-2 lg:items-start' : ''
         }`}
       >
-        {shouldShowMySubscriptions && (
-          <div className='min-w-0 lg:sticky lg:top-20 lg:self-start'>
-            <SubscriptionPlansCard
-              t={t}
-              loading={subscriptionLoading}
-              plans={subscriptionPlans}
-              payMethods={confirmPayMethods}
-              enableOnlineTopUp={enableOnlineTopUp}
-              enableStripeTopUp={enableStripeTopUp}
-              enableCreemTopUp={enableCreemTopUp}
-              billingPreference={billingPreference}
-              onChangeBillingPreference={updateBillingPreference}
-              activeSubscriptions={activeSubscriptions}
-              allSubscriptions={allSubscriptions}
-              reloadSubscriptionSelf={getSubscriptionSelf}
-              walletQuota={userState?.user?.quota || 0}
-              quotaPerUnit={getQuotaPerUnit()}
-              reloadUserQuota={getUserQuota}
-              withCard={false}
-              hidePlans
-            />
-          </div>
-        )}
-        <div className='min-w-0'>
+        <div className='min-w-0 w-full'>
           <RechargeCard
             t={t}
             enableOnlineTopUp={enableOnlineTopUp}
@@ -991,6 +966,29 @@ const TopUp = () => {
             enableRedemption={topupInfo.enable_redemption !== false}
           />
         </div>
+        {shouldShowMySubscriptions && (
+          <div className='min-w-0 w-full lg:sticky lg:top-20 lg:self-start'>
+            <SubscriptionPlansCard
+              t={t}
+              loading={subscriptionLoading}
+              plans={subscriptionPlans}
+              payMethods={confirmPayMethods}
+              enableOnlineTopUp={enableOnlineTopUp}
+              enableStripeTopUp={enableStripeTopUp}
+              enableCreemTopUp={enableCreemTopUp}
+              billingPreference={billingPreference}
+              onChangeBillingPreference={updateBillingPreference}
+              activeSubscriptions={activeSubscriptions}
+              allSubscriptions={allSubscriptions}
+              reloadSubscriptionSelf={getSubscriptionSelf}
+              walletQuota={userState?.user?.quota || 0}
+              quotaPerUnit={getQuotaPerUnit()}
+              reloadUserQuota={getUserQuota}
+              withCard={false}
+              hidePlans
+            />
+          </div>
+        )}
       </div>
     </div>
   );
