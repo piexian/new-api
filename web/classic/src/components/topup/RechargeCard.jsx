@@ -704,6 +704,7 @@ const RechargeCard = ({
                 quotaPerUnit={quotaPerUnit}
                 reloadUserQuota={reloadUserQuota}
                 withCard={false}
+                hideSubscriptions
               />
             </div>
           </TabPane>

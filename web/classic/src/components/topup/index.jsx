@@ -36,6 +36,7 @@ import { StatusContext } from '../../context/Status';
 import RechargeCard from './RechargeCard';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
+import SubscriptionPlansCard from './SubscriptionPlansCard';
 
 // Reject non-navigable schemes (e.g. javascript:, data:) and relative URLs.
 // Only http / https are allowed for backend-provided redirect targets.
@@ -848,6 +849,12 @@ const TopUp = () => {
     }));
   };
 
+  const shouldShowMySubscriptions =
+    subscriptionLoading ||
+    subscriptionPlans.length > 0 ||
+    activeSubscriptions.length > 0 ||
+    allSubscriptions.length > 0;
+
   return (
     <div className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 mt-[60px] px-2'>
       {/* 充值确认模态框 */}
@@ -904,6 +911,27 @@ const TopUp = () => {
 
       {/* 主布局区域 */}
       <div className='grid grid-cols-1 gap-6'>
+        {shouldShowMySubscriptions && (
+          <SubscriptionPlansCard
+            t={t}
+            loading={subscriptionLoading}
+            plans={subscriptionPlans}
+            payMethods={confirmPayMethods}
+            enableOnlineTopUp={enableOnlineTopUp}
+            enableStripeTopUp={enableStripeTopUp}
+            enableCreemTopUp={enableCreemTopUp}
+            billingPreference={billingPreference}
+            onChangeBillingPreference={updateBillingPreference}
+            activeSubscriptions={activeSubscriptions}
+            allSubscriptions={allSubscriptions}
+            reloadSubscriptionSelf={getSubscriptionSelf}
+            walletQuota={userState?.user?.quota || 0}
+            quotaPerUnit={getQuotaPerUnit()}
+            reloadUserQuota={getUserQuota}
+            withCard={false}
+            hidePlans
+          />
+        )}
         <RechargeCard
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}
