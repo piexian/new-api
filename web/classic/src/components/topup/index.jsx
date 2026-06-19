@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   API,
@@ -109,6 +109,9 @@ const TopUp = () => {
     useState('subscription_first');
   const [activeSubscriptions, setActiveSubscriptions] = useState([]);
   const [allSubscriptions, setAllSubscriptions] = useState([]);
+  const rechargePanelRef = useRef(null);
+  const [subscriptionPanelMaxHeight, setSubscriptionPanelMaxHeight] =
+    useState(null);
 
   // 预设充值额度选项
   const [presetAmounts, setPresetAmounts] = useState([]);
@@ -855,6 +858,38 @@ const TopUp = () => {
     activeSubscriptions.length > 0 ||
     allSubscriptions.length > 0;
 
+  useEffect(() => {
+    if (!shouldShowMySubscriptions) {
+      setSubscriptionPanelMaxHeight(null);
+      return undefined;
+    }
+
+    const updateHeight = () => {
+      const height = rechargePanelRef.current?.getBoundingClientRect().height;
+      if (!height) return;
+      const roundedHeight = Math.ceil(height);
+      setSubscriptionPanelMaxHeight((prev) =>
+        Math.abs((prev || 0) - roundedHeight) < 2 ? prev : roundedHeight,
+      );
+    };
+
+    updateHeight();
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(updateHeight)
+        : null;
+    if (resizeObserver && rechargePanelRef.current) {
+      resizeObserver.observe(rechargePanelRef.current);
+    }
+    window.addEventListener('resize', updateHeight);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, [shouldShowMySubscriptions]);
+
   return (
     <div className='w-full max-w-7xl mx-auto relative min-h-screen lg:min-h-0 mt-[60px] px-2'>
       {/* 充值确认模态框 */}
@@ -915,7 +950,7 @@ const TopUp = () => {
           shouldShowMySubscriptions ? 'topup-main-grid--split' : ''
         }`}
       >
-        <div className='topup-grid-panel'>
+        <div ref={rechargePanelRef} className='topup-grid-panel'>
           <RechargeCard
             t={t}
             enableOnlineTopUp={enableOnlineTopUp}
@@ -967,7 +1002,16 @@ const TopUp = () => {
           />
         </div>
         {shouldShowMySubscriptions && (
-          <div className='topup-grid-panel topup-subscriptions-panel'>
+          <div
+            className='topup-grid-panel topup-subscriptions-panel'
+            style={
+              subscriptionPanelMaxHeight
+                ? {
+                    '--topup-subscriptions-max-height': `${subscriptionPanelMaxHeight}px`,
+                  }
+                : undefined
+            }
+          >
             <SubscriptionPlansCard
               t={t}
               loading={subscriptionLoading}

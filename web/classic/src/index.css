@@ -89,6 +89,31 @@ code {
     top: 5rem;
     align-self: start;
     justify-self: stretch;
+    max-height: var(--topup-subscriptions-max-height, none);
+    overflow: hidden;
+  }
+
+  .topup-subscriptions-panel .topup-subscription-card-container,
+  .topup-subscriptions-panel .topup-subscription-card-container > .semi-space,
+  .topup-subscriptions-panel
+    .topup-subscription-card-container
+    > .semi-space
+    > .semi-space-item,
+  .topup-subscriptions-panel .topup-my-subscriptions-card,
+  .topup-subscriptions-panel .topup-my-subscriptions-card .semi-card-body,
+  .topup-subscriptions-panel .topup-my-subscriptions-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: var(--topup-subscriptions-max-height, none);
+    overflow: hidden;
+  }
+
+  .topup-subscriptions-panel .topup-my-subscriptions-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
   }
 }
 

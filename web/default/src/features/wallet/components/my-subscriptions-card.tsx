@@ -57,6 +57,7 @@ import type {
 
 interface MySubscriptionsCardProps {
   refreshKey?: number
+  compact?: boolean
 }
 
 function getBillingPreferenceLabel(
@@ -93,6 +94,7 @@ function getUsagePercent(sub: UserSubscriptionRecord) {
 
 export function MySubscriptionsCard({
   refreshKey = 0,
+  compact = false,
 }: MySubscriptionsCardProps) {
   const { t } = useTranslation()
   const [plans, setPlans] = useState<PlanRecord[]>([])
@@ -332,7 +334,12 @@ export function MySubscriptionsCard({
       {hasAny ? (
         <>
           <Separator />
-          <div className='grid gap-3 lg:grid-cols-2'>
+          <div
+            className={cn(
+              'grid gap-3',
+              compact ? 'grid-cols-1' : 'lg:grid-cols-2'
+            )}
+          >
             {allSubscriptions.map((sub) => {
               const subscription = sub.subscription
               const totalAmount = Number(subscription?.amount_total || 0)

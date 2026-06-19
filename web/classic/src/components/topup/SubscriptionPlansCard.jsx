@@ -473,214 +473,235 @@ const SubscriptionPlansCard = ({
           {/* 当前订阅状态 */}
           {!hideSubscriptions && (
             <Card
-              className='!rounded-xl w-full'
+              className={`!rounded-xl w-full ${
+                hidePlans ? 'topup-my-subscriptions-card' : ''
+              }`}
               bodyStyle={{ padding: '12px' }}
             >
-              <div className='flex items-center justify-between mb-2 gap-3'>
-                <div className='flex items-center gap-2 flex-1 min-w-0'>
-                  <Text strong>{t('我的订阅')}</Text>
-                  {hasActiveSubscription ? (
-                    <Tag
-                      color='white'
+              <div
+                className={hidePlans ? 'topup-my-subscriptions-content' : ''}
+              >
+                <div className='flex items-center justify-between mb-2 gap-3'>
+                  <div className='flex items-center gap-2 flex-1 min-w-0'>
+                    <Text strong>{t('我的订阅')}</Text>
+                    {hasActiveSubscription ? (
+                      <Tag
+                        color='white'
+                        size='small'
+                        shape='circle'
+                        prefixIcon={<Badge dot type='success' />}
+                      >
+                        {activeSubscriptions.length} {t('个生效中')}
+                      </Tag>
+                    ) : (
+                      <Tag color='white' size='small' shape='circle'>
+                        {t('无生效')}
+                      </Tag>
+                    )}
+                    {allSubscriptions.length > activeSubscriptions.length && (
+                      <Tag color='white' size='small' shape='circle'>
+                        {allSubscriptions.length - activeSubscriptions.length}{' '}
+                        {t('个已过期')}
+                      </Tag>
+                    )}
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <Select
+                      value={displayBillingPreference}
+                      onChange={onChangeBillingPreference}
                       size='small'
-                      shape='circle'
-                      prefixIcon={<Badge dot type='success' />}
+                      optionList={[
+                        {
+                          value: 'subscription_first',
+                          label: disableSubscriptionPreference
+                            ? `${t('优先订阅')} (${t('无生效')})`
+                            : t('优先订阅'),
+                          disabled: disableSubscriptionPreference,
+                        },
+                        { value: 'wallet_first', label: t('优先钱包') },
+                        {
+                          value: 'subscription_only',
+                          label: disableSubscriptionPreference
+                            ? `${t('仅用订阅')} (${t('无生效')})`
+                            : t('仅用订阅'),
+                          disabled: disableSubscriptionPreference,
+                        },
+                        { value: 'wallet_only', label: t('仅用钱包') },
+                      ]}
+                    />
+                    <Button
+                      size='small'
+                      theme='light'
+                      type='tertiary'
+                      icon={
+                        <RefreshCw
+                          size={12}
+                          className={refreshing ? 'animate-spin' : ''}
+                        />
+                      }
+                      onClick={handleRefresh}
+                      loading={refreshing}
+                    />
+                  </div>
+                </div>
+                {disableSubscriptionPreference && isSubscriptionPreference && (
+                  <Text type='tertiary' size='small'>
+                    {t('已保存偏好为')}
+                    {subscriptionPreferenceLabel}
+                    {t('，当前无生效订阅，将自动使用钱包')}
+                  </Text>
+                )}
+
+                {hasAnySubscription ? (
+                  <>
+                    <Divider margin={8} />
+                    <div
+                      className={`overflow-y-auto pr-1 semi-table-body ${
+                        hidePlans ? 'topup-my-subscriptions-list' : 'max-h-64'
+                      }`}
                     >
-                      {activeSubscriptions.length} {t('个生效中')}
-                    </Tag>
-                  ) : (
-                    <Tag color='white' size='small' shape='circle'>
-                      {t('无生效')}
-                    </Tag>
-                  )}
-                  {allSubscriptions.length > activeSubscriptions.length && (
-                    <Tag color='white' size='small' shape='circle'>
-                      {allSubscriptions.length - activeSubscriptions.length}{' '}
-                      {t('个已过期')}
-                    </Tag>
-                  )}
-                </div>
-                <div className='flex items-center gap-2'>
-                  <Select
-                    value={displayBillingPreference}
-                    onChange={onChangeBillingPreference}
-                    size='small'
-                    optionList={[
-                      {
-                        value: 'subscription_first',
-                        label: disableSubscriptionPreference
-                          ? `${t('优先订阅')} (${t('无生效')})`
-                          : t('优先订阅'),
-                        disabled: disableSubscriptionPreference,
-                      },
-                      { value: 'wallet_first', label: t('优先钱包') },
-                      {
-                        value: 'subscription_only',
-                        label: disableSubscriptionPreference
-                          ? `${t('仅用订阅')} (${t('无生效')})`
-                          : t('仅用订阅'),
-                        disabled: disableSubscriptionPreference,
-                      },
-                      { value: 'wallet_only', label: t('仅用钱包') },
-                    ]}
-                  />
-                  <Button
-                    size='small'
-                    theme='light'
-                    type='tertiary'
-                    icon={
-                      <RefreshCw
-                        size={12}
-                        className={refreshing ? 'animate-spin' : ''}
-                      />
-                    }
-                    onClick={handleRefresh}
-                    loading={refreshing}
-                  />
-                </div>
-              </div>
-              {disableSubscriptionPreference && isSubscriptionPreference && (
-                <Text type='tertiary' size='small'>
-                  {t('已保存偏好为')}
-                  {subscriptionPreferenceLabel}
-                  {t('，当前无生效订阅，将自动使用钱包')}
-                </Text>
-              )}
+                      {allSubscriptions.map((sub, subIndex) => {
+                        const isLast = subIndex === allSubscriptions.length - 1;
+                        const subscription = sub.subscription;
+                        const totalAmount = Number(
+                          subscription?.amount_total || 0,
+                        );
+                        const usedAmount = Number(
+                          subscription?.amount_used || 0,
+                        );
+                        const remainAmount =
+                          totalAmount > 0
+                            ? Math.max(0, totalAmount - usedAmount)
+                            : 0;
+                        const planTitle =
+                          sub?.plan?.title ||
+                          planTitleMap.get(subscription?.plan_id) ||
+                          '';
+                        const remainDays = getRemainingDays(sub);
+                        const usagePercent = getUsagePercent(sub);
+                        const now = Date.now() / 1000;
+                        const isExpired = (subscription?.end_time || 0) < now;
+                        const isCancelled =
+                          subscription?.status === 'cancelled';
+                        const isActive =
+                          subscription?.status === 'active' && !isExpired;
+                        const planInfo = sub?.plan;
+                        const modelRestrictionMeta =
+                          getModelRestrictionMeta(planInfo);
+                        const windowUsageItems = getQuotaWindowItems(
+                          planInfo,
+                          subscription,
+                        );
 
-              {hasAnySubscription ? (
-                <>
-                  <Divider margin={8} />
-                  <div className='max-h-64 overflow-y-auto pr-1 semi-table-body'>
-                    {allSubscriptions.map((sub, subIndex) => {
-                      const isLast = subIndex === allSubscriptions.length - 1;
-                      const subscription = sub.subscription;
-                      const totalAmount = Number(
-                        subscription?.amount_total || 0,
-                      );
-                      const usedAmount = Number(subscription?.amount_used || 0);
-                      const remainAmount =
-                        totalAmount > 0
-                          ? Math.max(0, totalAmount - usedAmount)
-                          : 0;
-                      const planTitle =
-                        sub?.plan?.title ||
-                        planTitleMap.get(subscription?.plan_id) ||
-                        '';
-                      const remainDays = getRemainingDays(sub);
-                      const usagePercent = getUsagePercent(sub);
-                      const now = Date.now() / 1000;
-                      const isExpired = (subscription?.end_time || 0) < now;
-                      const isCancelled = subscription?.status === 'cancelled';
-                      const isActive =
-                        subscription?.status === 'active' && !isExpired;
-                      const planInfo = sub?.plan;
-                      const modelRestrictionMeta =
-                        getModelRestrictionMeta(planInfo);
-                      const windowUsageItems = getQuotaWindowItems(
-                        planInfo,
-                        subscription,
-                      );
-
-                      return (
-                        <div key={subscription?.id || subIndex}>
-                          {/* 订阅概要 */}
-                          <div className='flex items-center justify-between text-xs mb-2'>
-                            <div className='flex items-center gap-2'>
-                              <span className='font-medium'>
-                                {planTitle
-                                  ? `${planTitle} · ${t('订阅')} #${subscription?.id}`
-                                  : `${t('订阅')} #${subscription?.id}`}
-                              </span>
-                              {isActive ? (
-                                <Tag
-                                  color='white'
-                                  size='small'
-                                  shape='circle'
-                                  prefixIcon={<Badge dot type='success' />}
-                                >
-                                  {t('生效')}
-                                </Tag>
-                              ) : isCancelled ? (
-                                <Tag color='white' size='small' shape='circle'>
-                                  {t('已作废')}
-                                </Tag>
-                              ) : (
-                                <Tag color='white' size='small' shape='circle'>
-                                  {t('已过期')}
-                                </Tag>
+                        return (
+                          <div key={subscription?.id || subIndex}>
+                            {/* 订阅概要 */}
+                            <div className='flex items-center justify-between text-xs mb-2'>
+                              <div className='flex items-center gap-2'>
+                                <span className='font-medium'>
+                                  {planTitle
+                                    ? `${planTitle} · ${t('订阅')} #${subscription?.id}`
+                                    : `${t('订阅')} #${subscription?.id}`}
+                                </span>
+                                {isActive ? (
+                                  <Tag
+                                    color='white'
+                                    size='small'
+                                    shape='circle'
+                                    prefixIcon={<Badge dot type='success' />}
+                                  >
+                                    {t('生效')}
+                                  </Tag>
+                                ) : isCancelled ? (
+                                  <Tag
+                                    color='white'
+                                    size='small'
+                                    shape='circle'
+                                  >
+                                    {t('已作废')}
+                                  </Tag>
+                                ) : (
+                                  <Tag
+                                    color='white'
+                                    size='small'
+                                    shape='circle'
+                                  >
+                                    {t('已过期')}
+                                  </Tag>
+                                )}
+                              </div>
+                              {isActive && (
+                                <span className='text-gray-500'>
+                                  {t('剩余')} {remainDays} {t('天')}
+                                </span>
                               )}
                             </div>
-                            {isActive && (
-                              <span className='text-gray-500'>
-                                {t('剩余')} {remainDays} {t('天')}
-                              </span>
-                            )}
-                          </div>
-                          <div className='text-xs text-gray-500 mb-2'>
-                            {isActive
-                              ? t('至')
-                              : isCancelled
-                                ? t('作废于')
-                                : t('过期于')}{' '}
-                            {new Date(
-                              (subscription?.end_time || 0) * 1000,
-                            ).toLocaleString()}
-                          </div>
-                          {isActive && subscription?.next_reset_time > 0 && (
                             <div className='text-xs text-gray-500 mb-2'>
-                              {t('下一次重置')}:{' '}
+                              {isActive
+                                ? t('至')
+                                : isCancelled
+                                  ? t('作废于')
+                                  : t('过期于')}{' '}
                               {new Date(
-                                subscription.next_reset_time * 1000,
+                                (subscription?.end_time || 0) * 1000,
                               ).toLocaleString()}
                             </div>
-                          )}
-                          <div className='text-xs text-gray-500 mb-2'>
-                            {t('总额度')}:{' '}
-                            {totalAmount > 0 ? (
-                              <Tooltip
-                                content={`${t('原生额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
-                              >
-                                <span>
-                                  {renderQuota(usedAmount)}/
-                                  {renderQuota(totalAmount)} · {t('剩余')}{' '}
-                                  {renderQuota(remainAmount)}
-                                </span>
-                              </Tooltip>
-                            ) : (
-                              t('不限')
+                            {isActive && subscription?.next_reset_time > 0 && (
+                              <div className='text-xs text-gray-500 mb-2'>
+                                {t('下一次重置')}:{' '}
+                                {new Date(
+                                  subscription.next_reset_time * 1000,
+                                ).toLocaleString()}
+                              </div>
                             )}
-                            {totalAmount > 0 && (
-                              <span className='ml-2'>
-                                {t('已用')} {usagePercent}%
-                              </span>
-                            )}
-                          </div>
-                          {modelRestrictionMeta && (
                             <div className='text-xs text-gray-500 mb-2'>
-                              <Tooltip content={modelRestrictionMeta.tooltip}>
-                                <span>{modelRestrictionMeta.label}</span>
-                              </Tooltip>
+                              {t('总额度')}:{' '}
+                              {totalAmount > 0 ? (
+                                <Tooltip
+                                  content={`${t('原生额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
+                                >
+                                  <span>
+                                    {renderQuota(usedAmount)}/
+                                    {renderQuota(totalAmount)} · {t('剩余')}{' '}
+                                    {renderQuota(remainAmount)}
+                                  </span>
+                                </Tooltip>
+                              ) : (
+                                t('不限')
+                              )}
+                              {totalAmount > 0 && (
+                                <span className='ml-2'>
+                                  {t('已用')} {usagePercent}%
+                                </span>
+                              )}
                             </div>
-                          )}
-                          {windowUsageItems.map((item) => (
-                            <div
-                              key={`${subscription?.id || subIndex}-${item.label}`}
-                              className='text-xs text-gray-500 mb-2'
-                            >
-                              {item.label}
-                            </div>
-                          ))}
-                          {!isLast && <Divider margin={12} />}
-                        </div>
-                      );
-                    })}
+                            {modelRestrictionMeta && (
+                              <div className='text-xs text-gray-500 mb-2'>
+                                <Tooltip content={modelRestrictionMeta.tooltip}>
+                                  <span>{modelRestrictionMeta.label}</span>
+                                </Tooltip>
+                              </div>
+                            )}
+                            {windowUsageItems.map((item) => (
+                              <div
+                                key={`${subscription?.id || subIndex}-${item.label}`}
+                                className='text-xs text-gray-500 mb-2'
+                              >
+                                {item.label}
+                              </div>
+                            ))}
+                            {!isLast && <Divider margin={12} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div className='text-xs text-gray-500'>
+                    {t('购买套餐后即可享受模型权益')}
                   </div>
-                </>
-              ) : (
-                <div className='text-xs text-gray-500'>
-                  {t('购买套餐后即可享受模型权益')}
-                </div>
-              )}
+                )}
+              </div>
             </Card>
           )}
 
@@ -889,7 +910,13 @@ const SubscriptionPlansCard = ({
       {withCard ? (
         <Card className='!rounded-2xl shadow-sm border-0'>{cardContent}</Card>
       ) : (
-        <div className='space-y-3'>{cardContent}</div>
+        <div
+          className={`space-y-3 ${
+            hidePlans ? 'topup-subscription-card-container' : ''
+          }`}
+        >
+          {cardContent}
+        </div>
       )}
 
       {/* 购买确认弹窗 */}
