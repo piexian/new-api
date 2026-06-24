@@ -1,12 +1,26 @@
 package middleware
 
 import (
+	"crypto/x509"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+)
+
+const turnstileSiteVerifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+var (
+	turnstileSiteVerifyClient       = &http.Client{Timeout: 10 * time.Second}
+	turnstileDirectSiteVerifyClient = &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: newTurnstileDirectTransport(),
+	}
 )
 
 type turnstileCheckResponse struct {
@@ -45,7 +59,7 @@ func validateTurnstile(c *gin.Context, allowSessionReuse bool) bool {
 		return false
 	}
 
-	rawRes, err := http.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", url.Values{
+	rawRes, err := postTurnstileSiteVerify(url.Values{
 		"secret":   {common.TurnstileSecretKey},
 		"response": {response},
 		"remoteip": {c.ClientIP()},
@@ -94,6 +108,54 @@ func validateTurnstile(c *gin.Context, allowSessionReuse bool) bool {
 		}
 	}
 	return true
+}
+
+func postTurnstileSiteVerify(values url.Values) (*http.Response, error) {
+	rawRes, err := postTurnstileSiteVerifyWithClient(turnstileSiteVerifyClient, values)
+	if err == nil || !isTurnstileCertificateError(err) {
+		return rawRes, err
+	}
+	if rawRes != nil && rawRes.Body != nil {
+		_ = rawRes.Body.Close()
+	}
+
+	common.SysLog(fmt.Sprintf("Turnstile siteverify TLS certificate check failed through environment proxy, retrying without proxy: %v", err))
+	directRes, directErr := postTurnstileSiteVerifyWithClient(turnstileDirectSiteVerifyClient, values)
+	if directErr != nil {
+		common.SysLog(fmt.Sprintf("Turnstile siteverify direct retry failed: %v", directErr))
+		return nil, fmt.Errorf("turnstile siteverify failed through environment proxy: %w; direct retry failed: %v", err, directErr)
+	}
+	return directRes, nil
+}
+
+func postTurnstileSiteVerifyWithClient(client *http.Client, values url.Values) (*http.Response, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	return client.PostForm(turnstileSiteVerifyURL, values)
+}
+
+func isTurnstileCertificateError(err error) bool {
+	var hostnameErr x509.HostnameError
+	if errors.As(err, &hostnameErr) {
+		return true
+	}
+	var unknownAuthorityErr x509.UnknownAuthorityError
+	if errors.As(err, &unknownAuthorityErr) {
+		return true
+	}
+	var certificateInvalidErr x509.CertificateInvalidError
+	return errors.As(err, &certificateInvalidErr)
+}
+
+func newTurnstileDirectTransport() http.RoundTripper {
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok || defaultTransport == nil {
+		return &http.Transport{Proxy: nil}
+	}
+	transport := defaultTransport.Clone()
+	transport.Proxy = nil
+	return transport
 }
 
 func TurnstileCheck() gin.HandlerFunc {

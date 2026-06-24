@@ -166,6 +166,8 @@ func main() {
 
 	// Initialize HTTP server
 	server := gin.New()
+	// 只信任内网代理，防止客户端通过 X-Forwarded-For 伪造 IP（如 Clash ULA fdbd:dc*）
+	_ = server.SetTrustedProxies([]string{"127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "::1/128", "fc00::/7"})
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{
