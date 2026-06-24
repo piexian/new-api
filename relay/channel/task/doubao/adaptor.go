@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -113,6 +114,22 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.apiKey = info.ApiKey
 }
 
+func doubaoTaskOpenAIBaseURL(baseURL string) string {
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		baseURL = constant.ChannelBaseURLs[constant.ChannelTypeVolcEngine]
+	}
+	if specialBase, ok := constant.ChannelSpecialBases[baseURL]; ok && specialBase.OpenAIBaseURL != "" {
+		return strings.TrimRight(specialBase.OpenAIBaseURL, "/")
+	}
+	if strings.HasSuffix(baseURL, "/api/v3") ||
+		strings.HasSuffix(baseURL, "/api/plan/v3") ||
+		strings.HasSuffix(baseURL, "/api/coding/v3") {
+		return baseURL
+	}
+	return fmt.Sprintf("%s/api/v3", baseURL)
+}
+
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) (taskErr *dto.TaskError) {
 	// Accept only POST /v1/video/generations as "generate" action.
@@ -121,7 +138,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 // BuildRequestURL constructs the upstream URL.
 func (a *TaskAdaptor) BuildRequestURL(_ *relaycommon.RelayInfo) (string, error) {
-	return fmt.Sprintf("%s/api/v3/contents/generations/tasks", a.baseURL), nil
+	return fmt.Sprintf("%s/contents/generations/tasks", doubaoTaskOpenAIBaseURL(a.baseURL)), nil
 }
 
 // BuildRequestHeader sets required headers.
@@ -241,7 +258,7 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/api/v3/contents/generations/tasks/%s", baseUrl, taskID)
+	uri := fmt.Sprintf("%s/contents/generations/tasks/%s", doubaoTaskOpenAIBaseURL(baseUrl), taskID)
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {

@@ -101,6 +101,19 @@ func TestGetEndpointTypesByChannelTypeForDeepSeek(t *testing.T) {
 	}
 }
 
+func TestGetEndpointTypesByChannelTypeForVolcEngine(t *testing.T) {
+	t.Parallel()
+
+	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeVolcEngine, "doubao-seed-2-1-pro-260628")
+	want := []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+	}
+	if !reflect.DeepEqual(endpoints, want) {
+		t.Fatalf("expected VolcEngine endpoints %#v, got %#v", want, endpoints)
+	}
+}
+
 func TestGetEndpointTypesByChannelTypeForXunfeiMaaSImage(t *testing.T) {
 	t.Parallel()
 

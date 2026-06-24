@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -25,8 +26,10 @@ import (
 )
 
 const (
-	contextKeyTTSRequest     = "volcengine_tts_request"
-	contextKeyResponseFormat = "response_format"
+	contextKeyTTSRequest              = "volcengine_tts_request"
+	contextKeyResponseFormat          = "response_format"
+	contextKeyTTSOpenSpeechV3         = "volcengine_tts_openspeech_v3"
+	contextKeyTTSOpenSpeechV3Resource = "volcengine_tts_openspeech_v3_resource_id"
 )
 
 type Adaptor struct {
@@ -38,7 +41,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+	if shouldUseVolcengineClaudeMessagesEndpoint(info) {
 		adaptor := claude.Adaptor{}
 		return adaptor.ConvertClaudeRequest(c, info, req)
 	}
@@ -49,6 +52,24 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
 	if info.RelayMode != constant.RelayModeAudioSpeech {
 		return nil, errors.New("unsupported audio relay mode")
+	}
+
+	baseURL := info.ChannelBaseUrl
+	if baseURL == "" {
+		baseURL = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine]
+	}
+	if isOpenSpeechTTSV3Base(baseURL) {
+		encoding := mapEncoding(request.ResponseFormat)
+		c.Set(contextKeyResponseFormat, encoding)
+		c.Set(contextKeyTTSOpenSpeechV3, true)
+		c.Set(contextKeyTTSOpenSpeechV3Resource, parseTTSV3ResourceID(request.Metadata))
+
+		info.IsStream = false
+		jsonData, buildErr := buildTTSV3RequestBody(request.Input, mapVoiceType(request.Voice), encoding, request.Speed)
+		if buildErr != nil {
+			return nil, fmt.Errorf("error marshalling openspeech v3 request: %w", buildErr)
+		}
+		return bytes.NewReader(jsonData), nil
 	}
 
 	appID, token, err := parseVolcengineAuth(info.ApiKey)
@@ -86,7 +107,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	if len(request.Metadata) > 0 {
-		if err = json.Unmarshal(request.Metadata, &volcRequest); err != nil {
+		if err = common.Unmarshal(request.Metadata, &volcRequest); err != nil {
 			return nil, fmt.Errorf("error unmarshalling metadata to volcengine request: %w", err)
 		}
 	}
@@ -97,7 +118,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		info.IsStream = true
 	}
 
-	jsonData, err := json.Marshal(volcRequest)
+	jsonData, err := common.Marshal(volcRequest)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling volcengine request: %w", err)
 	}
@@ -236,44 +257,103 @@ func detectImageMimeType(filename string) string {
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
+func volcengineV3BaseURL(baseUrl string) string {
+	baseUrl = strings.TrimRight(baseUrl, "/")
+	if strings.HasSuffix(baseUrl, "/api/v3") ||
+		strings.HasSuffix(baseUrl, "/api/plan/v3") ||
+		strings.HasSuffix(baseUrl, "/api/coding/v3") {
+		return baseUrl
+	}
+	return fmt.Sprintf("%s/api/v3", baseUrl)
+}
+
+func volcengineOpenAIBaseURL(baseUrl string, specialPlan channelconstant.ChannelSpecialBase, hasSpecialPlan bool) string {
+	if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
+		return strings.TrimRight(specialPlan.OpenAIBaseURL, "/")
+	}
+	return volcengineV3BaseURL(baseUrl)
+}
+
+func volcengineClaudeBaseURL(baseUrl string, specialPlan channelconstant.ChannelSpecialBase, hasSpecialPlan bool) string {
+	if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
+		return strings.TrimRight(specialPlan.ClaudeBaseURL, "/")
+	}
+
+	baseUrl = strings.TrimRight(baseUrl, "/")
+	lowerBaseURL := strings.ToLower(baseUrl)
+	switch {
+	case strings.HasSuffix(lowerBaseURL, "/api/compatible/v1"),
+		strings.HasSuffix(lowerBaseURL, "/api/plan/v1"),
+		strings.HasSuffix(lowerBaseURL, "/api/coding/v1"):
+		return strings.TrimRight(baseUrl[:len(baseUrl)-len("/v1")], "/")
+	case strings.HasSuffix(lowerBaseURL, "/api/compatible"),
+		strings.HasSuffix(lowerBaseURL, "/api/plan"),
+		strings.HasSuffix(lowerBaseURL, "/api/coding"):
+		return baseUrl
+	case strings.HasSuffix(lowerBaseURL, "/api/plan/v3"),
+		strings.HasSuffix(lowerBaseURL, "/api/coding/v3"):
+		return strings.TrimRight(baseUrl[:len(baseUrl)-len("/v3")], "/")
+	case strings.HasSuffix(lowerBaseURL, "/api/v3"):
+		return strings.TrimRight(baseUrl[:len(baseUrl)-len("/api/v3")], "/") + "/api/compatible"
+	default:
+		return baseUrl + "/api/compatible"
+	}
+}
+
+func shouldUseVolcengineClaudeMessagesEndpoint(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.RelayFormat != types.RelayFormatClaude {
+		return false
+	}
+	baseURL := strings.TrimRight(info.ChannelBaseUrl, "/")
+	if _, ok := channelconstant.ChannelSpecialBases[baseURL]; ok {
+		return true
+	}
+	return !strings.HasPrefix(info.UpstreamModelName, "bot")
+}
+
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseUrl := info.ChannelBaseUrl
 	if baseUrl == "" {
 		baseUrl = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine]
 	}
+	baseUrl = strings.TrimRight(baseUrl, "/")
 	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseUrl]
 
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
-			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
+		if shouldUseVolcengineClaudeMessagesEndpoint(info) {
+			return fmt.Sprintf("%s/v1/messages", volcengineClaudeBaseURL(baseUrl, specialPlan, hasSpecialPlan)), nil
 		}
 		if strings.HasPrefix(info.UpstreamModelName, "bot") {
-			return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
+			return fmt.Sprintf("%s/bots/chat/completions", volcengineV3BaseURL(baseUrl)), nil
 		}
-		return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
+		return fmt.Sprintf("%s/chat/completions", volcengineV3BaseURL(baseUrl)), nil
 	default:
 		switch info.RelayMode {
 		case constant.RelayModeChatCompletions:
+			openAIBaseURL := volcengineOpenAIBaseURL(baseUrl, specialPlan, hasSpecialPlan)
 			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
-				return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
+				return fmt.Sprintf("%s/chat/completions", openAIBaseURL), nil
 			}
 			if strings.HasPrefix(info.UpstreamModelName, "bot") {
-				return fmt.Sprintf("%s/api/v3/bots/chat/completions", baseUrl), nil
+				return fmt.Sprintf("%s/bots/chat/completions", openAIBaseURL), nil
 			}
-			return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
+			return fmt.Sprintf("%s/chat/completions", openAIBaseURL), nil
 		case constant.RelayModeEmbeddings:
-			return fmt.Sprintf("%s/api/v3/embeddings", baseUrl), nil
+			return fmt.Sprintf("%s/embeddings", volcengineOpenAIBaseURL(baseUrl, specialPlan, hasSpecialPlan)), nil
 		//豆包的图生图也走generations接口: https://www.volcengine.com/docs/82379/1824121
 		case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
-			return fmt.Sprintf("%s/api/v3/images/generations", baseUrl), nil
+			return fmt.Sprintf("%s/images/generations", volcengineOpenAIBaseURL(baseUrl, specialPlan, hasSpecialPlan)), nil
 		//case constant.RelayModeImagesEdits:
 		//	return fmt.Sprintf("%s/api/v3/images/edits", baseUrl), nil
 		case constant.RelayModeRerank:
-			return fmt.Sprintf("%s/api/v3/rerank", baseUrl), nil
+			return fmt.Sprintf("%s/rerank", volcengineOpenAIBaseURL(baseUrl, specialPlan, hasSpecialPlan)), nil
 		case constant.RelayModeResponses:
-			return fmt.Sprintf("%s/api/v3/responses", baseUrl), nil
+			return fmt.Sprintf("%s/responses", volcengineOpenAIBaseURL(baseUrl, specialPlan, hasSpecialPlan)), nil
 		case constant.RelayModeAudioSpeech:
+			if isOpenSpeechTTSV3Base(baseUrl) {
+				return openSpeechTTSV3RequestURL(baseUrl), nil
+			}
 			if baseUrl == channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeVolcEngine] {
 				return "wss://openspeech.bytedance.com/api/v1/tts/ws_binary", nil
 			}
@@ -286,8 +366,38 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
+	if c != nil && c.Request != nil {
+		for name := range c.Request.Header {
+			if strings.HasPrefix(strings.ToLower(name), "ark-beta-") {
+				if value := strings.TrimSpace(c.Request.Header.Get(name)); value != "" {
+					req.Set(name, value)
+				}
+			}
+		}
+	}
+
+	if shouldUseVolcengineClaudeMessagesEndpoint(info) {
+		req.Set("Authorization", "Bearer "+info.ApiKey)
+		req.Set("x-api-key", info.ApiKey)
+		anthropicVersion := c.Request.Header.Get("anthropic-version")
+		if anthropicVersion == "" {
+			anthropicVersion = "2023-06-01"
+		}
+		req.Set("anthropic-version", anthropicVersion)
+		claude.CommonClaudeHeadersOperation(c, req, info)
+		return nil
+	}
 
 	if info.RelayMode == constant.RelayModeAudioSpeech {
+		if isOpenSpeechTTSV3Context(c) {
+			resourceID := defaultTTSV3ResourceID
+			if value, ok := c.Get(contextKeyTTSOpenSpeechV3Resource); ok {
+				if s, ok := value.(string); ok && strings.TrimSpace(s) != "" {
+					resourceID = strings.TrimSpace(s)
+				}
+			}
+			return setupOpenSpeechTTSV3Header(req, info.ApiKey, resourceID)
+		}
 		parts := strings.Split(info.ApiKey, "|")
 		if len(parts) == 2 {
 			req.Set("Authorization", "Bearer;"+parts[1])
@@ -349,15 +459,16 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.RelayFormat == types.RelayFormatClaude {
-		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
-			adaptor := claude.Adaptor{}
-			return adaptor.DoResponse(c, resp, info)
-		}
+	if shouldUseVolcengineClaudeMessagesEndpoint(info) {
+		adaptor := claude.Adaptor{}
+		return adaptor.DoResponse(c, resp, info)
 	}
 
 	if info.RelayMode == constant.RelayModeAudioSpeech {
 		encoding := mapEncoding(c.GetString(contextKeyResponseFormat))
+		if isOpenSpeechTTSV3Context(c) {
+			return handleTTSV3NdjsonResponse(c, resp, info, encoding)
+		}
 		if info.IsStream {
 			volcRequestInterface, exists := c.Get(contextKeyTTSRequest)
 			if !exists {

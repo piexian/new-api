@@ -128,7 +128,7 @@ func shouldIncludeModelForType(modelName string, modelType int) bool {
 	case constant.ChannelTypeGemini:
 		endpointTypes := model.GetModelSupportEndpointTypes(modelName)
 		if len(endpointTypes) > 0 {
-			return lo.Contains(endpointTypes, constant.EndpointTypeGemini)
+			return lo.Contains(endpointTypes, constant.EndpointTypeGemini) || geminiCompatibleModels[modelName]
 		}
 		return geminiCompatibleModels[modelName]
 	default:
