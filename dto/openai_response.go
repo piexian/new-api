@@ -229,11 +229,12 @@ type Usage struct {
 	UsageSemantic        string `json:"usage_semantic,omitempty"`
 	UsageSource          string `json:"usage_source,omitempty"`
 
-	PromptTokensDetails    InputTokenDetails  `json:"prompt_tokens_details"`
-	CompletionTokenDetails OutputTokenDetails `json:"completion_tokens_details"`
-	InputTokens            int                `json:"input_tokens"`
-	OutputTokens           int                `json:"output_tokens"`
-	InputTokensDetails     *InputTokenDetails `json:"input_tokens_details"`
+	PromptTokensDetails    InputTokenDetails   `json:"prompt_tokens_details"`
+	CompletionTokenDetails OutputTokenDetails  `json:"completion_tokens_details"`
+	InputTokens            int                 `json:"input_tokens"`
+	OutputTokens           int                 `json:"output_tokens"`
+	InputTokensDetails     *InputTokenDetails  `json:"input_tokens_details"`
+	OutputTokensDetails    *OutputTokenDetails `json:"output_tokens_details,omitempty"`
 
 	// claude cache 1h
 	ClaudeCacheCreation5mTokens int `json:"claude_cache_creation_5_m_tokens"`
@@ -241,6 +242,29 @@ type Usage struct {
 
 	// OpenRouter Params
 	Cost any `json:"cost,omitempty"`
+}
+
+func (u *Usage) GetOutputTokenDetails() OutputTokenDetails {
+	if u == nil {
+		return OutputTokenDetails{}
+	}
+	details := u.CompletionTokenDetails
+	if u.OutputTokensDetails == nil {
+		return details
+	}
+	if details.TextTokens == 0 {
+		details.TextTokens = u.OutputTokensDetails.TextTokens
+	}
+	if details.AudioTokens == 0 {
+		details.AudioTokens = u.OutputTokensDetails.AudioTokens
+	}
+	if details.ImageTokens == 0 {
+		details.ImageTokens = u.OutputTokensDetails.ImageTokens
+	}
+	if details.ReasoningTokens == 0 {
+		details.ReasoningTokens = u.OutputTokensDetails.ReasoningTokens
+	}
+	return details
 }
 
 type OpenAIVideoResponse struct {

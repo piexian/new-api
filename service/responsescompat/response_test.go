@@ -78,6 +78,23 @@ func TestChatCompletionToResponseToolCall(t *testing.T) {
 	require.JSONEq(t, `{"q":"docs"}`, string(resp.Output[0].Arguments))
 }
 
+func TestNormalizeUsageUsesResponsesOutputTokenDetails(t *testing.T) {
+	usage := NormalizeUsage(&dto.Usage{
+		InputTokens:  35,
+		OutputTokens: 118,
+		TotalTokens:  153,
+		OutputTokensDetails: &dto.OutputTokenDetails{
+			TextTokens:      36,
+			ReasoningTokens: 82,
+		},
+	})
+
+	require.Equal(t, 35, usage.PromptTokens)
+	require.Equal(t, 118, usage.CompletionTokens)
+	require.Equal(t, 36, usage.CompletionTokenDetails.TextTokens)
+	require.Equal(t, 82, usage.CompletionTokenDetails.ReasoningTokens)
+}
+
 func TestStreamEmitterTextLifecycle(t *testing.T) {
 	t.Parallel()
 

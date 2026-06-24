@@ -56,7 +56,9 @@ func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
 		"max_output_tokens":0,
 		"max_tool_calls":0,
 		"stream":false,
-		"top_p":0
+		"top_p":0,
+		"caching":{"type":"enabled"},
+		"thinking":{"type":"disabled"}
 	}`)
 
 	var req OpenAIResponsesRequest
@@ -70,4 +72,26 @@ func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "max_tool_calls").Exists())
 	require.True(t, gjson.GetBytes(encoded, "stream").Exists())
 	require.True(t, gjson.GetBytes(encoded, "top_p").Exists())
+	require.Equal(t, "enabled", gjson.GetBytes(encoded, "caching.type").String())
+	require.Equal(t, "disabled", gjson.GetBytes(encoded, "thinking.type").String())
+}
+
+func TestUsageGetOutputTokenDetailsSupportsResponsesShape(t *testing.T) {
+	raw := []byte(`{
+		"input_tokens":35,
+		"output_tokens":118,
+		"total_tokens":153,
+		"output_tokens_details":{
+			"text_tokens":36,
+			"reasoning_tokens":82
+		}
+	}`)
+
+	var usage Usage
+	err := common.Unmarshal(raw, &usage)
+	require.NoError(t, err)
+
+	details := usage.GetOutputTokenDetails()
+	require.Equal(t, 36, details.TextTokens)
+	require.Equal(t, 82, details.ReasoningTokens)
 }

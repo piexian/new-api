@@ -403,5 +403,6 @@ func NormalizeUsage(usage *dto.Usage) *dto.Usage {
 	if out.CompletionTokens == 0 {
 		out.CompletionTokens = out.OutputTokens
 	}
+	out.CompletionTokenDetails = out.GetOutputTokenDetails()
 	return &out
 }

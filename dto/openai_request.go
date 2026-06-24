@@ -851,6 +851,9 @@ type OpenAIResponsesRequest struct {
 	Store                json.RawMessage `json:"store,omitempty"`
 	PromptCacheKey       json.RawMessage `json:"prompt_cache_key,omitempty"`
 	PromptCacheRetention json.RawMessage `json:"prompt_cache_retention,omitempty"`
+	// Volcengine Ark Responses extensions.
+	Caching  json.RawMessage `json:"caching,omitempty"`
+	Thinking json.RawMessage `json:"thinking,omitempty"`
 	// SafetyIdentifier carries client identity for policy abuse detection.
 	// This field is filtered by default and can be enabled via channel setting allow_safety_identifier.
 	SafetyIdentifier json.RawMessage `json:"safety_identifier,omitempty"`
@@ -927,6 +930,14 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 
 	if len(r.Prompt) > 0 {
 		texts = append(texts, string(r.Prompt))
+	}
+
+	if len(r.Caching) > 0 {
+		texts = append(texts, string(r.Caching))
+	}
+
+	if len(r.Thinking) > 0 {
+		texts = append(texts, string(r.Thinking))
 	}
 
 	if len(r.Tools) > 0 {

@@ -69,6 +69,9 @@ func ConvertToOpenAIChatRequest(req dto.OpenAIResponsesRequest) (*dto.GeneralOpe
 	if len(req.EnableThinking) > 0 {
 		out.EnableThinking = req.EnableThinking
 	}
+	if len(req.Thinking) > 0 {
+		out.THINKING = req.Thinking
+	}
 	return out, nil
 }
 

@@ -124,13 +124,16 @@ func TestConvertToNonStreamOpenAIChatRequestRejectsStream(t *testing.T) {
 
 func TestConvertToOpenAIChatRequestPreservesExtraBody(t *testing.T) {
 	extraBody := []byte(`{"google":{"cached_content":"cachedContents/cache-123"}}`)
+	thinking := []byte(`{"type":"disabled"}`)
 
 	req, err := ConvertToOpenAIChatRequest(dto.OpenAIResponsesRequest{
 		Model:     "gemini-2.5-flash",
 		Input:     []byte(`"hello"`),
 		ExtraBody: extraBody,
+		Thinking:  thinking,
 	})
 
 	require.NoError(t, err)
 	require.JSONEq(t, string(extraBody), string(req.ExtraBody))
+	require.JSONEq(t, string(thinking), string(req.THINKING))
 }
