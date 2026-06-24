@@ -88,25 +88,26 @@ func DisableChannelUntil(channelError types.ChannelError, reason string, until i
 	if until <= common.GetTimestamp() {
 		return
 	}
+	channelError.UsingKey = ""
 	disabledUntilText := time.Unix(until, 0).Format(time.RFC3339)
-	common.SysLog(fmt.Sprintf("通道「%s」（#%d）触发套餐限额冷却，禁用至 %s，原因：%s",
+	common.SysLog(fmt.Sprintf("通道「%s」（#%d）触发套餐限额冷却，限流至 %s，原因：%s",
 		channelError.ChannelName,
 		channelError.ChannelId,
 		disabledUntilText,
 		reason,
 	))
 
-	success := model.UpdateChannelStatusUntil(channelError.ChannelId, channelError.UsingKey, common.ChannelStatusAutoDisabled, reason, until)
+	success := model.UpdateChannelStatusUntil(channelError.ChannelId, "", common.ChannelStatusRateLimited, reason, until)
 	if success {
 		recordPlanQuotaCooldownManageLog(channelError, reason, until, disabledUntilText, "entered", true, 0)
 		subject := fmt.Sprintf("通道「%s」（#%d）已按套餐限额冷却", channelError.ChannelName, channelError.ChannelId)
-		content := fmt.Sprintf("通道「%s」（#%d）已按套餐限额冷却至 %s，原因：%s",
+		content := fmt.Sprintf("通道「%s」（#%d）已按套餐限额限流至 %s，原因：%s",
 			channelError.ChannelName,
 			channelError.ChannelId,
 			disabledUntilText,
 			reason,
 		)
-		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled), subject, content)
+		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusRateLimited), subject, content)
 		return
 	}
 	if isPlanQuotaCooldownAlreadyActive(channelError, until) {
@@ -144,7 +145,7 @@ func recordPlanQuotaCooldownManageLog(channelError types.ChannelError, reason st
 		modelName = strings.TrimSpace(modelNames[0])
 	}
 	scope := "channel"
-	if channelError.IsMultiKey {
+	if channelError.IsMultiKey && channelError.UsingKey != "" {
 		scope = "current_key"
 	}
 	if modelName != "" {
@@ -181,28 +182,34 @@ func recordPlanQuotaCooldownManageLog(channelError types.ChannelError, reason st
 
 func buildPlanQuotaCooldownManageLogContent(channelError types.ChannelError, reason string, disabledUntilText string, state string, keyIndex int, hasKeyIndex bool, modelName string) string {
 	keyText := ""
-	if hasKeyIndex {
+	if hasKeyIndex && channelError.UsingKey != "" {
 		keyText = fmt.Sprintf("密钥 #%d ", keyIndex+1)
 	}
 	modelText := ""
 	if modelName != "" {
 		modelText = fmt.Sprintf("模型「%s」", modelName)
 	}
+	actionText := "限流至"
+	if modelName != "" {
+		actionText = "禁用至"
+	}
 	if state == "already_active" {
-		return fmt.Sprintf("通道「%s」（#%d）%s%s已处于套餐限额冷却，禁用至 %s，原因：%s",
+		return fmt.Sprintf("通道「%s」（#%d）%s%s已处于套餐限额冷却，%s %s，原因：%s",
 			channelError.ChannelName,
 			channelError.ChannelId,
 			keyText,
 			modelText,
+			actionText,
 			disabledUntilText,
 			reason,
 		)
 	}
-	return fmt.Sprintf("通道「%s」（#%d）%s%s进入套餐限额冷却，禁用至 %s，原因：%s",
+	return fmt.Sprintf("通道「%s」（#%d）%s%s进入套餐限额冷却，%s %s，原因：%s",
 		channelError.ChannelName,
 		channelError.ChannelId,
 		keyText,
 		modelText,
+		actionText,
 		disabledUntilText,
 		reason,
 	)
@@ -236,15 +243,7 @@ func isPlanQuotaCooldownAlreadyActive(channelError types.ChannelError, until int
 	if err != nil || channel == nil {
 		return false
 	}
-	if channel.ChannelInfo.IsMultiKey || channelError.IsMultiKey {
-		keyIndex, ok := resolvePlanQuotaCooldownKeyIndexFromChannel(channel, channelError)
-		if !ok || channel.ChannelInfo.MultiKeyStatusList == nil || channel.ChannelInfo.MultiKeyDisabledUntil == nil {
-			return false
-		}
-		return channel.ChannelInfo.MultiKeyStatusList[keyIndex] == common.ChannelStatusAutoDisabled &&
-			channel.ChannelInfo.MultiKeyDisabledUntil[keyIndex] == until
-	}
-	return channel.Status == common.ChannelStatusAutoDisabled && channel.GetStatusUntil() == until
+	return channel.Status == common.ChannelStatusRateLimited && channel.GetStatusUntil() == until
 }
 
 func isPlanQuotaModelCooldownAlreadyActive(channelError types.ChannelError, modelName string, until int64) bool {

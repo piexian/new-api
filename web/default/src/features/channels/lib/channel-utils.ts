@@ -20,6 +20,7 @@ import { formatCurrencyFromUSD, formatQuotaWithCurrency } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
 import { formatTimestampToDate } from '@/lib/format'
 import {
+  CHANNEL_STATUS,
   CHANNEL_STATUS_CONFIG,
   CHANNEL_TYPES,
   MULTI_KEY_STATUS_CONFIG,
@@ -155,7 +156,7 @@ export function getMultiKeyStatusBadge(status: number) {
  * Check if channel is enabled
  */
 export function isChannelEnabled(channel: Channel): boolean {
-  return channel.status === 1
+  return channel.status === CHANNEL_STATUS.ENABLED
 }
 
 /**
@@ -464,8 +465,12 @@ export function validateGroups(groups: string): boolean {
  * Check if channel needs attention (low balance, auto-disabled, etc.)
  */
 export function channelNeedsAttention(channel: Channel): boolean {
-  // Auto-disabled
-  if (channel.status === 3) return true
+  if (
+    channel.status === CHANNEL_STATUS.AUTO_DISABLED ||
+    channel.status === CHANNEL_STATUS.RATE_LIMITED
+  ) {
+    return true
+  }
 
   // Low balance (less than $1)
   if (channel.balance > 0 && channel.balance < 1) return true
@@ -487,7 +492,8 @@ export function channelNeedsAttention(channel: Channel): boolean {
  * Get attention reason for channel
  */
 export function getAttentionReason(channel: Channel): string | null {
-  if (channel.status === 3) return 'Auto-disabled'
+  if (channel.status === CHANNEL_STATUS.AUTO_DISABLED) return 'Auto-disabled'
+  if (channel.status === CHANNEL_STATUS.RATE_LIMITED) return 'Rate Limited'
   if (channel.balance > 0 && channel.balance < 1) return 'Low balance'
   if (
     channel.channel_info?.is_multi_key &&
@@ -599,8 +605,8 @@ export function aggregateChannelsByTag(
     }
 
     // Aggregate status (enabled if any child is enabled)
-    if (channel.status === 1) {
-      tagRow.status = 1
+    if (channel.status === CHANNEL_STATUS.ENABLED) {
+      tagRow.status = CHANNEL_STATUS.ENABLED
     } else if (tagRow.status === undefined) {
       tagRow.status = channel.status
     }

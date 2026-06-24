@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 /* eslint-disable react-refresh/only-export-components */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import {
@@ -54,7 +54,11 @@ import {
   textColorMap,
 } from '@/components/status-badge'
 import { getCodexUsage } from '../api'
-import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
+import {
+  CHANNEL_STATUS,
+  CHANNEL_STATUS_CONFIG,
+  MODEL_FETCHABLE_TYPES,
+} from '../constants'
 import {
   formatBalance,
   formatRelativeTime,
@@ -83,6 +87,65 @@ import {
   type CodexUsageDialogData,
 } from './dialogs/codex-usage-dialog'
 import { NumericSpinnerInput } from './numeric-spinner-input'
+
+type ChannelStatusMeta = {
+  reason: string
+  time: string
+  until: number
+}
+
+function getChannelStatusMeta(channel: Channel): ChannelStatusMeta {
+  try {
+    const otherInfo = channel.other_info ? JSON.parse(channel.other_info) : null
+    if (!otherInfo) return { reason: '', time: '', until: 0 }
+    return {
+      reason: otherInfo.status_reason || '',
+      time: otherInfo.status_time
+        ? formatTimestampToDate(otherInfo.status_time)
+        : '',
+      until: Number(otherInfo.status_until || 0),
+    }
+  } catch {
+    return { reason: '', time: '', until: 0 }
+  }
+}
+
+function formatDuration(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(seconds))
+  const hours = Math.floor(safeSeconds / 3600)
+  const minutes = Math.floor((safeSeconds % 3600) / 60)
+  const secs = safeSeconds % 60
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${secs}s`
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${secs}s`
+  }
+  return `${secs}s`
+}
+
+function RateLimitedStatusLabel({ label, until }: { label: string; until: number }) {
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
+
+  useEffect(() => {
+    if (!until || until <= Math.floor(Date.now() / 1000)) return
+    const timer = window.setInterval(() => {
+      const current = Math.floor(Date.now() / 1000)
+      setNow(current)
+      if (current >= until) {
+        window.clearInterval(timer)
+      }
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [until])
+
+  if (!until) return <span className='truncate'>{label}</span>
+  return (
+    <span className='truncate'>
+      {label} · {formatDuration(until - now)}
+    </span>
+  )
+}
 
 function parseIonetMeta(otherInfo: string | null | undefined): null | {
   source?: string
@@ -780,25 +843,18 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             ? `${t(config.label)} (${enabledCount}/${keySize})`
             : t(config.label)
 
-        // Auto-disabled: show reason and time tooltip
-        if (status === 3) {
-          let statusReason = ''
-          let statusTime = ''
-          try {
-            const otherInfo = channel.other_info
-              ? JSON.parse(channel.other_info)
-              : null
-            if (otherInfo) {
-              statusReason = otherInfo.status_reason || ''
-              statusTime = otherInfo.status_time
-                ? formatTimestampToDate(otherInfo.status_time)
-                : ''
-            }
-          } catch {
-            /* empty */
-          }
+        const statusMeta = getChannelStatusMeta(channel)
+        const statusBadgeContent =
+          status === CHANNEL_STATUS.RATE_LIMITED ? (
+            <RateLimitedStatusLabel label={label} until={statusMeta.until} />
+          ) : undefined
 
-          if (statusReason || statusTime) {
+        // Auto-disabled/rate-limited: show reason and time tooltip
+        if (
+          status === CHANNEL_STATUS.AUTO_DISABLED ||
+          status === CHANNEL_STATUS.RATE_LIMITED
+        ) {
+          if (statusMeta.reason || statusMeta.time || statusMeta.until) {
             return (
               <TooltipProvider delay={100}>
                 <Tooltip>
@@ -809,18 +865,26 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
                       showDot={config.showDot}
                       size='sm'
                       copyable={false}
-                    />
+                    >
+                      {statusBadgeContent}
+                    </StatusBadge>
                   </TooltipTrigger>
                   <TooltipContent side='top' className='max-w-xs'>
                     <div className='space-y-1 text-xs'>
-                      {statusReason && (
+                      {statusMeta.reason && (
                         <div>
-                          {t('Reason:')} {statusReason}
+                          {t('Reason:')} {statusMeta.reason}
                         </div>
                       )}
-                      {statusTime && (
+                      {statusMeta.time && (
                         <div>
-                          {t('Time:')} {statusTime}
+                          {t('Time:')} {statusMeta.time}
+                        </div>
+                      )}
+                      {statusMeta.until > 0 && (
+                        <div>
+                          {t('Until')}:{' '}
+                          {formatTimestampToDate(statusMeta.until)}
                         </div>
                       )}
                     </div>
@@ -838,14 +902,19 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             showDot={config.showDot}
             size='sm'
             copyable={false}
-          />
+          >
+            {statusBadgeContent}
+          </StatusBadge>
         )
       },
       filterFn: (row, id, value) => {
         if (!value || value.length === 0 || value.includes('all')) return true
         const status = row.getValue(id) as number
-        if (value.includes('enabled')) return status === 1
-        if (value.includes('disabled')) return status !== 1
+        if (value.includes('enabled')) return status === CHANNEL_STATUS.ENABLED
+        if (value.includes('rate_limited')) {
+          return status === CHANNEL_STATUS.RATE_LIMITED
+        }
+        if (value.includes('disabled')) return status !== CHANNEL_STATUS.ENABLED
         return false
       },
       size: 120,

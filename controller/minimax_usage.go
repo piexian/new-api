@@ -238,7 +238,7 @@ func isMiniMaxTokenPlanLimitError(channelError types.ChannelError, err *types.Ne
 		(strings.Contains(message, "用量上限") || strings.Contains(message, "usage limit") || strings.Contains(message, "limit"))
 }
 
-func resolveAndDisableMiniMaxTokenPlanCooldown(channelError types.ChannelError, reason string, modelName string) {
+func resolveAndLimitMiniMaxTokenPlanCooldown(channelError types.ChannelError, reason string, modelName string) {
 	ctx, cancel := context.WithTimeout(context.Background(), miniMaxTokenPlanUsageRequestTimeout)
 	defer cancel()
 
@@ -254,7 +254,7 @@ func resolveAndDisableMiniMaxTokenPlanCooldown(channelError types.ChannelError, 
 	if detail != "" {
 		reason = reason + "；MiniMax套餐查询：" + detail
 	}
-	service.DisableChannelModelUntil(channelError, modelName, reason, until)
+	service.DisableChannelUntil(channelError, reason, until)
 }
 
 func resolveMiniMaxTokenPlanCooldownUntil(ctx context.Context, channelError types.ChannelError, modelName string, now time.Time) (until int64, detail string, ok bool, err error) {

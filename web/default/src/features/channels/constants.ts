@@ -119,6 +119,7 @@ export const CHANNEL_STATUS = {
   ENABLED: 1,
   MANUAL_DISABLED: 2,
   AUTO_DISABLED: 3,
+  RATE_LIMITED: 4,
 } as const
 
 export const CHANNEL_STATUS_LABELS = {
@@ -126,12 +127,14 @@ export const CHANNEL_STATUS_LABELS = {
   [CHANNEL_STATUS.ENABLED]: 'Enabled',
   [CHANNEL_STATUS.MANUAL_DISABLED]: 'Disabled',
   [CHANNEL_STATUS.AUTO_DISABLED]: 'Auto Disabled',
+  [CHANNEL_STATUS.RATE_LIMITED]: 'Rate Limited',
 } as const
 
 export const CHANNEL_STATUS_OPTIONS = [
   { value: 'all', label: 'All Status' },
   { value: 'enabled', label: 'Enabled' },
   { value: 'disabled', label: 'Disabled' },
+  { value: 'rate_limited', label: 'Rate Limited' },
 ] as const
 
 export const CHANNEL_STATUS_CONFIG = {
@@ -153,6 +156,11 @@ export const CHANNEL_STATUS_CONFIG = {
   [CHANNEL_STATUS.AUTO_DISABLED]: {
     variant: 'danger' as const,
     label: 'Auto Disabled',
+    showDot: true,
+  },
+  [CHANNEL_STATUS.RATE_LIMITED]: {
+    variant: 'warning' as const,
+    label: 'Rate Limited',
     showDot: true,
   },
 }

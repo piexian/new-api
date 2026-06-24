@@ -134,3 +134,38 @@ func TestChannelModelCooldown(t *testing.T) {
 	require.NoError(t, DB.First(&reloaded, channel.Id).Error)
 	require.False(t, reloaded.IsModelCoolingDown("MiniMax-M2.7", until+1))
 }
+
+func TestRateLimitedChannelCooldown(t *testing.T) {
+	truncateTables(t)
+	initCol()
+
+	until := common.GetTimestamp() + 3600
+	channel := &Channel{
+		Id:     9002,
+		Name:   "coding-plan",
+		Key:    "test-key",
+		Status: common.ChannelStatusRateLimited,
+		Group:  "default",
+		Models: "glm-4.5",
+	}
+	channel.SetOtherInfo(map[string]interface{}{
+		"status_until": until,
+	})
+	require.NoError(t, DB.Create(channel).Error)
+	require.NoError(t, channel.UpdateAbilities(nil))
+
+	selected, err := GetChannel("default", "glm-4.5", 0)
+	require.NoError(t, err)
+	require.Nil(t, selected)
+
+	releasedChannels, releasedKeys, releasedModels, err := ReleaseExpiredPlanQuotaCooldowns(until+1, 500)
+	require.NoError(t, err)
+	require.Equal(t, 1, releasedChannels)
+	require.Equal(t, 0, releasedKeys)
+	require.Equal(t, 0, releasedModels)
+
+	var reloaded Channel
+	require.NoError(t, DB.First(&reloaded, channel.Id).Error)
+	require.Equal(t, common.ChannelStatusEnabled, reloaded.Status)
+	require.Equal(t, int64(0), reloaded.GetStatusUntil())
+}

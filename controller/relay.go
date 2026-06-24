@@ -373,17 +373,17 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	if err.StatusCode == http.StatusTooManyRequests {
 		channelSetting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
 		if ok && channelSetting.PlanQuotaCooldownEnabled {
-			if until, ok := service.ParsePlanQuotaResetUntil(err.Error(), time.Now()); ok {
+			if isMiniMaxTokenPlanLimitError(channelError, err) {
 				planQuotaCooldownApplied = true
-				gopool.Go(func() {
-					service.DisableChannelUntil(channelError, err.ErrorWithStatusCode(), until)
-				})
-			} else if isMiniMaxTokenPlanLimitError(channelError, err) {
-				planQuotaCooldownApplied = true
-				modelName := c.GetString("original_model")
 				reason := err.ErrorWithStatusCode()
 				gopool.Go(func() {
-					resolveAndDisableMiniMaxTokenPlanCooldown(channelError, reason, modelName)
+					resolveAndLimitMiniMaxTokenPlanCooldown(channelError, reason, c.GetString("original_model"))
+				})
+			} else if until, ok := service.ParsePlanQuotaResetUntil(err.Error(), time.Now()); ok {
+				planQuotaCooldownApplied = true
+				reason := err.ErrorWithStatusCode()
+				gopool.Go(func() {
+					service.DisableChannelUntil(channelError, reason, until)
 				})
 			}
 		}

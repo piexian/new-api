@@ -190,6 +190,43 @@ const renderTagType = (t) => {
   );
 };
 
+const formatStatusCountdown = (seconds) => {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const secs = safeSeconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${secs}s`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${secs}s`;
+  }
+  return `${secs}s`;
+};
+
+const RateLimitCountdownText = ({ until }) => {
+  const [now, setNow] = React.useState(() => Math.floor(Date.now() / 1000));
+
+  React.useEffect(() => {
+    if (!until || until <= Math.floor(Date.now() / 1000)) {
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      const current = Math.floor(Date.now() / 1000);
+      setNow(current);
+      if (current >= until) {
+        window.clearInterval(timer);
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [until]);
+
+  if (!until) {
+    return null;
+  }
+  return <span> · {formatStatusCountdown(until - now)}</span>;
+};
+
 const renderStatus = (status, channelInfo = undefined, t) => {
   if (channelInfo) {
     if (channelInfo.is_multi_key) {
@@ -221,6 +258,12 @@ const renderStatus = (status, channelInfo = undefined, t) => {
           {t('自动禁用')}
         </Tag>
       );
+    case 4:
+      return (
+        <Tag color='orange' shape='circle'>
+          {t('限流中')}
+        </Tag>
+      );
     default:
       return (
         <Tag color='grey' shape='circle'>
@@ -248,6 +291,12 @@ const renderMultiKeyStatus = (status, keySize, enabledKeySize, t) => {
       return (
         <Tag color='yellow' shape='circle'>
           {t('自动禁用')} {enabledKeySize}/{keySize}
+        </Tag>
+      );
+    case 4:
+      return (
+        <Tag color='orange' shape='circle'>
+          {t('限流中')} {enabledKeySize}/{keySize}
         </Tag>
       );
     default:
@@ -538,21 +587,40 @@ export const getChannelsColumns = ({
       title: t('状态'),
       dataIndex: 'status',
       render: (text, record, index) => {
-        if (text === 3) {
+        if (text === 3 || text === 4) {
           if (record.other_info === '') {
             record.other_info = '{}';
           }
           let otherInfo = JSON.parse(record.other_info);
           let reason = otherInfo['status_reason'];
           let time = otherInfo['status_time'];
+          let until = Number(otherInfo['status_until'] || 0);
+          const statusTag = renderStatus(text, record.channel_info, t);
+          const statusContent =
+            text === 4 ? (
+              <span>
+                {statusTag}
+                <RateLimitCountdownText until={until} />
+              </span>
+            ) : (
+              statusTag
+            );
           return (
             <div>
               <Tooltip
                 content={
-                  t('原因：') + reason + t('，时间：') + timestamp2string(time)
+                  <div>
+                    {reason ? <div>{t('原因：') + reason}</div> : null}
+                    {time ? (
+                      <div>{t('时间：') + timestamp2string(time)}</div>
+                    ) : null}
+                    {until ? (
+                      <div>{t('直到：') + timestamp2string(until)}</div>
+                    ) : null}
+                  </div>
                 }
               >
-                {renderStatus(text, record.channel_info, t)}
+                {statusContent}
               </Tooltip>
             </div>
           );

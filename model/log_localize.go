@@ -71,6 +71,8 @@ var logTranslationRulesEN = []logTranslationRule{
 	{regexp.MustCompile(`^重新生成两步验证备用码$`), "Regenerated two-factor authentication backup codes"},
 	{regexp.MustCompile(`^管理员强制禁用了用户的两步验证$`), "Admin forcibly disabled the user's two-factor authentication"},
 	{regexp.MustCompile(`^查看渠道密钥信息 \(渠道ID: (\d+)\)$`), "Viewed channel key information (channel ID: %s)"},
+	{regexp.MustCompile(`^通道「(.+)」（#(\d+)）进入套餐限额冷却，限流至 (.+)，原因：(.+)$`), "Channel \"%s\" (#%s) entered plan quota cooldown until %s, reason: %s"},
+	{regexp.MustCompile(`^通道「(.+)」（#(\d+)）已处于套餐限额冷却，限流至 (.+)，原因：(.+)$`), "Channel \"%s\" (#%s) is already in plan quota cooldown until %s, reason: %s"},
 	{regexp.MustCompile(`^通道「(.+)」（#(\d+)）进入套餐限额冷却，禁用至 (.+)，原因：(.+)$`), "Channel \"%s\" (#%s) entered plan quota cooldown until %s, reason: %s"},
 	{regexp.MustCompile(`^通道「(.+)」（#(\d+)）已处于套餐限额冷却，禁用至 (.+)，原因：(.+)$`), "Channel \"%s\" (#%s) is already in plan quota cooldown until %s, reason: %s"},
 	{regexp.MustCompile(`^通道「(.+)」（#(\d+)）密钥 #(\d+) 进入套餐限额冷却，禁用至 (.+)，原因：(.+)$`), "Channel \"%s\" (#%s) key #%s entered plan quota cooldown until %s, reason: %s"},

@@ -960,7 +960,7 @@ func UpdateChannelStatusUntil(channelId int, usingKey string, status int, reason
 		if channelCache == nil {
 			return false
 		}
-		if channelCache.ChannelInfo.IsMultiKey {
+		if channelCache.ChannelInfo.IsMultiKey && usingKey != "" {
 			// Use per-channel lock to prevent concurrent map read/write with GetNextEnabledKey
 			pollingLock := GetChannelPollingLock(channelId)
 			pollingLock.Lock()
@@ -972,7 +972,7 @@ func UpdateChannelStatusUntil(channelId int, usingKey string, status int, reason
 		} else {
 			// 如果缓存渠道存在，且状态已是目标状态，直接返回
 			if channelCache.Status == status {
-				if !(status == common.ChannelStatusAutoDisabled && disabledUntil > 0) {
+				if !((status == common.ChannelStatusAutoDisabled || status == common.ChannelStatusRateLimited) && disabledUntil > 0) {
 					return false
 				}
 			} else {
@@ -994,8 +994,8 @@ func UpdateChannelStatusUntil(channelId int, usingKey string, status int, reason
 	if err != nil {
 		return false
 	} else {
-		if !channel.ChannelInfo.IsMultiKey && channel.Status == status {
-			if status == common.ChannelStatusAutoDisabled && disabledUntil > 0 && channel.getStatusUntil() != disabledUntil {
+		if (!channel.ChannelInfo.IsMultiKey || usingKey == "") && channel.Status == status {
+			if (status == common.ChannelStatusAutoDisabled || status == common.ChannelStatusRateLimited) && disabledUntil > 0 && channel.getStatusUntil() != disabledUntil {
 				info := channel.GetOtherInfo()
 				info["status_reason"] = reason
 				info["status_time"] = common.GetTimestamp()
@@ -1010,7 +1010,7 @@ func UpdateChannelStatusUntil(channelId int, usingKey string, status int, reason
 			return false
 		}
 
-		if channel.ChannelInfo.IsMultiKey {
+		if channel.ChannelInfo.IsMultiKey && usingKey != "" {
 			beforeStatus := channel.Status
 			// Protect map writes with the same per-channel lock used by readers
 			pollingLock := GetChannelPollingLock(channelId)
@@ -1024,7 +1024,7 @@ func UpdateChannelStatusUntil(channelId int, usingKey string, status int, reason
 			info := channel.GetOtherInfo()
 			info["status_reason"] = reason
 			info["status_time"] = common.GetTimestamp()
-			if status == common.ChannelStatusAutoDisabled && disabledUntil > 0 {
+			if (status == common.ChannelStatusAutoDisabled || status == common.ChannelStatusRateLimited) && disabledUntil > 0 {
 				info[channelStatusUntilKey] = disabledUntil
 			} else {
 				delete(info, channelStatusUntilKey)
@@ -1080,7 +1080,7 @@ func ReleaseExpiredPlanQuotaCooldowns(now int64, batchSize int) (int, int, int, 
 				releasedModels += released
 			}
 
-			if channel.Status == common.ChannelStatusAutoDisabled {
+			if channel.Status == common.ChannelStatusAutoDisabled || channel.Status == common.ChannelStatusRateLimited {
 				if until := channel.getStatusUntil(); until > 0 && until <= now {
 					info := channel.GetOtherInfo()
 					delete(info, channelStatusUntilKey)

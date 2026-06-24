@@ -74,6 +74,12 @@ func TestLocalizeLogContent(t *testing.T) {
 			expected: "Channel \"智谱coding\" (#782) is already in plan quota cooldown until 2026-06-24T01:20:15+08:00, reason: status_code=429",
 		},
 		{
+			name:     "english channel rate limit cooldown entered",
+			content:  "通道「智谱coding」（#782）进入套餐限额冷却，限流至 2026-06-24T01:20:15+08:00，原因：status_code=429",
+			language: "en",
+			expected: "Channel \"智谱coding\" (#782) entered plan quota cooldown until 2026-06-24T01:20:15+08:00, reason: status_code=429",
+		},
+		{
 			name:     "english multi key cooldown entered",
 			content:  "通道「智谱coding」（#782）密钥 #2 进入套餐限额冷却，禁用至 2026-06-24T01:20:15+08:00，原因：status_code=429",
 			language: "en",

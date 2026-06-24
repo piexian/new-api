@@ -88,7 +88,7 @@ func TestDisableChannelUntilRecordsManageLogWhenCooldownAlreadyActive(t *testing
 		Id:     782,
 		Name:   "智谱coding",
 		Key:    "test-key",
-		Status: common.ChannelStatusAutoDisabled,
+		Status: common.ChannelStatusRateLimited,
 	}
 	channel.SetOtherInfo(map[string]interface{}{
 		"status_until": until,
@@ -121,6 +121,61 @@ func TestDisableChannelUntilRecordsManageLogWhenCooldownAlreadyActive(t *testing
 	require.Equal(t, int64(1), count)
 }
 
+func TestDisableChannelUntilUsesRateLimitedChannelStatus(t *testing.T) {
+	truncate(t)
+
+	until := common.GetTimestamp() + 3600
+	channel := &model.Channel{
+		Id:     784,
+		Name:   "coding-plan",
+		Key:    "test-key",
+		Status: common.ChannelStatusEnabled,
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+
+	DisableChannelUntil(
+		types.ChannelError{ChannelId: channel.Id, ChannelName: channel.Name},
+		"status_code=429, quota will reset at 2026-06-24T01:20:15+08:00",
+		until,
+	)
+
+	var reloaded model.Channel
+	require.NoError(t, model.DB.First(&reloaded, channel.Id).Error)
+	require.Equal(t, common.ChannelStatusRateLimited, reloaded.Status)
+	require.Equal(t, until, reloaded.GetStatusUntil())
+}
+
+func TestDisableChannelUntilRateLimitsMultiKeyChannelScope(t *testing.T) {
+	truncate(t)
+
+	until := common.GetTimestamp() + 3600
+	channel := &model.Channel{
+		Id:     785,
+		Name:   "multi-key-plan",
+		Key:    "key-1\nkey-2",
+		Status: common.ChannelStatusEnabled,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:         true,
+			MultiKeySize:       2,
+			MultiKeyMode:       constant.MultiKeyModeRandom,
+			MultiKeyStatusList: map[int]int{},
+		},
+	}
+	require.NoError(t, model.DB.Create(channel).Error)
+
+	DisableChannelUntil(
+		types.ChannelError{ChannelId: channel.Id, ChannelName: channel.Name, IsMultiKey: true, UsingKey: "key-1"},
+		"status_code=429, quota will reset at 2026-06-24T01:20:15+08:00",
+		until,
+	)
+
+	var reloaded model.Channel
+	require.NoError(t, model.DB.First(&reloaded, channel.Id).Error)
+	require.Equal(t, common.ChannelStatusRateLimited, reloaded.Status)
+	require.Equal(t, until, reloaded.GetStatusUntil())
+	require.Empty(t, reloaded.ChannelInfo.MultiKeyStatusList)
+}
+
 func TestDisableChannelModelUntilRecordsManageLog(t *testing.T) {
 	truncate(t)
 
@@ -143,6 +198,8 @@ func TestDisableChannelModelUntilRecordsManageLog(t *testing.T) {
 	var log model.Log
 	require.NoError(t, model.LOG_DB.Where("channel_id = ? AND type = ?", channel.Id, model.LogTypeManage).First(&log).Error)
 	require.Contains(t, log.Content, "模型「MiniMax-M2.7」进入套餐限额冷却")
+	require.Contains(t, log.Content, "禁用至")
+	require.NotContains(t, log.Content, "限流至")
 
 	other, err := common.StrToMap(log.Other)
 	require.NoError(t, err)
