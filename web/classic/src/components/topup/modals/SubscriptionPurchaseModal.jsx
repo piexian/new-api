@@ -53,6 +53,9 @@ const SubscriptionPurchaseModal = ({
   enableStripeTopUp = false,
   enableCreemTopUp = false,
   purchaseLimitInfo = null,
+  purchaseMode = 'concurrent',
+  setPurchaseMode,
+  showPurchaseMode = false,
   onPayStripe,
   onPayCreem,
   onPayEpay,
@@ -177,6 +180,23 @@ const SubscriptionPurchaseModal = ({
               className='!rounded-xl'
               closeIcon={null}
             />
+          )}
+
+          {showPurchaseMode && (
+            <div className='space-y-2'>
+              <Text size='small' type='tertiary'>
+                {t('购买方式')}：
+              </Text>
+              <Select
+                value={purchaseMode}
+                onChange={(value) => setPurchaseMode?.(value || 'concurrent')}
+                style={{ width: '100%' }}
+                optionList={[
+                  { value: 'concurrent', label: t('同时使用') },
+                  { value: 'renew', label: t('续期') },
+                ]}
+              />
+            </div>
           )}
 
           {hasAnyPayment ? (

@@ -240,12 +240,17 @@ func GetRedemptionById(id int) (*Redemption, error) {
 }
 
 func Redeem(key string, userId int) (result *RedemptionRedeemResult, err error) {
+	return RedeemWithPurchaseMode(key, userId, SubscriptionPurchaseModeConcurrent)
+}
+
+func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result *RedemptionRedeemResult, err error) {
 	if key == "" {
 		return nil, errors.New("未提供兑换码")
 	}
 	if userId == 0 {
 		return nil, errors.New("无效的 user id")
 	}
+	purchaseMode = NormalizeSubscriptionPurchaseMode(purchaseMode)
 	redemption := &Redemption{}
 
 	keyCol := "`key`"
@@ -296,7 +301,7 @@ func Redeem(key string, userId int) (result *RedemptionRedeemResult, err error) 
 			if !plan.Enabled {
 				return errors.New("该套餐已禁用")
 			}
-			subscription, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "redemption")
+			subscription, err := CreateUserSubscriptionFromPlanWithModeTx(tx, userId, plan, "redemption", purchaseMode)
 			if err != nil {
 				return err
 			}

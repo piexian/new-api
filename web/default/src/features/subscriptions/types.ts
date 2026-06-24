@@ -99,9 +99,12 @@ export interface PlanPayload {
   plan: Partial<SubscriptionPlan>
 }
 
+export type SubscriptionPurchaseMode = 'concurrent' | 'renew'
+
 export interface SubscriptionPayRequest {
   plan_id: number
   payment_method?: string
+  purchase_mode?: SubscriptionPurchaseMode
 }
 
 export interface SubscriptionPayResponse {
@@ -125,6 +128,7 @@ export interface SubscriptionPayResponse {
 
 export interface CreateUserSubscriptionRequest {
   plan_id: number
+  purchase_mode?: SubscriptionPurchaseMode
 }
 
 // ============================================================================

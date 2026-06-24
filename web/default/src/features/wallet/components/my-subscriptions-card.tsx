@@ -352,7 +352,11 @@ export function MySubscriptionsCard({
               const now = Date.now() / 1000
               const isExpired = (subscription?.end_time || 0) < now
               const isCancelled = subscription?.status === 'cancelled'
-              const isActive = subscription?.status === 'active' && !isExpired
+              const isPending =
+                subscription?.status === 'active' &&
+                (subscription?.start_time || 0) > now
+              const isActive =
+                subscription?.status === 'active' && !isPending && !isExpired
 
               return (
                 <div
@@ -370,6 +374,12 @@ export function MySubscriptionsCard({
                         <StatusBadge
                           label={t('Active')}
                           variant='success'
+                          copyable={false}
+                        />
+                      ) : isPending ? (
+                        <StatusBadge
+                          label={t('Pending')}
+                          variant='neutral'
                           copyable={false}
                         />
                       ) : isCancelled ? (

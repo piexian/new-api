@@ -27,6 +27,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TitledCard } from '@/components/ui/titled-card'
 import {
   Tooltip,
@@ -34,6 +35,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import type { SubscriptionPurchaseMode } from '@/features/subscriptions/types'
 import {
   formatCurrency,
   getDiscountLabel,
@@ -63,6 +65,8 @@ interface RechargeFormCardProps {
   paymentLoading: string | null
   redemptionCode: string
   onRedemptionCodeChange: (code: string) => void
+  redemptionPurchaseMode: SubscriptionPurchaseMode
+  onRedemptionPurchaseModeChange: (mode: SubscriptionPurchaseMode) => void
   onRedeem: () => void
   redeeming: boolean
   topupLink?: string
@@ -93,6 +97,8 @@ export function RechargeFormCard({
   paymentLoading,
   redemptionCode,
   onRedemptionCodeChange,
+  redemptionPurchaseMode,
+  onRedemptionPurchaseModeChange,
   onRedeem,
   redeeming,
   topupLink,
@@ -475,6 +481,21 @@ export function RechargeFormCard({
               {t('Redeem')}
             </Button>
           </div>
+          <Tabs
+            value={redemptionPurchaseMode}
+            onValueChange={(value) =>
+              onRedemptionPurchaseModeChange(value as SubscriptionPurchaseMode)
+            }
+          >
+            <TabsList className='grid h-8 w-full grid-cols-2'>
+              <TabsTrigger value='concurrent' className='text-xs'>
+                {t('Use Together')}
+              </TabsTrigger>
+              <TabsTrigger value='renew' className='text-xs'>
+                {t('Renew')}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
           {topupLink && (
             <p className='text-muted-foreground text-xs'>
               {t('Need a redemption code?')}{' '}

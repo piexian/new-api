@@ -44,6 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge } from '@/components/status-badge'
 import {
@@ -54,7 +55,11 @@ import {
   deleteUserSubscription,
 } from '../../api'
 import { formatTimestamp } from '../../lib'
-import type { PlanRecord, UserSubscriptionRecord } from '../../types'
+import type {
+  PlanRecord,
+  SubscriptionPurchaseMode,
+  UserSubscriptionRecord,
+} from '../../types'
 
 interface Props {
   open: boolean
@@ -70,12 +75,22 @@ function SubscriptionStatusBadge(props: {
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now() / 1000
   const isExpired = (props.sub.end_time || 0) > 0 && props.sub.end_time < now
-  const isActive = props.sub.status === 'active' && !isExpired
+  const isPending =
+    props.sub.status === 'active' && (props.sub.start_time || 0) > now
+  const isActive = props.sub.status === 'active' && !isPending && !isExpired
   if (isActive)
     return (
       <StatusBadge
         label={props.t('Active')}
         variant='success'
+        copyable={false}
+      />
+    )
+  if (isPending)
+    return (
+      <StatusBadge
+        label={props.t('Pending')}
+        variant='neutral'
         copyable={false}
       />
     )
@@ -113,6 +128,8 @@ export function UserSubscriptionsDialog(props: Props) {
   const [plans, setPlans] = useState<PlanRecord[]>([])
   const [subs, setSubs] = useState<UserSubscriptionRecord[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState<string>('')
+  const [purchaseMode, setPurchaseMode] =
+    useState<SubscriptionPurchaseMode>('concurrent')
   const [confirmAction, setConfirmAction] = useState<{
     type: 'invalidate' | 'delete'
     subId: number
@@ -125,6 +142,20 @@ export function UserSubscriptionsDialog(props: Props) {
     })
     return map
   }, [plans])
+
+  const hasActiveSameSelectedPlan = useMemo(() => {
+    const planId = Number(selectedPlanId)
+    if (!planId) return false
+    const now = Date.now() / 1000
+    return subs.some((record) => {
+      const sub = record.subscription
+      return (
+        sub.plan_id === planId &&
+        sub.status === 'active' &&
+        (sub.end_time || 0) > now
+      )
+    })
+  }, [selectedPlanId, subs])
 
   const loadData = useCallback(async () => {
     if (!props.user?.id) return
@@ -146,6 +177,7 @@ export function UserSubscriptionsDialog(props: Props) {
   useEffect(() => {
     if (props.open && props.user?.id) {
       setSelectedPlanId('')
+      setPurchaseMode('concurrent')
       loadData()
     }
   }, [props.open, props.user?.id, loadData])
@@ -159,10 +191,12 @@ export function UserSubscriptionsDialog(props: Props) {
     try {
       const res = await createUserSubscription(props.user.id, {
         plan_id: Number(selectedPlanId),
+        purchase_mode: purchaseMode,
       })
       if (res.success) {
         toast.success(res.data?.message || t('Added successfully'))
         setSelectedPlanId('')
+        setPurchaseMode('concurrent')
         await loadData()
         props.onSuccess?.()
       }
@@ -224,7 +258,12 @@ export function UserSubscriptionsDialog(props: Props) {
                   })),
                 ]}
                 value={selectedPlanId}
-                onValueChange={(v) => v !== null && setSelectedPlanId(v)}
+                onValueChange={(v) => {
+                  if (v !== null) {
+                    setSelectedPlanId(v)
+                    setPurchaseMode('concurrent')
+                  }
+                }}
               >
                 <SelectTrigger className='flex-1'>
                   <SelectValue placeholder={t('Select subscription plan')} />
@@ -240,6 +279,24 @@ export function UserSubscriptionsDialog(props: Props) {
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              {hasActiveSameSelectedPlan && (
+                <Tabs
+                  value={purchaseMode}
+                  onValueChange={(value) =>
+                    setPurchaseMode(value as SubscriptionPurchaseMode)
+                  }
+                  className='w-full sm:w-[180px]'
+                >
+                  <TabsList className='grid h-9 w-full grid-cols-2'>
+                    <TabsTrigger value='concurrent' className='text-xs'>
+                      {t('Use Together')}
+                    </TabsTrigger>
+                    <TabsTrigger value='renew' className='text-xs'>
+                      {t('Renew')}
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              )}
               <Button
                 onClick={handleCreate}
                 disabled={creating || !selectedPlanId}
@@ -284,7 +341,8 @@ export function UserSubscriptionsDialog(props: Props) {
                       const now = Date.now() / 1000
                       const isExpired =
                         (sub.end_time || 0) > 0 && sub.end_time < now
-                      const isActive = sub.status === 'active' && !isExpired
+                      const canInvalidate =
+                        sub.status === 'active' && !isExpired
                       const total = Number(sub.amount_total || 0)
                       const used = Number(sub.amount_used || 0)
 
@@ -322,7 +380,7 @@ export function UserSubscriptionsDialog(props: Props) {
                               <Button
                                 size='sm'
                                 variant='outline'
-                                disabled={!isActive}
+                                disabled={!canInvalidate}
                                 onClick={() =>
                                   setConfirmAction({
                                     type: 'invalidate',
@@ -369,7 +427,7 @@ export function UserSubscriptionsDialog(props: Props) {
                   const now = Date.now() / 1000
                   const isExpired =
                     (sub.end_time || 0) > 0 && sub.end_time < now
-                  const isActive = sub.status === 'active' && !isExpired
+                  const canInvalidate = sub.status === 'active' && !isExpired
                   const total = Number(sub.amount_total || 0)
                   const used = Number(sub.amount_used || 0)
 
@@ -420,7 +478,7 @@ export function UserSubscriptionsDialog(props: Props) {
                         <Button
                           size='sm'
                           variant='outline'
-                          disabled={!isActive}
+                          disabled={!canInvalidate}
                           onClick={() =>
                             setConfirmAction({
                               type: 'invalidate',

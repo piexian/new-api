@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type {
+  SubscriptionPurchaseMode,
   SubscriptionPlan,
   UserSubscription,
 } from '@/features/subscriptions/types'
@@ -177,6 +178,8 @@ export interface PresetAmount {
 export interface RedemptionRequest {
   /** Redemption code key */
   key: string
+  /** Subscription purchase mode when the code redeems a subscription plan */
+  purchase_mode?: SubscriptionPurchaseMode
 }
 
 export interface RedemptionResult {

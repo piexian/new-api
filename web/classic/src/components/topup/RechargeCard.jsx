@@ -34,6 +34,7 @@ import {
   Tag,
   Tabs,
   TabPane,
+  Select,
 } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import {
@@ -79,6 +80,8 @@ const RechargeCard = ({
   payWay,
   redemptionCode,
   setRedemptionCode,
+  redemptionPurchaseMode = 'concurrent',
+  setRedemptionPurchaseMode,
   topUp,
   isSubmitting,
   topUpLink,
@@ -632,6 +635,19 @@ const RechargeCard = ({
               }
             />
           </Form>
+          <div className='mt-3'>
+            <Select
+              value={redemptionPurchaseMode}
+              onChange={(value) =>
+                setRedemptionPurchaseMode?.(value || 'concurrent')
+              }
+              style={{ width: '100%' }}
+              optionList={[
+                { value: 'concurrent', label: t('同时使用') },
+                { value: 'renew', label: t('续期') },
+              ]}
+            />
+          </div>
         </Card>
       ) : (
         <Banner

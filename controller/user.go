@@ -1309,7 +1309,8 @@ func EmailBind(c *gin.Context) {
 }
 
 type topUpRequest struct {
-	Key string `json:"key"`
+	Key          string `json:"key"`
+	PurchaseMode string `json:"purchase_mode"`
 }
 
 var topUpLocks sync.Map
@@ -1372,7 +1373,7 @@ func TopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	result, err := model.Redeem(req.Key, id)
+	result, err := model.RedeemWithPurchaseMode(req.Key, id, req.PurchaseMode)
 	if err != nil {
 		if errors.Is(err, model.ErrRedeemFailed) {
 			common.ApiErrorI18n(c, i18n.MsgRedeemFailed)

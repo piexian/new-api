@@ -17,7 +17,8 @@ import (
 )
 
 type SubscriptionWaffoPancakePayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId       int    `json:"plan_id"`
+	PurchaseMode string `json:"purchase_mode"`
 }
 
 func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
@@ -91,6 +92,7 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodWaffoPancake,
 		PaymentProvider: model.PaymentProviderWaffoPancake,
+		PurchaseMode:    model.NormalizeSubscriptionPurchaseMode(req.PurchaseMode),
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 	}

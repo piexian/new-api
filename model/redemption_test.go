@@ -81,6 +81,28 @@ func TestRedeemSubscriptionCodeCreatesSubscriptionAndConsumesCode(t *testing.T) 
 	require.Equal(t, 1, redemption.RedeemedCount)
 }
 
+func TestRedeemSubscriptionCodeWithRenewModeStartsAfterExistingSubscription(t *testing.T) {
+	truncateTables(t)
+	insertUserForPaymentGuardTest(t, 9112, 0)
+	plan := insertSubscriptionPlanForPaymentGuardTest(t, 9212)
+
+	firstSub, err := CreateUserSubscriptionFromPlanTx(DB, 9112, plan, "admin")
+	require.NoError(t, err)
+	require.NotNil(t, firstSub)
+
+	insertRedemptionForTest(t, &Redemption{
+		Key:                "subscription-renew-code",
+		Type:               RedemptionTypeSubscription,
+		SubscriptionPlanId: plan.Id,
+	})
+
+	result, err := RedeemWithPurchaseMode("subscription-renew-code", 9112, SubscriptionPurchaseModeRenew)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Subscription)
+	require.Equal(t, firstSub.EndTime, result.Subscription.StartTime)
+}
+
 func TestRedeemCodeHonorsMaxRedemptions(t *testing.T) {
 	truncateTables(t)
 	insertUserForPaymentGuardTest(t, 9105, 0)

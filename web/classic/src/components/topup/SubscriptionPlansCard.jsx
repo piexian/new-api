@@ -96,12 +96,14 @@ const SubscriptionPlansCard = ({
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [walletPayingPlanId, setWalletPayingPlanId] = useState(null);
+  const [purchaseMode, setPurchaseMode] = useState('concurrent');
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
 
   const openBuy = (p) => {
     setSelectedPlan(p);
     setSelectedEpayMethod(epayMethods?.[0]?.type || '');
+    setPurchaseMode('concurrent');
     setOpen(true);
   };
 
@@ -109,6 +111,20 @@ const SubscriptionPlansCard = ({
     setOpen(false);
     setSelectedPlan(null);
     setPaying(false);
+    setPurchaseMode('concurrent');
+  };
+
+  const hasActiveSamePlan = (planId) => {
+    if (!planId) return false;
+    const now = Date.now() / 1000;
+    return (activeSubscriptions || []).some((sub) => {
+      const subscription = sub?.subscription;
+      return (
+        subscription?.plan_id === planId &&
+        subscription?.status === 'active' &&
+        (subscription?.end_time || 0) > now
+      );
+    });
   };
 
   const handleRefresh = async () => {
@@ -140,6 +156,8 @@ const SubscriptionPlansCard = ({
     if (!plan?.id) {
       return;
     }
+    let walletPurchaseMode = 'concurrent';
+    const showPurchaseMode = hasActiveSamePlan(plan.id);
     const requiredQuota = getRequiredQuota(planRecord);
     const currentWalletQuota = Number(walletQuota || 0);
     if (requiredQuota > currentWalletQuota) {
@@ -172,6 +190,22 @@ const SubscriptionPlansCard = ({
               {t('该套餐价格为 0，本次不会扣减钱包余额，但会创建订阅订单记录')}
             </Text>
           )}
+          {showPurchaseMode && (
+            <p>
+              <Text>{t('购买方式')}：</Text>
+              <Select
+                defaultValue='concurrent'
+                onChange={(value) => {
+                  walletPurchaseMode = value || 'concurrent';
+                }}
+                optionList={[
+                  { value: 'concurrent', label: t('同时使用') },
+                  { value: 'renew', label: t('续期') },
+                ]}
+                style={{ width: 160 }}
+              />
+            </p>
+          )}
         </div>
       ),
       onOk: async () => {
@@ -179,6 +213,7 @@ const SubscriptionPlansCard = ({
         try {
           const res = await API.post('/api/subscription/wallet/pay', {
             plan_id: plan.id,
+            purchase_mode: walletPurchaseMode,
           });
           if (res.data?.success) {
             showSuccess(t('余额购买成功'));
@@ -205,6 +240,7 @@ const SubscriptionPlansCard = ({
     try {
       const res = await API.post('/api/subscription/stripe/pay', {
         plan_id: selectedPlan.plan.id,
+        purchase_mode: purchaseMode,
       });
       if (res.data?.message === 'success') {
         window.open(res.data.data?.pay_link, '_blank');
@@ -233,6 +269,7 @@ const SubscriptionPlansCard = ({
     try {
       const res = await API.post('/api/subscription/creem/pay', {
         plan_id: selectedPlan.plan.id,
+        purchase_mode: purchaseMode,
       });
       if (res.data?.message === 'success') {
         window.open(res.data.data?.checkout_url, '_blank');
@@ -262,6 +299,7 @@ const SubscriptionPlansCard = ({
       const res = await API.post('/api/subscription/epay/pay', {
         plan_id: selectedPlan.plan.id,
         payment_method: selectedEpayMethod,
+        purchase_mode: purchaseMode,
       });
       if (res.data?.message === 'success') {
         submitEpayForm({ url: res.data.url, params: res.data.data });
@@ -583,8 +621,13 @@ const SubscriptionPlansCard = ({
                         const isExpired = (subscription?.end_time || 0) < now;
                         const isCancelled =
                           subscription?.status === 'cancelled';
+                        const isPending =
+                          subscription?.status === 'active' &&
+                          (subscription?.start_time || 0) > now;
                         const isActive =
-                          subscription?.status === 'active' && !isExpired;
+                          subscription?.status === 'active' &&
+                          !isPending &&
+                          !isExpired;
                         const planInfo = sub?.plan;
                         const modelRestrictionMeta =
                           getModelRestrictionMeta(planInfo);
@@ -611,6 +654,14 @@ const SubscriptionPlansCard = ({
                                     prefixIcon={<Badge dot type='success' />}
                                   >
                                     {t('生效')}
+                                  </Tag>
+                                ) : isPending ? (
+                                  <Tag
+                                    color='white'
+                                    size='small'
+                                    shape='circle'
+                                  >
+                                    {t('待生效')}
                                   </Tag>
                                 ) : isCancelled ? (
                                   <Tag
@@ -932,6 +983,9 @@ const SubscriptionPlansCard = ({
         enableOnlineTopUp={enableOnlineTopUp}
         enableStripeTopUp={enableStripeTopUp}
         enableCreemTopUp={enableCreemTopUp}
+        purchaseMode={purchaseMode}
+        setPurchaseMode={setPurchaseMode}
+        showPurchaseMode={hasActiveSamePlan(selectedPlan?.plan?.id)}
         purchaseLimitInfo={
           selectedPlan?.plan?.id
             ? {

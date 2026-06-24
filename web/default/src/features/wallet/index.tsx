@@ -23,6 +23,7 @@ import { getSelf } from '@/lib/api'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { SectionPageLayout } from '@/components/layout'
+import type { SubscriptionPurchaseMode } from '@/features/subscriptions/types'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
@@ -68,6 +69,8 @@ export function Wallet(props: WalletProps) {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
+  const [redemptionPurchaseMode, setRedemptionPurchaseMode] =
+    useState<SubscriptionPurchaseMode>('concurrent')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
@@ -291,9 +294,10 @@ export function Wallet(props: WalletProps) {
   const handleRedeem = async () => {
     if (!redemptionCode) return
 
-    const success = await redeemCode(redemptionCode)
+    const success = await redeemCode(redemptionCode, redemptionPurchaseMode)
     if (success) {
       setRedemptionCode('')
+      setRedemptionPurchaseMode('concurrent')
       await fetchUser()
       setSubscriptionRefreshKey((key) => key + 1)
     }
@@ -392,6 +396,8 @@ export function Wallet(props: WalletProps) {
                     paymentLoading={paymentLoading}
                     redemptionCode={redemptionCode}
                     onRedemptionCodeChange={setRedemptionCode}
+                    redemptionPurchaseMode={redemptionPurchaseMode}
+                    onRedemptionPurchaseModeChange={setRedemptionPurchaseMode}
                     onRedeem={handleRedeem}
                     redeeming={redeeming}
                     topupLink={topupInfo?.topup_link}

@@ -359,3 +359,267 @@ func TestPreConsumeUserSubscriptionForGroupSkipsRestrictedPlanForOtherRequestGro
 	require.NoError(t, DB.Where("id = ?", 9312).First(&generalSub).Error)
 	assert.Equal(t, int64(10), generalSub.AmountUsed)
 }
+
+func getSubscriptionTestUserGroup(t *testing.T, userId int) string {
+	t.Helper()
+	var user User
+	require.NoError(t, DB.Select("group").Where("id = ?", userId).First(&user).Error)
+	return user.Group
+}
+
+func TestCreateUserSubscriptionFromPlanTxInheritsRollbackGroupForSameUpgradeGroup(t *testing.T) {
+	truncateSubscriptionTables(t)
+
+	seedSubscriptionTestUser(t, 9401, "user")
+	plan := &SubscriptionPlan{
+		Id:            9501,
+		Title:         "model-plan",
+		UpgradeGroup:  "model",
+		DurationUnit:  SubscriptionDurationDay,
+		DurationValue: 1,
+	}
+	seedSubscriptionTestPlan(t, plan)
+
+	firstSub, err := CreateUserSubscriptionFromPlanTx(DB, 9401, plan, "admin")
+	require.NoError(t, err)
+	require.NotNil(t, firstSub)
+	assert.Equal(t, "user", firstSub.PrevUserGroup)
+	assert.Equal(t, "model", getSubscriptionTestUserGroup(t, 9401))
+
+	secondSub, err := CreateUserSubscriptionFromPlanTx(DB, 9401, plan, "admin")
+	require.NoError(t, err)
+	require.NotNil(t, secondSub)
+	assert.Equal(t, "user", secondSub.PrevUserGroup)
+	assert.Equal(t, "model", getSubscriptionTestUserGroup(t, 9401))
+}
+
+func TestCreateUserSubscriptionWithRenewModeStartsAfterLatestSamePlan(t *testing.T) {
+	truncateSubscriptionTables(t)
+
+	seedSubscriptionTestUser(t, 9406, "user")
+	plan := &SubscriptionPlan{
+		Id:            9506,
+		Title:         "renew-plan",
+		DurationUnit:  SubscriptionDurationDay,
+		DurationValue: 1,
+		TotalAmount:   100,
+	}
+	seedSubscriptionTestPlan(t, plan)
+
+	firstSub, err := CreateUserSubscriptionFromPlanTx(DB, 9406, plan, "admin")
+	require.NoError(t, err)
+	require.NotNil(t, firstSub)
+
+	secondSub, err := CreateUserSubscriptionFromPlanWithModeTx(DB, 9406, plan, "admin", SubscriptionPurchaseModeRenew)
+	require.NoError(t, err)
+	require.NotNil(t, secondSub)
+	assert.Equal(t, firstSub.EndTime, secondSub.StartTime)
+
+	thirdSub, err := CreateUserSubscriptionFromPlanWithModeTx(DB, 9406, plan, "admin", SubscriptionPurchaseModeRenew)
+	require.NoError(t, err)
+	require.NotNil(t, thirdSub)
+	assert.Equal(t, secondSub.EndTime, thirdSub.StartTime)
+}
+
+func TestFutureRenewalSubscriptionIsNotConsumableBeforeStart(t *testing.T) {
+	truncateSubscriptionTables(t)
+
+	now := GetDBTimestamp()
+	seedSubscriptionTestUser(t, 9407, "user")
+	seedSubscriptionTestPlan(t, &SubscriptionPlan{
+		Id:            9507,
+		Title:         "future-plan",
+		DurationUnit:  SubscriptionDurationDay,
+		DurationValue: 1,
+		TotalAmount:   100,
+	})
+	seedSubscriptionTestUserSubscription(t, &UserSubscription{
+		Id:          9557,
+		UserId:      9407,
+		PlanId:      9507,
+		Status:      "active",
+		AmountTotal: 100,
+		StartTime:   now + 3600,
+		EndTime:     now + 90000,
+	})
+
+	hasActive, err := HasActiveUserSubscription(9407)
+	require.NoError(t, err)
+	assert.False(t, hasActive)
+
+	activeSubs, err := GetAllActiveUserSubscriptions(9407)
+	require.NoError(t, err)
+	assert.Empty(t, activeSubs)
+
+	_, err = PreConsumeUserSubscription("req-future-renewal", 9407, "gpt-shared", 0, 10)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no active subscription")
+}
+
+func TestCompleteSubscriptionOrderUsesStoredRenewMode(t *testing.T) {
+	truncateSubscriptionTables(t)
+
+	seedSubscriptionTestUser(t, 9408, "user")
+	plan := &SubscriptionPlan{
+		Id:            9508,
+		Title:         "order-renew-plan",
+		DurationUnit:  SubscriptionDurationDay,
+		DurationValue: 1,
+		Enabled:       true,
+		TotalAmount:   100,
+	}
+	seedSubscriptionTestPlan(t, plan)
+	firstSub, err := CreateUserSubscriptionFromPlanTx(DB, 9408, plan, "admin")
+	require.NoError(t, err)
+	require.NotNil(t, firstSub)
+
+	order := &SubscriptionOrder{
+		UserId:          9408,
+		PlanId:          plan.Id,
+		Money:           1,
+		TradeNo:         "sub-renew-order",
+		PaymentMethod:   PaymentProviderStripe,
+		PaymentProvider: PaymentProviderStripe,
+		PurchaseMode:    SubscriptionPurchaseModeRenew,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      GetDBTimestamp(),
+	}
+	require.NoError(t, DB.Create(order).Error)
+
+	err = CompleteSubscriptionOrder("sub-renew-order", "", PaymentProviderStripe, "", "127.0.0.1")
+	require.NoError(t, err)
+
+	var renewedSub UserSubscription
+	require.NoError(t, DB.Where("user_id = ? AND plan_id = ? AND source = ?", 9408, plan.Id, "order").
+		Order("id desc").
+		First(&renewedSub).Error)
+	assert.Equal(t, firstSub.EndTime, renewedSub.StartTime)
+}
+
+func TestExpireDueSubscriptionsRollsBackCurrentUpgradeGroupOnly(t *testing.T) {
+	truncateSubscriptionTables(t)
+
+	now := GetDBTimestamp()
+	seedSubscriptionTestUser(t, 9402, "model")
+	seedSubscriptionTestUserSubscription(t, &UserSubscription{
+		Id:            9511,
+		UserId:        9402,
+		Status:        "active",
+		UpgradeGroup:  "user",
+		PrevUserGroup: "user",
+		EndTime:       now + 86400,
+	})
+	seedSubscriptionTestUserSubscription(t, &UserSubscription{
+		Id:            9512,
+		UserId:        9402,
+		Status:        "active",
+		UpgradeGroup:  "model",
+		PrevUserGroup: "user",
+		EndTime:       now - 1,
+	})
+
+	expired, err := ExpireDueSubscriptions(10)
+	require.NoError(t, err)
+	assert.Equal(t, 1, expired)
+	assert.Equal(t, "user", getSubscriptionTestUserGroup(t, 9402))
+
+	var expiredSub UserSubscription
+	require.NoError(t, DB.Where("id = ?", 9512).First(&expiredSub).Error)
+	assert.Equal(t, "expired", expiredSub.Status)
+}
+
+func TestExpireDueSubscriptionsIgnoresHistoricalExpiredRollbackRecords(t *testing.T) {
+	truncateSubscriptionTables(t)
+
+	now := GetDBTimestamp()
+	seedSubscriptionTestUser(t, 9405, "model")
+	seedSubscriptionTestUserSubscription(t, &UserSubscription{
+		Id:            9541,
+		UserId:        9405,
+		Status:        "expired",
+		UpgradeGroup:  "model",
+		PrevUserGroup: "user",
+		EndTime:       now - 86400,
+	})
+	seedSubscriptionTestUserSubscription(t, &UserSubscription{
+		Id:            9542,
+		UserId:        9405,
+		Status:        "active",
+		UpgradeGroup:  "vip",
+		PrevUserGroup: "model",
+		EndTime:       now - 1,
+	})
+
+	expired, err := ExpireDueSubscriptions(10)
+	require.NoError(t, err)
+	assert.Equal(t, 1, expired)
+	assert.Equal(t, "model", getSubscriptionTestUserGroup(t, 9405))
+
+	var expiredSub UserSubscription
+	require.NoError(t, DB.Where("id = ?", 9542).First(&expiredSub).Error)
+	assert.Equal(t, "expired", expiredSub.Status)
+}
+
+func TestAdminInvalidateUserSubscriptionKeepsGroupWhenSameUpgradeStillActive(t *testing.T) {
+	truncateSubscriptionTables(t)
+
+	now := GetDBTimestamp()
+	seedSubscriptionTestUser(t, 9403, "model")
+	seedSubscriptionTestUserSubscription(t, &UserSubscription{
+		Id:            9521,
+		UserId:        9403,
+		Status:        "active",
+		UpgradeGroup:  "model",
+		PrevUserGroup: "user",
+		EndTime:       now + 86400,
+	})
+	seedSubscriptionTestUserSubscription(t, &UserSubscription{
+		Id:            9522,
+		UserId:        9403,
+		Status:        "active",
+		UpgradeGroup:  "model",
+		PrevUserGroup: "user",
+		EndTime:       now + 172800,
+	})
+
+	msg, err := AdminInvalidateUserSubscription(9521)
+	require.NoError(t, err)
+	assert.Empty(t, msg)
+	assert.Equal(t, "model", getSubscriptionTestUserGroup(t, 9403))
+
+	var cancelledSub UserSubscription
+	require.NoError(t, DB.Where("id = ?", 9521).First(&cancelledSub).Error)
+	assert.Equal(t, "cancelled", cancelledSub.Status)
+}
+
+func TestAdminDeleteUserSubscriptionIgnoresDifferentUpgradeGroupWhenRollingBack(t *testing.T) {
+	truncateSubscriptionTables(t)
+
+	now := GetDBTimestamp()
+	seedSubscriptionTestUser(t, 9404, "model")
+	seedSubscriptionTestUserSubscription(t, &UserSubscription{
+		Id:            9531,
+		UserId:        9404,
+		Status:        "active",
+		UpgradeGroup:  "user",
+		PrevUserGroup: "user",
+		EndTime:       now + 86400,
+	})
+	seedSubscriptionTestUserSubscription(t, &UserSubscription{
+		Id:            9532,
+		UserId:        9404,
+		Status:        "active",
+		UpgradeGroup:  "model",
+		PrevUserGroup: "user",
+		EndTime:       now + 86400,
+	})
+
+	msg, err := AdminDeleteUserSubscription(9532)
+	require.NoError(t, err)
+	assert.Equal(t, "用户分组将回退到 user", msg)
+	assert.Equal(t, "user", getSubscriptionTestUserGroup(t, 9404))
+
+	var count int64
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("id = ?", 9532).Count(&count).Error)
+	assert.Equal(t, int64(0), count)
+}

@@ -359,8 +359,9 @@ func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
 }
 
 type AdminBindSubscriptionRequest struct {
-	UserId int `json:"user_id"`
-	PlanId int `json:"plan_id"`
+	UserId       int    `json:"user_id"`
+	PlanId       int    `json:"plan_id"`
+	PurchaseMode string `json:"purchase_mode"`
 }
 
 func AdminBindSubscription(c *gin.Context) {
@@ -373,7 +374,7 @@ func AdminBindSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, "")
+	msg, err := model.AdminBindSubscription(req.UserId, req.PlanId, req.PurchaseMode, "")
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -402,7 +403,8 @@ func AdminListUserSubscriptions(c *gin.Context) {
 }
 
 type AdminCreateUserSubscriptionRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId       int    `json:"plan_id"`
+	PurchaseMode string `json:"purchase_mode"`
 }
 
 // AdminCreateUserSubscription creates a new user subscription from a plan (no payment).
@@ -421,7 +423,7 @@ func AdminCreateUserSubscription(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	msg, err := model.AdminBindSubscription(userId, req.PlanId, "")
+	msg, err := model.AdminBindSubscription(userId, req.PlanId, req.PurchaseMode, "")
 	if err != nil {
 		common.ApiError(c, err)
 		return

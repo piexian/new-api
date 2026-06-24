@@ -17,7 +17,8 @@ import (
 )
 
 type SubscriptionCreemPayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId       int    `json:"plan_id"`
+	PurchaseMode string `json:"purchase_mode"`
 }
 
 func SubscriptionRequestCreemPay(c *gin.Context) {
@@ -93,6 +94,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodCreem,
 		PaymentProvider: model.PaymentProviderCreem,
+		PurchaseMode:    model.NormalizeSubscriptionPurchaseMode(req.PurchaseMode),
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 		ServerIp:        common.GetIp(),

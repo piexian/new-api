@@ -62,6 +62,8 @@ const TopUp = () => {
   const [statusState] = useContext(StatusContext);
 
   const [redemptionCode, setRedemptionCode] = useState('');
+  const [redemptionPurchaseMode, setRedemptionPurchaseMode] =
+    useState('concurrent');
   const [amount, setAmount] = useState(0.0);
   const [minTopUp, setMinTopUp] = useState(statusState?.status?.min_topup || 1);
   const [topUpCount, setTopUpCount] = useState(
@@ -167,6 +169,7 @@ const TopUp = () => {
     try {
       const res = await API.post('/api/user/topup', {
         key: redemptionCode,
+        purchase_mode: redemptionPurchaseMode,
       });
       const { success, message, data } = res.data;
       if (success) {
@@ -188,6 +191,7 @@ const TopUp = () => {
           await getSubscriptionSelf();
         }
         setRedemptionCode('');
+        setRedemptionPurchaseMode('concurrent');
       } else {
         showError(message);
       }
@@ -979,6 +983,8 @@ const TopUp = () => {
             payWay={payWay}
             redemptionCode={redemptionCode}
             setRedemptionCode={setRedemptionCode}
+            redemptionPurchaseMode={redemptionPurchaseMode}
+            setRedemptionPurchaseMode={setRedemptionPurchaseMode}
             topUp={topUp}
             isSubmitting={isSubmitting}
             topUpLink={topUpLink}

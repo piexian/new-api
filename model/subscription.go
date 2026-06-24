@@ -213,6 +213,7 @@ type SubscriptionOrder struct {
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	PurchaseMode    string `json:"purchase_mode" gorm:"type:varchar(16);default:'concurrent'"`
 	Status          string `json:"status"`
 	CreateTime      int64  `json:"create_time"`
 	CompleteTime    int64  `json:"complete_time"`
@@ -302,6 +303,9 @@ const (
 	subscriptionDailyWindowSeconds   int64 = 24 * 3600
 	subscriptionWeeklyWindowSeconds  int64 = 7 * 24 * 3600
 	subscriptionMonthlyWindowSeconds int64 = 30 * 24 * 3600
+
+	SubscriptionPurchaseModeConcurrent = "concurrent"
+	SubscriptionPurchaseModeRenew      = "renew"
 )
 
 func NormalizeSubscriptionModelRestrictMode(mode string) string {
@@ -626,6 +630,15 @@ func NormalizeResetPeriod(period string) string {
 	}
 }
 
+func NormalizeSubscriptionPurchaseMode(mode string) string {
+	switch strings.TrimSpace(strings.ToLower(mode)) {
+	case SubscriptionPurchaseModeRenew:
+		return SubscriptionPurchaseModeRenew
+	default:
+		return SubscriptionPurchaseModeConcurrent
+	}
+}
+
 func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) int64 {
 	if plan == nil {
 		return 0
@@ -728,6 +741,67 @@ func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	return group, nil
 }
 
+func hasActiveSubscriptionForUpgradeGroupTx(tx *gorm.DB, userId int, upgradeGroup string, now int64, excludeId int) (bool, error) {
+	upgradeGroup = strings.TrimSpace(upgradeGroup)
+	if upgradeGroup == "" {
+		return false, nil
+	}
+	query := tx.Model(&UserSubscription{}).
+		Where("user_id = ? AND status = ? AND end_time > ? AND upgrade_group = ?", userId, "active", now, upgradeGroup)
+	if excludeId > 0 {
+		query = query.Where("id <> ?", excludeId)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func getSubscriptionPrevUserGroupForCreateTx(tx *gorm.DB, userId int, currentGroup, upgradeGroup string) (string, error) {
+	currentGroup = strings.TrimSpace(currentGroup)
+	upgradeGroup = strings.TrimSpace(upgradeGroup)
+	if upgradeGroup == "" || currentGroup != upgradeGroup {
+		return currentGroup, nil
+	}
+	var activeSub UserSubscription
+	res := tx.Where("user_id = ? AND status = ? AND upgrade_group = ? AND prev_user_group <> '' AND prev_user_group <> ?",
+		userId, "active", upgradeGroup, upgradeGroup).
+		Order("start_time asc, id asc").
+		Limit(1).
+		Find(&activeSub)
+	if res.Error != nil {
+		return "", res.Error
+	}
+	if res.RowsAffected > 0 {
+		prevGroup := strings.TrimSpace(activeSub.PrevUserGroup)
+		if prevGroup != "" {
+			return prevGroup, nil
+		}
+	}
+	return currentGroup, nil
+}
+
+func getSubscriptionStartTimeForCreateTx(tx *gorm.DB, userId int, planId int, now int64, purchaseMode string) (time.Time, error) {
+	start := time.Unix(now, 0)
+	if NormalizeSubscriptionPurchaseMode(purchaseMode) != SubscriptionPurchaseModeRenew || planId <= 0 {
+		return start, nil
+	}
+	var lastSub UserSubscription
+	res := tx.Where("user_id = ? AND plan_id = ? AND status = ? AND end_time > ?",
+		userId, planId, "active", now).
+		Order("end_time desc, id desc").
+		Limit(1).
+		Find(&lastSub)
+	if res.Error != nil {
+		return time.Time{}, res.Error
+	}
+	if res.RowsAffected > 0 && lastSub.EndTime > now {
+		return time.Unix(lastSub.EndTime, 0), nil
+	}
+	return start, nil
+}
+
 func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now int64) (string, error) {
 	if tx == nil || sub == nil {
 		return "", errors.New("invalid downgrade args")
@@ -743,13 +817,11 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 	if currentGroup != upgradeGroup {
 		return "", nil
 	}
-	var activeSub UserSubscription
-	activeQuery := tx.Where("user_id = ? AND status = ? AND end_time > ? AND id <> ? AND upgrade_group <> ''",
-		sub.UserId, "active", now, sub.Id).
-		Order("end_time desc, id desc").
-		Limit(1).
-		Find(&activeSub)
-	if activeQuery.Error == nil && activeQuery.RowsAffected > 0 {
+	hasActiveSameGroup, err := hasActiveSubscriptionForUpgradeGroupTx(tx, sub.UserId, upgradeGroup, now, sub.Id)
+	if err != nil {
+		return "", err
+	}
+	if hasActiveSameGroup {
 		return "", nil
 	}
 	prevGroup := strings.TrimSpace(sub.PrevUserGroup)
@@ -764,6 +836,10 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 }
 
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+	return CreateUserSubscriptionFromPlanWithModeTx(tx, userId, plan, source, SubscriptionPurchaseModeConcurrent)
+}
+
+func CreateUserSubscriptionFromPlanWithModeTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, purchaseMode string) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -785,26 +861,31 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		}
 	}
 	nowUnix := GetDBTimestampTx(tx)
-	now := time.Unix(nowUnix, 0)
-	endUnix, err := calcPlanEndTime(now, plan)
+	start, err := getSubscriptionStartTimeForCreateTx(tx, userId, plan.Id, nowUnix, purchaseMode)
 	if err != nil {
 		return nil, err
 	}
-	resetBase := now
+	endUnix, err := calcPlanEndTime(start, plan)
+	if err != nil {
+		return nil, err
+	}
+	resetBase := start
 	nextReset := calcNextResetTime(resetBase, plan, endUnix)
 	lastReset := int64(0)
 	if nextReset > 0 {
-		lastReset = now.Unix()
+		lastReset = start.Unix()
 	}
 	currentGroup, err := getUserGroupByIdTx(tx, userId)
 	if err != nil {
 		return nil, err
 	}
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
-	prevGroup := currentGroup
+	prevGroup, err := getSubscriptionPrevUserGroupForCreateTx(tx, userId, currentGroup, upgradeGroup)
+	if err != nil {
+		return nil, err
+	}
 	if upgradeGroup != "" {
 		if currentGroup != upgradeGroup {
-			prevGroup = currentGroup
 			if err := tx.Model(&User{}).Where("id = ?", userId).
 				Update("group", upgradeGroup).Error; err != nil {
 				return nil, err
@@ -816,7 +897,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		PlanId:        plan.Id,
 		AmountTotal:   plan.TotalAmount,
 		AmountUsed:    0,
-		StartTime:     now.Unix(),
+		StartTime:     start.Unix(),
 		EndTime:       endUnix,
 		Status:        "active",
 		Source:        source,
@@ -853,10 +934,11 @@ func GetSubscriptionPlanRequiredQuota(plan *SubscriptionPlan) (int, error) {
 	return calcSubscriptionPlanRequiredQuota(plan)
 }
 
-func WalletPurchaseSubscription(userId int, planId int, callerIp string) (*SubscriptionOrder, error) {
+func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, callerIp string) (*SubscriptionOrder, error) {
 	if userId <= 0 || planId <= 0 {
 		return nil, errors.New("invalid userId or planId")
 	}
+	purchaseMode = NormalizeSubscriptionPurchaseMode(purchaseMode)
 	now := common.GetTimestamp()
 	tradeNo := fmt.Sprintf("sub-wallet-%d-%d-%s", userId, time.Now().UnixMilli(), common.GetRandomString(6))
 	var order *SubscriptionOrder
@@ -905,7 +987,7 @@ func WalletPurchaseSubscription(userId int, planId int, callerIp string) (*Subsc
 				return err
 			}
 		}
-		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "wallet"); err != nil {
+		if _, err := CreateUserSubscriptionFromPlanWithModeTx(tx, userId, plan, "wallet", purchaseMode); err != nil {
 			return err
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
@@ -916,6 +998,7 @@ func WalletPurchaseSubscription(userId int, planId int, callerIp string) (*Subsc
 			Money:         plan.PriceAmount,
 			TradeNo:       tradeNo,
 			PaymentMethod: "wallet",
+			PurchaseMode:  purchaseMode,
 			Status:        common.TopUpStatusSuccess,
 			CreateTime:    now,
 			CompleteTime:  now,
@@ -1033,7 +1116,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if order.Status != common.TopUpStatusPending {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := GetSubscriptionPlanById(order.PlanId)
+		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
 		if err != nil {
 			return err
 		}
@@ -1041,7 +1124,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			// still allow completion for already purchased orders
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+		_, err = CreateUserSubscriptionFromPlanWithModeTx(tx, order.UserId, plan, "order", order.PurchaseMode)
 		if err != nil {
 			return err
 		}
@@ -1147,16 +1230,17 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string, cal
 }
 
 // Admin bind (no payment). Creates a UserSubscription from a plan.
-func AdminBindSubscription(userId int, planId int, sourceNote string) (string, error) {
+func AdminBindSubscription(userId int, planId int, purchaseMode string, sourceNote string) (string, error) {
 	if userId <= 0 || planId <= 0 {
 		return "", errors.New("invalid userId or planId")
 	}
+	purchaseMode = NormalizeSubscriptionPurchaseMode(purchaseMode)
 	plan, err := GetSubscriptionPlanById(planId)
 	if err != nil {
 		return "", err
 	}
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		_, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, "admin")
+		_, err := CreateUserSubscriptionFromPlanWithModeTx(tx, userId, plan, "admin", purchaseMode)
 		return err
 	})
 	if err != nil {
@@ -1176,7 +1260,7 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	}
 	now := common.GetTimestamp()
 	var subs []UserSubscription
-	err := DB.Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+	err := DB.Where("user_id = ? AND status = ? AND start_time <= ? AND end_time > ?", userId, "active", now, now).
 		Order("end_time desc, id desc").
 		Find(&subs).Error
 	if err != nil {
@@ -1194,7 +1278,7 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 	now := common.GetTimestamp()
 	var count int64
 	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Where("user_id = ? AND status = ? AND start_time <= ? AND end_time > ?", userId, "active", now, now).
 		Count(&count).Error; err != nil {
 		return false, err
 	}
@@ -1356,6 +1440,15 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 	for userId := range userIds {
 		cacheGroup := ""
 		err := DB.Transaction(func(tx *gorm.DB) error {
+			var dueSubs []UserSubscription
+			if err := tx.Where("user_id = ? AND status = ? AND end_time > 0 AND end_time <= ?", userId, "active", now).
+				Order("end_time desc, id desc").
+				Find(&dueSubs).Error; err != nil {
+				return err
+			}
+			if len(dueSubs) == 0 {
+				return nil
+			}
 			res := tx.Model(&UserSubscription{}).
 				Where("user_id = ? AND status = ? AND end_time > 0 AND end_time <= ?", userId, "active", now).
 				Updates(map[string]interface{}{
@@ -1367,44 +1460,16 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 			}
 			expiredCount += int(res.RowsAffected)
 
-			// If there's an active upgraded subscription, keep current group.
-			var activeSub UserSubscription
-			activeQuery := tx.Where("user_id = ? AND status = ? AND end_time > ? AND upgrade_group <> ''",
-				userId, "active", now).
-				Order("end_time desc, id desc").
-				Limit(1).
-				Find(&activeSub)
-			if activeQuery.Error == nil && activeQuery.RowsAffected > 0 {
-				return nil
+			for _, dueSub := range dueSubs {
+				target, err := downgradeUserGroupForSubscriptionTx(tx, &dueSub, now)
+				if err != nil {
+					return err
+				}
+				if target != "" {
+					cacheGroup = target
+					break
+				}
 			}
-
-			// No active upgraded subscription, downgrade to previous group if needed.
-			var lastExpired UserSubscription
-			expiredQuery := tx.Where("user_id = ? AND status = ? AND upgrade_group <> ''",
-				userId, "expired").
-				Order("end_time desc, id desc").
-				Limit(1).
-				Find(&lastExpired)
-			if expiredQuery.Error != nil || expiredQuery.RowsAffected == 0 {
-				return nil
-			}
-			upgradeGroup := strings.TrimSpace(lastExpired.UpgradeGroup)
-			prevGroup := strings.TrimSpace(lastExpired.PrevUserGroup)
-			if upgradeGroup == "" || prevGroup == "" {
-				return nil
-			}
-			currentGroup, err := getUserGroupByIdTx(tx, userId)
-			if err != nil {
-				return err
-			}
-			if currentGroup != upgradeGroup || currentGroup == prevGroup {
-				return nil
-			}
-			if err := tx.Model(&User{}).Where("id = ?", userId).
-				Update("group", prevGroup).Error; err != nil {
-				return err
-			}
-			cacheGroup = prevGroup
 			return nil
 		})
 		if err != nil {
@@ -1534,7 +1599,7 @@ func preConsumeUserSubscription(requestId string, userId int, modelName string, 
 
 		var subs []UserSubscription
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").
-			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+			Where("user_id = ? AND status = ? AND start_time <= ? AND end_time > ?", userId, "active", now, now).
 			Order("end_time asc, id asc").
 			Find(&subs).Error; err != nil {
 			return errors.New("no active subscription")

@@ -19,6 +19,7 @@ import (
 type SubscriptionEpayPayRequest struct {
 	PlanId        int    `json:"plan_id"`
 	PaymentMethod string `json:"payment_method"`
+	PurchaseMode  string `json:"purchase_mode"`
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
@@ -97,6 +98,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
 		PaymentProvider: model.PaymentProviderEpay,
+		PurchaseMode:    model.NormalizeSubscriptionPurchaseMode(req.PurchaseMode),
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 		ServerIp:        common.GetIp(),
