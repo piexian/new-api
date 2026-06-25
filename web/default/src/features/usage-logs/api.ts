@@ -23,6 +23,7 @@ import type {
   GetLogsResponse,
   GetLogStatsParams,
   GetLogStatsResponse,
+  GetEmailLogsParams,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
   UserInfo,
@@ -109,3 +110,10 @@ export const getAllTaskLogs = (params: GetTaskLogsParams) =>
 
 export const getUserTaskLogs = (params: GetTaskLogsParams) =>
   fetchLogs('/api/task', params, false)
+
+// ============================================================================
+// Email Logs API
+// ============================================================================
+
+export const getAllEmailLogs = (params: GetEmailLogsParams) =>
+  fetchLogs('/api/log/email', params, true)

@@ -26,6 +26,7 @@ import {
   getUserMidjourneyLogs,
   getAllTaskLogs,
   getUserTaskLogs,
+  getAllEmailLogs,
 } from '../api'
 import {
   LOG_TYPES,
@@ -36,6 +37,7 @@ import type {
   GetLogsParams,
   GetLogsResponse,
   FetchLogsConfig,
+  GetEmailLogsParams,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
 } from '../types'
@@ -271,6 +273,35 @@ export async function fetchLogsByCategory(
       isAdmin,
     })
     return isAdmin ? await getAllLogs(params) : await getUserLogs(params)
+  }
+
+  if (logCategory === 'email') {
+    if (!isAdmin) {
+      return {
+        success: false,
+        message: 'Admin privileges required',
+      }
+    }
+
+    const params: GetEmailLogsParams = {
+      ...buildBaseParams({
+        page,
+        pageSize,
+        searchParams,
+        useMilliseconds: false,
+      }),
+      ...(searchParams.receiver
+        ? { receiver: String(searchParams.receiver) }
+        : {}),
+      ...(searchParams.subject
+        ? { subject: String(searchParams.subject) }
+        : {}),
+      ...(searchParams.status ? { status: String(searchParams.status) } : {}),
+      ...(searchParams.provider
+        ? { provider: String(searchParams.provider) }
+        : {}),
+    }
+    return await getAllEmailLogs(params)
   }
 
   // For drawing and task logs

@@ -28,7 +28,7 @@ import type { UsageLog } from './data/schema'
 /**
  * Log category for different log types
  */
-export type LogCategory = 'common' | 'drawing' | 'task'
+export type LogCategory = 'common' | 'drawing' | 'task' | 'email'
 
 // ============================================================================
 // Filter Types
@@ -72,9 +72,23 @@ export interface TaskLogFilters extends CommonFilters {
 }
 
 /**
+ * Email logs specific filters
+ */
+export interface EmailLogFilters extends CommonFilters {
+  receiver?: string
+  subject?: string
+  status?: string
+  provider?: string
+}
+
+/**
  * Union type for all log filters
  */
-export type LogFilters = CommonLogFilters | DrawingLogFilters | TaskLogFilters
+export type LogFilters =
+  | CommonLogFilters
+  | DrawingLogFilters
+  | TaskLogFilters
+  | EmailLogFilters
 
 // ============================================================================
 // Common Logs Additional Types
@@ -268,6 +282,21 @@ export interface TaskLog {
 }
 
 // ============================================================================
+// Email Logs Types
+// ============================================================================
+
+export interface EmailLog {
+  id: number
+  created_at: number // seconds
+  provider: string
+  receiver: string
+  subject: string
+  status: string // success, failed, suppressed
+  error_message?: string
+  duration_ms: number
+}
+
+// ============================================================================
 // Common Log Types
 // ============================================================================
 
@@ -292,7 +321,7 @@ export interface GetLogsResponse {
   success: boolean
   message?: string
   data?: {
-    items: UsageLog[] | MidjourneyLog[] | TaskLog[]
+    items: UsageLog[] | MidjourneyLog[] | TaskLog[] | EmailLog[]
     total: number
     page: number
     page_size: number
@@ -340,6 +369,21 @@ export interface GetTaskLogsParams {
   page_size?: number
   channel_id?: string
   task_id?: string
+  start_timestamp?: number
+  end_timestamp?: number
+}
+
+// ============================================================================
+// Email Log Types
+// ============================================================================
+
+export interface GetEmailLogsParams {
+  p?: number
+  page_size?: number
+  receiver?: string
+  subject?: string
+  status?: string
+  provider?: string
   start_timestamp?: number
   end_timestamp?: number
 }

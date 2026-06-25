@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
+import { useIsAdmin } from '@/hooks/use-admin'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SectionPageLayout } from '@/components/layout'
@@ -37,7 +38,7 @@ import {
 } from './section-registry'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
-const TASK_LOG_SECTIONS = ['drawing', 'task'] as const
+const ADMIN_LOG_SECTIONS = ['drawing', 'task'] as const
 
 const SECTION_META: Record<
   UsageLogsSectionId,
@@ -55,11 +56,16 @@ const SECTION_META: Record<
     titleKey: 'Task Logs',
     descriptionKey: 'View and manage your task logs',
   },
+  email: {
+    titleKey: 'Email Logs',
+    descriptionKey: 'View email delivery status for outbound messages',
+  },
 }
 
 function UsageLogsContent() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const isAdmin = useIsAdmin()
   const params = route.useParams()
   const activeCategory: UsageLogsSectionId =
     params.section && isUsageLogsSectionId(params.section)
@@ -77,7 +83,7 @@ function UsageLogsContent() {
     () => [
       {
         title: 'Task Logs',
-        items: TASK_LOG_SECTIONS.map((section) => ({
+        items: ADMIN_LOG_SECTIONS.map((section) => ({
           title: SECTION_META[section].titleKey,
           url: `/usage-logs/${section}`,
         })),
@@ -95,8 +101,9 @@ function UsageLogsContent() {
         })
         .filter((section): section is UsageLogsSectionId =>
           Boolean(section && isUsageLogsSectionId(section))
-        ),
-    [filteredTabGroups]
+        )
+        .filter((section) => isAdmin || section !== 'email'),
+    [filteredTabGroups, isAdmin]
   )
 
   const handleSectionChange = useCallback(
@@ -109,8 +116,23 @@ function UsageLogsContent() {
     [navigate]
   )
 
-  const pageMeta =
-    activeCategory === 'common' ? SECTION_META.common : SECTION_META.task
+  const shouldRedirectFromEmail = activeCategory === 'email' && !isAdmin
+
+  useEffect(() => {
+    if (shouldRedirectFromEmail) {
+      void navigate({
+        to: '/usage-logs/$section',
+        params: { section: USAGE_LOGS_DEFAULT_SECTION },
+        replace: true,
+      })
+    }
+  }, [navigate, shouldRedirectFromEmail])
+
+  if (shouldRedirectFromEmail) {
+    return null
+  }
+
+  const pageMeta = SECTION_META[activeCategory]
   const showTaskSwitcher =
     activeCategory !== 'common' && visibleSections.length > 1
 
@@ -127,7 +149,7 @@ function UsageLogsContent() {
           <div className='space-y-4'>
             {showTaskSwitcher && (
               <Tabs value={activeCategory} onValueChange={handleSectionChange}>
-                <TabsList className='group-data-horizontal/tabs:h-auto max-w-full flex-wrap justify-start'>
+                <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>
                   {visibleSections.map((section) => (
                     <TabsTrigger key={section} value={section}>
                       {t(SECTION_META[section].titleKey)}

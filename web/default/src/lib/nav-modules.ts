@@ -227,6 +227,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
     log: true,
     midjourney: true,
     task: true,
+    email: true,
   },
   personal: {
     enabled: true,
@@ -314,6 +315,7 @@ type SidebarRouteRule = {
 const SIDEBAR_ROUTE_RULES: SidebarRouteRule[] = [
   { prefix: '/usage-logs/drawing', section: 'console', module: 'midjourney' },
   { prefix: '/usage-logs/task', section: 'console', module: 'task' },
+  { prefix: '/usage-logs/email', section: 'console', module: 'email' },
   { prefix: '/usage-logs', section: 'console', module: 'log' },
   { prefix: '/console/log', section: 'console', module: 'log' },
   { prefix: '/console/topup', section: 'personal', module: 'topup' },

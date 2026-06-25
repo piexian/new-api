@@ -26,6 +26,7 @@ import type {
   CommonLogFilters,
   DrawingLogFilters,
   TaskLogFilters,
+  EmailLogFilters,
 } from '../types'
 
 // ============================================================================
@@ -74,6 +75,16 @@ export function buildSearchParams(
       return {
         ...baseParams,
         ...(taskFilters.taskId && { filter: taskFilters.taskId }),
+      }
+    }
+    case 'email': {
+      const emailFilters = filters as EmailLogFilters
+      return {
+        ...baseParams,
+        ...(emailFilters.receiver && { receiver: emailFilters.receiver }),
+        ...(emailFilters.subject && { subject: emailFilters.subject }),
+        ...(emailFilters.status && { status: emailFilters.status }),
+        ...(emailFilters.provider && { provider: emailFilters.provider }),
       }
     }
     default:

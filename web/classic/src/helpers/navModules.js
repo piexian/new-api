@@ -39,6 +39,7 @@ const DEFAULT_SIDEBAR_MODULES = {
     log: true,
     midjourney: true,
     task: true,
+    email: true,
   },
   personal: {
     enabled: true,
@@ -76,6 +77,7 @@ const SIDEBAR_ROUTE_RULES = [
   { prefix: '/console/log', section: 'console', module: 'log' },
   { prefix: '/console/midjourney', section: 'console', module: 'midjourney' },
   { prefix: '/console/task', section: 'console', module: 'task' },
+  { prefix: '/console/email-log', section: 'console', module: 'email' },
   { prefix: '/console/chat', section: 'chat', module: 'chat' },
   { prefix: '/chat2link', section: 'chat', module: 'chat' },
   { prefix: '/console', section: 'console', module: 'detail' },

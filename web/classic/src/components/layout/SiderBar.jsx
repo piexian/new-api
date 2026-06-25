@@ -41,6 +41,7 @@ const routerMap = {
   ip_ban: '/console/ip_ban',
   subscription: '/console/subscription',
   log: '/console/log',
+  email: '/console/email-log',
   midjourney: '/console/midjourney',
   setting: '/console/setting',
   about: '/about',
@@ -107,6 +108,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className:
           localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
       },
+      {
+        text: t('邮件日志'),
+        itemKey: 'email',
+        to: '/email-log',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
     ];
 
     // 根据配置过滤项目
@@ -120,6 +127,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     localStorage.getItem('enable_data_export'),
     localStorage.getItem('enable_drawing'),
     localStorage.getItem('enable_task'),
+    isAdmin(),
     t,
     isModuleVisible,
   ]);

@@ -108,6 +108,10 @@ export function SidebarModulesSection({
         title: t('Task logs'),
         description: t('Background job tracker for queued work.'),
       },
+      email: {
+        title: t('Email Logs'),
+        description: t('View email delivery status for outbound messages'),
+      },
     },
     personal: {
       topup: {

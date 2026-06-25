@@ -32,6 +32,7 @@ import {
   MessageSquare,
   CreditCard,
   ListTodo,
+  Mail,
   Settings,
   ShieldBan,
   Gift,
@@ -39,9 +40,11 @@ import {
 import { useTranslation } from 'react-i18next'
 import { WORKSPACE_IDS } from '@/components/layout/lib/workspace-registry'
 import { type SidebarData } from '@/components/layout/types'
+import { useIsAdmin } from '@/hooks/use-admin'
 
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const isAdmin = useIsAdmin()
 
   return {
     workspaces: [
@@ -100,6 +103,15 @@ export function useSidebarData(): SidebarData {
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
           },
+          ...(isAdmin
+            ? [
+                {
+                  title: t('Email Logs'),
+                  url: '/usage-logs/email',
+                  icon: Mail,
+                },
+              ]
+            : []),
         ],
       },
       {

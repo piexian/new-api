@@ -435,6 +435,7 @@ export const STATIC_I18N_KEYS = [
   'User personal functions',
   'Wallet Management',
   'Balance and top-up management',
+  'Invite Rewards',
   'Personal Settings',
   'Personal info settings',
   'Saved successfully',

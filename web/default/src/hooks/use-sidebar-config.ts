@@ -48,6 +48,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
     log: true,
     midjourney: true,
     task: true,
+    email: true,
   },
   personal: {
     enabled: true,
@@ -105,6 +106,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/usage-logs/common': { section: 'console', module: 'log' },
   '/usage-logs/drawing': { section: 'console', module: 'midjourney' },
   '/usage-logs/task': { section: 'console', module: 'task' },
+  '/usage-logs/email': { section: 'console', module: 'email' },
   '/wallet': { section: 'personal', module: 'topup' },
   '/invite-rewards': { section: 'personal', module: 'invite' },
   '/profile': { section: 'personal', module: 'personal' },

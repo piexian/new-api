@@ -66,6 +66,7 @@ import Redemption from './pages/Redemption';
 import TopUp from './pages/TopUp';
 import InviteRewards from './pages/InviteRewards';
 import Log from './pages/Log';
+import EmailLog from './pages/EmailLog';
 import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
 import Midjourney from './pages/Midjourney';
@@ -464,6 +465,15 @@ function App() {
               <PrivateRoute>
                 <Log />
               </PrivateRoute>,
+            )}
+          />
+          <Route
+            path='/console/email-log'
+            element={routeGuard(
+              '/console/email-log',
+              <AdminRoute>
+                <EmailLog />
+              </AdminRoute>,
             )}
           />
           <Route

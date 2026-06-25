@@ -34,12 +34,23 @@ func getSMTPAuth() smtp.Auth {
 }
 
 func SendEmail(subject string, receiver string, content string) error {
+	startTime := time.Now()
+	provider := EmailProvider
+	if provider == "" {
+		provider = "smtp"
+	}
+	record := func(status string, err error) {
+		recordEmailLog(provider, receiver, subject, status, time.Since(startTime).Milliseconds(), err)
+	}
+
 	if err := CheckEmailDailyLimit(); err != nil {
+		record("failed", err)
 		return err
 	}
 	ok, release := TryAcquireEmailSendDedupLock(subject, receiver, content)
 	if !ok {
 		SysLog(fmt.Sprintf("duplicate email suppressed: receiver=%s subject=%s", receiver, subject))
+		record("suppressed", ErrDuplicateEmailSuppressed)
 		return ErrDuplicateEmailSuppressed
 	}
 
@@ -51,9 +62,11 @@ func SendEmail(subject string, receiver string, content string) error {
 	}
 	if err != nil {
 		release()
+		record("failed", err)
 		return err
 	}
 	IncrEmailDailyCount()
+	record("success", nil)
 	return nil
 }
 

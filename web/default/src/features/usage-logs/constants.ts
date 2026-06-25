@@ -187,6 +187,15 @@ export const TASK_STATUS = {
 } as const
 
 /**
+ * Email delivery status
+ */
+export const EMAIL_STATUS = {
+  SUCCESS: 'success',
+  FAILED: 'failed',
+  SUPPRESSED: 'suppressed',
+} as const
+
+/**
  * Task platforms
  */
 export const TASK_PLATFORMS = {
@@ -322,6 +331,15 @@ export const TASK_PLATFORM_MAPPINGS: Record<string, StatusMapping> = {
   [TASK_PLATFORMS.XAI]: { label: 'xai', variant: 'blue' },
 }
 
+/**
+ * Email status mappings
+ */
+export const EMAIL_STATUS_MAPPINGS: Record<string, StatusMapping> = {
+  [EMAIL_STATUS.SUCCESS]: { label: 'Success', variant: 'green' },
+  [EMAIL_STATUS.FAILED]: { label: 'Failed', variant: 'red' },
+  [EMAIL_STATUS.SUPPRESSED]: { label: 'Suppressed', variant: 'yellow' },
+}
+
 // ============================================================================
 // Log Category Labels
 // ============================================================================
@@ -333,6 +351,7 @@ export const LOG_CATEGORY_LABELS: Record<LogCategory, string> = {
   common: 'Common',
   drawing: 'Drawing',
   task: 'Task',
+  email: 'Email',
 }
 
 // ============================================================================

@@ -22,6 +22,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type { ColumnDef } from '@tanstack/react-table'
 import { useCommonLogsColumns } from '../components/columns/common-logs-columns'
 import { useDrawingLogsColumns } from '../components/columns/drawing-logs-columns'
+import { useEmailLogsColumns } from '../components/columns/email-logs-columns'
 import { useTaskLogsColumns } from '../components/columns/task-logs-columns'
 import type { LogCategory } from '../types'
 
@@ -37,6 +38,7 @@ export function useColumnsByCategory(
   const commonColumns = useCommonLogsColumns(isAdmin)
   const drawingColumns = useDrawingLogsColumns(isAdmin)
   const taskColumns = useTaskLogsColumns(isAdmin)
+  const emailColumns = useEmailLogsColumns()
 
   switch (logCategory) {
     case 'common':
@@ -45,6 +47,8 @@ export function useColumnsByCategory(
       return drawingColumns
     case 'task':
       return taskColumns
+    case 'email':
+      return emailColumns
     default:
       return commonColumns
   }

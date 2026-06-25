@@ -42,6 +42,7 @@ import { useColumnsByCategory } from '../lib/columns'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
+import { EmailLogsFilterBar } from './email-logs-filter-bar'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
@@ -116,7 +117,9 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       })
 
       if (!result?.success) {
-        toast.error(result?.message || t('Failed to load logs'))
+        toast.error(
+          result?.message ? t(result.message) : t('Failed to load logs')
+        )
         return DEFAULT_LOGS_DATA
       }
 
@@ -159,6 +162,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   }, [pageCount, ensurePageInRange])
 
   const isCommon = logCategory === 'common'
+  const isEmail = logCategory === 'email'
 
   return (
     <DataTablePage
@@ -176,6 +180,8 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       toolbar={
         isCommon ? (
           <CommonLogsFilterBar table={table} />
+        ) : isEmail ? (
+          <EmailLogsFilterBar table={table} />
         ) : (
           <TaskLogsFilterBar table={table} logCategory={logCategory} />
         )
