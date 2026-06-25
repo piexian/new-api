@@ -258,13 +258,7 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func volcengineV3BaseURL(baseUrl string) string {
-	baseUrl = strings.TrimRight(baseUrl, "/")
-	if strings.HasSuffix(baseUrl, "/api/v3") ||
-		strings.HasSuffix(baseUrl, "/api/plan/v3") ||
-		strings.HasSuffix(baseUrl, "/api/coding/v3") {
-		return baseUrl
-	}
-	return fmt.Sprintf("%s/api/v3", baseUrl)
+	return common.GetVolcEngineArkDataPlaneBaseURL(baseUrl)
 }
 
 func volcengineOpenAIBaseURL(baseUrl string, specialPlan channelconstant.ChannelSpecialBase, hasSpecialPlan bool) string {

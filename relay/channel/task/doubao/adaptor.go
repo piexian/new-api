@@ -72,6 +72,8 @@ type responseTask struct {
 	Status  string `json:"status"`
 	Content struct {
 		VideoURL string `json:"video_url"`
+		FileURL  string `json:"file_url"`
+		ImageURL string `json:"image_url"`
 	} `json:"content"`
 	Seed            int    `json:"seed"`
 	Resolution      string `json:"resolution"`
@@ -122,12 +124,7 @@ func doubaoTaskOpenAIBaseURL(baseURL string) string {
 	if specialBase, ok := constant.ChannelSpecialBases[baseURL]; ok && specialBase.OpenAIBaseURL != "" {
 		return strings.TrimRight(specialBase.OpenAIBaseURL, "/")
 	}
-	if strings.HasSuffix(baseURL, "/api/v3") ||
-		strings.HasSuffix(baseURL, "/api/plan/v3") ||
-		strings.HasSuffix(baseURL, "/api/coding/v3") {
-		return baseURL
-	}
-	return fmt.Sprintf("%s/api/v3", baseURL)
+	return common.GetVolcEngineArkDataPlaneBaseURL(baseURL)
 }
 
 // ValidateRequestAndSetAction parses body, validates fields and sets default action.
@@ -290,16 +287,13 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 		Content: []ContentItem{},
 	}
 
-	// Add images if present
-	if req.HasImage() {
-		for _, imgURL := range req.Images {
-			r.Content = append(r.Content, ContentItem{
-				Type: "image_url",
-				ImageURL: &MediaURL{
-					URL: imgURL,
-				},
-			})
-		}
+	for _, imgURL := range doubaoTaskImageURLs(req) {
+		r.Content = append(r.Content, ContentItem{
+			Type: "image_url",
+			ImageURL: &MediaURL{
+				URL: imgURL,
+			},
+		})
 	}
 
 	metadata := req.Metadata
@@ -318,6 +312,34 @@ func (a *TaskAdaptor) convertToRequestPayload(req *relaycommon.TaskSubmitReq) (*
 	})
 
 	return &r, nil
+}
+
+func doubaoTaskImageURLs(req *relaycommon.TaskSubmitReq) []string {
+	if req == nil {
+		return nil
+	}
+
+	images := make([]string, 0, len(req.Images)+3)
+	seen := make(map[string]struct{}, len(req.Images)+3)
+	add := func(imageURL string) {
+		imageURL = strings.TrimSpace(imageURL)
+		if imageURL == "" {
+			return
+		}
+		if _, ok := seen[imageURL]; ok {
+			return
+		}
+		seen[imageURL] = struct{}{}
+		images = append(images, imageURL)
+	}
+
+	for _, imageURL := range req.Images {
+		add(imageURL)
+	}
+	add(req.Image)
+	add(req.ImageURL)
+	add(req.InputReference)
+	return images
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
@@ -341,7 +363,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "succeeded":
 		taskResult.Status = model.TaskStatusSuccess
 		taskResult.Progress = "100%"
-		taskResult.Url = resTask.Content.VideoURL
+		taskResult.Url = resTask.generatedContentURL()
 		// 解析 usage 信息用于按倍率计费
 		taskResult.CompletionTokens = resTask.Usage.CompletionTokens
 		taskResult.TotalTokens = resTask.Usage.TotalTokens
@@ -369,7 +391,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.TaskID = originTask.TaskID
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
-	openAIVideo.SetMetadata("url", dResp.Content.VideoURL)
+	openAIVideo.SetMetadata("url", dResp.generatedContentURL())
 	openAIVideo.CreatedAt = originTask.CreatedAt
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 	openAIVideo.Model = originTask.Properties.OriginModelName
@@ -382,4 +404,13 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	}
 
 	return common.Marshal(openAIVideo)
+}
+
+func (r responseTask) generatedContentURL() string {
+	for _, candidate := range []string{r.Content.VideoURL, r.Content.FileURL, r.Content.ImageURL} {
+		if strings.TrimSpace(candidate) != "" {
+			return candidate
+		}
+	}
+	return ""
 }

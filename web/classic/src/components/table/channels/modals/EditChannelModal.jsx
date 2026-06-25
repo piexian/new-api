@@ -29,6 +29,7 @@ import {
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   CHANNEL_OPTIONS,
+  CHANNEL_TYPE_OPENCODE,
   MODEL_FETCHABLE_CHANNEL_TYPES,
 } from '../../../../constants';
 import {
@@ -133,6 +134,8 @@ const PARAM_OVERRIDE_OPERATIONS_TEMPLATE = {
 const DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
 const DOUBAO_AGENT_PLAN_BASE_URL = 'doubao-agent-plan';
 const DOUBAO_PLAN_DEFAULT_MODEL = 'ark-code-latest';
+const OPENCODE_ZEN_BASE_URL = 'opencode-zen';
+const OPENCODE_GO_BASE_URL = 'opencode-go';
 const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan';
 const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL =
   'glm-coding-plan-international';
@@ -529,7 +532,7 @@ const EditChannelModal = (props) => {
   };
 
   const handleApiConfigSecretClick = () => {
-    if (![26, 45].includes(inputs.type)) return;
+    if (![26, 45, CHANNEL_TYPE_OPENCODE].includes(inputs.type)) return;
     const next = doubaoApiClickCountRef.current + 1;
     doubaoApiClickCountRef.current = next;
     if (next >= 10) {
@@ -735,6 +738,14 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://zenmux.ai',
+          }));
+          break;
+        case CHANNEL_TYPE_OPENCODE:
+          localModels = getChannelModels(value);
+          formApiRef.current?.setValue('base_url', OPENCODE_ZEN_BASE_URL);
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: OPENCODE_ZEN_BASE_URL,
           }));
           break;
         case 26:
@@ -1060,6 +1071,13 @@ const EditChannelModal = (props) => {
           (typeof data.base_url === 'string' && data.base_url.trim() === ''))
       ) {
         data.base_url = 'https://zenmux.ai';
+      }
+      if (
+        data.type === CHANNEL_TYPE_OPENCODE &&
+        (!data.base_url ||
+          (typeof data.base_url === 'string' && data.base_url.trim() === ''))
+      ) {
+        data.base_url = OPENCODE_ZEN_BASE_URL;
       }
 
       initialBaseUrlRef.current = data.base_url || '';
@@ -3789,6 +3807,8 @@ const EditChannelModal = (props) => {
                             inputs.type !== 8 &&
                             inputs.type !== 22 &&
                             inputs.type !== 36 &&
+                            (inputs.type !== CHANNEL_TYPE_OPENCODE ||
+                              doubaoApiEditUnlocked) &&
                             (inputs.type !== 26 || doubaoApiEditUnlocked) &&
                             (inputs.type !== 45 || doubaoApiEditUnlocked) && (
                               <div>
@@ -3882,6 +3902,44 @@ const EditChannelModal = (props) => {
                                   },
                                 ]}
                                 defaultValue='https://ark.cn-beijing.volces.com'
+                                disabled={isIonetLocked}
+                              />
+                            </div>
+                          )}
+
+                          {inputs.type === CHANNEL_TYPE_OPENCODE &&
+                            !doubaoApiEditUnlocked && (
+                            <div>
+                              <Form.Select
+                                field='base_url'
+                                label={
+                                  <span
+                                    onClick={handleApiConfigSecretClick}
+                                    style={{
+                                      cursor: 'pointer',
+                                      userSelect: 'none',
+                                    }}
+                                  >
+                                    {t('API地址')}
+                                  </span>
+                                }
+                                placeholder={t('请选择API地址')}
+                                onChange={(value) =>
+                                  handleInputChange('base_url', value)
+                                }
+                                optionList={[
+                                  {
+                                    value: OPENCODE_ZEN_BASE_URL,
+                                    label:
+                                      'OpenCode Zen (https://opencode.ai/zen)',
+                                  },
+                                  {
+                                    value: OPENCODE_GO_BASE_URL,
+                                    label:
+                                      'OpenCode Go (https://opencode.ai/zen/go)',
+                                  },
+                                ]}
+                                defaultValue={OPENCODE_ZEN_BASE_URL}
                                 disabled={isIonetLocked}
                               />
                             </div>

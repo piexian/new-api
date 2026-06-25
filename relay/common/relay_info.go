@@ -733,6 +733,20 @@ type TaskSubmitReq struct {
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
 }
 
+func (t *TaskSubmitReq) GetTokenCountMeta() *types.TokenCountMeta {
+	return &types.TokenCountMeta{
+		TokenType: types.TokenTypeTokenizer,
+	}
+}
+
+func (t *TaskSubmitReq) IsStream(*gin.Context) bool {
+	return false
+}
+
+func (t *TaskSubmitReq) SetModelName(modelName string) {
+	t.Model = modelName
+}
+
 func (t *TaskSubmitReq) GetPrompt() string {
 	return t.Prompt
 }

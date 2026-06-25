@@ -74,3 +74,54 @@ func TestBuildRequestURLUsesPlanAwareBase(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "https://ark.cn-beijing.volces.com/api/plan/v3/contents/generations/tasks", got)
 }
+
+func TestResponseTaskGeneratedContentURLFallbacks(t *testing.T) {
+	t.Parallel()
+
+	var result responseTask
+	require.Empty(t, result.generatedContentURL())
+
+	result.Content.ImageURL = "https://example.com/preview.png"
+	require.Equal(t, "https://example.com/preview.png", result.generatedContentURL())
+
+	result.Content.FileURL = "https://example.com/model.glb"
+	require.Equal(t, "https://example.com/model.glb", result.generatedContentURL())
+
+	result.Content.VideoURL = "https://example.com/video.mp4"
+	require.Equal(t, "https://example.com/video.mp4", result.generatedContentURL())
+}
+
+func TestParseTaskResultUsesGeneratedContentURLFallback(t *testing.T) {
+	t.Parallel()
+
+	taskInfo, err := (&TaskAdaptor{}).ParseTaskResult([]byte(`{
+		"id":"task_123",
+		"status":"succeeded",
+		"content":{"file_url":"https://example.com/model.glb"}
+	}`))
+
+	require.NoError(t, err)
+	require.Equal(t, "SUCCESS", taskInfo.Status)
+	require.Equal(t, "https://example.com/model.glb", taskInfo.Url)
+}
+
+func TestDoubaoTaskImageURLsIncludesOpenAIVideoAliases(t *testing.T) {
+	t.Parallel()
+
+	req := &relaycommon.TaskSubmitReq{
+		Image:          "https://example.com/image.png",
+		ImageURL:       "https://example.com/image-url.png",
+		InputReference: "https://example.com/reference.png",
+		Images: []string{
+			"https://example.com/image.png",
+			"https://example.com/second.png",
+		},
+	}
+
+	require.Equal(t, []string{
+		"https://example.com/image.png",
+		"https://example.com/second.png",
+		"https://example.com/image-url.png",
+		"https://example.com/reference.png",
+	}, doubaoTaskImageURLs(req))
+}

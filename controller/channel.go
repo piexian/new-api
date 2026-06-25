@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	"github.com/QuantumNous/new-api/relay/channel/opencode"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
 	"github.com/QuantumNous/new-api/relay/channel/zenmux"
 	"github.com/QuantumNous/new-api/service"
@@ -1113,11 +1114,75 @@ func FetchModels(c *gin.Context) {
 	if req.Type == constant.ChannelTypeZenMux {
 		baseURL = zenmux.OpenAIBaseURL(baseURL)
 	}
+	if req.Type == constant.ChannelTypeOpenCode {
+		if staticModels := opencode.StaticModelListForBase(baseURL); len(staticModels) > 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"data":    staticModels,
+			})
+			return
+		}
+		if modelsURL, ok := opencode.ModelsURL(baseURL); ok {
+			url := modelsURL
+			request, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+			request.Header.Set("Authorization", "Bearer "+key)
+			response, err := client.Do(request)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+			defer response.Body.Close()
+			if response.StatusCode != http.StatusOK {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false,
+					"message": "Failed to fetch models",
+				})
+				return
+			}
+			body, err := io.ReadAll(response.Body)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+			models, err := opencode.ParseModelsResponse(body)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"data":    models,
+			})
+			return
+		}
+	}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
 	if req.Type == constant.ChannelTypeKilo {
 		url = fmt.Sprintf("%s/models", baseURL)
 	} else if req.Type == constant.ChannelTypeZenMux {
 		url = fmt.Sprintf("%s/models", baseURL)
+	} else if req.Type == constant.ChannelTypeVolcEngine {
+		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
+			url = fmt.Sprintf("%s/models", strings.TrimRight(plan.OpenAIBaseURL, "/"))
+		} else {
+			url = fmt.Sprintf("%s/models", common.GetVolcEngineArkDataPlaneBaseURL(baseURL))
+		}
 	}
 
 	request, err := http.NewRequest("GET", url, nil)

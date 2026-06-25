@@ -62,6 +62,7 @@ const (
 	ChannelTypeXiaomiMiMo      = 62
 	ChannelTypeAgnesAI         = 63
 	ChannelTypeZenMux          = 64
+	ChannelTypeOpenCode        = 65
 	ChannelTypeDummy           // this one is only for count, do not add any channel after this
 
 )
@@ -132,6 +133,7 @@ var ChannelBaseURLs = []string{
 	"https://api.xiaomimimo.com",                     //62
 	"https://apihub.agnes-ai.com",                    //63
 	"https://zenmux.ai",                              //64
+	OpenCodeZenBaseURLAlias,                          //65
 }
 
 var ChannelTypeNames = map[int]string{
@@ -196,6 +198,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeXiaomiMiMo:      "XiaomiMiMo",
 	ChannelTypeAgnesAI:         "AgnesAI",
 	ChannelTypeZenMux:          "ZenMux",
+	ChannelTypeOpenCode:        "OpenCode",
 }
 
 func GetChannelTypeName(channelType int) string {

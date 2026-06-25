@@ -63,6 +63,7 @@ import {
   Perplexity,
   Poe,
   Replicate,
+  OpenCode,
 } from '@lobehub/icons/es/icons';
 
 import {
@@ -83,6 +84,7 @@ import {
   Server,
   CalendarClock,
   ShieldBan,
+  Mail,
 } from 'lucide-react';
 import {
   SiAtlassian,
@@ -138,6 +140,8 @@ export function getLucideIcon(key, selected = false) {
       return <ImageIcon {...commonProps} color={iconColor} />;
     case 'task':
       return <CheckSquare {...commonProps} color={iconColor} />;
+    case 'email':
+      return <Mail {...commonProps} color={iconColor} />;
     case 'topup':
       return <CreditCard {...commonProps} color={iconColor} />;
     case 'invite':
@@ -418,6 +422,8 @@ export function getChannelIcon(channelType) {
       return <Replicate size={iconSize} />;
     case 59: // Poe
       return <Poe size={iconSize} />;
+    case 65: // OpenCode
+      return <OpenCode size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;

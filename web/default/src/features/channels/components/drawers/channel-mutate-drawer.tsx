@@ -167,9 +167,11 @@ const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan'
 const DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan'
 const DOUBAO_AGENT_PLAN_BASE_URL = 'doubao-agent-plan'
 const DOUBAO_PLAN_DEFAULT_MODEL = 'ark-code-latest'
+const OPENCODE_ZEN_BASE_URL = 'opencode-zen'
+const OPENCODE_GO_BASE_URL = 'opencode-go'
 const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn/v1'
 const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai/v1'
-const CUSTOM_BASE_URL_UNLOCK_TYPES = [25, 26, 45]
+const CUSTOM_BASE_URL_UNLOCK_TYPES = [25, 26, 45, 65]
 
 type ChannelMutateDrawerProps = {
   open: boolean
@@ -654,6 +656,13 @@ export function ChannelMutateDrawer({
       const currentBaseUrlValue = form.getValues('base_url')
       if (!currentBaseUrlValue || currentBaseUrlValue === '') {
         form.setValue('base_url', 'https://zenmux.ai')
+      }
+    }
+
+    if (currentType === 65) {
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue === '') {
+        form.setValue('base_url', OPENCODE_ZEN_BASE_URL)
       }
     }
 
@@ -2021,6 +2030,99 @@ export function ChannelMutateDrawer({
                   />
                 )}
 
+                {/* OpenCode (type 65) */}
+                {currentType === 65 && !customBaseUrlUnlocked && (
+                  <FormField
+                    control={form.control}
+                    name='base_url'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel
+                          className='cursor-pointer select-none'
+                          onClick={handleApiConfigSecretClick}
+                        >
+                          {t('API Base URL')}
+                        </FormLabel>
+                        <Select
+                          items={[
+                            {
+                              value: OPENCODE_ZEN_BASE_URL,
+                              label: t('OpenCode Zen'),
+                            },
+                            {
+                              value: OPENCODE_GO_BASE_URL,
+                              label: t('OpenCode Go'),
+                            },
+                          ]}
+                          onValueChange={(value) => field.onChange(value || '')}
+                          value={
+                            [
+                              OPENCODE_ZEN_BASE_URL,
+                              OPENCODE_GO_BASE_URL,
+                            ].includes(String(field.value || ''))
+                              ? field.value || OPENCODE_ZEN_BASE_URL
+                              : undefined
+                          }
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              {field.value &&
+                                ![
+                                  OPENCODE_ZEN_BASE_URL,
+                                  OPENCODE_GO_BASE_URL,
+                                ].includes(String(field.value)) && (
+                                  <SelectItem value={String(field.value)}>
+                                    {String(field.value)}
+                                  </SelectItem>
+                                )}
+                              <SelectItem value={OPENCODE_ZEN_BASE_URL}>
+                                {t('OpenCode Zen')}
+                              </SelectItem>
+                              <SelectItem value={OPENCODE_GO_BASE_URL}>
+                                {t('OpenCode Go')}
+                              </SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {t(
+                            'OpenCode Zen uses https://opencode.ai/zen. OpenCode Go uses https://opencode.ai/zen/go.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* OpenCode (type 65) - Custom API URL (unlocked) */}
+                {currentType === 65 && customBaseUrlUnlocked && (
+                  <FormField
+                    control={form.control}
+                    name='base_url'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('API Base URL')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t('e.g., https://opencode.ai/zen')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Enter custom API endpoint URL')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 {/* Coze (type 49) */}
                 {currentType === 49 && (
                   <FormField
@@ -2045,7 +2147,7 @@ export function ChannelMutateDrawer({
                 )}
 
                 {/* General base_url for other types */}
-                {![3, 8, 22, 25, 26, 36, 45].includes(currentType) && (
+                {![3, 8, 22, 25, 26, 36, 45, 65].includes(currentType) && (
                   <FormField
                     control={form.control}
                     name='base_url'

@@ -70,7 +70,15 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 	case constant.ChannelTypeXai:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
 	case constant.ChannelTypeVolcEngine:
-		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
+		if IsVolcEngineContentGenerationTaskModel(modelName) {
+			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
+		} else if IsVolcEngineEmbeddingModel(modelName) {
+			endpointTypes = []constant.EndpointType{constant.EndpointTypeEmbeddings}
+		} else {
+			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
+		}
+	case constant.ChannelTypeOpenCode:
+		endpointTypes = getOpenCodeEndpointTypes(modelName)
 	case constant.ChannelTypeSora:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
 	default:
@@ -80,9 +88,60 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
 		}
 	}
-	if IsImageGenerationModel(modelName) {
+	if IsImageGenerationModel(modelName) ||
+		(channelType == constant.ChannelTypeVolcEngine && IsVolcEngineImageGenerationModel(modelName)) {
 		// add to first
-		endpointTypes = append([]constant.EndpointType{constant.EndpointTypeImageGeneration}, endpointTypes...)
+		endpointTypes = prependEndpointType(endpointTypes, constant.EndpointTypeImageGeneration)
 	}
 	return endpointTypes
+}
+
+func prependEndpointType(endpointTypes []constant.EndpointType, endpointType constant.EndpointType) []constant.EndpointType {
+	for _, existing := range endpointTypes {
+		if existing == endpointType {
+			return endpointTypes
+		}
+	}
+	return append([]constant.EndpointType{endpointType}, endpointTypes...)
+}
+
+func getOpenCodeEndpointTypes(modelName string) []constant.EndpointType {
+	modelName = strings.ToLower(strings.TrimSpace(modelName))
+	endpointTypes := make([]constant.EndpointType, 0, 4)
+	add := func(endpointType constant.EndpointType) {
+		for _, existing := range endpointTypes {
+			if existing == endpointType {
+				return
+			}
+		}
+		endpointTypes = append(endpointTypes, endpointType)
+	}
+
+	if stringListContainsFold(constant.OpenCodeZenResponsesModels, modelName) {
+		add(constant.EndpointTypeOpenAIResponse)
+	}
+	if stringListContainsFold(constant.OpenCodeZenClaudeModels, modelName) ||
+		stringListContainsFold(constant.OpenCodeGoClaudeModels, modelName) {
+		add(constant.EndpointTypeAnthropic)
+	}
+	if stringListContainsFold(constant.OpenCodeZenGeminiModels, modelName) {
+		add(constant.EndpointTypeGemini)
+	}
+	if stringListContainsFold(constant.OpenCodeZenChatModels, modelName) ||
+		stringListContainsFold(constant.OpenCodeGoChatModels, modelName) {
+		add(constant.EndpointTypeOpenAI)
+	}
+	if len(endpointTypes) == 0 {
+		add(constant.EndpointTypeOpenAI)
+	}
+	return endpointTypes
+}
+
+func stringListContainsFold(list []string, target string) bool {
+	for _, item := range list {
+		if strings.EqualFold(strings.TrimSpace(item), target) {
+			return true
+		}
+	}
+	return false
 }

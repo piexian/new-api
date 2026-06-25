@@ -66,6 +66,23 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
+	if channel != nil && channel.Type == constant.ChannelTypeOpenCode {
+		endpointTypes := common.GetEndpointTypesByChannelType(channel.Type, modelName)
+		if len(endpointTypes) > 0 {
+			return string(endpointTypes[0])
+		}
+	}
+	if channel != nil && channel.Type == constant.ChannelTypeVolcEngine {
+		if common.IsVolcEngineContentGenerationTaskModel(modelName) {
+			return string(constant.EndpointTypeOpenAIVideo)
+		}
+		if common.IsVolcEngineImageGenerationModel(modelName) {
+			return string(constant.EndpointTypeImageGeneration)
+		}
+		if common.IsVolcEngineEmbeddingModel(modelName) {
+			return string(constant.EndpointTypeEmbeddings)
+		}
+	}
 	return normalized
 }
 
@@ -135,8 +152,13 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		}
 
 		// VolcEngine 图像生成模型
-		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+		if channel.Type == constant.ChannelTypeVolcEngine && common.IsVolcEngineImageGenerationModel(testModel) {
 			requestPath = "/v1/images/generations"
+		}
+
+		// VolcEngine 视频/3D 生成模型
+		if channel.Type == constant.ChannelTypeVolcEngine && common.IsVolcEngineContentGenerationTaskModel(testModel) {
+			requestPath = "/v1/videos"
 		}
 
 		// responses-only models
@@ -207,6 +229,8 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			relayFormat = types.RelayFormatOpenAIImage
 		case constant.EndpointTypeEmbeddings, constant.EndpointTypeCohereEmbeddings:
 			relayFormat = types.RelayFormatEmbedding
+		case constant.EndpointTypeOpenAIVideo:
+			relayFormat = types.RelayFormatTask
 		default:
 			relayFormat = types.RelayFormatOpenAI
 		}
@@ -233,6 +257,9 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		}
 		if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") {
 			relayFormat = types.RelayFormatOpenAIResponsesCompaction
+		}
+		if c.Request.URL.Path == "/v1/videos" {
+			relayFormat = types.RelayFormatTask
 		}
 	}
 
@@ -272,6 +299,10 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	testModel = info.UpstreamModelName
 	// 更新请求中的模型名称
 	request.SetModelName(testModel)
+
+	if info.RelayMode == relayconstant.RelayModeVideoSubmit {
+		return testChannelVideoSubmit(c, channel, info, request, tik)
+	}
 
 	apiType, _ := common.ChannelType2APIType(channel.Type)
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact &&
@@ -567,6 +598,125 @@ func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData ty
 	return other
 }
 
+func testChannelVideoSubmit(c *gin.Context, channel *model.Channel, info *relaycommon.RelayInfo, request dto.Request, startedAt time.Time) testResult {
+	taskAdaptor := relay.GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channel.Type)))
+	if taskAdaptor == nil {
+		err := fmt.Errorf("invalid task api platform: %d", channel.Type)
+		return testResult{
+			context:     c,
+			localErr:    err,
+			newAPIError: types.NewError(err, types.ErrorCodeInvalidApiType),
+		}
+	}
+
+	taskAdaptor.Init(info)
+	if info.PublicTaskID == "" {
+		info.PublicTaskID = model.GenerateTaskID()
+	}
+
+	requestData, err := common.Marshal(request)
+	if err != nil {
+		return testResult{
+			context:     c,
+			localErr:    err,
+			newAPIError: types.NewError(err, types.ErrorCodeJsonMarshalFailed),
+		}
+	}
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(requestData))
+
+	if taskErr := taskAdaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
+		err := taskErrorAsError(taskErr)
+		return testResult{
+			context:     c,
+			localErr:    err,
+			newAPIError: taskErrorAsNewAPIError(taskErr),
+		}
+	}
+
+	requestBody, err := taskAdaptor.BuildRequestBody(c, info)
+	if err != nil {
+		return testResult{
+			context:     c,
+			localErr:    err,
+			newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
+		}
+	}
+
+	resp, err := taskAdaptor.DoRequest(c, info, requestBody)
+	if err != nil {
+		return testResult{
+			context:     c,
+			localErr:    err,
+			newAPIError: types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError),
+		}
+	}
+	if resp != nil && resp.StatusCode != http.StatusOK {
+		err := service.RelayErrorHandler(c.Request.Context(), resp, true)
+		common.SysError(fmt.Sprintf(
+			"channel video test bad response: channel_id=%d name=%s type=%d model=%s status=%d err=%v",
+			channel.Id,
+			channel.Name,
+			channel.Type,
+			info.UpstreamModelName,
+			resp.StatusCode,
+			err,
+		))
+		return testResult{
+			context:     c,
+			localErr:    err,
+			newAPIError: types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError),
+		}
+	}
+
+	taskID, taskData, taskErr := taskAdaptor.DoResponse(c, resp, info)
+	if taskErr != nil {
+		err := taskErrorAsError(taskErr)
+		return testResult{
+			context:     c,
+			localErr:    err,
+			newAPIError: taskErrorAsNewAPIError(taskErr),
+		}
+	}
+
+	common.SysLog(fmt.Sprintf(
+		"testing video channel #%d with model %s, task_id: %s, response: \n%s, duration: %.2fs",
+		channel.Id,
+		info.UpstreamModelName,
+		taskID,
+		string(taskData),
+		time.Since(startedAt).Seconds(),
+	))
+	return testResult{
+		context:     c,
+		localErr:    nil,
+		newAPIError: nil,
+	}
+}
+
+func taskErrorAsError(taskErr *dto.TaskError) error {
+	if taskErr == nil {
+		return nil
+	}
+	if taskErr.Error != nil {
+		return taskErr.Error
+	}
+	if strings.TrimSpace(taskErr.Message) != "" {
+		return errors.New(taskErr.Message)
+	}
+	return errors.New("task request failed")
+}
+
+func taskErrorAsNewAPIError(taskErr *dto.TaskError) *types.NewAPIError {
+	if taskErr == nil {
+		return nil
+	}
+	statusCode := taskErr.StatusCode
+	if statusCode == 0 {
+		statusCode = http.StatusInternalServerError
+	}
+	return types.NewOpenAIError(taskErrorAsError(taskErr), types.ErrorCodeInvalidRequest, statusCode)
+}
+
 func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dto.Usage, error) {
 	switch u := usageAny.(type) {
 	case *dto.Usage:
@@ -711,12 +861,21 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			}
 		case constant.EndpointTypeImageGeneration:
 			// 返回 ImageRequest
-			return &dto.ImageRequest{
+			imageRequest := &dto.ImageRequest{
 				Model:  model,
 				Prompt: "a cute cat",
 				N:      lo.ToPtr(uint(1)),
 				Size:   "1024x1024",
 			}
+			if channel != nil && channel.Type == constant.ChannelTypeVolcEngine && common.IsVolcEngineImageGenerationModel(model) {
+				imageRequest.Size = "2K"
+				if strings.Contains(strings.ToLower(model), "seededit") {
+					imageRequest.Image = json.RawMessage(`"https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/JPEG_example_flower.jpg/320px-JPEG_example_flower.jpg"`)
+				}
+			}
+			return imageRequest
+		case constant.EndpointTypeOpenAIVideo:
+			return buildTestVideoRequest(model, channel)
 		case constant.EndpointTypeJinaRerank, constant.EndpointTypeCohereRerank:
 			// 返回 RerankRequest
 			return &dto.RerankRequest{
@@ -783,6 +942,10 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		}
 	}
 
+	if channel != nil && channel.Type == constant.ChannelTypeVolcEngine && common.IsVolcEngineContentGenerationTaskModel(model) {
+		return buildTestVideoRequest(model, channel)
+	}
+
 	// Responses compaction models (must use /v1/responses/compact)
 	if strings.HasSuffix(model, ratio_setting.CompactModelSuffix) {
 		return &dto.OpenAIResponsesCompactionRequest{
@@ -828,6 +991,34 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	}
 
 	return testRequest
+}
+
+func buildTestVideoRequest(modelName string, channel *model.Channel) dto.Request {
+	req := &relaycommon.TaskSubmitReq{
+		Model:    modelName,
+		Prompt:   "Create a short test video.",
+		Duration: 5,
+		Seconds:  "5",
+		Size:     "1280x720",
+	}
+	if channel == nil || channel.Type != constant.ChannelTypeVolcEngine {
+		return req
+	}
+
+	lowerModel := strings.ToLower(strings.TrimSpace(modelName))
+	switch {
+	case common.IsVolcEngine3DGenerationModel(modelName):
+		req.Prompt = "Create a simple 3D model from the reference image."
+		req.Image = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/JPEG_example_flower.jpg/320px-JPEG_example_flower.jpg"
+	case strings.Contains(lowerModel, "flf2v"):
+		req.Images = []string{
+			"https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/JPEG_example_flower.jpg/320px-JPEG_example_flower.jpg",
+			"https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Example.jpg/320px-Example.jpg",
+		}
+	case strings.Contains(lowerModel, "i2v"):
+		req.Image = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/JPEG_example_flower.jpg/320px-JPEG_example_flower.jpg"
+	}
+	return req
 }
 
 func TestChannel(c *gin.Context) {

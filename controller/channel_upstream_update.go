@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
+	"github.com/QuantumNous/new-api/relay/channel/opencode"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
 	"github.com/QuantumNous/new-api/relay/channel/zenmux"
 	"github.com/QuantumNous/new-api/service"
@@ -277,6 +278,11 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeZenMux {
 		baseURL = zenmux.OpenAIBaseURL(baseURL)
 	}
+	if channel.Type == constant.ChannelTypeOpenCode {
+		if staticModels := opencode.StaticModelListForBase(baseURL); len(staticModels) > 0 {
+			return normalizeModelNames(staticModels), nil
+		}
+	}
 
 	if channel.Type == constant.ChannelTypeOllama {
 		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])
@@ -332,9 +338,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		}
 	case constant.ChannelTypeVolcEngine:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/v1/models", plan.OpenAIBaseURL)
+			url = fmt.Sprintf("%s/models", strings.TrimRight(plan.OpenAIBaseURL, "/"))
 		} else {
-			url = fmt.Sprintf("%s/v1/models", baseURL)
+			url = fmt.Sprintf("%s/models", common.GetVolcEngineArkDataPlaneBaseURL(baseURL))
 		}
 	case constant.ChannelTypeMoonshot:
 		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
@@ -346,6 +352,12 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		url = fmt.Sprintf("%s/models", baseURL)
 	case constant.ChannelTypeZenMux:
 		url = fmt.Sprintf("%s/models", baseURL)
+	case constant.ChannelTypeOpenCode:
+		modelsURL, ok := opencode.ModelsURL(baseURL)
+		if !ok {
+			return normalizeModelNames(opencode.ModelList), nil
+		}
+		url = modelsURL
 	default:
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}
@@ -366,17 +378,24 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return nil, err
 	}
 
-	var result OpenAIModelsResponse
-	if err := common.Unmarshal(body, &result); err != nil {
-		return nil, err
-	}
-
-	ids := lo.Map(result.Data, func(item OpenAIModel, _ int) string {
-		if channel.Type == constant.ChannelTypeGemini {
-			return strings.TrimPrefix(item.ID, "models/")
+	var ids []string
+	if channel.Type == constant.ChannelTypeOpenCode {
+		ids, err = opencode.ParseModelsResponse(body)
+		if err != nil {
+			return nil, err
 		}
-		return item.ID
-	})
+	} else {
+		var result OpenAIModelsResponse
+		if err := common.Unmarshal(body, &result); err != nil {
+			return nil, err
+		}
+		ids = lo.Map(result.Data, func(item OpenAIModel, _ int) string {
+			if channel.Type == constant.ChannelTypeGemini {
+				return strings.TrimPrefix(item.ID, "models/")
+			}
+			return item.ID
+		})
+	}
 	if channel.Type == constant.ChannelTypeMiniMax {
 		ids = mergeModelNames(ids, minimax.NativeEndpointModelList)
 	}

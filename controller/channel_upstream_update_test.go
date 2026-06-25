@@ -156,6 +156,29 @@ func TestFetchChannelUpstreamModelIDsMiniMaxNormalizesBaseURLAndKeepsNativeEndpo
 	require.Contains(t, models, minimax.LyricsGenerationModel)
 }
 
+func TestFetchChannelUpstreamModelIDsVolcEngineUsesArkDataPlaneModels(t *testing.T) {
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		require.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"doubao-seedance-2-0-fast-260128","object":"model"}]}`))
+	}))
+	defer server.Close()
+
+	baseURL := server.URL
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeVolcEngine,
+		Key:     "test-key",
+		BaseURL: &baseURL,
+	}
+
+	models, err := fetchChannelUpstreamModelIDs(channel)
+	require.NoError(t, err)
+	require.Equal(t, "/api/v3/models", gotPath)
+	require.Equal(t, []string{"doubao-seedance-2-0-fast-260128"}, models)
+}
+
 func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *testing.T) {
 	channelSummaries := make([]upstreamModelUpdateChannelSummary, 0, 12)
 	for i := 0; i < 12; i++ {

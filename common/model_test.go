@@ -27,6 +27,18 @@ func TestGetEndpointTypesByChannelTypeForCompactModel(t *testing.T) {
 	}
 }
 
+func TestOpenAIVideoDefaultEndpointInfo(t *testing.T) {
+	t.Parallel()
+
+	info, ok := GetDefaultEndpointInfo(constant.EndpointTypeOpenAIVideo)
+	if !ok {
+		t.Fatal("expected openai-video default endpoint info to exist")
+	}
+	if info.Path != "/v1/videos" || info.Method != "POST" {
+		t.Fatalf("unexpected openai-video endpoint info: %#v", info)
+	}
+}
+
 func TestGetEndpointTypesByChannelTypeForKilo(t *testing.T) {
 	t.Parallel()
 
@@ -104,13 +116,115 @@ func TestGetEndpointTypesByChannelTypeForDeepSeek(t *testing.T) {
 func TestGetEndpointTypesByChannelTypeForVolcEngine(t *testing.T) {
 	t.Parallel()
 
-	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeVolcEngine, "doubao-seed-2-1-pro-260628")
-	want := []constant.EndpointType{
-		constant.EndpointTypeOpenAI,
-		constant.EndpointTypeOpenAIResponse,
+	tests := []struct {
+		name  string
+		model string
+		want  []constant.EndpointType
+	}{
+		{
+			name:  "chat model",
+			model: "doubao-seed-2-1-pro-260628",
+			want: []constant.EndpointType{
+				constant.EndpointTypeOpenAI,
+				constant.EndpointTypeOpenAIResponse,
+			},
+		},
+		{
+			name:  "text embedding model",
+			model: "doubao-embedding-text-240715",
+			want:  []constant.EndpointType{constant.EndpointTypeEmbeddings},
+		},
+		{
+			name:  "image generation model",
+			model: "doubao-seedream-5-0-260128",
+			want: []constant.EndpointType{
+				constant.EndpointTypeImageGeneration,
+				constant.EndpointTypeOpenAI,
+				constant.EndpointTypeOpenAIResponse,
+			},
+		},
+		{
+			name:  "video generation model",
+			model: "doubao-seedance-2-0-fast-260128",
+			want:  []constant.EndpointType{constant.EndpointTypeOpenAIVideo},
+		},
+		{
+			name:  "wan video generation model",
+			model: "wan2-1-14b-i2v-250225",
+			want:  []constant.EndpointType{constant.EndpointTypeOpenAIVideo},
+		},
+		{
+			name:  "3d generation model",
+			model: "doubao-seed3d-2-0-260328",
+			want:  []constant.EndpointType{constant.EndpointTypeOpenAIVideo},
+		},
+		{
+			name:  "hyper 3d generation model",
+			model: "hyper3d-gen2-260112",
+			want:  []constant.EndpointType{constant.EndpointTypeOpenAIVideo},
+		},
 	}
-	if !reflect.DeepEqual(endpoints, want) {
-		t.Fatalf("expected VolcEngine endpoints %#v, got %#v", want, endpoints)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeVolcEngine, tt.model)
+			if !reflect.DeepEqual(endpoints, tt.want) {
+				t.Fatalf("expected VolcEngine endpoints %#v, got %#v", tt.want, endpoints)
+			}
+		})
+	}
+}
+
+func TestGetEndpointTypesByChannelTypeForOpenCode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		model string
+		want  []constant.EndpointType
+	}{
+		{
+			name:  "zen responses model",
+			model: "gpt-5.5",
+			want:  []constant.EndpointType{constant.EndpointTypeOpenAIResponse},
+		},
+		{
+			name:  "anthropic model",
+			model: "claude-sonnet-4-6",
+			want:  []constant.EndpointType{constant.EndpointTypeAnthropic},
+		},
+		{
+			name:  "gemini model",
+			model: "gemini-3-flash",
+			want:  []constant.EndpointType{constant.EndpointTypeGemini},
+		},
+		{
+			name:  "chat model",
+			model: "glm-5.1",
+			want:  []constant.EndpointType{constant.EndpointTypeOpenAI},
+		},
+		{
+			name:  "zen chat and go anthropic model",
+			model: "minimax-m2.7",
+			want: []constant.EndpointType{
+				constant.EndpointTypeAnthropic,
+				constant.EndpointTypeOpenAI,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeOpenCode, tt.model)
+
+			if !reflect.DeepEqual(endpoints, tt.want) {
+				t.Fatalf("expected OpenCode endpoints %#v, got %#v", tt.want, endpoints)
+			}
+		})
 	}
 }
 
