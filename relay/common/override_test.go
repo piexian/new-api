@@ -1902,6 +1902,53 @@ func TestApplyParamOverrideWithRelayInfoMixedLegacyAndOperations(t *testing.T) {
 	}
 }
 
+func TestApplyParamOverrideWithRelayInfoSkipsAnthropicBillingHeader(t *testing.T) {
+	info := &RelayInfo{
+		RequestHeaders: map[string]string{
+			"Originator":                 "Codex CLI",
+			"X-Anthropic-Billing-Header": "cc_version=2.1.177; cch=nonce;",
+		},
+		ChannelMeta: &ChannelMeta{
+			ParamOverride: map[string]interface{}{
+				"operations": []interface{}{
+					map[string]interface{}{
+						"mode":  "pass_headers",
+						"value": []interface{}{"Originator", "X-Anthropic-Billing-Header"},
+					},
+					map[string]interface{}{
+						"mode":  "set_header",
+						"path":  "X-Anthropic-Billing-Header",
+						"value": "static-value",
+					},
+				},
+			},
+			HeadersOverride: map[string]interface{}{
+				"X-Anthropic-Billing-Header": "legacy-value",
+				"X-Static":                   "keep",
+			},
+		},
+	}
+
+	out, err := ApplyParamOverrideWithRelayInfo([]byte(`{"model":"gpt-5","temperature":0.7}`), info)
+	if err != nil {
+		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"model":"gpt-5","temperature":0.7}`, string(out))
+
+	if !info.UseRuntimeHeadersOverride {
+		t.Fatalf("expected runtime header override to be enabled")
+	}
+	if info.RuntimeHeadersOverride["originator"] != "Codex CLI" {
+		t.Fatalf("expected originator header to be passed, got: %v", info.RuntimeHeadersOverride["originator"])
+	}
+	if info.RuntimeHeadersOverride["x-static"] != "keep" {
+		t.Fatalf("expected x-static header to be preserved, got: %v", info.RuntimeHeadersOverride["x-static"])
+	}
+	if _, exists := info.RuntimeHeadersOverride["x-anthropic-billing-header"]; exists {
+		t.Fatalf("expected x-anthropic-billing-header to be filtered")
+	}
+}
+
 func TestApplyParamOverrideWithRelayInfoMoveAndCopyHeaders(t *testing.T) {
 	info := &RelayInfo{
 		ChannelMeta: &ChannelMeta{

@@ -405,6 +405,9 @@ func sanitizeHeaderOverrideMap(source map[string]interface{}) map[string]interfa
 		if normalizedKey == "" {
 			continue
 		}
+		if IsBlockedUpstreamHeader(normalizedKey) {
+			continue
+		}
 		normalizedValue := strings.TrimSpace(fmt.Sprintf("%v", value))
 		if normalizedValue == "" {
 			if isHeaderPassthroughRuleKeyForOverride(normalizedKey) {
@@ -1075,6 +1078,11 @@ func setHeaderOverrideInContext(context map[string]interface{}, headerName strin
 	if headerName == "" {
 		return fmt.Errorf("header name is required")
 	}
+	if IsBlockedUpstreamHeader(headerName) {
+		rawHeaders := ensureMapKeyInContext(context, paramOverrideContextHeaderOverride)
+		delete(rawHeaders, headerName)
+		return nil
+	}
 
 	rawHeaders := ensureMapKeyInContext(context, paramOverrideContextHeaderOverride)
 	if keepOrigin {
@@ -1517,6 +1525,9 @@ func buildRequestHeadersContext(headers map[string]string) map[string]interface{
 		normalized := normalizeHeaderContextKey(item.Key)
 		value := strings.TrimSpace(item.Value)
 		if normalized == "" || value == "" {
+			return lo.Entry[string, string]{}, false
+		}
+		if IsBlockedUpstreamHeader(normalized) {
 			return lo.Entry[string, string]{}, false
 		}
 		return lo.Entry[string, string]{Key: normalized, Value: value}, true

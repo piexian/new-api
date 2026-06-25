@@ -140,6 +140,55 @@ func TestProcessHeaderOverride_PassthroughSkipsAcceptEncoding(t *testing.T) {
 	require.False(t, hasAcceptEncoding)
 }
 
+func TestProcessHeaderOverride_PassthroughSkipsAnthropicBillingHeader(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		headersOverride map[string]any
+	}{
+		{
+			name: "wildcard",
+			headersOverride: map[string]any{
+				"*": "",
+			},
+		},
+		{
+			name: "regex",
+			headersOverride: map[string]any{
+				"regex:(?i)^x-": "",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gin.SetMode(gin.TestMode)
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+			ctx.Request.Header.Set("X-Trace-Id", "trace-123")
+			ctx.Request.Header.Set("X-Anthropic-Billing-Header", "cc_version=2.1.177; cch=nonce;")
+
+			info := &relaycommon.RelayInfo{
+				IsChannelTest: false,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					HeadersOverride: tt.headersOverride,
+				},
+			}
+
+			headers, err := processHeaderOverride(info, ctx)
+			require.NoError(t, err)
+			require.Equal(t, "trace-123", headers["x-trace-id"])
+
+			_, hasBillingHeader := headers["x-anthropic-billing-header"]
+			require.False(t, hasBillingHeader)
+		})
+	}
+}
+
 func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.T) {
 	t.Parallel()
 

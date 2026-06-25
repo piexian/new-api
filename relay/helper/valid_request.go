@@ -282,6 +282,7 @@ func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest
 	if textRequest.Model == "" {
 		return nil, errors.New("field model is required")
 	}
+	textRequest.RemoveAnthropicBillingHeaderSystemBlock()
 
 	//if textRequest.Stream {
 	//	relayInfo.IsStream = true

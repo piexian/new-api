@@ -236,6 +236,81 @@ type ClaudeRequest struct {
 	ServiceTier string `json:"service_tier,omitempty"`
 }
 
+const anthropicBillingHeaderLinePrefix = "x-anthropic-billing-header:"
+
+func (c *ClaudeRequest) RemoveAnthropicBillingHeaderSystemBlock() bool {
+	if c == nil || c.System == nil {
+		return false
+	}
+	if c.IsStringSystem() {
+		filtered, removed := removeAnthropicBillingHeaderLines(c.GetStringSystem())
+		if !removed {
+			return false
+		}
+		if strings.TrimSpace(filtered) == "" {
+			c.System = nil
+		} else {
+			c.SetStringSystem(filtered)
+		}
+		return true
+	}
+
+	systemMedia := c.ParseSystem()
+	if len(systemMedia) == 0 {
+		return false
+	}
+
+	removed := false
+	filtered := make([]ClaudeMediaMessage, 0, len(systemMedia))
+	for _, media := range systemMedia {
+		if media.Type == ContentTypeText {
+			filteredText, textRemoved := removeAnthropicBillingHeaderLines(media.GetText())
+			if textRemoved {
+				removed = true
+				if strings.TrimSpace(filteredText) == "" {
+					continue
+				}
+				media.SetText(filteredText)
+			}
+		}
+		filtered = append(filtered, media)
+	}
+	if !removed {
+		return false
+	}
+	if len(filtered) == 0 {
+		c.System = nil
+	} else {
+		c.System = filtered
+	}
+	return true
+}
+
+func removeAnthropicBillingHeaderLines(text string) (string, bool) {
+	if text == "" {
+		return text, false
+	}
+	lines := strings.Split(text, "\n")
+	filtered := make([]string, 0, len(lines))
+	removed := false
+	for _, line := range lines {
+		if isAnthropicBillingHeaderLine(line) {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+	if !removed {
+		return text, false
+	}
+	return strings.Join(filtered, "\n"), true
+}
+
+func isAnthropicBillingHeaderLine(line string) bool {
+	normalized := strings.TrimSpace(strings.ToLower(line))
+	return strings.HasPrefix(normalized, anthropicBillingHeaderLinePrefix)
+}
+
 // OutputConfigForEffort just for extract effort
 type OutputConfigForEffort struct {
 	Effort string `json:"effort,omitempty"`

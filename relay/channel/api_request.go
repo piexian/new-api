@@ -139,6 +139,9 @@ func shouldSkipPassthroughHeader(name string) bool {
 		return true
 	}
 	lower := strings.ToLower(name)
+	if common.IsBlockedUpstreamHeader(lower) {
+		return true
+	}
 	if _, ok := passthroughSkipHeaderNamesLower[lower]; ok {
 		return true
 	}
@@ -297,6 +300,10 @@ func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]s
 		return
 	}
 	for key, value := range headerOverride {
+		if common.IsBlockedUpstreamHeader(key) {
+			req.Header.Del(key)
+			continue
+		}
 		req.Header.Set(key, value)
 		// set Host in req
 		if strings.EqualFold(key, "Host") {
