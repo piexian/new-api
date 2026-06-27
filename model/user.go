@@ -589,7 +589,7 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
-	//user.SetAccessToken(common.GetUUID())
+	// user.SetAccessToken(common.GetUUID())
 	user.AffCode, err = GenerateUniqueAffCode(DB, 0)
 	if err != nil {
 		return err
@@ -799,7 +799,7 @@ func (user *User) ValidateAndFill() (err error) {
 	err = DB.Where("username = ? OR email = ?", username, username).First(user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrInvalidCredentials
+			return ErrUserNotFound
 		}
 		return fmt.Errorf("%w: %v", ErrDatabase, err)
 	}

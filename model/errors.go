@@ -12,6 +12,7 @@ var (
 	ErrInvalidCredentials   = errors.New("invalid credentials")
 	ErrUserEmptyCredentials = errors.New("empty credentials")
 	ErrUserDisabled         = errors.New("user disabled")
+	ErrUserNotFound         = errors.New("user not found")
 )
 
 // Token auth errors

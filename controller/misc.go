@@ -41,7 +41,6 @@ func TestStatus(c *gin.Context) {
 }
 
 func GetStatus(c *gin.Context) {
-
 	cs := console_setting.GetConsoleSetting()
 	common.OptionMapRWMutex.RLock()
 	defer common.OptionMapRWMutex.RUnlock()
@@ -263,21 +262,12 @@ func SendEmailVerification(c *gin.Context) {
 	}
 	localPart := parts[0]
 	domainPart := parts[1]
-	if common.EmailDomainRestrictionEnabled {
-		allowed := false
-		for _, domain := range common.EmailDomainWhitelist {
-			if domainPart == domain {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.",
-			})
-			return
-		}
+	if common.EmailDomainRestrictionEnabled && !isEmailDomainAllowed(domainPart, common.EmailDomainWhitelist) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.",
+		})
+		return
 	}
 	if common.EmailAliasRestrictionEnabled {
 		containsSpecialSymbols := strings.Contains(localPart, "+") || strings.Contains(localPart, ".")
@@ -337,6 +327,46 @@ func SendEmailVerification(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+// isEmailDomainAllowed reports whether domain matches any whitelist entry.
+// An entry without "*" must match exactly. An entry containing "*" segments
+// matches only a domain with the same number of labels, where each "*" matches
+// exactly one label (DNS-style: "*.edu.cn" matches "buaa.edu.cn" but not
+// "a.b.edu.cn"; "*.*.edu.cn" matches the latter). Matching is case-insensitive.
+func isEmailDomainAllowed(domain string, whitelist []string) bool {
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	domainLabels := strings.Split(domain, ".")
+	for _, entry := range whitelist {
+		entry = strings.ToLower(strings.TrimSpace(entry))
+		if entry == "" {
+			continue
+		}
+		if !strings.Contains(entry, "*") {
+			if domain == entry {
+				return true
+			}
+			continue
+		}
+		patternLabels := strings.Split(entry, ".")
+		if len(patternLabels) != len(domainLabels) {
+			continue
+		}
+		matched := true
+		for i, pl := range patternLabels {
+			if pl == "*" {
+				continue
+			}
+			if domainLabels[i] != pl {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
 }
 
 func SendPasswordResetEmail(c *gin.Context) {

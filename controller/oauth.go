@@ -50,6 +50,28 @@ func isOAuthRegistrationEnabled() bool {
 	return common.RegisterEnabled && common.OAuthRegisterEnabled
 }
 
+// pickOAuthUsername derives a meaningful, non-conflicting username from an OAuth login.
+// It returns the login unchanged when it fits within UserNameMaxLength and is free;
+// otherwise truncates to the max length and shortens one rune at a time on collision,
+// down to minLen. It returns "" when no candidate is free, so the caller keeps the
+// provider placeholder (e.g. "github_<id>").
+func pickOAuthUsername(login string) string {
+	const minLen = 3
+	runes := []rune(login)
+	start := len(runes)
+	if start > model.UserNameMaxLength {
+		start = model.UserNameMaxLength
+	}
+	for l := start; l >= minLen; l-- {
+		candidate := string(runes[:l])
+		exists, err := model.CheckUserExistOrDeleted(candidate, "")
+		if err == nil && !exists {
+			return candidate
+		}
+	}
+	return ""
+}
+
 // HandleOAuth handles OAuth callback for all standard OAuth providers
 func HandleOAuth(c *gin.Context) {
 	providerName := c.Param("provider")
@@ -251,11 +273,11 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Username = provider.GetProviderPrefix() + strconv.Itoa(model.GetMaxUserId()+1)
 
 	if oauthUser.Username != "" {
-		if exists, err := model.CheckUserExistOrDeleted(oauthUser.Username, ""); err == nil && !exists {
-			// 防止索引退化
-			if len(oauthUser.Username) <= model.UserNameMaxLength {
-				user.Username = oauthUser.Username
-			}
+		// Prefer the real login: use it directly when it fits and is free,
+		// otherwise truncate to the max length and shorten one rune at a time
+		// on collision. When nothing is free, keep the placeholder set above.
+		if chosen := pickOAuthUsername(oauthUser.Username); chosen != "" {
+			user.Username = chosen
 		}
 	}
 
