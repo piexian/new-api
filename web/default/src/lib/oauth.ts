@@ -82,6 +82,25 @@ export function buildQQOAuthUrl(clientId: string, state: string): string {
   return url.toString()
 }
 
+/**
+ * Build Steam OpenID login URL.
+ * Steam uses OpenID 2.0 (not OAuth 2.0): there is no client_id, we redirect to
+ * Steam's OpenID provider endpoint. The CSRF state is embedded in
+ * openid.return_to so the backend HandleOAuth state check still applies.
+ */
+export function buildSteamOpenIDUrl(state: string): string {
+  const returnTo = `${window.location.origin}/oauth/steam?state=${encodeURIComponent(state)}`
+  const params = new URLSearchParams({
+    'openid.ns': 'http://specs.openid.net/auth/2.0',
+    'openid.mode': 'checkid_setup',
+    'openid.return_to': returnTo,
+    'openid.realm': window.location.origin,
+    'openid.identity': 'http://specs.openid.net/auth/2.0/identifier_select',
+    'openid.claimed_id': 'http://specs.openid.net/auth/2.0/identifier_select',
+  })
+  return `https://steamcommunity.com/openid/login?${params.toString()}`
+}
+
 // ============================================================================
 // OAuth Helper Functions
 // ============================================================================
@@ -164,5 +183,16 @@ export async function handleQQOAuth(clientId: string): Promise<void> {
   if (!state) return
 
   const url = buildQQOAuthUrl(clientId, state)
+  window.open(url, '_blank')
+}
+
+/**
+ * Handle Steam OpenID binding/login
+ */
+export async function handleSteamOAuth(): Promise<void> {
+  const state = await getOAuthState()
+  if (!state) return
+
+  const url = buildSteamOpenIDUrl(state)
   window.open(url, '_blank')
 }

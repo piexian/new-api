@@ -158,6 +158,14 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "SteamOAuthEnabled":
+		if option.Value == "true" && common.SteamWebAPIKey == "" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无法启用 Steam 登录，请先填入 Steam Web API Key！",
+			})
+			return
+		}
 	case "discord.enabled":
 		if option.Value == "true" && system_setting.GetDiscordSettings().ClientId == "" {
 			c.JSON(http.StatusOK, gin.H{

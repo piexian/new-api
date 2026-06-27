@@ -43,6 +43,7 @@ func InitOptionMap() {
 	common.OptionMap["LinuxDOOAuthEnabled"] = strconv.FormatBool(common.LinuxDOOAuthEnabled)
 	common.OptionMap["QQOAuthEnabled"] = strconv.FormatBool(common.QQOAuthEnabled)
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
+	common.OptionMap["SteamOAuthEnabled"] = strconv.FormatBool(common.SteamOAuthEnabled)
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
@@ -132,6 +133,7 @@ func InitOptionMap() {
 	common.OptionMap["GitHubClientSecret"] = ""
 	common.OptionMap["QQClientId"] = ""
 	common.OptionMap["QQClientSecret"] = ""
+	common.OptionMap["SteamWebAPIKey"] = ""
 	common.OptionMap["TelegramBotToken"] = ""
 	common.OptionMap["TelegramBotName"] = ""
 	common.OptionMap["WeChatServerAddress"] = ""
@@ -161,8 +163,8 @@ func InitOptionMap() {
 	common.OptionMap["AudioRatio"] = ratio_setting.AudioRatio2JSONString()
 	common.OptionMap["AudioCompletionRatio"] = ratio_setting.AudioCompletionRatio2JSONString()
 	common.OptionMap["TopUpLink"] = common.TopUpLink
-	//common.OptionMap["ChatLink"] = common.ChatLink
-	//common.OptionMap["ChatLink2"] = common.ChatLink2
+	// common.OptionMap["ChatLink"] = common.ChatLink
+	// common.OptionMap["ChatLink2"] = common.ChatLink2
 	common.OptionMap["QuotaPerUnit"] = strconv.FormatFloat(common.QuotaPerUnit, 'f', -1, 64)
 	common.OptionMap["RetryTimes"] = strconv.Itoa(common.RetryTimes)
 	common.OptionMap["DataExportInterval"] = strconv.Itoa(common.DataExportInterval)
@@ -306,6 +308,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.WeChatAuthEnabled = boolValue
 		case "TelegramOAuthEnabled":
 			common.TelegramOAuthEnabled = boolValue
+		case "SteamOAuthEnabled":
+			common.SteamOAuthEnabled = boolValue
 		case "TurnstileCheckEnabled":
 			common.TurnstileCheckEnabled = boolValue
 		case "RegisterEnabled":
@@ -500,6 +504,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.GitHubClientId = value
 	case "GitHubClientSecret":
 		common.GitHubClientSecret = value
+	case "SteamWebAPIKey":
+		common.SteamWebAPIKey = value
 	case "LinuxDOClientId":
 		common.LinuxDOClientId = value
 	case "LinuxDOClientSecret":
@@ -580,9 +586,9 @@ func updateOptionMap(key string, value string) (err error) {
 		err = ratio_setting.UpdateAudioCompletionRatioByJSONString(value)
 	case "TopUpLink":
 		common.TopUpLink = value
-	//case "ChatLink":
+	// case "ChatLink":
 	//	common.ChatLink = value
-	//case "ChatLink2":
+	// case "ChatLink2":
 	//	common.ChatLink2 = value
 	case "ChannelDisableThreshold":
 		common.ChannelDisableThreshold, _ = strconv.ParseFloat(value, 64)

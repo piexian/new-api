@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Mail, Shield, Send, Link2, Unlink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { SiGithub, SiWechat, SiLinux, SiQq } from 'react-icons/si'
+import { SiGithub, SiWechat, SiLinux, SiQq, SiSteam } from 'react-icons/si'
 import { toast } from 'sonner'
 import { IconDiscord } from '@/assets/brand-icons'
 import {
@@ -28,6 +28,7 @@ import {
   handleDiscordOAuth,
   handleLinuxDOOAuth,
   handleQQOAuth,
+  handleSteamOAuth,
 } from '@/lib/oauth'
 import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
@@ -270,6 +271,19 @@ export function AccountBindingsTab({
             handleQQOAuth(status.qq_client_id)
           }
         },
+      },
+      {
+        id: 'steam',
+        label: t('Steam'),
+        icon: SiSteam as React.ComponentType<{ className?: string }>,
+        value: (profile as unknown as Record<string, unknown>).steam_id as
+          | string
+          | undefined,
+        isBound: Boolean(
+          (profile as unknown as Record<string, unknown>).steam_id
+        ),
+        isEnabled: status?.steam_oauth || false,
+        onBind: () => handleSteamOAuth(),
       },
     ].filter((binding) => binding.isEnabled)
     // eslint-disable-next-line react-hooks/exhaustive-deps

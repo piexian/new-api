@@ -549,6 +549,7 @@ func GetSelf(c *gin.Context) {
 		"wechat_id":                    user.WeChatId,
 		"telegram_id":                  user.TelegramId,
 		"qq_id":                        user.QQId,
+		"steam_id":                     user.SteamId,
 		"group":                        user.Group,
 		"quota":                        user.Quota,
 		"used_quota":                   user.UsedQuota,
@@ -1111,7 +1112,6 @@ type ManageRequest struct {
 func ManageUser(c *gin.Context) {
 	var req ManageRequest
 	err := common.DecodeJson(c.Request.Body, &req)
-
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -1315,8 +1315,10 @@ type topUpRequest struct {
 	PurchaseMode string `json:"purchase_mode"`
 }
 
-var topUpLocks sync.Map
-var topUpCreateLock sync.Mutex
+var (
+	topUpLocks      sync.Map
+	topUpCreateLock sync.Mutex
+)
 
 type topUpTryLock struct {
 	ch chan struct{}

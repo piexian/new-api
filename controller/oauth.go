@@ -345,6 +345,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 				"wechat_id":   user.WeChatId,
 				"telegram_id": user.TelegramId,
 				"qq_id":       user.QQId,
+				"steam_id":    user.SteamId,
 			}).Error; err != nil {
 				return err
 			}

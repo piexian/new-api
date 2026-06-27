@@ -75,6 +75,8 @@ const AUTH_SECTIONS = [
           QQOAuthEnabled: settings.QQOAuthEnabled,
           QQClientId: settings.QQClientId,
           QQClientSecret: settings.QQClientSecret,
+          SteamOAuthEnabled: settings.SteamOAuthEnabled,
+          SteamWebAPIKey: settings.SteamWebAPIKey,
           OAuthRegisterEnabled: settings.OAuthRegisterEnabled,
           WeChatAuthEnabled: settings.WeChatAuthEnabled,
           WeChatServerAddress: settings.WeChatServerAddress,

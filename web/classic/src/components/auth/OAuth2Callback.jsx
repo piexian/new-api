@@ -43,11 +43,14 @@ const OAuth2Callback = (props) => {
   // 最大重试次数
   const MAX_RETRIES = 3;
 
-  const sendCode = async (code, state, retry = 0) => {
+  const sendCode = async (code, state, isSteam = false, retry = 0) => {
     try {
-      const { data: resData } = await API.get(
-        `/api/oauth/${props.type}?code=${code}&state=${state}`,
-      );
+      // Steam 使用 OpenID 2.0，回调不含 code，仅有 openid.* 参数，
+      // 将原始 query string（含 state + openid.*）透传给后端校验。
+      const url = isSteam
+        ? `/api/oauth/${props.type}${window.location.search}`
+        : `/api/oauth/${props.type}?code=${code}&state=${state}`;
+      const { data: resData } = await API.get(url);
 
       const { success, message, data } = resData;
 
@@ -74,7 +77,7 @@ const OAuth2Callback = (props) => {
       if (retry < MAX_RETRIES) {
         // 递增的退避等待
         await new Promise((resolve) => setTimeout(resolve, (retry + 1) * 2000));
-        return sendCode(code, state, retry + 1);
+        return sendCode(code, state, isSteam, retry + 1);
       }
 
       // 重试次数耗尽，提示错误并返回设置页面
@@ -90,17 +93,18 @@ const OAuth2Callback = (props) => {
     }
     hasExecuted.current = true;
 
+    const isSteam = props.type === 'steam';
     const code = searchParams.get('code');
     const state = searchParams.get('state');
 
-    // 参数缺失直接返回
-    if (!code) {
+    // 参数缺失直接返回（Steam 使用 OpenID，回调无 code）
+    if (!isSteam && !code) {
       showError(t('未获取到授权码'));
       navigate('/console/personal');
       return;
     }
 
-    sendCode(code, state);
+    sendCode(code, state, isSteam);
   }, []);
 
   return <Loading />;

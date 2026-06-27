@@ -77,7 +77,8 @@ function OAuthCallback() {
         }
       }
 
-      if (!search?.code) {
+      const isSteam = provider?.toLowerCase() === 'steam'
+      if (!isSteam && !search?.code) {
         toast.error(i18next.t('Missing code'))
         safeNavigate('/sign-in')
         return
@@ -163,11 +164,15 @@ function OAuthCallback() {
       }
 
       try {
-        const config: OAuthRequestConfig = {
-          params: { code: search.code, state: search.state },
-          skipBusinessError: true,
-        }
-        const res = await api.get(`/api/oauth/${provider}`, config)
+        const config: OAuthRequestConfig = isSteam
+          ? { skipBusinessError: true }
+          : { params: { code: search.code, state: search.state }, skipBusinessError: true }
+        // Steam uses OpenID 2.0: forward the full openid.* query string verbatim so the
+        // backend ExchangeToken can verify the assertion (there is no authorization code).
+        const res = await api.get(
+          isSteam ? `/api/oauth/steam${window.location.search}` : `/api/oauth/${provider}`,
+          config
+        )
         if (res?.data?.success) {
           const { message } = res.data
           const loginUser = (res.data?.data ?? null) as AuthUser | null

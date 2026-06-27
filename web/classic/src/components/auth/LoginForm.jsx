@@ -36,6 +36,7 @@ import {
   onOIDCClicked,
   onLinuxDOOAuthClicked,
   onQQOAuthClicked,
+  onSteamOAuthClicked,
   onCustomOAuthClicked,
   prepareCredentialRequestOptions,
   buildAssertionResult,
@@ -66,7 +67,7 @@ import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
 import TwoFAVerification from './TwoFAVerification';
 import { useTranslation } from 'react-i18next';
-import { SiDiscord, SiTencentqq } from 'react-icons/si';
+import { SiDiscord, SiSteam, SiTencentqq } from 'react-icons/si';
 import { LOGIN_FEATURE_UPDATE_PROMPT_KEY } from '../../constants/common.constant';
 
 const LoginForm = () => {
@@ -98,6 +99,7 @@ const LoginForm = () => {
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
   const [qqLoading, setQqLoading] = useState(false);
+  const [steamLoading, setSteamLoading] = useState(false);
   const [emailLoginLoading, setEmailLoginLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
@@ -147,6 +149,7 @@ const LoginForm = () => {
       status.wechat_login ||
       status.linuxdo_oauth ||
       status.qq_oauth ||
+      status.steam_oauth ||
       status.telegram_oauth ||
       hasCustomOAuthProviders,
   );
@@ -367,6 +370,21 @@ const LoginForm = () => {
     }
   };
 
+  // 包装的Steam登录点击处理
+  const handleSteamClick = () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    setSteamLoading(true);
+    try {
+      onSteamOAuthClicked({ shouldLogout: true });
+    } finally {
+      // 由于重定向，这里不会执行到，但为了完整性添加
+      setTimeout(() => setSteamLoading(false), 3000);
+    }
+  };
+
   // 包装的OIDC登录点击处理
   const handleOIDCClick = () => {
     if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
@@ -575,6 +593,27 @@ const LoginForm = () => {
                     disabled={githubButtonDisabled}
                   >
                     <span className='ml-3'>{githubButtonText}</span>
+                  </Button>
+                )}
+
+                {status.steam_oauth && (
+                  <Button
+                    theme='outline'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    type='tertiary'
+                    icon={
+                      <SiSteam
+                        style={{
+                          color: '#1B2838',
+                          width: '20px',
+                          height: '20px',
+                        }}
+                      />
+                    }
+                    onClick={handleSteamClick}
+                    loading={steamLoading}
+                  >
+                    <span className='ml-3'>{t('使用 Steam 继续')}</span>
                   </Button>
                 )}
 

@@ -113,6 +113,7 @@ var (
 	QQOAuthEnabled             = false
 	WeChatAuthEnabled          = false
 	TelegramOAuthEnabled       = false
+	SteamOAuthEnabled          = false
 	TurnstileCheckEnabled      = false
 	RegisterEnabled            = true
 	OAuthRegisterEnabled       = true
@@ -178,6 +179,7 @@ var (
 	LinuxDOMinimumTrustLevel = 0
 	QQClientId               = ""
 	QQClientSecret           = ""
+	SteamWebAPIKey           = ""
 )
 
 var (

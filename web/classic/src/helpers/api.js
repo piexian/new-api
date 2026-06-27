@@ -311,6 +311,22 @@ export async function onGitHubOAuthClicked(github_client_id, options = {}) {
     `https://github.com/login/oauth/authorize?client_id=${github_client_id}&state=${state}&scope=user:email`,
   );
 }
+export async function onSteamOAuthClicked(options = {}) {
+  const state = await prepareOAuthState(options);
+  if (!state) return;
+  const returnTo = `${window.location.origin}/oauth/steam?state=${encodeURIComponent(state)}`;
+  const params = new URLSearchParams({
+    'openid.ns': 'http://specs.openid.net/auth/2.0',
+    'openid.mode': 'checkid_setup',
+    'openid.return_to': returnTo,
+    'openid.realm': window.location.origin,
+    'openid.identity': 'http://specs.openid.net/auth/2.0/identifier_select',
+    'openid.claimed_id': 'http://specs.openid.net/auth/2.0/identifier_select',
+  });
+  redirectToOAuthUrl(
+    `https://steamcommunity.com/openid/login?${params.toString()}`,
+  );
+}
 
 export async function onLinuxDOOAuthClicked(
   linuxdo_client_id,

@@ -47,6 +47,8 @@ const oauthSchema = z.object({
   GitHubOAuthEnabled: z.boolean(),
   GitHubClientId: z.string().optional(),
   GitHubClientSecret: z.string().optional(),
+  SteamOAuthEnabled: z.boolean(),
+  SteamWebAPIKey: z.string().optional(),
   'discord.enabled': z.boolean(),
   'discord.client_id': z.string().optional(),
   'discord.client_secret': z.string().optional(),
@@ -90,6 +92,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     OAuthRegisterEnabled: defaultValues.OAuthRegisterEnabled ?? true,
     GitHubClientId: defaultValues.GitHubClientId ?? '',
     GitHubClientSecret: defaultValues.GitHubClientSecret ?? '',
+    SteamWebAPIKey: defaultValues.SteamWebAPIKey ?? '',
     'discord.client_id': defaultValues['discord.client_id'] ?? '',
     'discord.client_secret': defaultValues['discord.client_secret'] ?? '',
     'oidc.client_id': defaultValues['oidc.client_id'] ?? '',
@@ -291,7 +294,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
             />
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className='grid w-full grid-cols-7'>
+              <TabsList className='grid w-full grid-cols-8'>
                 <TabsTrigger value='github'>{t('GitHub')}</TabsTrigger>
                 <TabsTrigger value='discord'>{t('Discord')}</TabsTrigger>
                 <TabsTrigger value='oidc'>{t('OIDC')}</TabsTrigger>
@@ -299,6 +302,7 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                 <TabsTrigger value='linuxdo'>{t('LinuxDO')}</TabsTrigger>
                 <TabsTrigger value='qq'>{t('QQ')}</TabsTrigger>
                 <TabsTrigger value='wechat'>{t('WeChat')}</TabsTrigger>
+                <TabsTrigger value='steam'>{t('Steam')}</TabsTrigger>
               </TabsList>
 
               <TabsContent value='github' className='space-y-4'>
@@ -353,6 +357,50 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                         <Input
                           type='password'
                           placeholder={t('Your GitHub OAuth Client Secret')}
+                          autoComplete='new-password'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value='steam' className='space-y-4'>
+                <FormField
+                  control={form.control}
+                  name='SteamOAuthEnabled'
+                  render={({ field }) => (
+                    <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                      <div className='space-y-0.5'>
+                        <FormLabel className='text-base'>
+                          {t('Enable Steam Login')}
+                        </FormLabel>
+                        <FormDescription>
+                          {t('Allow users to sign in with Steam')}
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='SteamWebAPIKey'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Steam Web API Key')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='password'
+                          placeholder={t('Your Steam Web API Key')}
                           autoComplete='new-password'
                           {...field}
                         />

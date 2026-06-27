@@ -63,6 +63,7 @@ func GetStatus(c *gin.Context) {
 		"qq_client_id":                common.QQClientId,
 		"telegram_oauth":              common.TelegramOAuthEnabled,
 		"telegram_bot_name":           common.TelegramBotName,
+		"steam_oauth":                 common.SteamOAuthEnabled,
 		"theme":                       getRequestFrontendTheme(c),
 		"system_theme":                system_setting.GetThemeSettings().Frontend,
 		"system_name":                 common.SystemName,

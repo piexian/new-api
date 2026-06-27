@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { SiQq } from 'react-icons/si'
+import { SiQq, SiSteam } from 'react-icons/si'
 import {
   IconDiscord,
   IconGithub,
@@ -26,6 +26,7 @@ import {
   IconWeChat,
 } from '@/assets/brand-icons'
 import { cn } from '@/lib/utils'
+import { handleSteamOAuth } from '@/lib/oauth'
 import { Button } from '@/components/ui/button'
 import { useOAuthLogin } from '../hooks/use-oauth-login'
 import type { SystemStatus } from '../types'
@@ -142,6 +143,15 @@ export function OAuthProviders({
       label: t('Continue with QQ'),
       onClick: guardInvitationCode(handleQQLogin),
       icon: <SiQq className='h-4 w-4' />,
+    })
+  }
+
+  if (status?.steam_oauth) {
+    providerButtons.push({
+      key: 'steam',
+      label: t('Continue with Steam'),
+      onClick: guardInvitationCode(handleSteamOAuth),
+      icon: <SiSteam className='h-4 w-4' />,
     })
   }
 

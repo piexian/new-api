@@ -53,6 +53,7 @@ import {
   showError,
   showSuccess,
   onGitHubOAuthClicked,
+  onSteamOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
   onDiscordOAuthClicked,
@@ -473,6 +474,42 @@ const AccountManagement = ({
                       }
                     >
                       {status.github_oauth ? t('绑定') : t('未启用')}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Steam绑定 */}
+              <Card className='!rounded-xl'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div className='flex items-center flex-1 min-w-0'>
+                    <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
+                      {getOAuthProviderIcon('steam', 20)}
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='font-medium text-gray-900'>
+                        {t('Steam')}
+                      </div>
+                      <div className='text-sm text-gray-500 truncate'>
+                        {renderAccountInfo(
+                          userState.user?.steam_id,
+                          t('Steam ID'),
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className='flex-shrink-0'>
+                    <Button
+                      type='primary'
+                      theme='outline'
+                      size='small'
+                      onClick={() => onSteamOAuthClicked()}
+                      disabled={
+                        isBound(userState.user?.steam_id) ||
+                        !status.steam_oauth
+                      }
+                    >
+                      {status.steam_oauth ? t('绑定') : t('未启用')}
                     </Button>
                   </div>
                 </div>

@@ -36,6 +36,8 @@ const defaultAuthSettings: AuthSettings = {
   GitHubOAuthEnabled: false,
   GitHubClientId: '',
   GitHubClientSecret: '',
+  SteamOAuthEnabled: false,
+  SteamWebAPIKey: '',
   'discord.enabled': false,
   'discord.client_id': '',
   'discord.client_secret': '',

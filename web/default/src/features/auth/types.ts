@@ -104,6 +104,7 @@ export interface SystemStatus {
     qq_oauth?: boolean
     qq_client_id?: string
     telegram_oauth?: boolean
+    steam_oauth?: boolean
     passkey_login?: boolean
     wechat_login?: boolean
     wechat_qrcode?: string
@@ -149,6 +150,7 @@ export interface SystemStatus {
   qq_oauth?: boolean
   qq_client_id?: string
   telegram_oauth?: boolean
+  steam_oauth?: boolean
   passkey_login?: boolean
   wechat_login?: boolean
   wechat_qrcode?: string
