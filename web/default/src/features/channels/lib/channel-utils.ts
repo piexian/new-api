@@ -125,6 +125,7 @@ export function getChannelTypeIcon(type: number): string {
     64: 'ZenMux.Color', // ZenMux
     65: 'OpenCode', // OpenCode
     66: 'GiteeAI', // 模力方舟
+    67: 'OpenAI', // Advanced Custom
   }
 
   return TYPE_TO_ICON[type] || 'OpenAI'

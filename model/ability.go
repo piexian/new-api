@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -104,7 +105,11 @@ func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
 	return channelQuery, nil
 }
 
-func GetChannel(group string, model string, retry int) (*Channel, error) {
+func GetChannel(group string, model string, retry int, requestPaths ...string) (*Channel, error) {
+	requestPath := ""
+	if len(requestPaths) > 0 {
+		requestPath = requestPaths[0]
+	}
 	var abilities []Ability
 
 	var err error = nil
@@ -129,6 +134,12 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 		}
 		if channel.Status != common.ChannelStatusEnabled {
 			continue
+		}
+		if requestPath != "" && channel.Type == constant.ChannelTypeAdvancedCustom {
+			config := channel.GetOtherSettings().AdvancedCustom
+			if config == nil || !config.SupportsPath(requestPath) {
+				continue
+			}
 		}
 		if !channel.HasAvailableKey() {
 			continue

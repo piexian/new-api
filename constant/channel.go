@@ -64,6 +64,7 @@ const (
 	ChannelTypeZenMux          = 64
 	ChannelTypeOpenCode        = 65
 	ChannelTypeMoark           = 66
+	ChannelTypeAdvancedCustom  = 67
 	ChannelTypeDummy           // this one is only for count, do not add any channel after this
 
 )
@@ -136,6 +137,7 @@ var ChannelBaseURLs = []string{
 	"https://zenmux.ai",                              //64
 	OpenCodeZenBaseURLAlias,                          //65
 	"https://api.moark.com",                          //66
+	"",                                               //67
 }
 
 var ChannelTypeNames = map[int]string{
@@ -202,6 +204,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeZenMux:          "ZenMux",
 	ChannelTypeOpenCode:        "OpenCode",
 	ChannelTypeMoark:           "模力方舟",
+	ChannelTypeAdvancedCustom:  "Advanced Custom",
 }
 
 func GetChannelTypeName(channelType int) string {

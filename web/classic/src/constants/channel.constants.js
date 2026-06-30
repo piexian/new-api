@@ -25,6 +25,7 @@ export const CHANNEL_TYPE_AGNES_AI = 63;
 export const CHANNEL_TYPE_ZENMUX = 64;
 export const CHANNEL_TYPE_OPENCODE = 65;
 export const CHANNEL_TYPE_MOARK = 66;
+export const CHANNEL_TYPE_ADVANCED_CUSTOM = 67;
 
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
@@ -130,6 +131,7 @@ export const CHANNEL_OPTIONS = [
   { value: 58, color: 'green', label: 'Kilo Gateway' },
   { value: 59, color: 'purple', label: 'Poe' },
   { value: 8, color: 'pink', label: '自定义渠道' },
+  { value: CHANNEL_TYPE_ADVANCED_CUSTOM, color: 'pink', label: '高级自定义渠道' },
   {
     value: 22,
     color: 'blue',

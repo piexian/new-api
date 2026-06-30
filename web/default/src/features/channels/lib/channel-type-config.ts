@@ -184,6 +184,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Supports OpenAI Chat/Responses, Anthropic Messages, Moderations, and native /v1/async task endpoints',
     },
   },
+  67: {
+    id: 67,
+    name: CHANNEL_TYPES[67],
+    icon: 'openai',
+    hints: {
+      baseUrl: 'Required when advanced route upstream_path is relative',
+      key: 'Used by route auth templates as {api_key}',
+      models: 'Models routed by this custom channel',
+      other:
+        'Configure settings.advanced_custom.advanced_routes to map incoming paths, upstream paths, auth, and converters',
+    },
+  },
 }
 
 /**
