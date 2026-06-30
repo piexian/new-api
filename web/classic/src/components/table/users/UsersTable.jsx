@@ -63,6 +63,7 @@ const UsersTable = (usersData) => {
   const [enableDisableAction, setEnableDisableAction] = useState('');
   const [disableReason, setDisableReason] = useState('');
   const [showResetPasskeyModal, setShowResetPasskeyModal] = useState(false);
+  const [showResetTwoFAModal, setShowResetTwoFAModal] = useState(false);
   const [showUserSubscriptionsModal, setShowUserSubscriptionsModal] =
     useState(false);
   const [showUserTokensModal, setShowUserTokensModal] = useState(false);
