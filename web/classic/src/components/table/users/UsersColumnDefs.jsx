@@ -390,6 +390,7 @@ export const getUsersColumns = ({
           showResetTwoFAModal,
           showUserSubscriptionsModal,
           showUserTokensModal,
+          t,
         }),
     },
   ];
