@@ -26,7 +26,9 @@ type selfAPIResponse struct {
 type selfResponseData struct {
 	ID                      int    `json:"id"`
 	Username                string `json:"username"`
+	Setting                 string `json:"setting"`
 	HasPassword             bool   `json:"has_password"`
+	ForceRecordIpLogEnabled bool   `json:"force_record_ip_log_enabled"`
 	UsernameChangeLimit     int    `json:"username_change_limit"`
 	UsernameChangeCount     int    `json:"username_change_count"`
 	UsernameChangeRemaining int    `json:"username_change_remaining"`
@@ -65,6 +67,7 @@ func setupUserSelfControllerTestDB(t *testing.T) *gorm.DB {
 	common.TurnstilePasswordResetEnabled = false
 	common.TurnstileCheckinEnabled = false
 	common.TurnstileSensitiveUpdateEnabled = false
+	common.ForceRecordIpLogEnabled = false
 
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
@@ -487,6 +490,82 @@ func TestGetSelfReturnsUsernameChangeQuota(t *testing.T) {
 	}
 	if response.Data.UsernameChangeResetAt <= common.GetTimestamp() {
 		t.Fatalf("expected future reset time, got %d", response.Data.UsernameChangeResetAt)
+	}
+}
+
+func TestGetSelfHidesRecordIpLogSettingWhenForced(t *testing.T) {
+	db := setupUserSelfControllerTestDB(t)
+	common.ForceRecordIpLogEnabled = true
+	t.Cleanup(func() {
+		common.ForceRecordIpLogEnabled = false
+	})
+
+	user := seedSelfUser(t, db, "forced-ip-user", "")
+	setting := dto.UserSetting{
+		NotifyType:  dto.NotifyTypeEmail,
+		RecordIpLog: true,
+	}
+	user.SetSetting(setting)
+	if err := db.Model(&model.User{}).Where("id = ?", user.Id).Update("setting", user.Setting).Error; err != nil {
+		t.Fatalf("failed to update user setting: %v", err)
+	}
+
+	ctx, recorder := newSelfContext(t, user.Id, user.Role)
+	GetSelf(ctx)
+
+	response := decodeSelfResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+	if !response.Data.ForceRecordIpLogEnabled {
+		t.Fatalf("expected force_record_ip_log_enabled to be true")
+	}
+	var settingMap map[string]any
+	if err := common.Unmarshal([]byte(response.Data.Setting), &settingMap); err != nil {
+		t.Fatalf("failed to decode response setting: %v", err)
+	}
+	if _, ok := settingMap["record_ip_log"]; ok {
+		t.Fatalf("expected record_ip_log to be hidden from response setting, got %s", response.Data.Setting)
+	}
+	if settingMap["notify_type"] != dto.NotifyTypeEmail {
+		t.Fatalf("expected other user settings to be preserved, got %s", response.Data.Setting)
+	}
+}
+
+func TestUpdateUserSettingForcesRecordIpLog(t *testing.T) {
+	db := setupUserSelfControllerTestDB(t)
+	common.ForceRecordIpLogEnabled = true
+	t.Cleanup(func() {
+		common.ForceRecordIpLogEnabled = false
+	})
+
+	user := seedSelfUser(t, db, "force-save-user", "")
+	ctx, recorder := newSelfJSONContext(
+		t,
+		http.MethodPut,
+		"/api/user/setting",
+		map[string]any{
+			"notify_type":                          dto.NotifyTypeEmail,
+			"quota_warning_threshold":              1000,
+			"accept_unset_model_ratio_model":       false,
+			"record_ip_log":                        false,
+			"upstream_model_update_notify_enabled": false,
+		},
+		user.Id,
+		user.Role,
+	)
+	UpdateUserSetting(ctx)
+
+	response := decodeSelfResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+	var updated model.User
+	if err := db.First(&updated, user.Id).Error; err != nil {
+		t.Fatalf("failed to reload user: %v", err)
+	}
+	if !updated.GetSetting().RecordIpLog {
+		t.Fatalf("expected record_ip_log to be forced on, got setting %s", updated.Setting)
 	}
 }
 

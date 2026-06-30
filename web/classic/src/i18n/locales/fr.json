@@ -3081,6 +3081,8 @@
     "认证方式": "Méthode d'authentification",
     "讯飞星火": "Spark Desk",
     "记录请求与错误日志IP": "Enregistrer l'adresse IP du journal des requêtes et des erreurs",
+    "强制记录请求与错误日志IP": "Forcer l'enregistrement de l'IP des journaux de requêtes et d'erreurs",
+    "开启后，用户个人设置中的记录IP开关将隐藏，消费和错误日志都会记录客户端IP": "Après activation, l'interrupteur personnel d'enregistrement IP est masqué et les journaux de consommation et d'erreur enregistrent l'IP client",
     "设备": "Device",
     "设备类型偏好": "Préférence de type d'appareil",
     "设置": "",

@@ -54,6 +54,7 @@ const NotificationSettings = ({
   notificationSettings,
   handleNotificationSettingChange,
   saveNotificationSettings,
+  forceRecordIpLogEnabled = false,
 }) => {
   const formApiRef = useRef(null);
   const [statusState] = useContext(StatusContext);
@@ -784,29 +785,30 @@ const NotificationSettings = ({
               </div>
             </TabPane>
 
-            {/* 隐私设置 Tab */}
-            <TabPane
-              tab={
-                <div className='flex items-center'>
-                  <ShieldCheck size={16} className='mr-2' />
-                  {t('隐私设置')}
+            {!forceRecordIpLogEnabled && (
+              <TabPane
+                tab={
+                  <div className='flex items-center'>
+                    <ShieldCheck size={16} className='mr-2' />
+                    {t('隐私设置')}
+                  </div>
+                }
+                itemKey='privacy'
+              >
+                <div className='py-4'>
+                  <Form.Switch
+                    field='recordIpLog'
+                    label={t('记录请求与错误日志IP')}
+                    checkedText={t('开')}
+                    uncheckedText={t('关')}
+                    onChange={(value) => handleFormChange('recordIpLog', value)}
+                    extraText={t(
+                      '开启后，仅"消费"和"错误"日志将记录您的客户端IP地址',
+                    )}
+                  />
                 </div>
-              }
-              itemKey='privacy'
-            >
-              <div className='py-4'>
-                <Form.Switch
-                  field='recordIpLog'
-                  label={t('记录请求与错误日志IP')}
-                  checkedText={t('开')}
-                  uncheckedText={t('关')}
-                  onChange={(value) => handleFormChange('recordIpLog', value)}
-                  extraText={t(
-                    '开启后，仅"消费"和"错误"日志将记录您的客户端IP地址',
-                  )}
-                />
-              </div>
-            </TabPane>
+              </TabPane>
+            )}
 
             {/* 左侧边栏设置 Tab - 根据后端权限控制显示 */}
             {hasSidebarSettingsPermission() && (

@@ -87,6 +87,8 @@ export interface UserProfile {
   steam_id?: string
   /** Whether the account has a password set */
   has_password?: boolean
+  /** Whether IP logging is forced by the system */
+  force_record_ip_log_enabled?: boolean
   /** Yearly username change limit */
   username_change_limit?: number
   /** Username changes used in current window */

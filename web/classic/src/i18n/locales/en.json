@@ -3176,6 +3176,8 @@
     "认证方式": "Auth Style",
     "讯飞星火": "Spark Desk",
     "记录请求与错误日志IP": "Record request and error log IP",
+    "强制记录请求与错误日志IP": "Force record request and error log IP",
+    "开启后，用户个人设置中的记录IP开关将隐藏，消费和错误日志都会记录客户端IP": "After enabling, the personal IP logging switch is hidden and all consumption and error logs record the client IP",
     "设备": "Device",
     "设备类型偏好": "Device Type Preference",
     "设置": "",

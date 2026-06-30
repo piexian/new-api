@@ -185,6 +185,10 @@ var (
 
 var LogConsumeEnabled = true
 
+const ForceRecordIpLogOptionKey = "ForceRecordIpLogEnabled"
+
+var ForceRecordIpLogEnabled = false
+
 var (
 	TLSInsecureSkipVerify bool
 	InsecureTLSConfig     = &tls.Config{InsecureSkipVerify: true}

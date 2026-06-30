@@ -3406,6 +3406,8 @@
     "认证设置": "Cài đặt xác thực",
     "讯飞星火": "iFLYTEK Spark",
     "记录请求与错误日志IP": "Ghi lại IP nhật ký yêu cầu và lỗi",
+    "强制记录请求与错误日志IP": "Bắt buộc ghi IP nhật ký yêu cầu và lỗi",
+    "开启后，用户个人设置中的记录IP开关将隐藏，消费和错误日志都会记录客户端IP": "Sau khi bật, công tắc ghi IP trong cài đặt cá nhân sẽ bị ẩn và nhật ký tiêu thụ cùng lỗi sẽ ghi IP máy khách",
     "设备": "Device",
     "设备类型偏好": "Tùy chọn loại thiết bị",
     "设置": "",

@@ -51,12 +51,14 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  ForceRecordIpLogEnabled: z.boolean(),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
   defaultEnabled: boolean
+  forceRecordIpLogEnabled: boolean
 }
 
 const HOURS_IN_DAY = 24
@@ -86,6 +88,7 @@ const quickSelectOptions = [
 
 export function LogSettingsSection({
   defaultEnabled,
+  forceRecordIpLogEnabled,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -93,6 +96,7 @@ export function LogSettingsSection({
     resolver: zodResolver(logSettingsSchema),
     defaultValues: {
       LogConsumeEnabled: defaultEnabled,
+      ForceRecordIpLogEnabled: forceRecordIpLogEnabled,
     },
   })
 
@@ -103,8 +107,11 @@ export function LogSettingsSection({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset({
+      LogConsumeEnabled: defaultEnabled,
+      ForceRecordIpLogEnabled: forceRecordIpLogEnabled,
+    })
+  }, [defaultEnabled, forceRecordIpLogEnabled, form])
 
   const purgeTimestamp = useMemo(() => {
     if (!purgeDate) return null
@@ -117,11 +124,23 @@ export function LogSettingsSection({
   }, [purgeDate])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    const updates = []
+    if (values.LogConsumeEnabled !== defaultEnabled) {
+      updates.push({
+        key: 'LogConsumeEnabled',
+        value: values.LogConsumeEnabled,
+      })
+    }
+    if (values.ForceRecordIpLogEnabled !== forceRecordIpLogEnabled) {
+      updates.push({
+        key: 'ForceRecordIpLogEnabled',
+        value: values.ForceRecordIpLogEnabled,
+      })
+    }
+    if (updates.length === 0) return
+    await Promise.all(
+      updates.map((request) => updateOption.mutateAsync(request))
+    )
   }
 
   const handleRequestCleanLogs = () => {
@@ -179,6 +198,32 @@ export function LogSettingsSection({
                   <FormDescription>
                     {t(
                       'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'
+                    )}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='ForceRecordIpLogEnabled'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-start justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5 pe-4'>
+                  <FormLabel className='text-base'>
+                    {t('Force Record IP Address')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Hide the personal IP logging switch and record client IP for all usage and error logs.'
                     )}
                   </FormDescription>
                 </div>

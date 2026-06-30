@@ -105,6 +105,8 @@ const PersonalSetting = () => {
     acceptUnsetModelRatioModel: false,
     recordIpLog: false,
   });
+  const forceRecordIpLogEnabled =
+    userState?.user?.force_record_ip_log_enabled === true;
 
   const {
     isModalVisible: isPasskeyVerificationModalVisible,
@@ -563,7 +565,7 @@ const PersonalSetting = () => {
 
   const saveNotificationSettings = async () => {
     try {
-      const res = await API.put('/api/user/setting', {
+      const payload = {
         notify_type: notificationSettings.warningType,
         quota_warning_threshold: parseFloat(
           notificationSettings.warningThreshold,
@@ -582,8 +584,11 @@ const PersonalSetting = () => {
           notificationSettings.upstreamModelUpdateNotifyEnabled === true,
         accept_unset_model_ratio_model:
           notificationSettings.acceptUnsetModelRatioModel,
-        record_ip_log: notificationSettings.recordIpLog,
-      });
+      };
+      if (!forceRecordIpLogEnabled) {
+        payload.record_ip_log = notificationSettings.recordIpLog;
+      }
+      const res = await API.put('/api/user/setting', payload);
 
       if (res.data.success) {
         showSuccess(t('设置保存成功'));
@@ -653,6 +658,7 @@ const PersonalSetting = () => {
               notificationSettings={notificationSettings}
               handleNotificationSettingChange={handleNotificationSettingChange}
               saveNotificationSettings={saveNotificationSettings}
+              forceRecordIpLogEnabled={forceRecordIpLogEnabled}
             />
           </div>
         </div>

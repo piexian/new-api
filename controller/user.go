@@ -533,6 +533,7 @@ func GetSelf(c *gin.Context) {
 
 	// 获取用户设置并提取sidebar_modules
 	userSetting := user.GetSetting()
+	userSettingJSON := model.UserSettingJSONForResponse(user.Setting)
 	usernameChangeStatus := getUsernameChangeQuotaStatus(userSetting, common.GetTimestamp())
 
 	// 判断用户是否设置了密码
@@ -564,11 +565,12 @@ func GetSelf(c *gin.Context) {
 		"aff_history_quota":            user.AffHistoryQuota,
 		"inviter_id":                   user.InviterId,
 		"linux_do_id":                  user.LinuxDOId,
-		"setting":                      user.Setting,
+		"setting":                      userSettingJSON,
 		"stripe_customer":              user.StripeCustomer,
 		"sidebar_modules":              userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":                  permissions,                // 新增权限字段
 		"has_password":                 hasPassword,
+		"force_record_ip_log_enabled":  common.ForceRecordIpLogEnabled,
 		"setup_completed":              userSetting.SetupCompleted,
 		"feature_update_v1":            userSetting.FeatureUpdateV1,
 		"username_change_limit":        usernameChangeStatus.Limit,
@@ -1554,7 +1556,7 @@ func UpdateUserSetting(c *gin.Context) {
 		QuotaWarningThreshold:            req.QuotaWarningThreshold,
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
-		RecordIpLog:                      req.RecordIpLog,
+		RecordIpLog:                      req.RecordIpLog || common.ForceRecordIpLogEnabled,
 		LogLanguage:                      existingSettings.LogLanguage,
 		Language:                         existingSettings.Language,
 		SidebarModules:                   existingSettings.SidebarModules,

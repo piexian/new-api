@@ -59,6 +59,7 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
+	common.OptionMap[common.ForceRecordIpLogOptionKey] = strconv.FormatBool(common.ForceRecordIpLogEnabled)
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
@@ -247,19 +248,35 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
-	// Save to database first
+	var changedSettings map[int]string
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := saveOptionTx(tx, key, value); err != nil {
+			return err
+		}
+		if key == common.ForceRecordIpLogOptionKey && value == "true" {
+			var err error
+			changedSettings, err = forceEnableRecordIpLogForAllUsersTx(tx)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	updateRecordIpLogUserSettingCaches(changedSettings)
+	// Update OptionMap
+	return updateOptionMap(key, value)
+}
+
+func saveOptionTx(tx *gorm.DB, key string, value string) error {
 	option := Option{
 		Key: key,
 	}
-	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
+	if err := tx.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+		return err
+	}
 	option.Value = value
-	// Save is a combination function.
-	// If save value does not contain primary key, it will execute Create,
-	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
-	// Update OptionMap
-	return updateOptionMap(key, value)
+	return tx.Save(&option).Error
 }
 
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
@@ -271,22 +288,24 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
+	var changedSettings map[int]string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
-			option := Option{Key: k}
-			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
+			if err := saveOptionTx(tx, k, v); err != nil {
 				return err
 			}
-			option.Value = v
-			if err := tx.Save(&option).Error; err != nil {
-				return err
-			}
+		}
+		if values[common.ForceRecordIpLogOptionKey] == "true" {
+			var err error
+			changedSettings, err = forceEnableRecordIpLogForAllUsersTx(tx)
+			return err
 		}
 		return nil
 	})
 	if err != nil {
 		return err
 	}
+	updateRecordIpLogUserSettingCaches(changedSettings)
 	for k, v := range values {
 		if err := updateOptionMap(k, v); err != nil {
 			return err
@@ -374,6 +393,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.AutomaticEnableChannelEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
+		case common.ForceRecordIpLogOptionKey:
+			common.ForceRecordIpLogEnabled = boolValue
 		case "DisplayInCurrencyEnabled":
 			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
 			// true -> USD, false -> TOKENS
