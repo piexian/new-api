@@ -217,6 +217,7 @@ const renderOperations = (
     showResetTwoFAModal,
     showUserSubscriptionsModal,
     showUserTokensModal,
+    t,
   },
 ) => {
   if (record.DeletedAt !== null) {
