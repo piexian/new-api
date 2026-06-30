@@ -315,11 +315,13 @@ export const getUsersColumns = ({
   setEditingUser,
   setShowEditUser,
   showPromoteModal,
-  showUserSubscriptionsModal,
-  showUserTokensModal,
+  showDemoteModal,
+  showEnableDisableModal,
   showDeleteModal,
   showResetPasskeyModal,
   showResetTwoFAModal,
+  showUserSubscriptionsModal,
+  showUserTokensModal,
 }) => {
   return [
     {
@@ -386,8 +388,8 @@ export const getUsersColumns = ({
           showDeleteModal,
           showResetPasskeyModal,
           showResetTwoFAModal,
-        showUserSubscriptionsModal,
-        showUserTokensModal,
+          showUserSubscriptionsModal,
+          showUserTokensModal,
         }),
     },
   ];
