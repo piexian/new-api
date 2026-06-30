@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -32,6 +33,14 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
+import { getGroupNames } from '@/lib/api'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { SettingsSection } from '../components/settings-section'
 import { useResetForm } from '../hooks/use-reset-form'
@@ -43,6 +52,7 @@ const basicAuthSchema = z.object({
   EmailVerificationEnabled: z.boolean(),
   RegisterEnabled: z.boolean(),
   RegisterInviteCodeRequired: z.boolean(),
+  DefaultUserGroup: z.string(),
   EmailDomainRestrictionEnabled: z.boolean(),
   EmailAliasRestrictionEnabled: z.boolean(),
   EmailDomainWhitelist: z.string(),
@@ -57,6 +67,12 @@ type BasicAuthSectionProps = {
 export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const { data: groupNamesData } = useQuery({
+    queryKey: ['admin-group-names'],
+    queryFn: getGroupNames,
+    staleTime: 5 * 60 * 1000,
+  })
+  const groupNames = groupNamesData?.data ?? []
 
   const formDefaults = useMemo<BasicAuthFormValues>(
     () => ({
@@ -284,6 +300,38 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
                 <FormDescription>
                   {t(
                     'One domain per line (only used when domain restriction is enabled)'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='DefaultUserGroup'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Default User Group')}</FormLabel>
+                <FormControl>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <SelectTrigger>
+                      <SelectValue placeholder='default' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(groupNames.length > 0 ? groupNames : ['default']).map(
+                        (name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Group assigned to newly registered users. Use the group defined in group ratio settings.'
                   )}
                 </FormDescription>
                 <FormMessage />

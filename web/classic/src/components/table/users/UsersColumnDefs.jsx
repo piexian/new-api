@@ -216,7 +216,7 @@ const renderOperations = (
     showResetPasskeyModal,
     showResetTwoFAModal,
     showUserSubscriptionsModal,
-    t,
+    showUserTokensModal,
   },
 ) => {
   if (record.DeletedAt !== null) {
@@ -228,6 +228,11 @@ const renderOperations = (
       node: 'item',
       name: t('订阅管理'),
       onClick: () => showUserSubscriptionsModal(record),
+    },
+    {
+      node: 'item',
+      name: t('令牌管理'),
+      onClick: () => showUserTokensModal(record),
     },
     {
       node: 'divider',
@@ -310,12 +315,11 @@ export const getUsersColumns = ({
   setEditingUser,
   setShowEditUser,
   showPromoteModal,
-  showDemoteModal,
-  showEnableDisableModal,
+  showUserSubscriptionsModal,
+  showUserTokensModal,
   showDeleteModal,
   showResetPasskeyModal,
   showResetTwoFAModal,
-  showUserSubscriptionsModal,
 }) => {
   return [
     {
@@ -382,8 +386,8 @@ export const getUsersColumns = ({
           showDeleteModal,
           showResetPasskeyModal,
           showResetTwoFAModal,
-          showUserSubscriptionsModal,
-          t,
+        showUserSubscriptionsModal,
+        showUserTokensModal,
         }),
     },
   ];

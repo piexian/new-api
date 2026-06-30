@@ -55,6 +55,7 @@ import {
 import { DISABLE_REASON_MAX_LENGTH, getUserActionMessage } from '../lib'
 import { type User, type ManageUserAction } from '../types'
 import { UserBindingDialog } from './dialogs/user-binding-dialog'
+import { UserTokensDialog } from './user-tokens-dialog'
 import { useUsers } from './users-provider'
 
 interface DataTableRowActionsProps {
@@ -69,6 +70,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [resetTwoFAOpen, setResetTwoFAOpen] = useState(false)
   const [bindingDialogOpen, setBindingDialogOpen] = useState(false)
   const [subscriptionsDialogOpen, setSubscriptionsDialogOpen] = useState(false)
+  const [tokensDialogOpen, setTokensDialogOpen] = useState(false)
   const [disableDialogOpen, setDisableDialogOpen] = useState(false)
   const [disableReason, setDisableReason] = useState(user.disable_reason || '')
 
@@ -237,6 +239,18 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             </DropdownMenuShortcut>
           </DropdownMenuItem>
 
+          <DropdownMenuItem
+            onClick={(event) => {
+              event.preventDefault()
+              setTokensDialogOpen(true)
+            }}
+          >
+            {t('Manage Tokens')}
+            <DropdownMenuShortcut>
+              <KeyRound size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
           <DropdownMenuSeparator />
 
           <DropdownMenuItem
@@ -330,6 +344,12 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         onOpenChange={setSubscriptionsDialogOpen}
         user={{ id: user.id, username: user.username }}
         onSuccess={triggerRefresh}
+      />
+
+      <UserTokensDialog
+        open={tokensDialogOpen}
+        onOpenChange={setTokensDialogOpen}
+        user={{ id: user.id, username: user.username }}
       />
     </>
   )

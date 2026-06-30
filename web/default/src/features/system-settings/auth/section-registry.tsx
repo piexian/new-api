@@ -37,6 +37,7 @@ const AUTH_SECTIONS = [
           EmailVerificationEnabled: settings.EmailVerificationEnabled,
           RegisterEnabled: settings.RegisterEnabled,
           RegisterInviteCodeRequired: settings.RegisterInviteCodeRequired,
+          DefaultUserGroup: settings.DefaultUserGroup,
           EmailDomainRestrictionEnabled: settings.EmailDomainRestrictionEnabled,
           EmailAliasRestrictionEnabled: settings.EmailAliasRestrictionEnabled,
           EmailDomainWhitelist: settings.EmailDomainWhitelist,

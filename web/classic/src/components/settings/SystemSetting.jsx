@@ -85,6 +85,7 @@ const SystemSetting = () => {
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
     RegisterEnabled: '',
+    DefaultUserGroup: 'default',
     'passkey.enabled': '',
     'passkey.rp_display_name': '',
     'passkey.rp_id': '',
@@ -139,6 +140,7 @@ const SystemSetting = () => {
   const [domainList, setDomainList] = useState([]);
   const [ipList, setIpList] = useState([]);
   const [allowedPorts, setAllowedPorts] = useState([]);
+  const [groupNames, setGroupNames] = useState([]);
 
   const getOptions = async () => {
     setLoading(true);
@@ -255,6 +257,12 @@ const SystemSetting = () => {
 
   useEffect(() => {
     getOptions();
+    API.get('/api/group/').then((res) => {
+      const { success, data } = res.data;
+      if (success && Array.isArray(data)) {
+        setGroupNames(data);
+      }
+    });
   }, []);
 
   const updateOptions = async (options) => {
@@ -334,6 +342,10 @@ const SystemSetting = () => {
   const submitServerAddress = async () => {
     let ServerAddress = removeTrailingSlash(inputs.ServerAddress);
     await updateOptions([{ key: 'ServerAddress', value: ServerAddress }]);
+  };
+  const submitDefaultUserGroup = async () => {
+    const DefaultUserGroup = (inputs.DefaultUserGroup || '').trim();
+    await updateOptions([{ key: 'DefaultUserGroup', value: DefaultUserGroup }]);
   };
 
   const submitEmail = async () => {
@@ -1222,6 +1234,30 @@ const SystemSetting = () => {
                       </Form.Checkbox>
                     </Col>
                   </Row>
+                  <Row>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Select
+                        field='DefaultUserGroup'
+                        label={t('新用户默认分组')}
+                        placeholder={t('选择分组')}
+                        extraText={t(
+                          '注册的新用户将自动归入此分组。请从分组倍率设置中已定义的分组里选择。',
+                        )}
+                      >
+                        {(groupNames.length > 0
+                          ? groupNames
+                          : ['default']
+                        ).map((name) => (
+                          <Form.Select.Option key={name} value={name}>
+                            {name}
+                          </Form.Select.Option>
+                        ))}
+                      </Form.Select>
+                    </Col>
+                  </Row>
+                  <Button onClick={submitDefaultUserGroup}>
+                    {t('保存新用户默认分组')}
+                  </Button>
                 </Form.Section>
               </Card>
 

@@ -120,7 +120,7 @@ import type { User, UserToken } from '../types'
 const USER_TOKEN_PAGE_SIZE = 5
 
 type UserTokensPanelProps = {
-  user: User
+  user: Pick<User, 'id' | 'username'>
 }
 
 type UserTokenDialogProps = {

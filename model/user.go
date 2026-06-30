@@ -590,6 +590,9 @@ func (user *User) Insert(inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	if user.Group == "" {
+		user.Group = common.DefaultUserGroup
+	}
 	// user.SetAccessToken(common.GetUUID())
 	user.AffCode, err = GenerateUniqueAffCode(DB, 0)
 	if err != nil {
@@ -627,6 +630,9 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		}
 	}
 	user.Quota = common.QuotaForNewUser
+	if user.Group == "" {
+		user.Group = common.DefaultUserGroup
+	}
 	user.AffCode, err = GenerateUniqueAffCode(tx, 0)
 	if err != nil {
 		return err

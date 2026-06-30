@@ -145,6 +145,7 @@ func InitOptionMap() {
 	common.OptionMap["DefaultSubscriptionPlans"] = common.DefaultSubscriptionPlans
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
+	common.OptionMap["DefaultUserGroup"] = common.DefaultUserGroup
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
@@ -544,6 +545,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
+	case "DefaultUserGroup":
+		common.DefaultUserGroup = value
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":

@@ -208,6 +208,7 @@ var (
 	AutomaticEnableChannelEnabled  = false
 	QuotaRemindThreshold           = 1000
 	PreConsumedQuota               = 500
+	DefaultUserGroup               = "default"
 )
 
 var RetryTimes = 0

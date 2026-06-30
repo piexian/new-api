@@ -256,6 +256,16 @@ export async function getUserGroups(): Promise<{
   return res.data
 }
 
+// Get all configured group names (admin only)
+export async function getGroupNames(): Promise<{
+  success: boolean
+  message?: string
+  data?: string[]
+}> {
+  const res = await api.get('/api/group/')
+  return res.data
+}
+
 // ----------------------------------------------------------------------------
 // System APIs
 // ----------------------------------------------------------------------------
