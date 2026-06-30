@@ -228,6 +228,62 @@ func TestGetEndpointTypesByChannelTypeForOpenCode(t *testing.T) {
 	}
 }
 
+func TestGetEndpointTypesByChannelTypeForMoark(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		model string
+		want  []constant.EndpointType
+	}{
+		{
+			name:  "chat model",
+			model: "DeepSeek-V3",
+			want: []constant.EndpointType{
+				constant.EndpointTypeOpenAI,
+				constant.EndpointTypeOpenAIResponse,
+				constant.EndpointTypeAnthropic,
+			},
+		},
+		{
+			name:  "embedding model",
+			model: "Qwen3-Embedding-8B",
+			want:  []constant.EndpointType{constant.EndpointTypeEmbeddings},
+		},
+		{
+			name:  "bge embedding model",
+			model: "bge-m3",
+			want:  []constant.EndpointType{constant.EndpointTypeEmbeddings},
+		},
+		{
+			name:  "reranker model",
+			model: "Qwen3-Reranker-4B",
+			want:  []constant.EndpointType{constant.EndpointTypeJinaRerank},
+		},
+		{
+			name:  "image model",
+			model: "Qwen-Image",
+			want: []constant.EndpointType{
+				constant.EndpointTypeImageGeneration,
+				constant.EndpointTypeOpenAI,
+				constant.EndpointTypeOpenAIResponse,
+				constant.EndpointTypeAnthropic,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeMoark, tt.model)
+			if !reflect.DeepEqual(endpoints, tt.want) {
+				t.Fatalf("expected Moark endpoints %#v, got %#v", tt.want, endpoints)
+			}
+		})
+	}
+}
+
 func TestGetEndpointTypesByChannelTypeForXunfeiMaaSImage(t *testing.T) {
 	t.Parallel()
 

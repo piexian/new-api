@@ -199,6 +199,7 @@ export const STATIC_I18N_KEYS = [
 
   // Models section-registry nav (dynamic titleKey)
   'Grok',
+  '模力方舟',
 
   // Channel Affinity section
   'Channel Affinity',
@@ -464,6 +465,23 @@ export const STATIC_I18N_KEYS = [
   'Official documentation',
   'Violation deduction amount',
   'Base amount. Actual deduction = base amount × system group rate.',
+
+  // Turnstile scope settings
+  'Configure Cloudflare Turnstile keys and enable checks per action',
+  'Login verification',
+  'Require Turnstile before password login',
+  'Registration verification',
+  'Require Turnstile before password registration',
+  'Registration email code verification',
+  'Require Turnstile before sending registration email codes',
+  'Email binding code verification',
+  'Require Turnstile before sending email binding codes',
+  'Password reset verification',
+  'Require Turnstile before sending password reset emails',
+  'Daily check-in verification',
+  'Require Turnstile before daily check-in',
+  'Sensitive profile update verification',
+  'Require Turnstile before username or password changes',
 
   // Chat2Link
   'No available Web chat links',

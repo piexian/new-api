@@ -33,6 +33,15 @@ func isPaymentComplianceOptionKey(key string) bool {
 	return strings.HasPrefix(key, "payment_setting.compliance_")
 }
 
+func hasConfiguredEmailDomainWhitelist() bool {
+	for _, domain := range common.EmailDomainWhitelist {
+		if strings.TrimSpace(domain) != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func isPositiveOptionValue(value string) bool {
 	intValue, err := strconv.Atoi(strings.TrimSpace(value))
 	if err == nil {
@@ -40,6 +49,10 @@ func isPositiveOptionValue(value string) bool {
 	}
 	floatValue, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
 	return err == nil && floatValue > 0
+}
+
+func isTurnstileEnableOption(key string) bool {
+	return key == "TurnstileCheckEnabled" || common.IsTurnstileScopedOptionKey(key)
 }
 
 func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
@@ -198,8 +211,8 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
-	case "EmailDomainRestrictionEnabled":
-		if option.Value == "true" && len(common.EmailDomainWhitelist) == 0 {
+	case "EmailDomainRestrictionEnabled", "EmailDomainRestrictionForBindingEnabled":
+		if option.Value == "true" && !hasConfiguredEmailDomainWhitelist() {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用邮箱域名限制，请先填入限制的邮箱域名！",
@@ -356,6 +369,13 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	}
+	if isTurnstileEnableOption(option.Key) && option.Value == "true" && common.TurnstileSiteKey == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无法启用 Turnstile 校验，请先填入 Turnstile 校验相关配置信息！",
+		})
+		return
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {

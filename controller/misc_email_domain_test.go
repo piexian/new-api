@@ -50,6 +50,24 @@ func TestIsEmailDomainAllowedTwoLevelWildcard(t *testing.T) {
 	check("a.b.c.edu.cn", false) // 3 levels, needs 2
 }
 
+func TestIsEmailDomainAllowedComWildcards(t *testing.T) {
+	wl := []string{"*.com", "*.*.com"}
+	check := func(domain string, want bool) {
+		t.Run("com/"+domain, func(t *testing.T) {
+			if got := isEmailDomainAllowed(domain, wl); got != want {
+				t.Errorf("isEmailDomainAllowed(%q) = %v, want %v", domain, got, want)
+			}
+		})
+	}
+	check("gmail.com", true)      // via *.com
+	check("mail.gmail.com", true) // via *.*.com
+	check("a.b.gmail.com", false) // 3 levels before com, no rule covers it
+	check("example.org", false)   // suffix differs
+	check("fakecom", false)       // suffix trick blocked
+	check("GMAIL.COM", true)      // case-insensitive
+	check("Mail.GMAIL.COM", true) // case-insensitive, 2 levels
+}
+
 func TestIsEmailDomainAllowedMixed(t *testing.T) {
 	// Combined exact + 1-level + 2-level wildcards.
 	wl := []string{"gmail.com", "edu.cn", "*.edu.cn", "*.*.edu.cn"}

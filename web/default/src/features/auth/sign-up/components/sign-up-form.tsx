@@ -72,15 +72,8 @@ export function SignUpForm({
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
-  const {
-    isTurnstileEnabled,
-    turnstileSiteKey,
-    turnstileWidgetKey,
-    turnstileToken,
-    setTurnstileToken,
-    validateTurnstile,
-    resetTurnstile,
-  } = useTurnstile()
+  const registerTurnstile = useTurnstile('register')
+  const emailVerificationTurnstile = useTurnstile('register_email_verification')
   const { redirectToLogin, handleLoginSuccess } = useAuthRedirect()
   const {
     isSending: isSendingCode,
@@ -88,9 +81,9 @@ export function SignUpForm({
     isActive,
     sendCode,
   } = useEmailVerification({
-    turnstileToken,
-    validateTurnstile,
-    resetTurnstile,
+    turnstileToken: emailVerificationTurnstile.turnstileToken,
+    validateTurnstile: emailVerificationTurnstile.validateTurnstile,
+    resetTurnstile: emailVerificationTurnstile.resetTurnstile,
   })
 
   const form = useForm<z.infer<typeof registerFormSchema>>({
@@ -122,17 +115,20 @@ export function SignUpForm({
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
   const hasCustomOAuthProviders =
-    (status?.custom_oauth_providers ?? status?.data?.custom_oauth_providers ?? [])
-      .length > 0
+    (
+      status?.custom_oauth_providers ??
+      status?.data?.custom_oauth_providers ??
+      []
+    ).length > 0
   const hasOAuthRegisterProvider = Boolean(
     hasWeChatLogin ||
-      status?.github_oauth ||
-      status?.discord_oauth ||
-      status?.oidc_enabled ||
-      status?.linuxdo_oauth ||
-      status?.telegram_oauth ||
-      status?.qq_oauth ||
-      hasCustomOAuthProviders
+    status?.github_oauth ||
+    status?.discord_oauth ||
+    status?.oidc_enabled ||
+    status?.linuxdo_oauth ||
+    status?.telegram_oauth ||
+    status?.qq_oauth ||
+    hasCustomOAuthProviders
   )
   const showOAuthRegisterOptions =
     registerEnabled && oauthRegisterEnabled && hasOAuthRegisterProvider
@@ -193,6 +189,7 @@ export function SignUpForm({
     if (affCode) {
       saveAffiliateCode(affCode)
     }
+    if (!registerTurnstile.validateTurnstile()) return
 
     setIsLoading(true)
     try {
@@ -202,7 +199,7 @@ export function SignUpForm({
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: affCode || undefined,
-        turnstile: turnstileToken,
+        turnstile: registerTurnstile.turnstileToken,
       })
 
       if (res?.success) {
@@ -212,6 +209,7 @@ export function SignUpForm({
     } catch (_error) {
       // Errors are handled by global interceptor
     } finally {
+      registerTurnstile.resetTurnstile()
       setIsLoading(false)
     }
   }
@@ -381,13 +379,15 @@ export function SignUpForm({
                 </div>
 
                 {/* Turnstile */}
-                {isTurnstileEnabled && (
+                {emailVerificationTurnstile.isTurnstileEnabled && (
                   <div className='mt-2'>
                     <Turnstile
-                      key={turnstileWidgetKey}
-                      siteKey={turnstileSiteKey}
-                      onVerify={setTurnstileToken}
-                      onExpire={() => setTurnstileToken('')}
+                      key={emailVerificationTurnstile.turnstileWidgetKey}
+                      siteKey={emailVerificationTurnstile.turnstileSiteKey}
+                      onVerify={emailVerificationTurnstile.setTurnstileToken}
+                      onExpire={() =>
+                        emailVerificationTurnstile.setTurnstileToken('')
+                      }
                     />
                   </div>
                 )}
@@ -428,6 +428,18 @@ export function SignUpForm({
             {t('Registration is currently disabled.')}
           </p>
         )}
+
+        {showPasswordRegisterOptions &&
+          registerTurnstile.isTurnstileEnabled && (
+            <div className='mt-2'>
+              <Turnstile
+                key={registerTurnstile.turnstileWidgetKey}
+                siteKey={registerTurnstile.turnstileSiteKey}
+                onVerify={registerTurnstile.setTurnstileToken}
+                onExpire={() => registerTurnstile.setTurnstileToken('')}
+              />
+            </div>
+          )}
 
         {/* Submit Button */}
         {showPasswordRegisterOptions && (

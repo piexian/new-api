@@ -651,6 +651,30 @@ func TestAdminAddUserTokenCreatesForTargetAndMasksResponse(t *testing.T) {
 	}
 }
 
+func TestAdminUserTokenOptionsUseTargetUser(t *testing.T) {
+	db := setupAdminTokenControllerTestDB(t)
+	targetUser := seedUserWithRole(t, db, "svip-owner", common.RoleCommonUser)
+	targetUser.Group = "svip"
+	if err := db.Save(targetUser).Error; err != nil {
+		t.Fatalf("failed to update target user group: %v", err)
+	}
+
+	groupsCtx, groupsRecorder := newAdminContext(t, http.MethodGet, "/api/user/"+strconv.Itoa(targetUser.Id)+"/groups", nil, targetUser.Id)
+	AdminGetUserGroups(groupsCtx)
+
+	groupsResponse := decodeAPIResponse(t, groupsRecorder)
+	if !groupsResponse.Success {
+		t.Fatalf("expected target user groups to succeed, got message: %s", groupsResponse.Message)
+	}
+	var groups map[string]map[string]interface{}
+	if err := common.Unmarshal(groupsResponse.Data, &groups); err != nil {
+		t.Fatalf("failed to decode target user groups: %v", err)
+	}
+	if _, ok := groups["svip"]; !ok {
+		t.Fatalf("expected target user's own group svip in groups, got %#v", groups)
+	}
+}
+
 func TestAdminUserTokenManagementRejectsSameLevelTarget(t *testing.T) {
 	db := setupAdminTokenControllerTestDB(t)
 	targetAdmin := seedUserWithRole(t, db, "target-admin", common.RoleAdminUser)

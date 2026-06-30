@@ -138,7 +138,8 @@ const EditTokenModal = (props) => {
     const { success, message, data } = res.data;
     if (success) {
       let localGroupOptions = Object.entries(data).map(([group, info]) => ({
-        label: info.desc,
+        label: group,
+        desc: info.desc,
         value: group,
         ratio: info.ratio,
       }));
@@ -390,12 +391,23 @@ const EditTokenModal = (props) => {
                         placeholder={t('令牌分组，默认为用户的分组')}
                         optionList={groups}
                         renderOptionItem={renderGroupOption}
+                        onChange={(value) => {
+                          formApiRef.current?.setValue('group', value || '');
+                          if (value !== 'auto') {
+                            formApiRef.current?.setValue(
+                              'cross_group_retry',
+                              false,
+                            );
+                          }
+                        }}
                         filter={(input, option) => {
                           const q = input.toLowerCase();
                           return (
                             option.value?.toLowerCase().includes(q) ||
                             (typeof option.label === 'string' &&
-                              option.label.toLowerCase().includes(q))
+                              option.label.toLowerCase().includes(q)) ||
+                            (typeof option.desc === 'string' &&
+                              option.desc.toLowerCase().includes(q))
                           );
                         }}
                         showClear
@@ -552,7 +564,10 @@ const EditTokenModal = (props) => {
                         ? `▾ ${t('收起原生额度输入')}`
                         : `▸ ${t('使用原生额度输入')}`}
                     </div>
-                    <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
+                    <div
+                      style={{ display: showQuotaInput ? 'block' : 'none' }}
+                      className='mt-2'
+                    >
                       <Form.InputNumber
                         field='remain_quota'
                         label={t('额度')}

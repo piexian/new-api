@@ -23,7 +23,6 @@ import { toast } from 'sonner'
 import { useCountdown } from '@/hooks/use-countdown'
 import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
-import { Turnstile } from '@/components/turnstile'
 import {
   Dialog,
   DialogContent,
@@ -34,6 +33,11 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Turnstile } from '@/components/turnstile'
+import {
+  getTurnstileSiteKey,
+  isTurnstileScopeEnabled,
+} from '@/features/auth/hooks/use-turnstile'
 import { sendEmailVerification, bindEmail } from '../../api'
 
 // ============================================================================
@@ -61,10 +65,11 @@ export function EmailBindDialog({
   const { status } = useStatus()
   const [turnstileToken, setTurnstileToken] = useState('')
   const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
-  const turnstileEnabled = !!(
-    status?.turnstile_check && status?.turnstile_site_key
+  const turnstileEnabled = isTurnstileScopeEnabled(
+    status,
+    'email_binding_verification'
   )
-  const turnstileSiteKey = String(status?.turnstile_site_key || '')
+  const turnstileSiteKey = getTurnstileSiteKey(status)
   const {
     secondsLeft,
     isActive,

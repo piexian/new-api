@@ -53,6 +53,7 @@ const (
 
 	RelayModeRealtime
 	RelayModeXAINative
+	RelayModeMoarkNative
 
 	RelayModeGemini
 
@@ -98,6 +99,11 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeAudioTranscription
 	} else if strings.HasPrefix(path, "/v1/audio/translations") {
 		relayMode = RelayModeAudioTranslation
+	} else if strings.HasPrefix(path, "/v1/async/") ||
+		path == "/v1/tasks" ||
+		strings.HasPrefix(path, "/v1/tasks/") ||
+		strings.HasPrefix(path, "/v1/task/") {
+		relayMode = RelayModeMoarkNative
 	} else if strings.HasPrefix(path, "/v1/realtime/client_secrets") ||
 		strings.HasPrefix(path, "/v1/tts") ||
 		strings.HasPrefix(path, "/v1/stt") ||
@@ -115,6 +121,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeRealtime
 	} else if path == "/v1/video/generations" ||
 		path == "/v1/videos/generations" ||
+		path == "/v1/videos/edits" ||
+		path == "/v1/videos/extensions" ||
 		path == "/v1/videos" ||
 		(strings.HasPrefix(path, "/v1/videos/") && strings.HasSuffix(path, "/remix")) {
 		relayMode = RelayModeVideoSubmit

@@ -70,7 +70,11 @@ const PersonalSetting = () => {
   const [showEmailBindModal, setShowEmailBindModal] = useState(false);
   const [showAccountDeleteModal, setShowAccountDeleteModal] = useState(false);
   const [showSetupGuideModal, setShowSetupGuideModal] = useState(false);
-  const [turnstileEnabled, setTurnstileEnabled] = useState(false);
+  const [emailBindTurnstileEnabled, setEmailBindTurnstileEnabled] =
+    useState(false);
+  const [checkinTurnstileEnabled, setCheckinTurnstileEnabled] = useState(false);
+  const [sensitiveUpdateTurnstileEnabled, setSensitiveUpdateTurnstileEnabled] =
+    useState(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const [emailBindTurnstileWidgetKey, setEmailBindTurnstileWidgetKey] =
@@ -130,18 +134,31 @@ const PersonalSetting = () => {
       }
     : passkeyVerificationMethods;
 
+  const applyTurnstileStatus = (data = {}) => {
+    const hasSiteKey = Boolean(data.turnstile_site_key);
+    const emailBindEnabled = Boolean(
+      data.turnstile_email_binding_verification && hasSiteKey,
+    );
+    const checkinEnabled = Boolean(data.turnstile_checkin && hasSiteKey);
+    const sensitiveUpdateEnabled = Boolean(
+      data.turnstile_sensitive_update && hasSiteKey,
+    );
+    setEmailBindTurnstileEnabled(emailBindEnabled);
+    setCheckinTurnstileEnabled(checkinEnabled);
+    setSensitiveUpdateTurnstileEnabled(sensitiveUpdateEnabled);
+    setTurnstileSiteKey(
+      emailBindEnabled || checkinEnabled || sensitiveUpdateEnabled
+        ? data.turnstile_site_key
+        : '',
+    );
+  };
+
   useEffect(() => {
     let saved = localStorage.getItem('status');
     if (saved) {
       const parsed = JSON.parse(saved);
       setStatus(parsed);
-      if (parsed.turnstile_check) {
-        setTurnstileEnabled(true);
-        setTurnstileSiteKey(parsed.turnstile_site_key);
-      } else {
-        setTurnstileEnabled(false);
-        setTurnstileSiteKey('');
-      }
+      applyTurnstileStatus(parsed);
     }
     // Always refresh status from server to avoid stale flags (e.g., admin just enabled OAuth)
     (async () => {
@@ -151,13 +168,7 @@ const PersonalSetting = () => {
         if (success && data) {
           setStatus(data);
           setStatusData(data);
-          if (data.turnstile_check) {
-            setTurnstileEnabled(true);
-            setTurnstileSiteKey(data.turnstile_site_key);
-          } else {
-            setTurnstileEnabled(false);
-            setTurnstileSiteKey('');
-          }
+          applyTurnstileStatus(data);
         }
       } catch (e) {
         // ignore and keep local status
@@ -484,15 +495,15 @@ const PersonalSetting = () => {
       showError(t('请输入邮箱！'));
       return;
     }
-    setDisableButton(true);
-    if (turnstileEnabled && turnstileToken === '') {
+    if (emailBindTurnstileEnabled && turnstileToken === '') {
       showInfo(t('请稍后几秒重试，Turnstile 正在检查用户环境！'));
       return;
     }
+    setDisableButton(true);
     setLoading(true);
     try {
       const res = await API.get(
-        `/api/verification?email=${inputs.email}&turnstile=${turnstileToken}`,
+        `/api/verification?email=${encodeURIComponent(inputs.email)}&purpose=bind&turnstile=${turnstileToken}`,
       );
       const { success, message } = res.data;
       if (success) {
@@ -598,7 +609,7 @@ const PersonalSetting = () => {
               <CheckinCalendar
                 t={t}
                 status={status}
-                turnstileEnabled={turnstileEnabled}
+                turnstileEnabled={checkinTurnstileEnabled}
                 turnstileSiteKey={turnstileSiteKey}
               />
             </div>
@@ -620,7 +631,7 @@ const PersonalSetting = () => {
                 setShowChangePasswordModal={setShowChangePasswordModal}
                 setShowAccountDeleteModal={setShowAccountDeleteModal}
                 onUsernameUpdated={getUserData}
-                turnstileEnabled={turnstileEnabled}
+                turnstileEnabled={sensitiveUpdateTurnstileEnabled}
                 turnstileSiteKey={turnstileSiteKey}
                 turnstileToken={turnstileToken}
                 setTurnstileToken={setTurnstileToken}
@@ -659,7 +670,7 @@ const PersonalSetting = () => {
         disableButton={disableButton}
         loading={loading}
         countdown={countdown}
-        turnstileEnabled={turnstileEnabled}
+        turnstileEnabled={emailBindTurnstileEnabled}
         turnstileSiteKey={turnstileSiteKey}
         turnstileWidgetKey={emailBindTurnstileWidgetKey}
         setTurnstileToken={setTurnstileToken}
@@ -683,7 +694,7 @@ const PersonalSetting = () => {
         handleInputChange={handleInputChange}
         deleteAccount={deleteAccount}
         userState={userState}
-        turnstileEnabled={turnstileEnabled}
+        turnstileEnabled={false}
         turnstileSiteKey={turnstileSiteKey}
         setTurnstileToken={setTurnstileToken}
       />
@@ -695,7 +706,7 @@ const PersonalSetting = () => {
         inputs={inputs}
         handleInputChange={handleInputChange}
         changePassword={changePassword}
-        turnstileEnabled={turnstileEnabled}
+        turnstileEnabled={sensitiveUpdateTurnstileEnabled}
         turnstileSiteKey={turnstileSiteKey}
         setTurnstileToken={setTurnstileToken}
         hasPassword={userState?.user?.has_password ?? true}
@@ -707,7 +718,7 @@ const PersonalSetting = () => {
         onClose={() => setShowSetupGuideModal(false)}
         userState={userState}
         onComplete={handleSetupGuideComplete}
-        turnstileEnabled={turnstileEnabled}
+        turnstileEnabled={sensitiveUpdateTurnstileEnabled}
         turnstileSiteKey={turnstileSiteKey}
         turnstileToken={turnstileToken}
         setTurnstileToken={setTurnstileToken}

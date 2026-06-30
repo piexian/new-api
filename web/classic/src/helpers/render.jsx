@@ -425,6 +425,8 @@ export function getChannelIcon(channelType) {
       return <Poe size={iconSize} />;
     case 65: // OpenCode
       return <OpenCode size={iconSize} />;
+    case 66: // 模力方舟
+      return getLobeHubIcon('GiteeAI.Color', iconSize);
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;
@@ -946,6 +948,8 @@ export const renderGroupOption = (item) => {
     disabled,
     selected,
     label,
+    desc,
+    fullLabel,
     value,
     focused,
     className,
@@ -954,8 +958,8 @@ export const renderGroupOption = (item) => {
     onClick,
     empty,
     emptyContent,
-    ...rest
   } = item;
+  const description = fullLabel || desc || label;
 
   const baseStyle = {
     display: 'flex',
@@ -968,14 +972,12 @@ export const renderGroupOption = (item) => {
     ...(selected && {
       backgroundColor: 'var(--semi-color-primary-light-default)',
     }),
-    '&:hover': {
-      backgroundColor: !disabled && 'var(--semi-color-fill-1)',
-    },
+    ...style,
   };
 
-  const handleClick = () => {
+  const handleClick = (e) => {
     if (!disabled && onClick) {
-      onClick();
+      onClick(e);
     }
   };
 
@@ -987,6 +989,7 @@ export const renderGroupOption = (item) => {
 
   return (
     <div
+      className={className}
       style={baseStyle}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
@@ -996,7 +999,7 @@ export const renderGroupOption = (item) => {
           {value}
         </Typography.Text>
         <Typography.Text type='secondary' size='small'>
-          {label}
+          {description}
         </Typography.Text>
       </div>
       {item.ratio && renderRatio(item.ratio)}

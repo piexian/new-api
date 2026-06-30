@@ -159,9 +159,12 @@ const LoginForm = () => {
       (status.oauth_register_enabled !== false && hasOAuthLoginOptions));
 
   useEffect(() => {
-    if (status?.turnstile_check) {
+    if (status?.turnstile_login && status?.turnstile_site_key) {
       setTurnstileEnabled(true);
       setTurnstileSiteKey(status.turnstile_site_key);
+    } else {
+      setTurnstileEnabled(false);
+      setTurnstileSiteKey('');
     }
 
     // 从 status 获取用户协议和隐私政策的启用状态
@@ -198,10 +201,6 @@ const LoginForm = () => {
   };
 
   const onSubmitWeChatVerificationCode = async () => {
-    if (turnstileEnabled && turnstileToken === '') {
-      showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
-      return;
-    }
     setWechatCodeSubmitLoading(true);
     try {
       const res = await API.get(

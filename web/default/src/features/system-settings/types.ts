@@ -80,6 +80,7 @@ export type AuthSettings = {
   RegisterInviteCodeRequired: boolean
   DefaultUserGroup: string
   EmailDomainRestrictionEnabled: boolean
+  EmailDomainRestrictionForBindingEnabled: boolean
   EmailAliasRestrictionEnabled: boolean
   EmailDomainWhitelist: string
   GitHubOAuthEnabled: boolean
@@ -112,6 +113,13 @@ export type AuthSettings = {
   WeChatServerToken: string
   WeChatAccountQRCodeImageURL: string
   TurnstileCheckEnabled: boolean
+  TurnstileLoginEnabled: boolean
+  TurnstileRegisterEnabled: boolean
+  TurnstileRegisterEmailVerificationEnabled: boolean
+  TurnstileEmailBindingVerificationEnabled: boolean
+  TurnstilePasswordResetEnabled: boolean
+  TurnstileCheckinEnabled: boolean
+  TurnstileSensitiveUpdateEnabled: boolean
   TurnstileSiteKey: string
   TurnstileSecretKey: string
   'passkey.enabled': boolean

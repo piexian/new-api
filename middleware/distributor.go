@@ -240,6 +240,16 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	if isXAINativeRoute(c.Request.Method, c.Request.URL.Path) {
 		modelRequest.Model = xAINativeRouteModel(c.Request.URL.Path, c.Query("model"))
 		c.Set("relay_mode", relayconstant.RelayModeXAINative)
+	} else if isMoarkNativeRoute(c.Request.URL.Path) {
+		var req *ModelRequest
+		if shouldParseMoarkNativeBody(c) {
+			req, err = getModelFromRequest(c)
+			if err != nil {
+				return nil, false, err
+			}
+		}
+		modelRequest.Model = moarkNativeRouteModel(c, req)
+		c.Set("relay_mode", relayconstant.RelayModeMoarkNative)
 	} else if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||
@@ -444,6 +454,36 @@ func xAINativeRouteModel(path string, queryModel string) string {
 		return "grok-4.3"
 	}
 	return "grok-voice-latest"
+}
+
+func isMoarkNativeRoute(path string) bool {
+	return strings.HasPrefix(path, "/v1/async/") ||
+		path == "/v1/tasks" ||
+		strings.HasPrefix(path, "/v1/tasks/") ||
+		strings.HasPrefix(path, "/v1/task/")
+}
+
+func shouldParseMoarkNativeBody(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/async/") {
+		return true
+	}
+	return c.Request.ContentLength != 0
+}
+
+func moarkNativeRouteModel(c *gin.Context, req *ModelRequest) string {
+	if model := strings.TrimSpace(c.Query("model")); model != "" {
+		return model
+	}
+	if req != nil && strings.TrimSpace(req.Model) != "" {
+		return strings.TrimSpace(req.Model)
+	}
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/async/") {
+		return ""
+	}
+	return constant.MoarkTaskModel
 }
 
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {

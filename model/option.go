@@ -46,6 +46,13 @@ func InitOptionMap() {
 	common.OptionMap["SteamOAuthEnabled"] = strconv.FormatBool(common.SteamOAuthEnabled)
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
+	common.OptionMap["TurnstileLoginEnabled"] = strconv.FormatBool(common.TurnstileLoginEnabled)
+	common.OptionMap["TurnstileRegisterEnabled"] = strconv.FormatBool(common.TurnstileRegisterEnabled)
+	common.OptionMap["TurnstileRegisterEmailVerificationEnabled"] = strconv.FormatBool(common.TurnstileRegisterEmailVerificationEnabled)
+	common.OptionMap["TurnstileEmailBindingVerificationEnabled"] = strconv.FormatBool(common.TurnstileEmailBindingVerificationEnabled)
+	common.OptionMap["TurnstilePasswordResetEnabled"] = strconv.FormatBool(common.TurnstilePasswordResetEnabled)
+	common.OptionMap["TurnstileCheckinEnabled"] = strconv.FormatBool(common.TurnstileCheckinEnabled)
+	common.OptionMap["TurnstileSensitiveUpdateEnabled"] = strconv.FormatBool(common.TurnstileSensitiveUpdateEnabled)
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
 	common.OptionMap["OAuthRegisterEnabled"] = strconv.FormatBool(common.OAuthRegisterEnabled)
 	common.OptionMap["RegisterInviteCodeRequired"] = strconv.FormatBool(common.RegisterInviteCodeRequired)
@@ -59,6 +66,7 @@ func InitOptionMap() {
 	common.OptionMap["DataExportEnabled"] = strconv.FormatBool(common.DataExportEnabled)
 	common.OptionMap["ChannelDisableThreshold"] = strconv.FormatFloat(common.ChannelDisableThreshold, 'f', -1, 64)
 	common.OptionMap["EmailDomainRestrictionEnabled"] = strconv.FormatBool(common.EmailDomainRestrictionEnabled)
+	common.OptionMap["EmailDomainRestrictionForBindingEnabled"] = strconv.FormatBool(common.EmailDomainRestrictionForBindingEnabled)
 	common.OptionMap["EmailAliasRestrictionEnabled"] = strconv.FormatBool(common.EmailAliasRestrictionEnabled)
 	common.OptionMap["EmailDomainWhitelist"] = strings.Join(common.EmailDomainWhitelist, ",")
 	common.OptionMap["SMTPServer"] = ""
@@ -201,11 +209,32 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
+	legacyTurnstileEnabled := false
+	hasScopedTurnstileOption := false
 	for _, option := range options {
+		if option.Key == "TurnstileCheckEnabled" && option.Value == "true" {
+			legacyTurnstileEnabled = true
+		}
+		if common.IsTurnstileScopedOptionKey(option.Key) {
+			hasScopedTurnstileOption = true
+		}
 		err := updateOptionMap(option.Key, option.Value)
 		if err != nil {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
+	}
+	if legacyTurnstileEnabled && !hasScopedTurnstileOption {
+		migrateLegacyTurnstileOptions()
+	}
+}
+
+func migrateLegacyTurnstileOptions() {
+	values := make(map[string]string, len(common.TurnstileScopedOptionKeys))
+	for _, key := range common.TurnstileScopedOptionKeys {
+		values[key] = "true"
+	}
+	if err := UpdateOptionsBulk(values); err != nil {
+		common.SysLog("failed to migrate legacy Turnstile option: " + err.Error())
 	}
 }
 
@@ -313,6 +342,20 @@ func updateOptionMap(key string, value string) (err error) {
 			common.SteamOAuthEnabled = boolValue
 		case "TurnstileCheckEnabled":
 			common.TurnstileCheckEnabled = boolValue
+		case "TurnstileLoginEnabled":
+			common.TurnstileLoginEnabled = boolValue
+		case "TurnstileRegisterEnabled":
+			common.TurnstileRegisterEnabled = boolValue
+		case "TurnstileRegisterEmailVerificationEnabled":
+			common.TurnstileRegisterEmailVerificationEnabled = boolValue
+		case "TurnstileEmailBindingVerificationEnabled":
+			common.TurnstileEmailBindingVerificationEnabled = boolValue
+		case "TurnstilePasswordResetEnabled":
+			common.TurnstilePasswordResetEnabled = boolValue
+		case "TurnstileCheckinEnabled":
+			common.TurnstileCheckinEnabled = boolValue
+		case "TurnstileSensitiveUpdateEnabled":
+			common.TurnstileSensitiveUpdateEnabled = boolValue
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
 		case "OAuthRegisterEnabled":
@@ -321,6 +364,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.RegisterInviteCodeRequired = boolValue
 		case "EmailDomainRestrictionEnabled":
 			common.EmailDomainRestrictionEnabled = boolValue
+		case "EmailDomainRestrictionForBindingEnabled":
+			common.EmailDomainRestrictionForBindingEnabled = boolValue
 		case "EmailAliasRestrictionEnabled":
 			common.EmailAliasRestrictionEnabled = boolValue
 		case "AutomaticDisableChannelEnabled":

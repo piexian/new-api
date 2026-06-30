@@ -55,9 +55,12 @@ const PasswordResetForm = () => {
     let status = localStorage.getItem('status');
     if (status) {
       status = JSON.parse(status);
-      if (status.turnstile_check) {
+      if (status.turnstile_password_reset && status.turnstile_site_key) {
         setTurnstileEnabled(true);
         setTurnstileSiteKey(status.turnstile_site_key);
+      } else {
+        setTurnstileEnabled(false);
+        setTurnstileSiteKey('');
       }
     }
   }, []);
@@ -99,6 +102,9 @@ const PasswordResetForm = () => {
       setInputs({ ...inputs, email: '' });
     } else {
       showError(message);
+    }
+    if (turnstileEnabled) {
+      setTurnstileToken('');
     }
     setLoading(false);
   }

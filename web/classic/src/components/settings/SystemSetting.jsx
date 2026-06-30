@@ -82,6 +82,13 @@ const SystemSetting = () => {
     WeChatServerToken: '',
     WeChatAccountQRCodeImageURL: '',
     TurnstileCheckEnabled: '',
+    TurnstileLoginEnabled: '',
+    TurnstileRegisterEnabled: '',
+    TurnstileRegisterEmailVerificationEnabled: '',
+    TurnstileEmailBindingVerificationEnabled: '',
+    TurnstilePasswordResetEnabled: '',
+    TurnstileCheckinEnabled: '',
+    TurnstileSensitiveUpdateEnabled: '',
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
     RegisterEnabled: '',
@@ -94,6 +101,7 @@ const SystemSetting = () => {
     'passkey.user_verification': 'preferred',
     'passkey.attachment_preference': '',
     EmailDomainRestrictionEnabled: '',
+    EmailDomainRestrictionForBindingEnabled: '',
     EmailAliasRestrictionEnabled: '',
     SMTPSSLEnabled: '',
     SMTPForceAuthLogin: '',
@@ -198,7 +206,15 @@ const SystemSetting = () => {
           case 'SteamOAuthEnabled':
           case 'RegisterEnabled':
           case 'TurnstileCheckEnabled':
+          case 'TurnstileLoginEnabled':
+          case 'TurnstileRegisterEnabled':
+          case 'TurnstileRegisterEmailVerificationEnabled':
+          case 'TurnstileEmailBindingVerificationEnabled':
+          case 'TurnstilePasswordResetEnabled':
+          case 'TurnstileCheckinEnabled':
+          case 'TurnstileSensitiveUpdateEnabled':
           case 'EmailDomainRestrictionEnabled':
+          case 'EmailDomainRestrictionForBindingEnabled':
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
           case 'SMTPForceAuthLogin':
@@ -541,9 +557,7 @@ const SystemSetting = () => {
   const submitSteamOAuth = async () => {
     const options = [];
 
-    if (
-      originInputs['SteamOAuthEnabled'] !== inputs.SteamOAuthEnabled
-    ) {
+    if (originInputs['SteamOAuthEnabled'] !== inputs.SteamOAuthEnabled) {
       options.push({
         key: 'SteamOAuthEnabled',
         value: inputs.SteamOAuthEnabled,
@@ -1140,15 +1154,6 @@ const SystemSetting = () => {
                       >
                         {t('允许新用户注册')}
                       </Form.Checkbox>
-                      <Form.Checkbox
-                        field='TurnstileCheckEnabled'
-                        noLabel
-                        onChange={(e) =>
-                          handleCheckboxChange('TurnstileCheckEnabled', e)
-                        }
-                      >
-                        {t('允许 Turnstile 用户校验')}
-                      </Form.Checkbox>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Checkbox
@@ -1244,14 +1249,13 @@ const SystemSetting = () => {
                           '注册的新用户将自动归入此分组。请从分组倍率设置中已定义的分组里选择。',
                         )}
                       >
-                        {(groupNames.length > 0
-                          ? groupNames
-                          : ['default']
-                        ).map((name) => (
-                          <Form.Select.Option key={name} value={name}>
-                            {name}
-                          </Form.Select.Option>
-                        ))}
+                        {(groupNames.length > 0 ? groupNames : ['default']).map(
+                          (name) => (
+                            <Form.Select.Option key={name} value={name}>
+                              {name}
+                            </Form.Select.Option>
+                          ),
+                        )}
                       </Form.Select>
                     </Col>
                   </Row>
@@ -1407,7 +1411,21 @@ const SystemSetting = () => {
                           )
                         }
                       >
-                        启用邮箱域名白名单
+                        {t('注册启用邮箱域名白名单')}
+                      </Form.Checkbox>
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Checkbox
+                        field='EmailDomainRestrictionForBindingEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange(
+                            'EmailDomainRestrictionForBindingEnabled',
+                            e,
+                          )
+                        }
+                      >
+                        {t('绑定邮箱启用域名白名单')}
                       </Form.Checkbox>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
@@ -1722,7 +1740,12 @@ const SystemSetting = () => {
                   <Text>{t('用以支持通过 Steam 进行登录注册')}</Text>
                   <Banner
                     type='info'
-                    description={t('Steam 使用 OpenID 2.0 登录，无需配置 OAuth 应用。回调地址为') + ` ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}/oauth/steam`}
+                    description={
+                      t(
+                        'Steam 使用 OpenID 2.0 登录，无需配置 OAuth 应用。回调地址为',
+                      ) +
+                      ` ${inputs.ServerAddress ? inputs.ServerAddress : t('网站地址')}/oauth/steam`
+                    }
                     style={{ marginBottom: 20, marginTop: 16 }}
                   />
                   <Row
@@ -1925,7 +1948,7 @@ const SystemSetting = () => {
 
               <Card>
                 <Form.Section text={t('配置 Turnstile')}>
-                  <Text>{t('用以支持用户校验')}</Text>
+                  <Text>{t('按场景启用 Cloudflare Turnstile 校验')}</Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
@@ -1942,6 +1965,92 @@ const SystemSetting = () => {
                         type='password'
                         placeholder={t('敏感信息不会发送到前端显示')}
                       />
+                    </Col>
+                  </Row>
+
+                  {/* 新增 Turnstile 校验入口时，必须增加专属开关，不要复用已有开关。 */}
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    className='mt-4'
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Checkbox
+                        field='TurnstileLoginEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('TurnstileLoginEnabled', e)
+                        }
+                      >
+                        {t('登录密码校验')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='TurnstileRegisterEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('TurnstileRegisterEnabled', e)
+                        }
+                      >
+                        {t('密码注册校验')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='TurnstileRegisterEmailVerificationEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange(
+                            'TurnstileRegisterEmailVerificationEnabled',
+                            e,
+                          )
+                        }
+                      >
+                        {t('注册邮箱验证码校验')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='TurnstileEmailBindingVerificationEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange(
+                            'TurnstileEmailBindingVerificationEnabled',
+                            e,
+                          )
+                        }
+                      >
+                        {t('绑定邮箱验证码校验')}
+                      </Form.Checkbox>
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Checkbox
+                        field='TurnstilePasswordResetEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange(
+                            'TurnstilePasswordResetEnabled',
+                            e,
+                          )
+                        }
+                      >
+                        {t('重置密码邮件校验')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='TurnstileCheckinEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange('TurnstileCheckinEnabled', e)
+                        }
+                      >
+                        {t('每日签到校验')}
+                      </Form.Checkbox>
+                      <Form.Checkbox
+                        field='TurnstileSensitiveUpdateEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange(
+                            'TurnstileSensitiveUpdateEnabled',
+                            e,
+                          )
+                        }
+                      >
+                        {t('用户名和密码修改校验')}
+                      </Form.Checkbox>
                     </Col>
                   </Row>
                   <Button onClick={submitTurnstile}>

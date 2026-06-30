@@ -120,7 +120,7 @@ export async function sendEmailVerification(
   turnstile?: string
 ): Promise<ApiResponse> {
   const res = await api.get('/api/verification', {
-    params: { email, turnstile },
+    params: { email, purpose: 'register', turnstile },
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

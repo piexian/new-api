@@ -114,6 +114,13 @@ export interface SystemStatus {
     wechat_account_qrcode_image_url?: string
     WeChatAccountQRCodeImageURL?: string
     turnstile_check?: boolean
+    turnstile_login?: boolean
+    turnstile_register?: boolean
+    turnstile_register_email_verification?: boolean
+    turnstile_email_binding_verification?: boolean
+    turnstile_password_reset?: boolean
+    turnstile_checkin?: boolean
+    turnstile_sensitive_update?: boolean
     turnstile_site_key?: string
     email_verification?: boolean
     self_use_mode_enabled?: boolean
@@ -160,6 +167,13 @@ export interface SystemStatus {
   wechat_account_qrcode_image_url?: string
   WeChatAccountQRCodeImageURL?: string
   turnstile_check?: boolean
+  turnstile_login?: boolean
+  turnstile_register?: boolean
+  turnstile_register_email_verification?: boolean
+  turnstile_email_binding_verification?: boolean
+  turnstile_password_reset?: boolean
+  turnstile_checkin?: boolean
+  turnstile_sensitive_update?: boolean
   turnstile_site_key?: string
   email_verification?: boolean
   self_use_mode_enabled?: boolean
@@ -187,7 +201,15 @@ export interface SystemStatus {
 
 export interface OAuthProvider {
   name: string
-  type: 'github' | 'discord' | 'oidc' | 'linuxdo' | 'telegram' | 'qq' | 'wechat'
+  type:
+    | 'github'
+    | 'discord'
+    | 'oidc'
+    | 'linuxdo'
+    | 'telegram'
+    | 'qq'
+    | 'wechat'
+    | 'steam'
   enabled: boolean
   clientId?: string
   authEndpoint?: string

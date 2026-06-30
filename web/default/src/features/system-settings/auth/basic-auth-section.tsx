@@ -54,6 +54,7 @@ const basicAuthSchema = z.object({
   RegisterInviteCodeRequired: z.boolean(),
   DefaultUserGroup: z.string(),
   EmailDomainRestrictionEnabled: z.boolean(),
+  EmailDomainRestrictionForBindingEnabled: z.boolean(),
   EmailAliasRestrictionEnabled: z.boolean(),
   EmailDomainWhitelist: z.string(),
 })
@@ -245,10 +246,33 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
               <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
                 <div className='space-y-0.5'>
                   <FormLabel className='text-base'>
-                    {t('Email Domain Restriction')}
+                    {t('Registration Email Domain Restriction')}
                   </FormLabel>
                   <FormDescription>
-                    {t('Only allow specific email domains')}
+                    {t('Apply email domain whitelist to new registrations')}
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='EmailDomainRestrictionForBindingEnabled'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                <div className='space-y-0.5'>
+                  <FormLabel className='text-base'>
+                    {t('Email Binding Domain Restriction')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t('Apply email domain whitelist when users bind an email')}
                   </FormDescription>
                 </div>
                 <FormControl>
@@ -299,7 +323,7 @@ export function BasicAuthSection({ defaultValues }: BasicAuthSectionProps) {
                 </FormControl>
                 <FormDescription>
                   {t(
-                    'One domain per line (only used when domain restriction is enabled)'
+                    'One domain per line (used by registration and binding domain restrictions)'
                   )}
                 </FormDescription>
                 <FormMessage />

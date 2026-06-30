@@ -176,13 +176,32 @@ export async function getGroups(): Promise<ApiResponse<string[]>> {
   return res.data
 }
 
+export async function getUserAvailableModels(
+  userId: number
+): Promise<ApiResponse<string[]>> {
+  const res = await api.get(`/api/user/${userId}/models`)
+  return res.data
+}
+
+export async function getUserAvailableGroups(
+  userId: number
+): Promise<
+  ApiResponse<Record<string, { desc: string; ratio: number | string }>>
+> {
+  const res = await api.get(`/api/user/${userId}/groups`)
+  return res.data
+}
+
 // ============================================================================
 // Admin Binding Management APIs
 // ============================================================================
 
 export interface OAuthBinding {
-  provider_id: string
+  provider_id: string | number
   provider_name: string
+  provider_slug?: string
+  provider_icon?: string
+  provider_user_id?: string
   user_id?: number
   external_id?: string
 }

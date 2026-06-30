@@ -29,6 +29,7 @@ import {
   handleLinuxDOOAuth,
   handleQQOAuth,
   handleSteamOAuth,
+  getOAuthState,
 } from '@/lib/oauth'
 import { useDialogs } from '@/hooks/use-dialog'
 import { useStatus } from '@/hooks/use-status'
@@ -72,7 +73,14 @@ export function AccountBindingsTab({
   const [unbinding, setUnbinding] = useState(false)
 
   const customProviders = status?.custom_oauth_providers as
-    | Array<{ id: string; name: string }>
+    | Array<{
+        id: string | number
+        name: string
+        slug?: string
+        client_id?: string
+        authorization_endpoint?: string
+        scopes?: string
+      }>
     | undefined
 
   const fetchCustomBindings = useCallback(async () => {
@@ -95,7 +103,7 @@ export function AccountBindingsTab({
     if (!unbindTarget) return
     setUnbinding(true)
     try {
-      const res = await unbindCustomOAuth(unbindTarget.provider_id)
+      const res = await unbindCustomOAuth(String(unbindTarget.provider_id))
       if (res.success) {
         toast.success(
           t('Unbound {{provider}}', {
@@ -115,9 +123,41 @@ export function AccountBindingsTab({
     }
   }
 
-  const handleBindCustomOAuth = (provider: { id: string; name: string }) => {
-    const redirectUrl = `${window.location.origin}/oauth/${provider.id}?bind=true`
-    window.location.href = `/api/oauth/${provider.id}?redirect=${encodeURIComponent(redirectUrl)}`
+  const handleBindCustomOAuth = async (provider: {
+    id: string | number
+    name: string
+    slug?: string
+    client_id?: string
+    authorization_endpoint?: string
+    scopes?: string
+  }) => {
+    const providerSlug = provider.slug || String(provider.id)
+    if (!provider.client_id || !provider.authorization_endpoint) {
+      toast.error(t('OAuth failed'))
+      return
+    }
+    const state = await getOAuthState()
+    if (!state) {
+      toast.error(t('Failed to initialize OAuth'))
+      return
+    }
+
+    try {
+      const authUrl = new URL(provider.authorization_endpoint)
+      authUrl.searchParams.set('client_id', provider.client_id)
+      authUrl.searchParams.set(
+        'redirect_uri',
+        `${window.location.origin}/oauth/${providerSlug}`
+      )
+      authUrl.searchParams.set('response_type', 'code')
+      authUrl.searchParams.set('state', state)
+      if (provider.scopes) {
+        authUrl.searchParams.set('scope', provider.scopes)
+      }
+      window.open(authUrl.toString(), '_blank')
+    } catch {
+      toast.error(t('OAuth failed'))
+    }
   }
 
   useEffect(() => {
@@ -346,12 +386,12 @@ export function AccountBindingsTab({
           <div className='grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3'>
             {customProviders.map((provider) => {
               const binding = customBindings.find(
-                (b) => b.provider_id === provider.id
+                (b) => String(b.provider_id) === String(provider.id)
               )
               const isBound = !!binding
               return (
                 <div
-                  key={provider.id}
+                  key={String(provider.id)}
                   className='flex items-center justify-between gap-2.5 rounded-lg border p-2.5 sm:gap-3 sm:p-3'
                 >
                   <div className='flex min-w-0 items-center gap-2.5 sm:gap-3'>
@@ -371,7 +411,9 @@ export function AccountBindingsTab({
                       </div>
                       <p className='text-muted-foreground truncate text-xs'>
                         {isBound
-                          ? binding?.external_id || t('Bound')
+                          ? binding?.provider_user_id ||
+                            binding?.external_id ||
+                            t('Bound')
                           : t('Not bound')}
                       </p>
                     </div>

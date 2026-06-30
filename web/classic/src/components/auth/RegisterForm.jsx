@@ -87,7 +87,12 @@ const RegisterForm = () => {
   const { username, password, password2 } = inputs;
   const [userState, userDispatch] = useContext(UserContext);
   const [statusState] = useContext(StatusContext);
-  const [turnstileEnabled, setTurnstileEnabled] = useState(false);
+  const [registerTurnstileEnabled, setRegisterTurnstileEnabled] =
+    useState(false);
+  const [
+    registerEmailVerificationTurnstileEnabled,
+    setRegisterEmailVerificationTurnstileEnabled,
+  ] = useState(false);
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [turnstileToken, setTurnstileToken] = useState('');
   const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0);
@@ -160,12 +165,25 @@ const RegisterForm = () => {
     inviteCodeRequired && (passwordRegisterEnabled || hasOAuthRegisterOptions);
 
   const [showEmailVerification, setShowEmailVerification] = useState(false);
+  const shouldShowTurnstile =
+    registerTurnstileEnabled ||
+    (showEmailVerification && registerEmailVerificationTurnstileEnabled);
 
   useEffect(() => {
     setShowEmailVerification(!!status?.email_verification);
-    if (status?.turnstile_check) {
-      setTurnstileEnabled(true);
+    const hasTurnstileSiteKey = Boolean(status?.turnstile_site_key);
+    const registerTurnstileOn = Boolean(
+      status?.turnstile_register && hasTurnstileSiteKey,
+    );
+    const registerEmailTurnstileOn = Boolean(
+      status?.turnstile_register_email_verification && hasTurnstileSiteKey,
+    );
+    setRegisterTurnstileEnabled(registerTurnstileOn);
+    setRegisterEmailVerificationTurnstileEnabled(registerEmailTurnstileOn);
+    if (registerTurnstileOn || registerEmailTurnstileOn) {
       setTurnstileSiteKey(status.turnstile_site_key);
+    } else {
+      setTurnstileSiteKey('');
     }
 
     // 从 status 获取用户协议和隐私政策的启用状态
@@ -216,10 +234,6 @@ const RegisterForm = () => {
   };
 
   const onSubmitWeChatVerificationCode = async () => {
-    if (turnstileEnabled && turnstileToken === '') {
-      showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
-      return;
-    }
     setWechatCodeSubmitLoading(true);
     try {
       const inviteCode = inputs.aff_code || localStorage.getItem('aff') || '';
@@ -265,7 +279,7 @@ const RegisterForm = () => {
       return;
     }
     if (username && password) {
-      if (turnstileEnabled && turnstileToken === '') {
+      if (registerTurnstileEnabled && turnstileToken === '') {
         showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
         return;
       }
@@ -299,6 +313,10 @@ const RegisterForm = () => {
       } catch (error) {
         showError('注册失败，请重试');
       } finally {
+        if (registerTurnstileEnabled) {
+          setTurnstileToken('');
+          setTurnstileWidgetKey((value) => value + 1);
+        }
         setRegisterLoading(false);
       }
     }
@@ -306,14 +324,14 @@ const RegisterForm = () => {
 
   const sendVerificationCode = async () => {
     if (inputs.email === '') return;
-    if (turnstileEnabled && turnstileToken === '') {
+    if (registerEmailVerificationTurnstileEnabled && turnstileToken === '') {
       showInfo('请稍后几秒重试，Turnstile 正在检查用户环境！');
       return;
     }
     setVerificationCodeLoading(true);
     try {
       const res = await API.get(
-        `/api/verification?email=${encodeURIComponent(inputs.email)}&turnstile=${turnstileToken}`,
+        `/api/verification?email=${encodeURIComponent(inputs.email)}&purpose=register&turnstile=${turnstileToken}`,
       );
       const { success, message } = res.data;
       if (success) {
@@ -1009,30 +1027,32 @@ const RegisterForm = () => {
         style={{ top: '50%', left: '-120px' }}
       />
       <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailRegister || !hasOAuthRegisterOptions
-          ? passwordRegisterEnabled
-            ? renderEmailRegisterForm()
-            : (
-              <div className='flex flex-col items-center'>
-                <Card className='border-0 !rounded-2xl overflow-hidden'>
-                  <div className='px-6 py-8 text-center'>
-                    <Text>{t('注册暂不可用')}</Text>
-                    <div className='mt-6'>
-                      <Link
-                        to='/login'
-                        className='text-blue-600 hover:text-blue-800 font-medium'
-                      >
-                        {t('返回登录')}
-                      </Link>
-                    </div>
+        {showEmailRegister || !hasOAuthRegisterOptions ? (
+          passwordRegisterEnabled ? (
+            renderEmailRegisterForm()
+          ) : (
+            <div className='flex flex-col items-center'>
+              <Card className='border-0 !rounded-2xl overflow-hidden'>
+                <div className='px-6 py-8 text-center'>
+                  <Text>{t('注册暂不可用')}</Text>
+                  <div className='mt-6'>
+                    <Link
+                      to='/login'
+                      className='text-blue-600 hover:text-blue-800 font-medium'
+                    >
+                      {t('返回登录')}
+                    </Link>
                   </div>
-                </Card>
-              </div>
-            )
-          : renderOAuthOptions()}
+                </div>
+              </Card>
+            </div>
+          )
+        ) : (
+          renderOAuthOptions()
+        )}
         {renderWeChatLoginModal()}
 
-        {turnstileEnabled && (
+        {shouldShowTurnstile && (
           <div className='flex justify-center mt-6'>
             <Turnstile
               key={turnstileWidgetKey}

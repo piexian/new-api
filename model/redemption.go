@@ -63,6 +63,21 @@ func IsValidRedemptionType(redemptionType string) bool {
 	}
 }
 
+func redemptionUnavailableError(redemption *Redemption) error {
+	if redemption != nil && redemption.MaxRedemptions > 0 && redemption.RedeemedCount >= redemption.MaxRedemptions {
+		return ErrRedemptionExhausted
+	}
+	return ErrRedemptionUsed
+}
+
+func isUserFacingRedemptionError(err error) bool {
+	return errors.Is(err, ErrRedemptionInvalid) ||
+		errors.Is(err, ErrRedemptionUsed) ||
+		errors.Is(err, ErrRedemptionExpired) ||
+		errors.Is(err, ErrRedemptionNotProvided) ||
+		errors.Is(err, ErrRedemptionExhausted)
+}
+
 func populateRedemptionPlanTitles(tx *gorm.DB, redemptions []*Redemption) {
 	if tx == nil || len(redemptions) == 0 {
 		return
@@ -245,7 +260,7 @@ func Redeem(key string, userId int) (result *RedemptionRedeemResult, err error) 
 
 func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result *RedemptionRedeemResult, err error) {
 	if key == "" {
-		return nil, errors.New("未提供兑换码")
+		return nil, ErrRedemptionNotProvided
 	}
 	if userId == 0 {
 		return nil, errors.New("无效的 user id")
@@ -261,13 +276,16 @@ func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(keyCol+" = ?", key).First(redemption).Error
 		if err != nil {
-			return errors.New("无效的兑换码")
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrRedemptionInvalid
+			}
+			return err
 		}
 		if redemption.Status != common.RedemptionCodeStatusEnabled {
-			return errors.New("该兑换码已被使用")
+			return redemptionUnavailableError(redemption)
 		}
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
-			return errors.New("该兑换码已过期")
+			return ErrRedemptionExpired
 		}
 		if redemption.MaxRedemptions < 0 {
 			return errors.New("无效的兑换次数")
@@ -278,7 +296,7 @@ func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result
 				Update("status", common.RedemptionCodeStatusUsed).Error; err != nil {
 				return err
 			}
-			return errors.New("该兑换码已被使用")
+			return ErrRedemptionExhausted
 		}
 		redemption.Type = NormalizeRedemptionType(redemption.Type)
 		result = &RedemptionRedeemResult{
@@ -328,7 +346,11 @@ func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result
 			return updateResult.Error
 		}
 		if updateResult.RowsAffected != 1 {
-			return errors.New("该兑换码已被使用")
+			var latest Redemption
+			if latestErr := tx.First(&latest, "id = ?", redemption.Id).Error; latestErr == nil {
+				return redemptionUnavailableError(&latest)
+			}
+			return ErrRedemptionUsed
 		}
 		redemption.RedeemedTime = now
 		redemption.Status = nextStatus
@@ -337,6 +359,9 @@ func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result
 		return nil
 	})
 	if err != nil {
+		if isUserFacingRedemptionError(err) {
+			return nil, err
+		}
 		common.SysError("redemption failed: " + err.Error())
 		return nil, ErrRedeemFailed
 	}

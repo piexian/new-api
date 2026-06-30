@@ -23,6 +23,10 @@ import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
+import {
+  getTurnstileSiteKey,
+  isTurnstileScopeEnabled,
+} from '@/features/auth/hooks/use-turnstile'
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
 import { LanguagePreferencesCard } from './components/language-preferences-card'
 import { PasskeyCard } from './components/passkey-card'
@@ -39,10 +43,8 @@ export function Profile() {
   const permissions = useAuthStore((s) => s.auth.user?.permissions)
 
   const checkinEnabled = status?.checkin_enabled === true
-  const turnstileEnabled = !!(
-    status?.turnstile_check && status?.turnstile_site_key
-  )
-  const turnstileSiteKey = status?.turnstile_site_key || ''
+  const turnstileEnabled = isTurnstileScopeEnabled(status, 'checkin')
+  const turnstileSiteKey = getTurnstileSiteKey(status)
   const canConfigureSidebar = permissions?.sidebar_settings !== false
 
   return (

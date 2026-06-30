@@ -110,7 +110,7 @@ export async function sendEmailVerification(
   email: string,
   turnstileToken?: string
 ): Promise<ApiResponse> {
-  const params = new URLSearchParams({ email })
+  const params = new URLSearchParams({ email, purpose: 'bind' })
   if (turnstileToken) {
     params.append('turnstile', turnstileToken)
   }
@@ -147,8 +147,11 @@ export async function bindWeChat(code: string): Promise<ApiResponse> {
 // ============================================================================
 
 export interface CustomOAuthBinding {
-  provider_id: string
+  provider_id: string | number
   provider_name: string
+  provider_slug?: string
+  provider_icon?: string
+  provider_user_id?: string
   external_id?: string
 }
 

@@ -38,11 +38,73 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const botProtectionSchema = z.object({
   TurnstileCheckEnabled: z.boolean(),
+  TurnstileLoginEnabled: z.boolean(),
+  TurnstileRegisterEnabled: z.boolean(),
+  TurnstileRegisterEmailVerificationEnabled: z.boolean(),
+  TurnstileEmailBindingVerificationEnabled: z.boolean(),
+  TurnstilePasswordResetEnabled: z.boolean(),
+  TurnstileCheckinEnabled: z.boolean(),
+  TurnstileSensitiveUpdateEnabled: z.boolean(),
   TurnstileSiteKey: z.string().optional(),
   TurnstileSecretKey: z.string().optional(),
 })
 
 type BotProtectionFormValues = z.infer<typeof botProtectionSchema>
+
+const turnstileToggleKeys = [
+  'TurnstileLoginEnabled',
+  'TurnstileRegisterEnabled',
+  'TurnstileRegisterEmailVerificationEnabled',
+  'TurnstileEmailBindingVerificationEnabled',
+  'TurnstilePasswordResetEnabled',
+  'TurnstileCheckinEnabled',
+  'TurnstileSensitiveUpdateEnabled',
+] as const
+
+type TurnstileToggleKey = (typeof turnstileToggleKeys)[number]
+
+// 新增 Turnstile 校验入口时，必须在这里和后端配置中增加专属开关，不要复用已有开关。
+const turnstileScopes: Array<{
+  key: TurnstileToggleKey
+  label: string
+  description: string
+}> = [
+  {
+    key: 'TurnstileLoginEnabled',
+    label: 'Login verification',
+    description: 'Require Turnstile before password login',
+  },
+  {
+    key: 'TurnstileRegisterEnabled',
+    label: 'Registration verification',
+    description: 'Require Turnstile before password registration',
+  },
+  {
+    key: 'TurnstileRegisterEmailVerificationEnabled',
+    label: 'Registration email code verification',
+    description: 'Require Turnstile before sending registration email codes',
+  },
+  {
+    key: 'TurnstileEmailBindingVerificationEnabled',
+    label: 'Email binding code verification',
+    description: 'Require Turnstile before sending email binding codes',
+  },
+  {
+    key: 'TurnstilePasswordResetEnabled',
+    label: 'Password reset verification',
+    description: 'Require Turnstile before sending password reset emails',
+  },
+  {
+    key: 'TurnstileCheckinEnabled',
+    label: 'Daily check-in verification',
+    description: 'Require Turnstile before daily check-in',
+  },
+  {
+    key: 'TurnstileSensitiveUpdateEnabled',
+    label: 'Sensitive profile update verification',
+    description: 'Require Turnstile before username or password changes',
+  },
+]
 
 type BotProtectionSectionProps = {
   defaultValues: BotProtectionFormValues
@@ -69,7 +131,17 @@ export function BotProtectionSection({
         value !== defaultValues[key as keyof BotProtectionFormValues]
     )
 
-    for (const [key, value] of updates) {
+    const orderedUpdates = updates.sort(([left], [right]) => {
+      const keyOrder = ['TurnstileSiteKey', 'TurnstileSecretKey']
+      const leftIndex = keyOrder.indexOf(left)
+      const rightIndex = keyOrder.indexOf(right)
+      if (leftIndex === -1 && rightIndex === -1) return 0
+      if (leftIndex === -1) return 1
+      if (rightIndex === -1) return -1
+      return leftIndex - rightIndex
+    })
+
+    for (const [key, value] of orderedUpdates) {
       await updateOption.mutateAsync({ key, value: value ?? '' })
     }
   }
@@ -78,7 +150,7 @@ export function BotProtectionSection({
     <SettingsSection
       title={t('Bot Protection')}
       description={t(
-        'Protect login and registration with Cloudflare Turnstile'
+        'Configure Cloudflare Turnstile keys and enable checks per action'
       )}
     >
       <Form {...form}>
@@ -87,30 +159,31 @@ export function BotProtectionSection({
           className='space-y-6'
           autoComplete='off'
         >
-          <FormField
-            control={form.control}
-            name='TurnstileCheckEnabled'
-            render={({ field }) => (
-              <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                <div className='space-y-0.5'>
-                  <FormLabel className='text-base'>
-                    {t('Enable Turnstile')}
-                  </FormLabel>
-                  <FormDescription>
-                    {t(
-                      'Protect login and registration with Cloudflare Turnstile'
-                    )}
-                  </FormDescription>
-                </div>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+          <div className='space-y-3'>
+            {turnstileScopes.map((scope) => (
+              <FormField
+                key={scope.key}
+                control={form.control}
+                name={scope.key}
+                render={({ field }) => (
+                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
+                    <div className='space-y-0.5'>
+                      <FormLabel className='text-base'>
+                        {t(scope.label)}
+                      </FormLabel>
+                      <FormDescription>{t(scope.description)}</FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            ))}
+          </div>
 
           <FormField
             control={form.control}

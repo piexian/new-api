@@ -56,7 +56,7 @@ export function ForgotPasswordForm({
     turnstileToken,
     setTurnstileToken,
     validateTurnstile,
-  } = useTurnstile()
+  } = useTurnstile('password_reset')
   const {
     secondsLeft,
     isActive,

@@ -29,7 +29,7 @@ import {
   EyeOff,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { SiGithub, SiDiscord, SiQq } from 'react-icons/si'
+import { SiGithub, SiDiscord, SiQq, SiSteam } from 'react-icons/si'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -85,8 +85,9 @@ interface StatusInfo {
   telegram_oauth?: boolean
   linuxdo_oauth?: boolean
   qq_oauth?: boolean
+  steam_oauth?: boolean
   custom_oauth_providers?: Array<{
-    id: string
+    id: string | number
     name: string
     icon?: string
   }>
@@ -107,53 +108,60 @@ const BUILTIN_BINDINGS: ReadonlyArray<{
     statusKey: null,
   },
   {
-    key: 'github_id',
+    key: 'github',
     field: 'github_id',
     label: 'GitHub',
     icon: <SiGithub className='h-4 w-4' />,
     statusKey: 'github_oauth',
   },
   {
-    key: 'discord_id',
+    key: 'discord',
     field: 'discord_id',
     label: 'Discord',
     icon: <SiDiscord className='h-4 w-4' />,
     statusKey: 'discord_oauth',
   },
   {
-    key: 'wechat_id',
+    key: 'wechat',
     field: 'wechat_id',
     label: 'WeChat',
     icon: <MessageCircle className='h-4 w-4' />,
     statusKey: 'wechat_login',
   },
   {
-    key: 'oidc_id',
+    key: 'oidc',
     field: 'oidc_id',
     label: 'OIDC',
     icon: <Globe className='h-4 w-4' />,
     statusKey: 'oidc_enabled',
   },
   {
-    key: 'telegram_id',
+    key: 'telegram',
     field: 'telegram_id',
     label: 'Telegram',
     icon: <Send className='h-4 w-4' />,
     statusKey: 'telegram_oauth',
   },
   {
-    key: 'linux_do_id',
+    key: 'linuxdo',
     field: 'linux_do_id',
     label: 'LinuxDO',
     icon: <Globe className='h-4 w-4' />,
     statusKey: 'linuxdo_oauth',
   },
   {
-    key: 'qq_id',
+    key: 'qq',
     field: 'qq_id',
     label: 'QQ',
     icon: <SiQq className='h-4 w-4' />,
     statusKey: 'qq_oauth',
+  },
+  {
+    key: 'steam',
+    field: 'steam_id',
+    label: 'Steam',
+    icon: <SiSteam className='h-4 w-4' />,
+    statusKey: 'steam_oauth',
   },
 ]
 
@@ -260,9 +268,9 @@ export function UserBindingDialog(props: Props) {
       const binding = oauthBindingMap.get(String(provider.id))
       items.push({
         key: `oauth_${provider.id}`,
-        label: provider.name || provider.id,
+        label: provider.name || String(provider.id),
         icon: <CustomProviderIcon iconUrl={provider.icon} />,
-        value: binding?.external_id || '',
+        value: binding?.provider_user_id || binding?.external_id || '',
         type: 'custom',
         providerId: String(provider.id),
         isBound: !!binding,
@@ -274,9 +282,9 @@ export function UserBindingDialog(props: Props) {
       if (!seenProviderIds.has(String(binding.provider_id))) {
         items.push({
           key: `oauth_${binding.provider_id}`,
-          label: binding.provider_name || binding.provider_id,
-          icon: <Link2 className='h-4 w-4' />,
-          value: binding.external_id || '-',
+          label: binding.provider_name || String(binding.provider_id),
+          icon: <CustomProviderIcon iconUrl={binding.provider_icon} />,
+          value: binding.provider_user_id || binding.external_id || '-',
           type: 'custom',
           providerId: String(binding.provider_id),
           isBound: true,

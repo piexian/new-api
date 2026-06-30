@@ -36,3 +36,24 @@ func TestPath2RelayModeKeepsXAICompatibleRoutes(t *testing.T) {
 	require.Equal(t, RelayModeResponsesCompact, Path2RelayMode("/v1/responses/compact"))
 	require.Equal(t, RelayModeResponses, Path2RelayMode("/v1/responses"))
 }
+
+func TestPath2RelayModeSupportsMoarkNativeRoutes(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{
+		"/v1/async/music/generations",
+		"/v1/async/images/edits",
+		"/v1/tasks",
+		"/v1/tasks/available-quota",
+		"/v1/task/task_123",
+		"/v1/task/task_123/get",
+		"/v1/task/task_123/status",
+	} {
+		path := path
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, RelayModeMoarkNative, Path2RelayMode(path))
+		})
+	}
+}

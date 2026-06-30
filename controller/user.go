@@ -267,6 +267,10 @@ func Register(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
 			return
 		}
+		if err := validateEmailDomainPolicy(user.Email, common.EmailDomainRestrictionEnabled); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 			return
@@ -687,7 +691,30 @@ func GetUserModels(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	groups := service.GetUserUsableGroups(user.Group)
+	models := buildUserModelsResponse(user.Group)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    models,
+	})
+	return
+}
+
+func AdminGetUserModels(c *gin.Context) {
+	user, ok := getAdminTokenTargetUser(c)
+	if !ok {
+		return
+	}
+	models := buildUserModelsResponse(user.Group)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    models,
+	})
+}
+
+func buildUserModelsResponse(userGroup string) []string {
+	groups := service.GetUserUsableGroups(userGroup)
 	var models []string
 	for group := range groups {
 		for _, g := range model.GetGroupEnabledModels(group) {
@@ -696,12 +723,7 @@ func GetUserModels(c *gin.Context) {
 			}
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    models,
-	})
-	return
+	return models
 }
 
 func UpdateUser(c *gin.Context) {
@@ -949,7 +971,7 @@ func UpdateSelf(c *gin.Context) {
 	isUsernameUpdate := cleanUser.Username != "" && cleanUser.Username != currentUser.Username
 	isPasswordUpdate := user.Password != ""
 	if isUsernameUpdate || isPasswordUpdate {
-		if !middleware.ValidateTurnstile(c) {
+		if !middleware.ValidateTurnstileForScope(c, middleware.TurnstileScopeSensitiveUpdate) {
 			return
 		}
 	}
@@ -1282,6 +1304,14 @@ func EmailBind(c *gin.Context) {
 	}
 	email := req.Email
 	code := req.Code
+	if err := common.Validate.Var(email, "required,email"); err != nil {
+		common.ApiError(c, errors.New("无效的邮箱地址"))
+		return
+	}
+	if err := validateEmailDomainPolicy(email, common.EmailDomainRestrictionForBindingEnabled); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if !common.VerifyCodeWithKey(email, code, common.EmailVerificationPurpose) {
 		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 		return
@@ -1379,8 +1409,24 @@ func TopUp(c *gin.Context) {
 	}
 	result, err := model.RedeemWithPurchaseMode(req.Key, id, req.PurchaseMode)
 	if err != nil {
-		if errors.Is(err, model.ErrRedeemFailed) {
+		switch {
+		case errors.Is(err, model.ErrRedeemFailed):
 			common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
+			return
+		case errors.Is(err, model.ErrRedemptionInvalid):
+			common.ApiErrorI18n(c, i18n.MsgRedemptionInvalid)
+			return
+		case errors.Is(err, model.ErrRedemptionUsed):
+			common.ApiErrorI18n(c, i18n.MsgRedemptionUsed)
+			return
+		case errors.Is(err, model.ErrRedemptionExpired):
+			common.ApiErrorI18n(c, i18n.MsgRedemptionExpired)
+			return
+		case errors.Is(err, model.ErrRedemptionNotProvided):
+			common.ApiErrorI18n(c, i18n.MsgRedemptionNotProvided)
+			return
+		case errors.Is(err, model.ErrRedemptionExhausted):
+			common.ApiErrorI18n(c, i18n.MsgRedemptionExhausted)
 			return
 		}
 		common.ApiError(c, err)

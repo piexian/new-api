@@ -137,6 +137,8 @@ const AccountManagement = ({
     );
   };
   const isBound = (accountId) => Boolean(accountId);
+  const isOAuthEnabled = (value) =>
+    value === true || value === 'true' || value === 1 || value === '1';
   const [showTelegramBindModal, setShowTelegramBindModal] =
     React.useState(false);
   const [customOAuthBindings, setCustomOAuthBindings] = React.useState([]);
@@ -398,7 +400,9 @@ const AccountManagement = ({
               </Card>
 
               {/* 微信绑定 */}
-              <Card className='!rounded-xl'>
+              <Card
+                className={`!rounded-xl ${!isOAuthEnabled(status.wechat_login) ? 'hidden' : ''}`}
+              >
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
                     <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
@@ -412,7 +416,7 @@ const AccountManagement = ({
                         {t('微信')}
                       </div>
                       <div className='text-sm text-gray-500 truncate'>
-                        {!status.wechat_login
+                        {!isOAuthEnabled(status.wechat_login)
                           ? t('未启用')
                           : isBound(userState.user?.wechat_id)
                             ? t('已绑定')
@@ -425,12 +429,12 @@ const AccountManagement = ({
                       type='primary'
                       theme='outline'
                       size='small'
-                      disabled={!status.wechat_login}
+                      disabled={!isOAuthEnabled(status.wechat_login)}
                       onClick={() => setShowWeChatBindModal(true)}
                     >
                       {isBound(userState.user?.wechat_id)
                         ? t('修改绑定')
-                        : status.wechat_login
+                        : isOAuthEnabled(status.wechat_login)
                           ? t('绑定')
                           : t('未启用')}
                     </Button>
@@ -439,7 +443,9 @@ const AccountManagement = ({
               </Card>
 
               {/* GitHub绑定 */}
-              <Card className='!rounded-xl'>
+              <Card
+                className={`!rounded-xl ${!isOAuthEnabled(status.github_oauth) ? 'hidden' : ''}`}
+              >
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
                     <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
@@ -470,17 +476,21 @@ const AccountManagement = ({
                       }
                       disabled={
                         isBound(userState.user?.github_id) ||
-                        !status.github_oauth
+                        !isOAuthEnabled(status.github_oauth)
                       }
                     >
-                      {status.github_oauth ? t('绑定') : t('未启用')}
+                      {isOAuthEnabled(status.github_oauth)
+                        ? t('绑定')
+                        : t('未启用')}
                     </Button>
                   </div>
                 </div>
               </Card>
 
               {/* Steam绑定 */}
-              <Card className='!rounded-xl'>
+              <Card
+                className={`!rounded-xl ${!isOAuthEnabled(status.steam_oauth) ? 'hidden' : ''}`}
+              >
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
                     <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
@@ -506,17 +516,21 @@ const AccountManagement = ({
                       onClick={() => onSteamOAuthClicked()}
                       disabled={
                         isBound(userState.user?.steam_id) ||
-                        !status.steam_oauth
+                        !isOAuthEnabled(status.steam_oauth)
                       }
                     >
-                      {status.steam_oauth ? t('绑定') : t('未启用')}
+                      {isOAuthEnabled(status.steam_oauth)
+                        ? t('绑定')
+                        : t('未启用')}
                     </Button>
                   </div>
                 </div>
               </Card>
 
               {/* Discord绑定 */}
-              <Card className='!rounded-xl'>
+              <Card
+                className={`!rounded-xl ${!isOAuthEnabled(status.discord_oauth) ? 'hidden' : ''}`}
+              >
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
                     <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
@@ -547,17 +561,21 @@ const AccountManagement = ({
                       }
                       disabled={
                         isBound(userState.user?.discord_id) ||
-                        !status.discord_oauth
+                        !isOAuthEnabled(status.discord_oauth)
                       }
                     >
-                      {status.discord_oauth ? t('绑定') : t('未启用')}
+                      {isOAuthEnabled(status.discord_oauth)
+                        ? t('绑定')
+                        : t('未启用')}
                     </Button>
                   </div>
                 </div>
               </Card>
 
               {/* OIDC绑定 */}
-              <Card className='!rounded-xl'>
+              <Card
+                className={`!rounded-xl ${!isOAuthEnabled(status.oidc_enabled) ? 'hidden' : ''}`}
+              >
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
                     <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
@@ -590,17 +608,22 @@ const AccountManagement = ({
                         )
                       }
                       disabled={
-                        isBound(userState.user?.oidc_id) || !status.oidc_enabled
+                        isBound(userState.user?.oidc_id) ||
+                        !isOAuthEnabled(status.oidc_enabled)
                       }
                     >
-                      {status.oidc_enabled ? t('绑定') : t('未启用')}
+                      {isOAuthEnabled(status.oidc_enabled)
+                        ? t('绑定')
+                        : t('未启用')}
                     </Button>
                   </div>
                 </div>
               </Card>
 
               {/* Telegram绑定 */}
-              <Card className='!rounded-xl'>
+              <Card
+                className={`!rounded-xl ${!isOAuthEnabled(status.telegram_oauth) ? 'hidden' : ''}`}
+              >
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
                     <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
@@ -622,7 +645,7 @@ const AccountManagement = ({
                     </div>
                   </div>
                   <div className='flex-shrink-0'>
-                    {status.telegram_oauth ? (
+                    {isOAuthEnabled(status.telegram_oauth) ? (
                       isBound(userState.user?.telegram_id) ? (
                         <Button
                           disabled
@@ -655,27 +678,31 @@ const AccountManagement = ({
                   </div>
                 </div>
               </Card>
-              <Modal
-                title={t('绑定 Telegram')}
-                visible={showTelegramBindModal}
-                onCancel={() => setShowTelegramBindModal(false)}
-                footer={null}
-              >
-                <div className='my-3 text-sm text-gray-600'>
-                  {t('点击下方按钮通过 Telegram 完成绑定')}
-                </div>
-                <div className='flex justify-center'>
-                  <div className='scale-90'>
-                    <TelegramLoginButton
-                      dataAuthUrl='/api/oauth/telegram/bind'
-                      botName={status.telegram_bot_name}
-                    />
+              {isOAuthEnabled(status.telegram_oauth) && (
+                <Modal
+                  title={t('绑定 Telegram')}
+                  visible={showTelegramBindModal}
+                  onCancel={() => setShowTelegramBindModal(false)}
+                  footer={null}
+                >
+                  <div className='my-3 text-sm text-gray-600'>
+                    {t('点击下方按钮通过 Telegram 完成绑定')}
                   </div>
-                </div>
-              </Modal>
+                  <div className='flex justify-center'>
+                    <div className='scale-90'>
+                      <TelegramLoginButton
+                        dataAuthUrl='/api/oauth/telegram/bind'
+                        botName={status.telegram_bot_name}
+                      />
+                    </div>
+                  </div>
+                </Modal>
+              )}
 
               {/* LinuxDO绑定 */}
-              <Card className='!rounded-xl'>
+              <Card
+                className={`!rounded-xl ${!isOAuthEnabled(status.linuxdo_oauth) ? 'hidden' : ''}`}
+              >
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
                     <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
@@ -706,17 +733,21 @@ const AccountManagement = ({
                       }
                       disabled={
                         isBound(userState.user?.linux_do_id) ||
-                        !status.linuxdo_oauth
+                        !isOAuthEnabled(status.linuxdo_oauth)
                       }
                     >
-                      {status.linuxdo_oauth ? t('绑定') : t('未启用')}
+                      {isOAuthEnabled(status.linuxdo_oauth)
+                        ? t('绑定')
+                        : t('未启用')}
                     </Button>
                   </div>
                 </div>
               </Card>
 
               {/* QQ绑定 */}
-              <Card className='!rounded-xl'>
+              <Card
+                className={`!rounded-xl ${!isOAuthEnabled(status.qq_oauth) ? 'hidden' : ''}`}
+              >
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
                     <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
@@ -739,10 +770,13 @@ const AccountManagement = ({
                       size='small'
                       onClick={() => onQQOAuthClicked(status.qq_client_id)}
                       disabled={
-                        isBound(userState.user?.qq_id) || !status.qq_oauth
+                        isBound(userState.user?.qq_id) ||
+                        !isOAuthEnabled(status.qq_oauth)
                       }
                     >
-                      {status.qq_oauth ? t('绑定') : t('未启用')}
+                      {isOAuthEnabled(status.qq_oauth)
+                        ? t('绑定')
+                        : t('未启用')}
                     </Button>
                   </div>
                 </div>

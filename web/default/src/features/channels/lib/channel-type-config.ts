@@ -171,6 +171,19 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'OpenCode Zen supports Responses, Anthropic Messages, Gemini native, and Chat Completions. OpenCode Go supports Chat Completions and Anthropic Messages.',
     },
   },
+  66: {
+    id: 66,
+    name: CHANNEL_TYPES[66],
+    icon: 'GiteeAI',
+    defaultBaseUrl: 'https://api.moark.com',
+    hints: {
+      baseUrl: 'Default: https://api.moark.com',
+      key: 'Moark Access Token',
+      models: 'DeepSeek-V3,moark-text-moderation,FLUX.1-dev',
+      other:
+        'Supports OpenAI Chat/Responses, Anthropic Messages, Moderations, and native /v1/async task endpoints',
+    },
+  },
 }
 
 /**

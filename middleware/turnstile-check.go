@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -27,23 +28,79 @@ type turnstileCheckResponse struct {
 	Success bool `json:"success"`
 }
 
+type TurnstileScope string
+
+const (
+	TurnstileScopeLegacy                    TurnstileScope = "legacy"
+	TurnstileScopeLogin                     TurnstileScope = "login"
+	TurnstileScopeRegister                  TurnstileScope = "register"
+	TurnstileScopeRegisterEmailVerification TurnstileScope = "register_email_verification"
+	TurnstileScopeEmailBindingVerification  TurnstileScope = "email_binding_verification"
+	TurnstileScopePasswordReset             TurnstileScope = "password_reset"
+	TurnstileScopeCheckin                   TurnstileScope = "checkin"
+	TurnstileScopeSensitiveUpdate           TurnstileScope = "sensitive_update"
+)
+
 func ValidateTurnstile(c *gin.Context) bool {
-	return validateTurnstile(c, true)
+	return validateTurnstile(c, true, TurnstileScopeLegacy, common.TurnstileCheckEnabled)
 }
 
 func ValidateTurnstileNoSession(c *gin.Context) bool {
-	return validateTurnstile(c, false)
+	return validateTurnstile(c, false, TurnstileScopeLegacy, common.TurnstileCheckEnabled)
 }
 
-func validateTurnstile(c *gin.Context, allowSessionReuse bool) bool {
-	if !common.TurnstileCheckEnabled {
+func ValidateTurnstileForScope(c *gin.Context, scope TurnstileScope) bool {
+	return validateTurnstile(c, true, scope, isTurnstileScopeEnabled(scope))
+}
+
+func ValidateTurnstileNoSessionForScope(c *gin.Context, scope TurnstileScope) bool {
+	return validateTurnstile(c, false, scope, isTurnstileScopeEnabled(scope))
+}
+
+func isTurnstileScopeEnabled(scope TurnstileScope) bool {
+	switch scope {
+	case TurnstileScopeLogin:
+		return common.TurnstileLoginEnabled
+	case TurnstileScopeRegister:
+		return common.TurnstileRegisterEnabled
+	case TurnstileScopeRegisterEmailVerification:
+		return common.TurnstileRegisterEmailVerificationEnabled
+	case TurnstileScopeEmailBindingVerification:
+		return common.TurnstileEmailBindingVerificationEnabled
+	case TurnstileScopePasswordReset:
+		return common.TurnstilePasswordResetEnabled
+	case TurnstileScopeCheckin:
+		return common.TurnstileCheckinEnabled
+	case TurnstileScopeSensitiveUpdate:
+		return common.TurnstileSensitiveUpdateEnabled
+	default:
+		return common.TurnstileCheckEnabled
+	}
+}
+
+func turnstileSessionKey(scope TurnstileScope) string {
+	if scope == "" || scope == TurnstileScopeLegacy {
+		return "turnstile"
+	}
+	return "turnstile:" + string(scope)
+}
+
+func turnstileEmailVerificationScope(c *gin.Context) TurnstileScope {
+	if c != nil && strings.EqualFold(strings.TrimSpace(c.Query("purpose")), "bind") {
+		return TurnstileScopeEmailBindingVerification
+	}
+	return TurnstileScopeRegisterEmailVerification
+}
+
+func validateTurnstile(c *gin.Context, allowSessionReuse bool, scope TurnstileScope, enabled bool) bool {
+	if !enabled {
 		return true
 	}
 
 	var session sessions.Session
 	if allowSessionReuse {
 		session = sessions.Default(c)
-		turnstileChecked := session.Get("turnstile")
+		turnstileChecked := session.Get(turnstileSessionKey(scope))
 		if turnstileChecked != nil {
 			return true
 		}
@@ -96,7 +153,7 @@ func validateTurnstile(c *gin.Context, allowSessionReuse bool) bool {
 	}
 
 	if allowSessionReuse {
-		session.Set("turnstile", true)
+		session.Set(turnstileSessionKey(scope), true)
 		err = session.Save()
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
@@ -167,9 +224,36 @@ func TurnstileCheck() gin.HandlerFunc {
 	}
 }
 
+func TurnstileCheckForScope(scope TurnstileScope) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !ValidateTurnstileForScope(c, scope) {
+			return
+		}
+		c.Next()
+	}
+}
+
 func TurnstileCheckNoSession() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !ValidateTurnstileNoSession(c) {
+			return
+		}
+		c.Next()
+	}
+}
+
+func TurnstileCheckNoSessionForScope(scope TurnstileScope) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !ValidateTurnstileNoSessionForScope(c, scope) {
+			return
+		}
+		c.Next()
+	}
+}
+
+func TurnstileEmailVerificationCheckNoSession() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !ValidateTurnstileNoSessionForScope(c, turnstileEmailVerificationScope(c)) {
 			return
 		}
 		c.Next()

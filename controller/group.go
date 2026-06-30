@@ -24,10 +24,31 @@ func GetGroups(c *gin.Context) {
 }
 
 func GetUserGroups(c *gin.Context) {
-	usableGroups := make(map[string]map[string]interface{})
-	userGroup := ""
 	userId := c.GetInt("id")
-	userGroup, _ = model.GetUserGroup(userId, false)
+	userGroup, _ := model.GetUserGroup(userId, false)
+	userUsableGroups := buildUserGroupsResponse(userGroup)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    userUsableGroups,
+	})
+}
+
+func AdminGetUserGroups(c *gin.Context) {
+	user, ok := getAdminTokenTargetUser(c)
+	if !ok {
+		return
+	}
+	userUsableGroups := buildUserGroupsResponse(user.Group)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    userUsableGroups,
+	})
+}
+
+func buildUserGroupsResponse(userGroup string) map[string]map[string]interface{} {
+	usableGroups := make(map[string]map[string]interface{})
 	userUsableGroups := service.GetUserUsableGroups(userGroup)
 	for groupName, _ := range ratio_setting.GetGroupRatioCopy() {
 		// UserUsableGroups contains the groups that the user can use
@@ -44,9 +65,5 @@ func GetUserGroups(c *gin.Context) {
 			"desc":  setting.GetUsableGroupDescription("auto"),
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    usableGroups,
-	})
+	return usableGroups
 }

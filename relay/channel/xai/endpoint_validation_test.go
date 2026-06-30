@@ -31,6 +31,16 @@ func TestValidateEndpointForModelAllowsMatchingXAIRoutes(t *testing.T) {
 			model: "grok-imagine-video-1.5-preview",
 		},
 		{
+			name:  "video model on video edit",
+			info:  newXAIEndpointInfo(relayconstant.RelayModeVideoSubmit, types.RelayFormatTask, "/v1/videos/edits"),
+			model: "grok-imagine-video",
+		},
+		{
+			name:  "video model on video extension",
+			info:  newXAIEndpointInfo(relayconstant.RelayModeVideoSubmit, types.RelayFormatTask, "/v1/videos/extensions"),
+			model: "grok-imagine-video",
+		},
+		{
 			name:  "voice model on audio speech",
 			info:  newXAIEndpointInfo(relayconstant.RelayModeAudioSpeech, types.RelayFormatOpenAIAudio, "/v1/audio/speech"),
 			model: "grok-voice-latest",
@@ -78,28 +88,28 @@ func TestValidateEndpointForModelRejectsDedicatedModelsOnWrongXAIRoutes(t *testi
 			info:       newXAIEndpointInfo(relayconstant.RelayModeChatCompletions, types.RelayFormatOpenAI, "/v1/chat/completions"),
 			model:      "grok-imagine-image-pro",
 			wantStatus: http.StatusBadRequest,
-			want:       "must be used with /v1/chat/completions or /v1/responses endpoint",
+			want:       "must be used with /v1/images/generations or /v1/images/edits endpoint",
 		},
 		{
 			name:       "video model on images",
 			info:       newXAIEndpointInfo(relayconstant.RelayModeImagesGenerations, types.RelayFormatOpenAIImage, "/v1/images/generations"),
 			model:      "grok-imagine-video",
 			wantStatus: http.StatusBadRequest,
-			want:       "must be used with /v1/images/generations or /v1/images/edits endpoint",
+			want:       "must be used with /v1/videos/generations, /v1/videos/edits, or /v1/videos/extensions endpoint",
 		},
 		{
 			name:       "voice model on responses",
 			info:       newXAIEndpointInfo(relayconstant.RelayModeResponses, types.RelayFormatOpenAIResponses, "/v1/responses"),
 			model:      "grok-voice-latest",
 			wantStatus: http.StatusBadRequest,
-			want:       "must be used with /v1/chat/completions or /v1/responses endpoint",
+			want:       "must be used with /v1/tts, /v1/stt, /v1/realtime, /v1/realtime/client_secrets, or /v1/custom-voices endpoint",
 		},
 		{
 			name:       "image model on native tts",
 			info:       newXAIEndpointInfo(relayconstant.RelayModeXAINative, types.RelayFormatXAI, "/v1/tts"),
 			model:      "grok-2-image-1212",
 			wantStatus: http.StatusBadRequest,
-			want:       "must be used with /v1/tts, /v1/stt, or /v1/realtime endpoint",
+			want:       "must be used with /v1/images/generations or /v1/images/edits endpoint",
 		},
 	} {
 		test := test

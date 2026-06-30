@@ -69,6 +69,8 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
 	case constant.ChannelTypeXai:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
+	case constant.ChannelTypeMoark:
+		endpointTypes = getMoarkEndpointTypes(modelName)
 	case constant.ChannelTypeVolcEngine:
 		if IsVolcEngineContentGenerationTaskModel(modelName) {
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
@@ -89,6 +91,7 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		}
 	}
 	if IsImageGenerationModel(modelName) ||
+		(channelType == constant.ChannelTypeMoark && isMoarkImageGenerationModel(modelName)) ||
 		(channelType == constant.ChannelTypeVolcEngine && IsVolcEngineImageGenerationModel(modelName)) {
 		// add to first
 		endpointTypes = prependEndpointType(endpointTypes, constant.EndpointTypeImageGeneration)
@@ -103,6 +106,44 @@ func prependEndpointType(endpointTypes []constant.EndpointType, endpointType con
 		}
 	}
 	return append([]constant.EndpointType{endpointType}, endpointTypes...)
+}
+
+func getMoarkEndpointTypes(modelName string) []constant.EndpointType {
+	if isMoarkRerankModel(modelName) {
+		return []constant.EndpointType{constant.EndpointTypeJinaRerank}
+	}
+	if isMoarkEmbeddingModel(modelName) {
+		return []constant.EndpointType{constant.EndpointTypeEmbeddings}
+	}
+	return []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse, constant.EndpointTypeAnthropic}
+}
+
+func isMoarkRerankModel(modelName string) bool {
+	modelName = strings.ToLower(strings.TrimSpace(modelName))
+	return strings.Contains(modelName, "rerank") || strings.Contains(modelName, "reranker")
+}
+
+func isMoarkEmbeddingModel(modelName string) bool {
+	modelName = strings.ToLower(strings.TrimSpace(modelName))
+	return strings.Contains(modelName, "embed") ||
+		strings.Contains(modelName, "embedding") ||
+		strings.HasPrefix(modelName, "bge-") ||
+		strings.HasPrefix(modelName, "jina-clip") ||
+		strings.HasPrefix(modelName, "jina-embeddings") ||
+		strings.HasPrefix(modelName, "all-mpnet") ||
+		strings.HasPrefix(modelName, "bce-embedding")
+}
+
+func isMoarkImageGenerationModel(modelName string) bool {
+	modelName = strings.ToLower(strings.TrimSpace(modelName))
+	return strings.Contains(modelName, "image") ||
+		strings.Contains(modelName, "flux") ||
+		strings.Contains(modelName, "kolors") ||
+		strings.Contains(modelName, "stable-diffusion") ||
+		strings.Contains(modelName, "hidream") ||
+		strings.Contains(modelName, "cogview") ||
+		strings.Contains(modelName, "dreamo") ||
+		strings.Contains(modelName, "animesharp")
 }
 
 func getOpenCodeEndpointTypes(modelName string) []constant.EndpointType {

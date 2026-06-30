@@ -23,6 +23,10 @@ import { useStatus } from '@/hooks/use-status'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
+import {
+  getTurnstileSiteKey,
+  isTurnstileScopeEnabled,
+} from '@/features/auth/hooks/use-turnstile'
 import type { UserProfile } from '../types'
 import { AccessTokenDialog } from './dialogs/access-token-dialog'
 import { ChangePasswordDialog } from './dialogs/change-password-dialog'
@@ -47,6 +51,11 @@ export function ProfileSecurityCard({
   const { t } = useTranslation()
   const dialogs = useDialogs<DialogKey>()
   const { status } = useStatus()
+  const sensitiveUpdateTurnstileEnabled = isTurnstileScopeEnabled(
+    status,
+    'sensitive_update'
+  )
+  const turnstileSiteKey = getTurnstileSiteKey(status)
 
   if (loading) {
     return (
@@ -147,8 +156,8 @@ export function ProfileSecurityCard({
           open ? dialogs.open('username') : dialogs.close('username')
         }
         profile={profile}
-        turnstileEnabled={!!status?.data?.turnstile_check}
-        turnstileSiteKey={status?.data?.turnstile_site_key || ''}
+        turnstileEnabled={sensitiveUpdateTurnstileEnabled}
+        turnstileSiteKey={turnstileSiteKey}
       />
 
       <ChangePasswordDialog
@@ -158,8 +167,8 @@ export function ProfileSecurityCard({
         }
         username={profile.username}
         hasPassword={profile.has_password ?? false}
-        turnstileEnabled={!!status?.data?.turnstile_check}
-        turnstileSiteKey={status?.data?.turnstile_site_key || ''}
+        turnstileEnabled={sensitiveUpdateTurnstileEnabled}
+        turnstileSiteKey={turnstileSiteKey}
       />
 
       <AccessTokenDialog

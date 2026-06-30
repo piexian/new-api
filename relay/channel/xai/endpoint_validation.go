@@ -45,7 +45,7 @@ func ValidateEndpointForModel(info *relaycommon.RelayInfo) *types.NewAPIError {
 		return nil
 	}
 
-	message := fmt.Sprintf("xAI %s model %q must be used with %s endpoint, got %s", modelKind, modelName, expectedXAIEndpoint(routeKind), info.RequestURLPath)
+	message := fmt.Sprintf("xAI %s model %q must be used with %s endpoint, got %s", modelKind, modelName, expectedXAIEndpoint(modelKind), info.RequestURLPath)
 	return types.NewErrorWithStatusCode(
 		fmt.Errorf("%s", message),
 		types.ErrorCodeInvalidRequest,
@@ -86,9 +86,9 @@ func expectedXAIEndpoint(kind xAIRouteKind) string {
 	case xAIRouteKindImage:
 		return "/v1/images/generations or /v1/images/edits"
 	case xAIRouteKindVideo:
-		return "/v1/videos/generations"
+		return "/v1/videos/generations, /v1/videos/edits, or /v1/videos/extensions"
 	case xAIRouteKindVoice:
-		return "/v1/tts, /v1/stt, or /v1/realtime"
+		return "/v1/tts, /v1/stt, /v1/realtime, /v1/realtime/client_secrets, or /v1/custom-voices"
 	default:
 		return "/v1/chat/completions or /v1/responses"
 	}

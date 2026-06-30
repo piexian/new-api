@@ -99,6 +99,7 @@ const UserBindingManagementModal = ({
           telegram_id: userData.telegram_id || '',
           linux_do_id: userData.linux_do_id || '',
           qq_id: userData.qq_id || '',
+          steam_id: userData.steam_id || '',
         });
       } else {
         showError(userRes.data?.message || t('操作失败'));
@@ -288,6 +289,14 @@ const UserBindingManagementModal = ({
       icon: (
         <SiTencentqq size={20} className='text-slate-600 dark:text-slate-300' />
       ),
+    },
+    {
+      key: 'steam',
+      field: 'steam_id',
+      name: 'Steam',
+      enabled: Boolean(statusInfo.steam_oauth),
+      value: getBuiltInBindingValue('steam_id'),
+      icon: getOAuthProviderIcon('steam', 20),
     },
   ];
 

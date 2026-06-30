@@ -36,7 +36,6 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getUserGroups, getUserModels } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -110,6 +109,8 @@ import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../../keys/constants'
 import {
   createUserToken,
   deleteUserToken,
+  getUserAvailableGroups,
+  getUserAvailableModels,
   getUserToken,
   getUserTokens,
   updateUserToken,
@@ -167,14 +168,14 @@ function UserTokenDialog(props: UserTokenDialogProps) {
   const defaultUseAutoGroup = status?.default_use_auto_group === true
 
   const { data: modelsData } = useQuery({
-    queryKey: ['user-models'],
-    queryFn: getUserModels,
+    queryKey: ['managed-user-models', props.userId],
+    queryFn: () => getUserAvailableModels(props.userId),
     staleTime: 5 * 60 * 1000,
   })
 
   const { data: groupsData } = useQuery({
-    queryKey: ['user-groups'],
-    queryFn: getUserGroups,
+    queryKey: ['managed-user-groups', props.userId],
+    queryFn: () => getUserAvailableGroups(props.userId),
     staleTime: 5 * 60 * 1000,
   })
 

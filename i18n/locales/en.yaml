@@ -56,6 +56,7 @@ redemption.create_failed: "Failed to create redemption code, please try again la
 redemption.invalid: "Invalid redemption code"
 redemption.used: "This redemption code has been used"
 redemption.expired: "This redemption code has expired"
+redemption.exhausted: "This redemption code has no remaining uses"
 redemption.failed: "Redemption failed, please try again later"
 redemption.not_provided: "Redemption code not provided"
 redemption.expire_time_invalid: "Expiration time cannot be earlier than current time"

@@ -49,33 +49,40 @@ func GetStatus(c *gin.Context) {
 	legalSetting := system_setting.GetLegalSettings()
 
 	data := gin.H{
-		"version":                     common.Version,
-		"start_time":                  common.StartTime,
-		"email_verification":          common.EmailVerificationEnabled,
-		"github_oauth":                common.GitHubOAuthEnabled,
-		"github_client_id":            common.GitHubClientId,
-		"discord_oauth":               system_setting.GetDiscordSettings().Enabled,
-		"discord_client_id":           system_setting.GetDiscordSettings().ClientId,
-		"linuxdo_oauth":               common.LinuxDOOAuthEnabled,
-		"linuxdo_client_id":           common.LinuxDOClientId,
-		"linuxdo_minimum_trust_level": common.LinuxDOMinimumTrustLevel,
-		"qq_oauth":                    common.QQOAuthEnabled,
-		"qq_client_id":                common.QQClientId,
-		"telegram_oauth":              common.TelegramOAuthEnabled,
-		"telegram_bot_name":           common.TelegramBotName,
-		"steam_oauth":                 common.SteamOAuthEnabled,
-		"theme":                       getRequestFrontendTheme(c),
-		"system_theme":                system_setting.GetThemeSettings().Frontend,
-		"system_name":                 common.SystemName,
-		"logo":                        common.Logo,
-		"footer_html":                 common.Footer,
-		"wechat_qrcode":               common.WeChatAccountQRCodeImageURL,
-		"wechat_login":                common.WeChatAuthEnabled,
-		"server_address":              system_setting.ServerAddress,
-		"turnstile_check":             common.TurnstileCheckEnabled,
-		"turnstile_site_key":          common.TurnstileSiteKey,
-		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
-		"quota_per_unit":              common.QuotaPerUnit,
+		"version":                               common.Version,
+		"start_time":                            common.StartTime,
+		"email_verification":                    common.EmailVerificationEnabled,
+		"github_oauth":                          common.GitHubOAuthEnabled,
+		"github_client_id":                      common.GitHubClientId,
+		"discord_oauth":                         system_setting.GetDiscordSettings().Enabled,
+		"discord_client_id":                     system_setting.GetDiscordSettings().ClientId,
+		"linuxdo_oauth":                         common.LinuxDOOAuthEnabled,
+		"linuxdo_client_id":                     common.LinuxDOClientId,
+		"linuxdo_minimum_trust_level":           common.LinuxDOMinimumTrustLevel,
+		"qq_oauth":                              common.QQOAuthEnabled,
+		"qq_client_id":                          common.QQClientId,
+		"telegram_oauth":                        common.TelegramOAuthEnabled,
+		"telegram_bot_name":                     common.TelegramBotName,
+		"steam_oauth":                           common.SteamOAuthEnabled,
+		"theme":                                 getRequestFrontendTheme(c),
+		"system_theme":                          system_setting.GetThemeSettings().Frontend,
+		"system_name":                           common.SystemName,
+		"logo":                                  common.Logo,
+		"footer_html":                           common.Footer,
+		"wechat_qrcode":                         common.WeChatAccountQRCodeImageURL,
+		"wechat_login":                          common.WeChatAuthEnabled,
+		"server_address":                        system_setting.ServerAddress,
+		"turnstile_check":                       common.IsAnyTurnstileCheckEnabled(),
+		"turnstile_login":                       common.TurnstileLoginEnabled,
+		"turnstile_register":                    common.TurnstileRegisterEnabled,
+		"turnstile_register_email_verification": common.TurnstileRegisterEmailVerificationEnabled,
+		"turnstile_email_binding_verification":  common.TurnstileEmailBindingVerificationEnabled,
+		"turnstile_password_reset":              common.TurnstilePasswordResetEnabled,
+		"turnstile_checkin":                     common.TurnstileCheckinEnabled,
+		"turnstile_sensitive_update":            common.TurnstileSensitiveUpdateEnabled,
+		"turnstile_site_key":                    common.TurnstileSiteKey,
+		"docs_link":                             operation_setting.GetGeneralSetting().DocsLink,
+		"quota_per_unit":                        common.QuotaPerUnit,
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
 		"display_in_currency":           operation_setting.IsCurrencyDisplay(),
 		"quota_display_type":            operation_setting.GetQuotaDisplayType(),
@@ -244,8 +251,42 @@ func GetHomePageContent(c *gin.Context) {
 	return
 }
 
+const (
+	emailVerificationPurposeRegister = "register"
+	emailVerificationPurposeBind     = "bind"
+)
+
+func isEmailDomainRestrictionEnabledForPurpose(purpose string) bool {
+	switch purpose {
+	case emailVerificationPurposeBind:
+		return common.EmailDomainRestrictionForBindingEnabled
+	default:
+		return common.EmailDomainRestrictionEnabled
+	}
+}
+
+func validateEmailDomainPolicy(email string, restrictDomain bool) error {
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return errors.New("无效的邮箱地址")
+	}
+	localPart := parts[0]
+	domainPart := parts[1]
+	if restrictDomain && !isEmailDomainAllowed(domainPart, common.EmailDomainWhitelist) {
+		return errors.New("The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.")
+	}
+	if common.EmailAliasRestrictionEnabled {
+		containsSpecialSymbols := strings.Contains(localPart, "+") || strings.Contains(localPart, ".")
+		if containsSpecialSymbols {
+			return errors.New("管理员已启用邮箱地址别名限制，您的邮箱地址由于包含特殊符号而被拒绝。")
+		}
+	}
+	return nil
+}
+
 func SendEmailVerification(c *gin.Context) {
 	email := c.Query("email")
+	purpose := strings.ToLower(strings.TrimSpace(c.DefaultQuery("purpose", emailVerificationPurposeRegister)))
 	if err := common.Validate.Var(email, "required,email"); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -253,32 +294,12 @@ func SendEmailVerification(c *gin.Context) {
 		})
 		return
 	}
-	parts := strings.Split(email, "@")
-	if len(parts) != 2 {
+	if err := validateEmailDomainPolicy(email, isEmailDomainRestrictionEnabledForPurpose(purpose)); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "无效的邮箱地址",
+			"message": err.Error(),
 		})
 		return
-	}
-	localPart := parts[0]
-	domainPart := parts[1]
-	if common.EmailDomainRestrictionEnabled && !isEmailDomainAllowed(domainPart, common.EmailDomainWhitelist) {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.",
-		})
-		return
-	}
-	if common.EmailAliasRestrictionEnabled {
-		containsSpecialSymbols := strings.Contains(localPart, "+") || strings.Contains(localPart, ".")
-		if containsSpecialSymbols {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "管理员已启用邮箱地址别名限制，您的邮箱地址由于包含特殊符号而被拒绝。",
-			})
-			return
-		}
 	}
 
 	if model.IsEmailAlreadyTaken(email) {

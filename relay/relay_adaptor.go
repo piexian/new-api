@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/jina"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/mistral"
+	"github.com/QuantumNous/new-api/relay/channel/moark"
 	"github.com/QuantumNous/new-api/relay/channel/mokaai"
 	"github.com/QuantumNous/new-api/relay/channel/moonshot"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
@@ -140,6 +141,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &zenmux.Adaptor{}
 	case constant.APITypeOpenCode:
 		return &opencode.Adaptor{}
+	case constant.APITypeMoark:
+		return &moark.Adaptor{}
 	}
 	return nil
 }

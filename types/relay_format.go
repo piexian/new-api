@@ -16,6 +16,7 @@ const (
 	RelayFormatMiniMax                               = "minimax"
 	RelayFormatXAI                                   = "xai"
 	RelayFormatXAIRealtime                           = "xai_realtime"
+	RelayFormatMoarkNative                           = "moark_native"
 
 	RelayFormatTask    = "task"
 	RelayFormatMjProxy = "mj_proxy"

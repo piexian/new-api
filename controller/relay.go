@@ -55,6 +55,8 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 		err = relay.MiniMaxNativeHelper(c, info)
 	case relayconstant.RelayModeXAINative:
 		err = relay.XAINativeHelper(c, info)
+	case relayconstant.RelayModeMoarkNative:
+		err = relay.MoarkNativeHelper(c, info)
 	default:
 		err = relay.TextHelper(c, info)
 	}

@@ -105,25 +105,63 @@ var (
 )
 
 var (
-	PasswordLoginEnabled       = true
-	PasswordRegisterEnabled    = true
-	EmailVerificationEnabled   = false
-	GitHubOAuthEnabled         = false
-	LinuxDOOAuthEnabled        = false
-	QQOAuthEnabled             = false
-	WeChatAuthEnabled          = false
-	TelegramOAuthEnabled       = false
-	SteamOAuthEnabled          = false
-	TurnstileCheckEnabled      = false
-	RegisterEnabled            = true
-	OAuthRegisterEnabled       = true
-	RegisterInviteCodeRequired = false
+	PasswordLoginEnabled     = true
+	PasswordRegisterEnabled  = true
+	EmailVerificationEnabled = false
+	GitHubOAuthEnabled       = false
+	LinuxDOOAuthEnabled      = false
+	QQOAuthEnabled           = false
+	WeChatAuthEnabled        = false
+	TelegramOAuthEnabled     = false
+	SteamOAuthEnabled        = false
+	TurnstileCheckEnabled    = false
+	// Turnstile 场景必须单独加开关；以后新增 Turnstile 校验入口时不要复用全局开关。
+	TurnstileLoginEnabled                     = false
+	TurnstileRegisterEnabled                  = false
+	TurnstileRegisterEmailVerificationEnabled = false
+	TurnstileEmailBindingVerificationEnabled  = false
+	TurnstilePasswordResetEnabled             = false
+	TurnstileCheckinEnabled                   = false
+	TurnstileSensitiveUpdateEnabled           = false
+	RegisterEnabled                           = true
+	OAuthRegisterEnabled                      = true
+	RegisterInviteCodeRequired                = false
 )
 
+var TurnstileScopedOptionKeys = []string{
+	"TurnstileLoginEnabled",
+	"TurnstileRegisterEnabled",
+	"TurnstileRegisterEmailVerificationEnabled",
+	"TurnstileEmailBindingVerificationEnabled",
+	"TurnstilePasswordResetEnabled",
+	"TurnstileCheckinEnabled",
+	"TurnstileSensitiveUpdateEnabled",
+}
+
+func IsTurnstileScopedOptionKey(key string) bool {
+	for _, optionKey := range TurnstileScopedOptionKeys {
+		if optionKey == key {
+			return true
+		}
+	}
+	return false
+}
+
+func IsAnyTurnstileCheckEnabled() bool {
+	return TurnstileLoginEnabled ||
+		TurnstileRegisterEnabled ||
+		TurnstileRegisterEmailVerificationEnabled ||
+		TurnstileEmailBindingVerificationEnabled ||
+		TurnstilePasswordResetEnabled ||
+		TurnstileCheckinEnabled ||
+		TurnstileSensitiveUpdateEnabled
+}
+
 var (
-	EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
-	EmailAliasRestrictionEnabled  = false // 是否启用邮箱别名限制
-	EmailDomainWhitelist          = []string{
+	EmailDomainRestrictionEnabled           = false // 是否在注册时启用邮箱域名限制
+	EmailDomainRestrictionForBindingEnabled = false // 是否在绑定邮箱时启用邮箱域名限制
+	EmailAliasRestrictionEnabled            = false // 是否启用邮箱别名限制
+	EmailDomainWhitelist                    = []string{
 		"gmail.com",
 		"163.com",
 		"126.com",

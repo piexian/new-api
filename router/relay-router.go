@@ -163,6 +163,29 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIAudio)
 		})
 
+		// Moark native async/task routes
+		httpRouter.POST("/async/*path", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatMoarkNative)
+		})
+		httpRouter.GET("/tasks", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatMoarkNative)
+		})
+		httpRouter.GET("/tasks/available-quota", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatMoarkNative)
+		})
+		httpRouter.GET("/task/:task_id", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatMoarkNative)
+		})
+		httpRouter.GET("/task/:task_id/get", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatMoarkNative)
+		})
+		httpRouter.POST("/task/:task_id/cancel", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatMoarkNative)
+		})
+		httpRouter.GET("/task/:task_id/status", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatMoarkNative)
+		})
+
 		// xAI native voice routes
 		httpRouter.POST("/realtime/client_secrets", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatXAI)

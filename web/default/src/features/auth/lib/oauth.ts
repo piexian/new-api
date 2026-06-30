@@ -94,6 +94,14 @@ export function getAvailableOAuthProviders(
     })
   }
 
+  if (status.steam_oauth) {
+    providers.push({
+      name: 'Steam',
+      type: 'steam',
+      enabled: true,
+    })
+  }
+
   return providers
 }
 
@@ -109,6 +117,7 @@ export function hasOAuthProviders(status: SystemStatus | null): boolean {
     status.linuxdo_oauth ||
     status.telegram_oauth ||
     status.qq_oauth ||
+    status.steam_oauth ||
     status.wechat_login
   )
 }

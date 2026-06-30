@@ -444,6 +444,15 @@ func GenRelayInfoXAI(c *gin.Context, request dto.Request) *RelayInfo {
 	return info
 }
 
+func GenRelayInfoMoarkNative(c *gin.Context, request dto.Request) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	info.RelayFormat = types.RelayFormatMoarkNative
+	if info.RelayMode == relayconstant.RelayModeUnknown {
+		info.RelayMode = relayconstant.RelayModeMoarkNative
+	}
+	return info
+}
+
 func GenRelayInfoXAIRealtime(c *gin.Context, request dto.Request, ws *websocket.Conn) *RelayInfo {
 	info := GenRelayInfoXAI(c, request)
 	info.RelayFormat = types.RelayFormatXAIRealtime
@@ -596,6 +605,8 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoXAI(c, request)
 	case types.RelayFormatXAIRealtime:
 		info = GenRelayInfoXAIRealtime(c, request, ws)
+	case types.RelayFormatMoarkNative:
+		info = GenRelayInfoMoarkNative(c, request)
 	case types.RelayFormatOpenAIResponses:
 		if request, ok := request.(*dto.OpenAIResponsesRequest); ok {
 			info = GenRelayInfoResponses(c, request)

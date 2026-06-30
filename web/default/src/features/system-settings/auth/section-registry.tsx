@@ -39,6 +39,8 @@ const AUTH_SECTIONS = [
           RegisterInviteCodeRequired: settings.RegisterInviteCodeRequired,
           DefaultUserGroup: settings.DefaultUserGroup,
           EmailDomainRestrictionEnabled: settings.EmailDomainRestrictionEnabled,
+          EmailDomainRestrictionForBindingEnabled:
+            settings.EmailDomainRestrictionForBindingEnabled,
           EmailAliasRestrictionEnabled: settings.EmailAliasRestrictionEnabled,
           EmailDomainWhitelist: settings.EmailDomainWhitelist,
         }}
@@ -119,11 +121,22 @@ const AUTH_SECTIONS = [
   {
     id: 'bot-protection',
     titleKey: 'Bot Protection',
-    descriptionKey: 'Protect login and registration with Cloudflare Turnstile',
+    descriptionKey:
+      'Configure Cloudflare Turnstile keys and enable checks per action',
     build: (settings: AuthSettings) => (
       <BotProtectionSection
         defaultValues={{
           TurnstileCheckEnabled: settings.TurnstileCheckEnabled,
+          TurnstileLoginEnabled: settings.TurnstileLoginEnabled,
+          TurnstileRegisterEnabled: settings.TurnstileRegisterEnabled,
+          TurnstileRegisterEmailVerificationEnabled:
+            settings.TurnstileRegisterEmailVerificationEnabled,
+          TurnstileEmailBindingVerificationEnabled:
+            settings.TurnstileEmailBindingVerificationEnabled,
+          TurnstilePasswordResetEnabled: settings.TurnstilePasswordResetEnabled,
+          TurnstileCheckinEnabled: settings.TurnstileCheckinEnabled,
+          TurnstileSensitiveUpdateEnabled:
+            settings.TurnstileSensitiveUpdateEnabled,
           TurnstileSiteKey: settings.TurnstileSiteKey,
           TurnstileSecretKey: settings.TurnstileSecretKey,
         }}

@@ -35,6 +35,7 @@ var defaultVendorRules = map[string]string{
 	"kling":    "快手",
 	"jimeng":   "即梦",
 	"vidu":     "Vidu",
+	"moark":    "模力方舟",
 }
 
 // 供应商默认图标映射
@@ -65,6 +66,7 @@ var defaultVendorIcons = map[string]string{
 	"微软":         "AzureAI",
 	"Microsoft":  "AzureAI",
 	"Azure":      "AzureAI",
+	"模力方舟":       "GiteeAI.Color",
 }
 
 // initDefaultVendorMapping 简化的默认供应商映射

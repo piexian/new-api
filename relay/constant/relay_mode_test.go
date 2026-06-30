@@ -9,6 +9,8 @@ func TestPath2RelayModeVideoEndpoints(t *testing.T) {
 	}{
 		{path: "/v1/video/generations", want: RelayModeVideoSubmit},
 		{path: "/v1/videos/generations", want: RelayModeVideoSubmit},
+		{path: "/v1/videos/edits", want: RelayModeVideoSubmit},
+		{path: "/v1/videos/extensions", want: RelayModeVideoSubmit},
 		{path: "/v1/videos", want: RelayModeVideoSubmit},
 		{path: "/v1/videos/video_123/remix", want: RelayModeVideoSubmit},
 		{path: "/v1/video/generations/task_123", want: RelayModeVideoFetchByID},

@@ -1,0 +1,19 @@
+[Unit]
+Description=newapi
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/new-api
+Environment="HTTP_PROXY=http://localhost:17890"
+Environment="HTTPS_PROXY=http://localhost:17890"
+Environment="ALL_PROXY=http://localhost:17890"
+Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,::1,*.local"
+ExecStart=/root/new-api/new-api --port 3000 --log-dir /root/new-api/logs
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

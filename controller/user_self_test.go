@@ -58,6 +58,13 @@ func setupUserSelfControllerTestDB(t *testing.T) *gorm.DB {
 	common.UsingPostgreSQL = false
 	common.RedisEnabled = false
 	common.TurnstileCheckEnabled = false
+	common.TurnstileLoginEnabled = false
+	common.TurnstileRegisterEnabled = false
+	common.TurnstileRegisterEmailVerificationEnabled = false
+	common.TurnstileEmailBindingVerificationEnabled = false
+	common.TurnstilePasswordResetEnabled = false
+	common.TurnstileCheckinEnabled = false
+	common.TurnstileSensitiveUpdateEnabled = false
 
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})

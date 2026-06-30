@@ -107,6 +107,7 @@ func TestRedeemCodeHonorsMaxRedemptions(t *testing.T) {
 	truncateTables(t)
 	insertUserForPaymentGuardTest(t, 9105, 0)
 	insertUserForPaymentGuardTest(t, 9106, 0)
+	insertUserForPaymentGuardTest(t, 9109, 0)
 	insertRedemptionForTest(t, &Redemption{
 		Key:            "two-use-code",
 		Type:           RedemptionTypeQuota,
@@ -132,6 +133,11 @@ func TestRedeemCodeHonorsMaxRedemptions(t *testing.T) {
 	require.Equal(t, common.RedemptionCodeStatusUsed, redemption.Status)
 	require.Equal(t, 2, redemption.RedeemedCount)
 	require.Equal(t, 9106, redemption.UsedUserId)
+
+	result, err = Redeem("two-use-code", 9109)
+	require.Nil(t, result)
+	require.ErrorIs(t, err, ErrRedemptionExhausted)
+	require.False(t, errors.Is(err, ErrRedeemFailed))
 }
 
 func TestRedeemCodeAllowsUnlimitedRedemptions(t *testing.T) {
