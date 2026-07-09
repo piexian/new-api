@@ -398,7 +398,7 @@ func EnsureUserAffCode(userID int) (string, error) {
 	var affCode string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		user := User{}
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, "id = ?", userID).Error; err != nil {
+		if err := lockForUpdate(tx).First(&user, "id = ?", userID).Error; err != nil {
 			return err
 		}
 		if len(user.AffCode) == AffCodeLength {
@@ -425,7 +425,7 @@ func ResetUserAffCode(userID int) (string, error) {
 	var affCode string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		user := User{}
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, "id = ?", userID).Error; err != nil {
+		if err := lockForUpdate(tx).First(&user, "id = ?", userID).Error; err != nil {
 			return err
 		}
 		for i := 0; i < 20; i++ {
@@ -558,7 +558,7 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	defer tx.Rollback() // 确保在函数退出时事务能回滚
 
 	// 加锁查询用户以确保数据一致性
-	err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, user.Id).Error
+	err := lockForUpdate(tx).First(&user, user.Id).Error
 	if err != nil {
 		return err
 	}

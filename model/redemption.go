@@ -274,7 +274,7 @@ func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result
 	}
 	common.RandomSleep()
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(keyCol+" = ?", key).First(redemption).Error
+		err := lockForUpdate(tx).Where(keyCol+" = ?", key).First(redemption).Error
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrRedemptionInvalid
