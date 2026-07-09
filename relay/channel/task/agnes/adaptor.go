@@ -491,9 +491,6 @@ func (r agnesVideoResponse) resultURL() string {
 			}
 		}
 	}
-	if url := strings.TrimSpace(r.RemixedFromVideoID); url != "" {
-		return url
-	}
 	return ""
 }
 

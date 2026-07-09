@@ -181,6 +181,11 @@ func TestParseTaskResultMapsStatusesAndURLs(t *testing.T) {
 			wantURL:    "https://example.com/remixed.mp4",
 		},
 		{
+			name:       "completed remixed id is not a result url",
+			body:       `{"status":"completed","progress":100,"remixed_from_video_id":"vid_abc123"}`,
+			wantStatus: model.TaskStatusSuccess,
+		},
+		{
 			name:       "failed",
 			body:       `{"status":"failed","error":{"message":"safety filter","code":"content_policy"}}`,
 			wantStatus: model.TaskStatusFailure,
