@@ -159,6 +159,11 @@ func RedisHSetObj(key string, obj interface{}, expiration time.Duration) error {
 }
 
 func RedisHGetObj(key string, obj interface{}) error {
+	_, err := RedisHGetObjFields(key, obj)
+	return err
+}
+
+func RedisHGetObjFields(key string, obj interface{}) (map[string]string, error) {
 	if DebugEnabled {
 		SysLog(fmt.Sprintf("Redis HGETALL: key=%s", key))
 	}
@@ -166,13 +171,21 @@ func RedisHGetObj(key string, obj interface{}) error {
 
 	result, err := RDB.HGetAll(ctx, key).Result()
 	if err != nil {
-		return fmt.Errorf("failed to load hash from Redis: %w", err)
+		return nil, fmt.Errorf("failed to load hash from Redis: %w", err)
 	}
 
 	if len(result) == 0 {
-		return fmt.Errorf("key %s not found in Redis", key)
+		return nil, fmt.Errorf("key %s not found in Redis", key)
 	}
 
+	if err := scanRedisHashObj(result, obj); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func scanRedisHashObj(result map[string]string, obj interface{}) error {
 	// Handle both pointer and non-pointer values
 	val := reflect.ValueOf(obj)
 	if val.Kind() != reflect.Ptr {

@@ -87,12 +87,14 @@ func formatAvailableGroups(userUsableGroups map[string]string) string {
 
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
-	username := session.Get("username")
-	role := session.Get("role")
-	id := session.Get("id")
-	status := session.Get("status")
+	usernameValue := session.Get("username")
+	roleValue := session.Get("role")
+	idValue := session.Get("id")
+	statusValue := session.Get("status")
+	groupValue := session.Get("group")
+	disableReason := ""
 	useAccessToken := false
-	if username == nil {
+	if usernameValue == nil {
 		// Check access token
 		accessToken := c.Request.Header.Get("Authorization")
 		if accessToken == "" {
@@ -130,10 +132,12 @@ func authHelper(c *gin.Context, minRole int) {
 				return
 			}
 			// Token is valid
-			username = user.Username
-			role = user.Role
-			id = user.Id
-			status = user.Status
+			usernameValue = user.Username
+			roleValue = user.Role
+			idValue = user.Id
+			statusValue = user.Status
+			groupValue = user.Group
+			disableReason = user.DisableReason
 			useAccessToken = true
 		} else {
 			c.JSON(http.StatusOK, gin.H{
@@ -144,6 +148,44 @@ func authHelper(c *gin.Context, minRole int) {
 			return
 		}
 	}
+	username, ok := usernameValue.(string)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
+		})
+		c.Abort()
+		return
+	}
+	role, ok := roleValue.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
+		})
+		c.Abort()
+		return
+	}
+	id, ok := idValue.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
+		})
+		c.Abort()
+		return
+	}
+	status, ok := statusValue.(int)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
+		})
+		c.Abort()
+		return
+	}
+	group, _ := groupValue.(string)
+
 	// get header New-Api-User
 	apiUserIdStr := c.Request.Header.Get("New-Api-User")
 	if apiUserIdStr == "" {
@@ -162,7 +204,6 @@ func authHelper(c *gin.Context, minRole int) {
 		})
 		c.Abort()
 		return
-
 	}
 	if id != apiUserId {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -172,23 +213,38 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if status.(int) == common.UserStatusDisabled {
-		reason := ""
-		userID := 0
-		disabledUsername := ""
-		if userID, ok := id.(int); ok {
-			disabledUsername, _ = username.(string)
-			if userCache, err := model.GetUserCache(userID); err == nil {
-				reason = userCache.DisableReason
-				disabledUsername = userCache.Username
+
+	if !useAccessToken {
+		userCache, err := model.GetUserCache(id)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"success": false,
+					"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
+				})
+				c.Abort()
+				return
 			}
-			disabledUserBusinessResponse(c, reason, userID, disabledUsername)
+			common.SysLog(fmt.Sprintf("authHelper GetUserCache error for user %d: %v", id, err))
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgDatabaseError),
+			})
+			c.Abort()
 			return
 		}
-		disabledUserBusinessResponse(c, reason, userID, disabledUsername)
+		username = userCache.Username
+		role = userCache.Role
+		status = userCache.Status
+		group = userCache.Group
+		disableReason = userCache.DisableReason
+	}
+
+	if status == common.UserStatusDisabled {
+		disabledUserBusinessResponse(c, disableReason, id, username)
 		return
 	}
-	if role.(int) < minRole {
+	if role < minRole {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege),
@@ -196,7 +252,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if !validUserInfo(username.(string), role.(int)) {
+	if !validUserInfo(username, role) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
@@ -209,8 +265,8 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("username", username)
 	c.Set("role", role)
 	c.Set("id", id)
-	c.Set("group", session.Get("group"))
-	c.Set("user_group", session.Get("group"))
+	c.Set("group", group)
+	c.Set("user_group", group)
 	c.Set("use_access_token", useAccessToken)
 
 	c.Next()

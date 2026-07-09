@@ -73,6 +73,7 @@ func (user User) MarshalJSON() ([]byte, error) {
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
 		Id:            user.Id,
+		Role:          user.Role,
 		Group:         user.Group,
 		Quota:         user.Quota,
 		Status:        user.Status,

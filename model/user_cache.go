@@ -16,6 +16,7 @@ import (
 // UserBase struct remains the same as it represents the cached data structure
 type UserBase struct {
 	Id            int    `json:"id"`
+	Role          int    `json:"role"`
 	Group         string `json:"group"`
 	Email         string `json:"email"`
 	Quota         int    `json:"quota"`
@@ -93,9 +94,13 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 	}()
 
 	// Try getting from Redis first
-	userCache, err = cacheGetUserBase(userId)
+	userCache, hasRoleField, err := cacheGetUserBase(userId)
 	if err == nil {
-		return userCache, nil
+		// 老版本缓存没有 Role 字段，会反序列化成 0。鉴权必须拿到最新角色，
+		// 否则提升为管理员后仍可能被旧缓存当作游客处理。
+		if hasRoleField {
+			return userCache, nil
+		}
 	}
 
 	// If Redis fails, get from DB
@@ -108,6 +113,7 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 	// Create cache object from user data
 	userCache = &UserBase{
 		Id:            user.Id,
+		Role:          user.Role,
 		Group:         user.Group,
 		Quota:         user.Quota,
 		Status:        user.Status,
@@ -120,17 +126,19 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 	return userCache, nil
 }
 
-func cacheGetUserBase(userId int) (*UserBase, error) {
+func cacheGetUserBase(userId int) (*UserBase, bool, error) {
 	if !common.RedisEnabled {
-		return nil, fmt.Errorf("redis is not enabled")
+		return nil, false, fmt.Errorf("redis is not enabled")
 	}
 	var userCache UserBase
 	// Try getting from Redis first
-	err := common.RedisHGetObj(getUserCacheKey(userId), &userCache)
+	cacheKey := getUserCacheKey(userId)
+	fields, err := common.RedisHGetObjFields(cacheKey, &userCache)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return &userCache, nil
+	_, hasRoleField := fields["Role"]
+	return &userCache, hasRoleField, nil
 }
 
 // Add atomic quota operations using hash fields
