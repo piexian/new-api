@@ -2,6 +2,9 @@ name: Release (Linux, macOS, Windows)
 permissions:
   contents: write
 
+env:
+  NODE_OPTIONS: "--max-old-space-size=4096"
+
 on:
   workflow_dispatch:
     inputs:
@@ -89,7 +92,6 @@ jobs:
       - name: Build Frontend (default)
         env:
           CI: ""
-          NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
           cd web/default
           bun install
