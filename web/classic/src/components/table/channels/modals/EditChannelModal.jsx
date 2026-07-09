@@ -29,6 +29,7 @@ import {
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   CHANNEL_OPTIONS,
+  CHANNEL_TYPE_CEREBRAS,
   CHANNEL_TYPE_OPENCODE,
   MODEL_FETCHABLE_CHANNEL_TYPES,
 } from '../../../../constants';
@@ -1900,8 +1901,12 @@ const EditChannelModal = (props) => {
       delete settings.vertex_key_type;
     }
 
-    // type === 1 (OpenAI) 或 type === 14 (Claude): 设置字段透传控制（显式保存布尔值）
-    if (localInputs.type === 1 || localInputs.type === 14) {
+    // OpenAI / Claude / Cerebras: 设置 service_tier 透传控制（显式保存布尔值）
+    if (
+      localInputs.type === 1 ||
+      localInputs.type === 14 ||
+      localInputs.type === CHANNEL_TYPE_CEREBRAS
+    ) {
       settings.allow_service_tier = localInputs.allow_service_tier === true;
       // 仅 OpenAI 渠道需要 store / safety_identifier / include_obfuscation
       if (localInputs.type === 1) {
@@ -2656,7 +2661,8 @@ const EditChannelModal = (props) => {
                     </Col>
                   </Row>
 
-                  {inputs.type === 1 && (
+                  {(inputs.type === 1 ||
+                    inputs.type === CHANNEL_TYPE_CEREBRAS) && (
                     <>
                       <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
                         {t('字段透传控制')}
@@ -2676,53 +2682,57 @@ const EditChannelModal = (props) => {
                           'service_tier 字段用于指定服务层级，允许透传可能导致实际计费高于预期。默认关闭以避免额外费用',
                         )}
                       />
-                      <Form.Switch
-                        field='disable_store'
-                        label={t('禁用 store 透传')}
-                        checkedText={t('开')}
-                        uncheckedText={t('关')}
-                        onChange={(value) =>
-                          handleChannelOtherSettingsChange(
-                            'disable_store',
-                            value,
-                          )
-                        }
-                        extraText={t(
-                          'store 字段用于授权 OpenAI 存储请求数据以评估和优化产品。默认关闭，开启后可能导致 Codex 无法正常使用',
-                        )}
-                      />
-                      <Form.Switch
-                        field='allow_safety_identifier'
-                        label={t('允许 safety_identifier 透传')}
-                        checkedText={t('开')}
-                        uncheckedText={t('关')}
-                        onChange={(value) =>
-                          handleChannelOtherSettingsChange(
-                            'allow_safety_identifier',
-                            value,
-                          )
-                        }
-                        extraText={t(
-                          'safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私',
-                        )}
-                      />
-                      <Form.Switch
-                        field='allow_include_obfuscation'
-                        label={t(
-                          '允许 stream_options.include_obfuscation 透传',
-                        )}
-                        checkedText={t('开')}
-                        uncheckedText={t('关')}
-                        onChange={(value) =>
-                          handleChannelOtherSettingsChange(
-                            'allow_include_obfuscation',
-                            value,
-                          )
-                        }
-                        extraText={t(
-                          'include_obfuscation 用于控制 Responses 流混淆字段。默认关闭以避免客户端关闭该安全保护',
-                        )}
-                      />
+                      {inputs.type === 1 && (
+                        <>
+                          <Form.Switch
+                            field='disable_store'
+                            label={t('禁用 store 透传')}
+                            checkedText={t('开')}
+                            uncheckedText={t('关')}
+                            onChange={(value) =>
+                              handleChannelOtherSettingsChange(
+                                'disable_store',
+                                value,
+                              )
+                            }
+                            extraText={t(
+                              'store 字段用于授权 OpenAI 存储请求数据以评估和优化产品。默认关闭，开启后可能导致 Codex 无法正常使用',
+                            )}
+                          />
+                          <Form.Switch
+                            field='allow_safety_identifier'
+                            label={t('允许 safety_identifier 透传')}
+                            checkedText={t('开')}
+                            uncheckedText={t('关')}
+                            onChange={(value) =>
+                              handleChannelOtherSettingsChange(
+                                'allow_safety_identifier',
+                                value,
+                              )
+                            }
+                            extraText={t(
+                              'safety_identifier 字段用于帮助 OpenAI 识别可能违反使用政策的应用程序用户。默认关闭以保护用户隐私',
+                            )}
+                          />
+                          <Form.Switch
+                            field='allow_include_obfuscation'
+                            label={t(
+                              '允许 stream_options.include_obfuscation 透传',
+                            )}
+                            checkedText={t('开')}
+                            uncheckedText={t('关')}
+                            onChange={(value) =>
+                              handleChannelOtherSettingsChange(
+                                'allow_include_obfuscation',
+                                value,
+                              )
+                            }
+                            extraText={t(
+                              'include_obfuscation 用于控制 Responses 流混淆字段。默认关闭以避免客户端关闭该安全保护',
+                            )}
+                          />
+                        </>
+                      )}
                     </>
                   )}
 
@@ -3909,41 +3919,41 @@ const EditChannelModal = (props) => {
 
                           {inputs.type === CHANNEL_TYPE_OPENCODE &&
                             !doubaoApiEditUnlocked && (
-                            <div>
-                              <Form.Select
-                                field='base_url'
-                                label={
-                                  <span
-                                    onClick={handleApiConfigSecretClick}
-                                    style={{
-                                      cursor: 'pointer',
-                                      userSelect: 'none',
-                                    }}
-                                  >
-                                    {t('API地址')}
-                                  </span>
-                                }
-                                placeholder={t('请选择API地址')}
-                                onChange={(value) =>
-                                  handleInputChange('base_url', value)
-                                }
-                                optionList={[
-                                  {
-                                    value: OPENCODE_ZEN_BASE_URL,
-                                    label:
-                                      'OpenCode Zen (https://opencode.ai/zen)',
-                                  },
-                                  {
-                                    value: OPENCODE_GO_BASE_URL,
-                                    label:
-                                      'OpenCode Go (https://opencode.ai/zen/go)',
-                                  },
-                                ]}
-                                defaultValue={OPENCODE_ZEN_BASE_URL}
-                                disabled={isIonetLocked}
-                              />
-                            </div>
-                          )}
+                              <div>
+                                <Form.Select
+                                  field='base_url'
+                                  label={
+                                    <span
+                                      onClick={handleApiConfigSecretClick}
+                                      style={{
+                                        cursor: 'pointer',
+                                        userSelect: 'none',
+                                      }}
+                                    >
+                                      {t('API地址')}
+                                    </span>
+                                  }
+                                  placeholder={t('请选择API地址')}
+                                  onChange={(value) =>
+                                    handleInputChange('base_url', value)
+                                  }
+                                  optionList={[
+                                    {
+                                      value: OPENCODE_ZEN_BASE_URL,
+                                      label:
+                                        'OpenCode Zen (https://opencode.ai/zen)',
+                                    },
+                                    {
+                                      value: OPENCODE_GO_BASE_URL,
+                                      label:
+                                        'OpenCode Go (https://opencode.ai/zen/go)',
+                                    },
+                                  ]}
+                                  defaultValue={OPENCODE_ZEN_BASE_URL}
+                                  disabled={isIonetLocked}
+                                />
+                              </div>
+                            )}
 
                           {inputs.type === 26 && !doubaoApiEditUnlocked && (
                             <>

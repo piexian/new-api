@@ -113,6 +113,19 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'deepseek-chat,deepseek-coder',
     },
   },
+  68: {
+    id: 68,
+    name: CHANNEL_TYPES[68],
+    icon: 'Cerebras.Color',
+    defaultBaseUrl: 'https://api.cerebras.ai',
+    hints: {
+      baseUrl: 'Default: https://api.cerebras.ai',
+      key: 'Cerebras API Key',
+      models: 'gpt-oss-120b,zai-glm-4.7,gemma-4-31b',
+      other:
+        'OpenAI-compatible Chat Completions with Cerebras-specific parameters such as clear_thinking and prompt_cache_key',
+    },
+  },
   20: {
     id: 20,
     name: CHANNEL_TYPES[20],
@@ -137,7 +150,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
   62: {
     id: 62,
     name: CHANNEL_TYPES[62],
-    icon: 'xiaomimimo',
+    icon: 'XiaomiMiMo',
     defaultBaseUrl: 'https://api.xiaomimimo.com',
     hints: {
       baseUrl: 'Default: https://api.xiaomimimo.com',
@@ -148,7 +161,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
   64: {
     id: 64,
     name: CHANNEL_TYPES[64],
-    icon: 'zenmux',
+    icon: 'ZenMux',
     defaultBaseUrl: 'https://zenmux.ai',
     hints: {
       baseUrl: 'Default: https://zenmux.ai',

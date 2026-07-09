@@ -64,6 +64,9 @@ import {
   Poe,
   Replicate,
   OpenCode,
+  Cerebras,
+  XiaomiMiMo,
+  ZenMux,
 } from '@lobehub/icons/es/icons';
 
 import {
@@ -422,12 +425,18 @@ export function getChannelIcon(channelType) {
       return <Doubao.Color size={iconSize} />;
     case 56: // Replicate
       return <Replicate size={iconSize} />;
+    case 62: // Xiaomi MiMo
+      return <XiaomiMiMo size={iconSize} />;
+    case 64: // ZenMux
+      return <ZenMux size={iconSize} />;
     case 59: // Poe
       return <Poe size={iconSize} />;
     case 65: // OpenCode
       return <OpenCode size={iconSize} />;
     case 66: // 模力方舟
       return getLobeHubIcon('GiteeAI.Color', iconSize);
+    case 68: // Cerebras
+      return <Cerebras.Color size={iconSize} />;
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;

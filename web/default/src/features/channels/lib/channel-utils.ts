@@ -86,6 +86,7 @@ export function getChannelTypeIcon(type: number): string {
     34: 'Cohere', // Cohere
     42: 'Mistral', // Mistral
     43: 'DeepSeek', // DeepSeek
+    68: 'Cerebras', // Cerebras
     48: 'XAI', // xAI
     49: 'Coze', // Coze
     40: 'SiliconCloud', // SiliconFlow
@@ -122,7 +123,7 @@ export function getChannelTypeIcon(type: number): string {
     61: 'Spark', // Xunfei MaaS Image
     62: 'XiaomiMiMo', // Xiaomi MiMo
     63: 'OpenAI', // AgnesAI
-    64: 'ZenMux.Color', // ZenMux
+    64: 'ZenMux', // ZenMux
     65: 'OpenCode', // OpenCode
     66: 'GiteeAI', // 模力方舟
     67: 'OpenAI', // Advanced Custom
