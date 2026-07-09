@@ -38,6 +38,8 @@ const defaultAuthSettings: AuthSettings = {
   GitHubOAuthEnabled: false,
   GitHubClientId: '',
   GitHubClientSecret: '',
+  GitHubMinimumAccountAge: '0',
+  GitHubMinimumAccountAgeUnit: 'day',
   SteamOAuthEnabled: false,
   SteamWebAPIKey: '',
   'discord.enabled': false,

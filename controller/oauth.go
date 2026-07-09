@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -48,6 +49,85 @@ func getOAuthRegisterInviterId(c *gin.Context) (int, error) {
 
 func isOAuthRegistrationEnabled() bool {
 	return common.RegisterEnabled && common.OAuthRegisterEnabled
+}
+
+type GitHubAccountAgeTooYoungError struct {
+	Params map[string]any
+}
+
+func (e *GitHubAccountAgeTooYoungError) Error() string {
+	return i18n.MsgOAuthGitHubAccountTooYoung
+}
+
+func githubMinimumAccountAgeCutoff(now time.Time) (time.Time, bool) {
+	minimumAge := common.GitHubMinimumAccountAge
+	if minimumAge <= 0 {
+		return time.Time{}, false
+	}
+	switch common.NormalizeGitHubAccountAgeUnit(common.GitHubMinimumAccountAgeUnit) {
+	case common.GitHubAccountAgeUnitYear:
+		return now.AddDate(-minimumAge, 0, 0), true
+	case common.GitHubAccountAgeUnitMonth:
+		return now.AddDate(0, -minimumAge, 0), true
+	default:
+		return now.AddDate(0, 0, -minimumAge), true
+	}
+}
+
+func isGitHubAccountOldEnough(createdAt time.Time, now time.Time) bool {
+	cutoff, enabled := githubMinimumAccountAgeCutoff(now)
+	if !enabled {
+		return true
+	}
+	if createdAt.IsZero() {
+		return false
+	}
+	return !createdAt.After(cutoff)
+}
+
+func githubMinimumAccountAgeUnitLabel(c *gin.Context) string {
+	unit := common.NormalizeGitHubAccountAgeUnit(common.GitHubMinimumAccountAgeUnit)
+	lang := i18n.GetLangFromContext(c)
+	if lang == i18n.LangZhCN || lang == i18n.LangZhTW {
+		switch unit {
+		case common.GitHubAccountAgeUnitYear:
+			return "年"
+		case common.GitHubAccountAgeUnitMonth:
+			return "个月"
+		default:
+			return "天"
+		}
+	}
+	count := common.GitHubMinimumAccountAge
+	switch unit {
+	case common.GitHubAccountAgeUnitYear:
+		if count == 1 {
+			return "year"
+		}
+		return "years"
+	case common.GitHubAccountAgeUnitMonth:
+		if count == 1 {
+			return "month"
+		}
+		return "months"
+	default:
+		if count == 1 {
+			return "day"
+		}
+		return "days"
+	}
+}
+
+func validateGitHubAccountAge(c *gin.Context, createdAt time.Time) *GitHubAccountAgeTooYoungError {
+	if isGitHubAccountOldEnough(createdAt, time.Now().UTC()) {
+		return nil
+	}
+	return &GitHubAccountAgeTooYoungError{
+		Params: map[string]any{
+			"Count": common.GitHubMinimumAccountAge,
+			"Unit":  githubMinimumAccountAgeUnitLabel(c),
+		},
+	}
 }
 
 // pickOAuthUsername derives a meaningful, non-conflicting username from an OAuth login.
@@ -138,11 +218,13 @@ func HandleOAuth(c *gin.Context) {
 	// 7. Find or create user
 	user, err := findOrCreateOAuthUser(c, provider, oauthUser, session)
 	if err != nil {
-		switch err.(type) {
+		switch e := err.(type) {
 		case *OAuthUserDeletedError:
 			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
 		case *OAuthRegistrationDisabledError:
 			common.ApiErrorI18n(c, i18n.MsgUserOAuthRegisterDisabled)
+		case *GitHubAccountAgeTooYoungError:
+			common.ApiErrorI18n(c, i18n.MsgOAuthGitHubAccountTooYoung, e.Params)
 		default:
 			common.ApiError(c, err)
 		}
@@ -267,6 +349,11 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	// User doesn't exist, create new user if OAuth registration is enabled
 	if !isOAuthRegistrationEnabled() {
 		return nil, &OAuthRegistrationDisabledError{}
+	}
+	if _, ok := provider.(*oauth.GitHubProvider); ok {
+		if err := validateGitHubAccountAge(c, oauthUser.CreatedAt); err != nil {
+			return nil, err
+		}
 	}
 
 	// Set up new user

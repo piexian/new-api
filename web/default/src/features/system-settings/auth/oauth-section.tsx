@@ -35,6 +35,13 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
@@ -47,6 +54,8 @@ const oauthSchema = z.object({
   GitHubOAuthEnabled: z.boolean(),
   GitHubClientId: z.string().optional(),
   GitHubClientSecret: z.string().optional(),
+  GitHubMinimumAccountAge: z.string().optional(),
+  GitHubMinimumAccountAgeUnit: z.enum(['day', 'month', 'year']).optional(),
   SteamOAuthEnabled: z.boolean(),
   SteamWebAPIKey: z.string().optional(),
   'discord.enabled': z.boolean(),
@@ -92,6 +101,9 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
     OAuthRegisterEnabled: defaultValues.OAuthRegisterEnabled ?? true,
     GitHubClientId: defaultValues.GitHubClientId ?? '',
     GitHubClientSecret: defaultValues.GitHubClientSecret ?? '',
+    GitHubMinimumAccountAge: defaultValues.GitHubMinimumAccountAge ?? '0',
+    GitHubMinimumAccountAgeUnit:
+      defaultValues.GitHubMinimumAccountAgeUnit ?? 'day',
     SteamWebAPIKey: defaultValues.SteamWebAPIKey ?? '',
     'discord.client_id': defaultValues['discord.client_id'] ?? '',
     'discord.client_secret': defaultValues['discord.client_secret'] ?? '',
@@ -365,6 +377,61 @@ export function OAuthSection({ defaultValues }: OAuthSectionProps) {
                     </FormItem>
                   )}
                 />
+
+                <div className='grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]'>
+                  <FormField
+                    control={form.control}
+                    name='GitHubMinimumAccountAge'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Minimum GitHub account age')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            min={0}
+                            step={1}
+                            placeholder='0'
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Require new GitHub OAuth registrations to use accounts at least this old. Set 0 to disable.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='GitHubMinimumAccountAgeUnit'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Age unit')}</FormLabel>
+                        <FormControl>
+                          <Select
+                            value={field.value ?? 'day'}
+                            onValueChange={field.onChange}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value='day'>{t('Day')}</SelectItem>
+                              <SelectItem value='month'>
+                                {t('Month')}
+                              </SelectItem>
+                              <SelectItem value='year'>{t('Year')}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </TabsContent>
 
               <TabsContent value='steam' className='space-y-4'>

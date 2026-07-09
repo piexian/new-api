@@ -24,9 +24,10 @@ type GitHubOAuthResponse struct {
 }
 
 type GitHubUser struct {
-	Login string `json:"login"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	Login     string    `json:"login"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
@@ -133,6 +134,10 @@ func GitHubOAuth(c *gin.Context) {
 		}
 	} else {
 		if isOAuthRegistrationEnabled() {
+			if err := validateGitHubAccountAge(c, githubUser.CreatedAt); err != nil {
+				common.ApiErrorI18n(c, i18n.MsgOAuthGitHubAccountTooYoung, err.Params)
+				return
+			}
 			user.Username = "github_" + strconv.Itoa(model.GetMaxUserId()+1)
 			if githubUser.Name != "" {
 				user.DisplayName = githubUser.Name

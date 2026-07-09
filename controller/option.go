@@ -51,6 +51,11 @@ func isPositiveOptionValue(value string) bool {
 	return err == nil && floatValue > 0
 }
 
+func isNonNegativeIntegerOptionValue(value string) bool {
+	intValue, err := strconv.Atoi(strings.TrimSpace(value))
+	return err == nil && intValue >= 0
+}
+
 func isTurnstileEnableOption(key string) bool {
 	return key == "TurnstileCheckEnabled" || common.IsTurnstileScopedOptionKey(key)
 }
@@ -168,6 +173,22 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "无法启用 GitHub OAuth，请先填入 GitHub Client Id 以及 GitHub Client Secret！",
+			})
+			return
+		}
+	case "GitHubMinimumAccountAge":
+		if !isNonNegativeIntegerOptionValue(option.Value.(string)) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "GitHub 账号最小注册时间必须是非负整数",
+			})
+			return
+		}
+	case "GitHubMinimumAccountAgeUnit":
+		if !common.IsValidGitHubAccountAgeUnit(option.Value.(string)) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "GitHub 账号注册时间单位无效，可选值：day、month、year",
 			})
 			return
 		}

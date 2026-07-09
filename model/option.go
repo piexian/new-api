@@ -40,6 +40,8 @@ func InitOptionMap() {
 	common.OptionMap["PasswordRegisterEnabled"] = strconv.FormatBool(common.PasswordRegisterEnabled)
 	common.OptionMap["EmailVerificationEnabled"] = strconv.FormatBool(common.EmailVerificationEnabled)
 	common.OptionMap["GitHubOAuthEnabled"] = strconv.FormatBool(common.GitHubOAuthEnabled)
+	common.OptionMap["GitHubMinimumAccountAge"] = strconv.Itoa(common.GitHubMinimumAccountAge)
+	common.OptionMap["GitHubMinimumAccountAgeUnit"] = common.GitHubMinimumAccountAgeUnit
 	common.OptionMap["LinuxDOOAuthEnabled"] = strconv.FormatBool(common.LinuxDOOAuthEnabled)
 	common.OptionMap["QQOAuthEnabled"] = strconv.FormatBool(common.QQOAuthEnabled)
 	common.OptionMap["TelegramOAuthEnabled"] = strconv.FormatBool(common.TelegramOAuthEnabled)
@@ -571,6 +573,15 @@ func updateOptionMap(key string, value string) (err error) {
 		common.GitHubClientId = value
 	case "GitHubClientSecret":
 		common.GitHubClientSecret = value
+	case "GitHubMinimumAccountAge":
+		common.GitHubMinimumAccountAge, _ = strconv.Atoi(value)
+		if common.GitHubMinimumAccountAge < 0 {
+			common.GitHubMinimumAccountAge = 0
+		}
+		common.OptionMap[key] = strconv.Itoa(common.GitHubMinimumAccountAge)
+	case "GitHubMinimumAccountAgeUnit":
+		common.GitHubMinimumAccountAgeUnit = common.NormalizeGitHubAccountAgeUnit(value)
+		common.OptionMap[key] = common.GitHubMinimumAccountAgeUnit
 	case "SteamWebAPIKey":
 		common.SteamWebAPIKey = value
 	case "LinuxDOClientId":

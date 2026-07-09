@@ -86,6 +86,8 @@ export type AuthSettings = {
   GitHubOAuthEnabled: boolean
   GitHubClientId: string
   GitHubClientSecret: string
+  GitHubMinimumAccountAge: string
+  GitHubMinimumAccountAgeUnit: 'day' | 'month' | 'year'
   SteamOAuthEnabled: boolean
   SteamWebAPIKey: string
   'discord.enabled': boolean

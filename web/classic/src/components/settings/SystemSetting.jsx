@@ -55,6 +55,8 @@ const SystemSetting = () => {
     GitHubOAuthEnabled: '',
     GitHubClientId: '',
     GitHubClientSecret: '',
+    GitHubMinimumAccountAge: '0',
+    GitHubMinimumAccountAgeUnit: 'day',
     SteamOAuthEnabled: '',
     SteamWebAPIKey: '',
     'discord.enabled': '',
@@ -546,6 +548,23 @@ const SystemSetting = () => {
       options.push({
         key: 'GitHubClientSecret',
         value: inputs.GitHubClientSecret,
+      });
+    }
+    if (
+      originInputs['GitHubMinimumAccountAge'] !== inputs.GitHubMinimumAccountAge
+    ) {
+      options.push({
+        key: 'GitHubMinimumAccountAge',
+        value: inputs.GitHubMinimumAccountAge || '0',
+      });
+    }
+    if (
+      originInputs['GitHubMinimumAccountAgeUnit'] !==
+      inputs.GitHubMinimumAccountAgeUnit
+    ) {
+      options.push({
+        key: 'GitHubMinimumAccountAgeUnit',
+        value: inputs.GitHubMinimumAccountAgeUnit || 'day',
       });
     }
 
@@ -1727,6 +1746,28 @@ const SystemSetting = () => {
                         label={t('GitHub Client Secret')}
                         type='password'
                         placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='GitHubMinimumAccountAge'
+                        label={t('GitHub 账号最小注册时间')}
+                        type='number'
+                        min={0}
+                        extraText={t(
+                          '仅限制 GitHub OAuth 新用户注册，填 0 表示关闭限制',
+                        )}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Select
+                        field='GitHubMinimumAccountAgeUnit'
+                        label={t('时间单位')}
+                        optionList={[
+                          { label: t('天（时间单位）'), value: 'day' },
+                          { label: t('月（时间单位）'), value: 'month' },
+                          { label: t('年（时间单位）'), value: 'year' },
+                        ]}
                       />
                     </Col>
                   </Row>

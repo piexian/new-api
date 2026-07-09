@@ -128,6 +128,30 @@ var (
 	RegisterInviteCodeRequired                = false
 )
 
+const (
+	GitHubAccountAgeUnitDay   = "day"
+	GitHubAccountAgeUnitMonth = "month"
+	GitHubAccountAgeUnitYear  = "year"
+)
+
+var (
+	GitHubMinimumAccountAge     = 0
+	GitHubMinimumAccountAgeUnit = GitHubAccountAgeUnitDay
+)
+
+func IsValidGitHubAccountAgeUnit(unit string) bool {
+	return unit == GitHubAccountAgeUnitDay ||
+		unit == GitHubAccountAgeUnitMonth ||
+		unit == GitHubAccountAgeUnitYear
+}
+
+func NormalizeGitHubAccountAgeUnit(unit string) string {
+	if IsValidGitHubAccountAgeUnit(unit) {
+		return unit
+	}
+	return GitHubAccountAgeUnitDay
+}
+
 var TurnstileScopedOptionKeys = []string{
 	"TurnstileLoginEnabled",
 	"TurnstileRegisterEnabled",

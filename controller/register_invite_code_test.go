@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	newapii18n "github.com/QuantumNous/new-api/i18n"
@@ -113,6 +114,50 @@ func TestOAuthRegistrationPersistsInviterId(t *testing.T) {
 	}
 	if registered.InviterId != inviter.Id {
 		t.Fatalf("expected inviter id %d, got %d", inviter.Id, registered.InviterId)
+	}
+}
+
+func TestGitHubOAuthRegistrationRequiresMinimumAccountAge(t *testing.T) {
+	if err := newapii18n.Init(); err != nil {
+		t.Fatalf("failed to initialize i18n: %v", err)
+	}
+	setupUserSelfControllerTestDB(t)
+
+	previousRegisterEnabled := common.RegisterEnabled
+	previousOAuthRegisterEnabled := common.OAuthRegisterEnabled
+	previousRequired := common.RegisterInviteCodeRequired
+	previousMinimumAge := common.GitHubMinimumAccountAge
+	previousMinimumAgeUnit := common.GitHubMinimumAccountAgeUnit
+	common.RegisterEnabled = true
+	common.OAuthRegisterEnabled = true
+	common.RegisterInviteCodeRequired = false
+	common.GitHubMinimumAccountAge = 30
+	common.GitHubMinimumAccountAgeUnit = common.GitHubAccountAgeUnitDay
+	t.Cleanup(func() {
+		common.RegisterEnabled = previousRegisterEnabled
+		common.OAuthRegisterEnabled = previousOAuthRegisterEnabled
+		common.RegisterInviteCodeRequired = previousRequired
+		common.GitHubMinimumAccountAge = previousMinimumAge
+		common.GitHubMinimumAccountAgeUnit = previousMinimumAgeUnit
+	})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/oauth/github", nil)
+	ctx.Request.Header.Set("Accept-Language", "en")
+	store := cookie.NewStore([]byte("github-age-test"))
+	sessions.Sessions("new-api-session", store)(ctx)
+
+	user, err := findOrCreateOAuthUser(ctx, &oauth.GitHubProvider{}, &oauth.OAuthUser{
+		ProviderUserID: "github-young-user",
+		Username:       "github-young-user",
+		CreatedAt:      time.Now().UTC().AddDate(0, 0, -7),
+	}, sessions.Default(ctx))
+	if err == nil {
+		t.Fatalf("expected GitHub account age error, got user: %+v", user)
+	}
+	if _, ok := err.(*GitHubAccountAgeTooYoungError); !ok {
+		t.Fatalf("expected GitHubAccountAgeTooYoungError, got %T: %v", err, err)
 	}
 }
 
