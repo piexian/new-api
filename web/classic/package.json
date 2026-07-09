@@ -75,6 +75,11 @@
       "last 1 safari version"
     ]
   },
+  "overrides": {
+    "browserslist": "4.28.4",
+    "caniuse-lite": "1.0.30001800",
+    "update-browserslist-db": "1.2.3"
+  },
   "devDependencies": {
     "@douyinfe/vite-plugin-semi": "^2.74.0-alpha.6",
     "@so1ve/prettier-config": "^3.1.0",
