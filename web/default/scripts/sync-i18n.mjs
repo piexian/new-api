@@ -28,6 +28,9 @@ const OBFUSCATED_KEYS = [
     serialized: 'footer.new\\u0061pi.projectAttributionSuffix',
   },
 ]
+const REPORT_EQUALITY_KEYS_BY_LOCALE = {
+  vi: new Set(['Cerebras', 'OpenCode Go', 'OpenCode Zen', 'User Agent']),
+}
 
 function isPlainObject(v) {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -51,6 +54,14 @@ function countLeafKeys(obj) {
     else count += 1
   }
   return count
+}
+
+async function removeFileIfExists(file) {
+  try {
+    await fs.unlink(file)
+  } catch (err) {
+    if (err?.code !== 'ENOENT') throw err
+  }
 }
 
 function reorderLikeBase(base, target, fill, extras, missing, currentPath = []) {
@@ -91,9 +102,10 @@ function reorderLikeBase(base, target, fill, extras, missing, currentPath = []) 
   return target === undefined ? (fill ?? base) : target
 }
 
-function isLikelyUntranslated({ locale, baseValue, value }) {
+function isLikelyUntranslated({ locale, key, baseValue, value }) {
   if (typeof value !== 'string' || typeof baseValue !== 'string') return false
   if (value !== baseValue) return false
+  if (REPORT_EQUALITY_KEYS_BY_LOCALE[locale]?.has(key)) return true
 
   // Skip short tokens / acronyms / ids
   const s = baseValue.trim()
@@ -172,7 +184,7 @@ async function main() {
       for (const k of Object.keys(compareTrans)) {
         const baseValue = compareTrans[k]
         const value = trans[k]
-        if (isLikelyUntranslated({ locale, baseValue, value })) {
+        if (isLikelyUntranslated({ locale, key: k, baseValue, value })) {
           untranslated[k] = value
         }
       }
@@ -188,12 +200,15 @@ async function main() {
     if (Object.keys(extras).length > 0) {
       await fs.writeFile(path.join(extrasDir, `${locale}.extras.json`), stableStringify(extras), 'utf8')
     }
+    const untranslatedPath = path.join(reportsDir, `${locale}.untranslated.json`)
     if (Object.keys(untranslated).length > 0) {
       await fs.writeFile(
-        path.join(reportsDir, `${locale}.untranslated.json`),
+        untranslatedPath,
         stableStringify(untranslated),
         'utf8',
       )
+    } else {
+      await removeFileIfExists(untranslatedPath)
     }
 
     // Rewrite locale file in base order (even for en to normalize formatting)

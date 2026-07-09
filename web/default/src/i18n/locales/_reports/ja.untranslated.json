@@ -9,6 +9,7 @@
   "Alipay": "Alipay",
   "Anthropic": "Anthropic",
   "ApiInfo": "ApiInfo",
+  "Cerebras": "Cerebras",
   "Claude": "Claude",
   "Cloudflare": "Cloudflare",
   "Cloudflare Email Service": "Cloudflare Email Service",
@@ -113,5 +114,8 @@
   "price_xxx": "price_xxx",
   "smtp.example.com": "smtp.example.com",
   "socks5://user:pass@host:port": "socks5://user:pass@host:port",
-  "whsec_xxx": "whsec_xxx"
+  "whsec_xxx": "whsec_xxx",
+  "OpenCode Go": "OpenCode Go",
+  "OpenCode Zen": "OpenCode Zen",
+  "User Agent": "User Agent"
 }

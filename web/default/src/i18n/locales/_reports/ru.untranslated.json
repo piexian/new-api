@@ -12,6 +12,7 @@
   "Anthropic": "Anthropic",
   "ApiInfo": "ApiInfo",
   "Baidu V2": "Baidu V2",
+  "Cerebras": "Cerebras",
   "Cloudflare": "Cloudflare",
   "Cloudflare Email Service": "Cloudflare Email Service",
   "Coding Plan": "Coding Plan",
@@ -115,5 +116,8 @@
   "smtp.example.com": "smtp.example.com",
   "socks5://user:pass@host:port": "socks5://user:pass@host:port",
   "whsec_xxx": "whsec_xxx",
-  "{\"original-model\": \"replacement-model\"}": "{\"original-model\": \"replacement-model\"}"
+  "{\"original-model\": \"replacement-model\"}": "{\"original-model\": \"replacement-model\"}",
+  "OpenCode Go": "OpenCode Go",
+  "OpenCode Zen": "OpenCode Zen",
+  "User Agent": "User Agent"
 }

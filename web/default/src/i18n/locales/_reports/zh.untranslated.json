@@ -12,6 +12,7 @@
   "Anthropic": "Anthropic",
   "ApiInfo": "ApiInfo",
   "App Key": "App Key",
+  "Cerebras": "Cerebras",
   "Claude": "Claude",
   "Client ID": "Client ID",
   "Client Secret": "Client Secret",
@@ -117,5 +118,8 @@
   "smtp.example.com": "smtp.example.com",
   "socks5://user:pass@host:port": "socks5://user:pass@host:port",
   "whsec_xxx": "whsec_xxx",
-  "{\"original-model\": \"replacement-model\"}": "{\"original-model\": \"replacement-model\"}"
+  "{\"original-model\": \"replacement-model\"}": "{\"original-model\": \"replacement-model\"}",
+  "OpenCode Go": "OpenCode Go",
+  "OpenCode Zen": "OpenCode Zen",
+  "User Agent": "User Agent"
 }
