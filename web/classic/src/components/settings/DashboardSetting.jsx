@@ -24,6 +24,7 @@ import SettingsAPIInfo from '../../pages/Setting/Dashboard/SettingsAPIInfo';
 import SettingsAnnouncements from '../../pages/Setting/Dashboard/SettingsAnnouncements';
 import SettingsFAQ from '../../pages/Setting/Dashboard/SettingsFAQ';
 import SettingsUptimeKuma from '../../pages/Setting/Dashboard/SettingsUptimeKuma';
+import SettingsFriendLinks from '../../pages/Setting/Dashboard/SettingsFriendLinks';
 import SettingsDataDashboard from '../../pages/Setting/Dashboard/SettingsDataDashboard';
 
 const DashboardSetting = () => {
@@ -32,10 +33,12 @@ const DashboardSetting = () => {
     'console_setting.announcements': '',
     'console_setting.faq': '',
     'console_setting.uptime_kuma_groups': '',
+    'console_setting.friend_links': '',
     'console_setting.api_info_enabled': '',
     'console_setting.announcements_enabled': '',
     'console_setting.faq_enabled': '',
     'console_setting.uptime_kuma_enabled': '',
+    'console_setting.friend_links_enabled': '',
 
     // 用于迁移检测的旧键，下个版本会删除
     ApiInfo: '',
@@ -164,6 +167,11 @@ const DashboardSetting = () => {
         {/* Uptime Kuma 监控设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsUptimeKuma options={inputs} refresh={onRefresh} />
+        </Card>
+
+        {/* 友链悬浮球 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsFriendLinks options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>

@@ -73,6 +73,8 @@ func ValidateConsoleSettings(settingsStr string, settingType string) error {
 		return validateFAQ(settingsStr)
 	case "UptimeKumaGroups":
 		return validateUptimeKumaGroups(settingsStr)
+	case "FriendLinks":
+		return validateFriendLinks(settingsStr)
 	default:
 		return fmt.Errorf("未知的设置类型：%s", settingType)
 	}
@@ -297,4 +299,98 @@ func validateUptimeKumaGroups(groupsStr string) error {
 
 func GetUptimeKumaGroups() []map[string]interface{} {
 	return getJSONList(GetConsoleSetting().UptimeKumaGroups)
+}
+
+// validateFriendLinks 校验友链 JSON：name/url 必填，最多 30 条。
+func validateFriendLinks(friendLinksStr string) error {
+	list, err := parseJSONArray(friendLinksStr, "友链")
+	if err != nil {
+		return err
+	}
+	if len(list) > 30 {
+		return fmt.Errorf("友链数量不能超过30个")
+	}
+	for i, item := range list {
+		name, ok := item["name"].(string)
+		if !ok || strings.TrimSpace(name) == "" {
+			return fmt.Errorf("第%d个友链缺少名称字段", i+1)
+		}
+		urlStr, ok := item["url"].(string)
+		if !ok || strings.TrimSpace(urlStr) == "" {
+			return fmt.Errorf("第%d个友链缺少URL字段", i+1)
+		}
+		if err := validateURL(urlStr, i+1, "友链"); err != nil {
+			return err
+		}
+		if len(name) > 100 {
+			return fmt.Errorf("第%d个友链的名称长度不能超过100字符", i+1)
+		}
+		if len(urlStr) > 500 {
+			return fmt.Errorf("第%d个友链的URL长度不能超过500字符", i+1)
+		}
+		if icon, ok := item["icon"].(string); ok {
+			if len(icon) > 500 {
+				return fmt.Errorf("第%d个友链的图标URL长度不能超过500字符", i+1)
+			}
+			if strings.TrimSpace(icon) != "" {
+				if err := validateURL(icon, i+1, "友链图标"); err != nil {
+					return err
+				}
+			}
+		}
+		if desc, ok := item["description"].(string); ok {
+			if len(desc) > 200 {
+				return fmt.Errorf("第%d个友链的描述长度不能超过200字符", i+1)
+			}
+			if err := checkDangerousContent(desc, i+1, "友链"); err != nil {
+				return err
+			}
+		}
+		if err := checkDangerousContent(name, i+1, "友链"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// GetFriendLinks 返回已启用友链，按 order 升序（缺省 order=0）。
+func GetFriendLinks() []map[string]interface{} {
+	cs := GetConsoleSetting()
+	if !cs.FriendLinksEnabled {
+		return []map[string]interface{}{}
+	}
+	list := getJSONList(cs.FriendLinks)
+	out := make([]map[string]interface{}, 0, len(list))
+	for _, item := range list {
+		// enabled 缺省视为 true
+		if v, ok := item["enabled"]; ok {
+			switch typed := v.(type) {
+			case bool:
+				if !typed {
+					continue
+				}
+			case float64:
+				if typed == 0 {
+					continue
+				}
+			}
+		}
+		out = append(out, item)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return friendLinkOrder(out[i]) < friendLinkOrder(out[j])
+	})
+	return out
+}
+
+func friendLinkOrder(item map[string]interface{}) int {
+	if v, ok := item["order"]; ok {
+		switch typed := v.(type) {
+		case float64:
+			return int(typed)
+		case int:
+			return typed
+		}
+	}
+	return 0
 }

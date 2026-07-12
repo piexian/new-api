@@ -24,6 +24,7 @@ import { ChatSettingsSection } from './chat-settings-section'
 import { DashboardSection } from './dashboard-section'
 import { DrawingSettingsSection } from './drawing-settings-section'
 import { FAQSection } from './faq-section'
+import { FriendLinksSection } from './friend-links-section'
 import { UptimeKumaSection } from './uptime-kuma-section'
 
 /**
@@ -95,6 +96,17 @@ const CONTENT_SECTIONS = [
       <UptimeKumaSection
         enabled={settings['console_setting.uptime_kuma_enabled']}
         data={settings['console_setting.uptime_kuma_groups']}
+      />
+    ),
+  },
+  {
+    id: 'friend-links',
+    titleKey: 'Friend Links',
+    descriptionKey: 'Configure floating ball friend links',
+    build: (settings: ContentSettings) => (
+      <FriendLinksSection
+        enabled={settings['console_setting.friend_links_enabled']}
+        data={settings['console_setting.friend_links']}
       />
     ),
   },

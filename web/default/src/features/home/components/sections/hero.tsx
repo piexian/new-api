@@ -16,96 +16,120 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useMemo } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Copy } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { resolveAppRoute } from '@/lib/frontend-routes'
+import { cn } from '@/lib/utils'
+import { useStatus } from '@/hooks/use-status'
 import { Button } from '@/components/ui/button'
-import { HeroTerminalDemo } from '../hero-terminal-demo'
+import { HeroCapabilityTabs } from '../hero-capability-tabs'
 
-interface HeroProps {
+type HeroProps = {
   className?: string
   isAuthenticated?: boolean
 }
 
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
+  const { status } = useStatus()
+
+  const serverAddress = useMemo(() => {
+    let fromStatus = ''
+    if (status && typeof status === 'object' && 'server_address' in status) {
+      const raw = status.server_address
+      if (typeof raw === 'string') fromStatus = raw.trim()
+    }
+    if (fromStatus) return fromStatus
+    if (typeof window !== 'undefined') return window.location.origin
+    return ''
+  }, [status])
+
+  const handleCopyBaseURL = async () => {
+    if (!serverAddress) return
+    const ok = await copyToClipboard(serverAddress)
+    if (ok) toast.success(t('Copied!'))
+    else toast.error(t('Failed to copy'))
+  }
+
+  const primaryTo = props.isAuthenticated
+    ? resolveAppRoute('dashboard')
+    : resolveAppRoute('sign_up')
+  const pricingTo = resolveAppRoute('pricing')
 
   return (
-    <section className='relative z-10 flex flex-col items-center overflow-hidden px-6 pt-28 pb-16 md:pt-36 md:pb-24'>
-      {/* Radial gradient background */}
-      <div
-        aria-hidden
-        className='pointer-events-none absolute inset-0 -z-10 opacity-25 dark:opacity-[0.12]'
-        style={{
-          background: [
-            'radial-gradient(ellipse 60% 50% at 20% 20%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 50% 40% at 80% 15%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 35% at 40% 80%, oklch(0.70 0.12 280 / 40%) 0%, transparent 70%)',
-          ].join(', '),
-        }}
-      />
-      {/* Grid pattern */}
-      <div
-        aria-hidden
-        className='absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_30%,black_20%,transparent_100%)] bg-[size:4rem_4rem] opacity-[0.08]'
-      />
-
+    <section
+      className={cn(
+        'relative z-10 flex flex-col items-center overflow-hidden px-6 pt-28 pb-10 md:pt-36 md:pb-14',
+        props.className
+      )}
+    >
       <div className='flex max-w-3xl flex-col items-center text-center'>
-        <h1
-          className='landing-animate-fade-up text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'
-          style={{ animationDelay: '0ms' }}
-        >
-          {t('Unified API Gateway for')}
+        <p className='text-muted-foreground mb-3 text-xs font-semibold tracking-[0.18em] uppercase'>
+          ✦ Starfield Gateway
+        </p>
+        <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'>
+          {t('统一的')}
           <br />
-          <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-            {t('All Your AI Models')}
+          <span className='bg-gradient-to-r from-blue-500 via-sky-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-violet-400 dark:to-purple-500'>
+            {t('大模型接口网关')}
           </span>
         </h1>
-        <p
-          className='landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-lg text-base leading-relaxed opacity-0 md:text-lg'
-          style={{ animationDelay: '80ms' }}
-        >
-          {t('Power AI applications, manage digital assets, connect the Future')}
+        <p className='text-muted-foreground/80 mt-5 max-w-lg text-base leading-relaxed md:text-lg'>
+          {t('多模型统一接入，只需将基址替换为：')}
         </p>
+
         <div
-          className='landing-animate-fade-up mt-8 flex items-center gap-3 opacity-0'
-          style={{ animationDelay: '160ms' }}
-        >
-          {props.isAuthenticated ? (
-            <Button
-              className='group rounded-lg'
-              render={<Link to='/dashboard' />}
-            >
-              {t('Go to Dashboard')}
-              <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
-            </Button>
-          ) : (
-            <>
-              <Button
-                className='group rounded-lg'
-                render={<Link to='/sign-up' />}
-              >
-                {t('Get Started')}
-                <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
-              </Button>
-              <Button
-                variant='outline'
-                className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
-                render={<Link to='/pricing' />}
-              >
-                {t('View Pricing')}
-              </Button>
-            </>
+          className={cn(
+            'mt-6 flex w-full max-w-xl items-stretch overflow-hidden rounded-2xl border',
+            'border-border/60 bg-card/80 shadow-sm backdrop-blur-md'
           )}
+          title={t('Click to copy API base URL')}
+        >
+          <div className='text-muted-foreground flex shrink-0 items-center border-r px-3 text-[11px] font-bold tracking-wider uppercase'>
+            BASE URL
+          </div>
+          <button
+            type='button'
+            onClick={handleCopyBaseURL}
+            className='min-w-0 flex-1 truncate px-3 py-3 text-left font-mono text-sm font-semibold'
+          >
+            {serverAddress || '—'}
+          </button>
+          <Button
+            type='button'
+            variant='ghost'
+            size='sm'
+            className='h-auto rounded-none border-l px-4 font-bold'
+            onClick={handleCopyBaseURL}
+          >
+            <Copy className='mr-1.5 size-3.5' />
+            {t('Copy')}
+          </Button>
         </div>
+
+        <div className='mt-8 flex flex-wrap items-center justify-center gap-3'>
+          <Button className='group rounded-lg' render={<Link to={primaryTo} />}>
+            {props.isAuthenticated ? t('Go to Dashboard') : t('获取密钥 / 控制台')}
+            <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
+          </Button>
+          <Button
+            variant='outline'
+            className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
+            render={<Link to={pricingTo} />}
+          >
+            {t('模型广场')}
+          </Button>
+        </div>
+        <p className='text-muted-foreground mt-4 text-xs'>
+          {t('数据页走既有顶栏（模型广场 / 排行榜），首页不重复导航。')}
+        </p>
       </div>
 
-      <div
-        className='landing-animate-fade-up w-full opacity-0'
-        style={{ animationDelay: '300ms' }}
-      >
-        <HeroTerminalDemo />
-      </div>
+      <HeroCapabilityTabs />
     </section>
   )
 }

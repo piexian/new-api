@@ -390,6 +390,15 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "console_setting.friend_links":
+		err = console_setting.ValidateConsoleSettings(option.Value.(string), "FriendLinks")
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	}
 	if isTurnstileEnableOption(option.Key) && option.Value == "true" && common.TurnstileSiteKey == "" {
 		c.JSON(http.StatusOK, gin.H{

@@ -25,7 +25,7 @@ import {
   ScrollList,
   ScrollItem,
 } from '@douyinfe/semi-ui';
-import { API, showError, copy, showSuccess } from '../../helpers';
+import { API, showError, copy, showSuccess, resolveAppRoute } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { API_ENDPOINTS } from '../../constants/common.constant';
 import { StatusContext } from '../../context/Status';
@@ -40,6 +40,7 @@ import {
 } from '@douyinfe/semi-icons';
 import { Link } from 'react-router-dom';
 import NoticeModal from '../../components/layout/NoticeModal';
+import HomeCapabilityTabs from '../../components/home/HomeCapabilityTabs';
 import {
   Moonshot,
   OpenAI,
@@ -213,7 +214,7 @@ const Home = () => {
 
                 {/* 操作按钮 */}
                 <div className='flex flex-row gap-4 justify-center items-center'>
-                  <Link to='/console'>
+                  <Link to={resolveAppRoute('dashboard')}>
                     <Button
                       theme='solid'
                       type='primary'
@@ -252,6 +253,28 @@ const Home = () => {
                   )}
                 </div>
 
+
+                <div className='w-full max-w-3xl mx-auto mt-10 px-4 text-left'>
+                  <HomeCapabilityTabs serverAddress={serverAddress} />
+                </div>
+                <div className='grid grid-cols-1 md:grid-cols-3 gap-3 w-full max-w-4xl mx-auto mt-10 mb-2 px-4'>
+                  {[
+                    { title: '极速响应？', desc: '全球节点均未优化' },
+                    { title: '稳定高可用？', desc: '私人自用服务' },
+                    { title: '公益免费', desc: '用爱发电 随时跑路' },
+                  ].map((item) => (
+                    <div
+                      key={item.title}
+                      className='rounded-2xl border border-semi-color-border bg-semi-color-bg-1/80 px-4 py-5 text-center'
+                    >
+                      <div className='font-bold text-sm'>{t(item.title)}</div>
+                      <div className='text-semi-color-text-2 text-xs mt-1'>
+                        {t(item.desc)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
                 {/* 框架兼容性图标 */}
                 <div className='mt-12 md:mt-16 lg:mt-20 w-full'>
                   <div className='flex items-center mb-6 md:mb-8 justify-center'>
@@ -263,7 +286,9 @@ const Home = () => {
                     </Text>
                   </div>
                   <div className='flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 lg:gap-8 max-w-5xl mx-auto px-4'>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
+                    
+
+<div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
                       <Moonshot size={40} />
                     </div>
                     <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>

@@ -1,0 +1,958 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>new-api 星空首页 · UI 排版预览 v2</title>
+    <style>
+      :root {
+        --bg: #f0f6ff;
+        --bg-deep: #dce9ff;
+        --fg: #0b1830;
+        --muted: #5a6d8c;
+        --card: rgba(255, 255, 255, 0.78);
+        --card-border: rgba(37, 99, 235, 0.18);
+        --accent: #2563eb;
+        --accent-2: #0ea5e9;
+        --glow-a: rgba(59, 130, 246, 0.42);
+        --glow-b: rgba(14, 165, 233, 0.32);
+        --glow-c: rgba(99, 102, 241, 0.22);
+        --star: rgba(30, 64, 175, 0.7);
+        --star-bright: rgba(37, 99, 235, 0.95);
+        --shadow: 0 20px 50px rgba(37, 99, 235, 0.12);
+        --nav: rgba(255, 255, 255, 0.78);
+        --term-bg: rgba(248, 250, 252, 0.92);
+        --term-fg: #0f172a;
+        --code-muted: rgba(15, 23, 42, 0.45);
+        --code-key: #0369a1;
+        --code-str: #6d28d9;
+        --code-cmd: #0f766e;
+        --code-flag: #b45309;
+        --demo-card: rgba(255, 255, 255, 0.95);
+        --demo-border: rgba(15, 23, 42, 0.12);
+        --demo-shadow: 0 20px 50px -25px rgba(15, 23, 42, 0.18);
+        --demo-tab-idle: rgba(15, 23, 42, 0.40);
+        --demo-tab-hover: rgba(15, 23, 42, 0.70);
+        --demo-foot: rgba(15, 23, 42, 0.04);
+        --tab-active: #2563eb;
+      }
+      html.dark {
+        --bg: #040812;
+        --bg-deep: #070d1c;
+        --fg: #eef3ff;
+        --muted: #9aaccb;
+        --card: rgba(12, 20, 40, 0.55);
+        --card-border: rgba(129, 140, 248, 0.28);
+        --accent: #7dd3fc;
+        --accent-2: #c4b5fd;
+        --glow-a: rgba(56, 189, 248, 0.28);
+        --glow-b: rgba(129, 140, 248, 0.24);
+        --glow-c: rgba(168, 85, 247, 0.2);
+        --star: rgba(226, 232, 240, 0.85);
+        --star-bright: rgba(255, 255, 255, 0.98);
+        --shadow: 0 28px 70px rgba(0, 0, 0, 0.55);
+        --nav: rgba(6, 10, 22, 0.72);
+        --term-bg: rgba(255, 255, 255, 0.03);
+        --term-fg: rgba(238, 243, 255, 0.88);
+        --code-muted: rgba(238, 243, 255, 0.40);
+        --code-key: #7dd3fc;
+        --code-str: #c4b5fd;
+        --code-cmd: #34d399;
+        --code-flag: #fbbf24;
+        --demo-card: rgba(11, 15, 23, 0.95);
+        --demo-border: rgba(255, 255, 255, 0.06);
+        --demo-shadow: 0 20px 60px -25px rgba(0, 0, 0, 0.7);
+        --demo-tab-idle: rgba(238, 243, 255, 0.40);
+        --demo-tab-hover: rgba(238, 243, 255, 0.70);
+        --demo-foot: rgba(255, 255, 255, 0.02);
+        --tab-active: #a78bfa;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      /* Dense starfield layers */
+      .sky {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background:
+          radial-gradient(ellipse 90% 70% at 10% -10%, var(--glow-a), transparent 55%),
+          radial-gradient(ellipse 70% 55% at 95% 5%, var(--glow-b), transparent 55%),
+          radial-gradient(ellipse 80% 60% at 50% 110%, var(--glow-c), transparent 60%),
+          radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--glow-a) 25%, transparent), transparent 50%),
+          linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+      }
+      .milky {
+        position: absolute;
+        inset: -10% -20%;
+        background:
+          radial-gradient(ellipse 40% 18% at 50% 42%, color-mix(in srgb, var(--glow-b) 55%, transparent), transparent 70%),
+          radial-gradient(ellipse 28% 12% at 58% 48%, color-mix(in srgb, var(--glow-c) 40%, transparent), transparent 70%);
+        filter: blur(8px);
+        opacity: 0.85;
+        transform: rotate(-18deg);
+      }
+      .stars-layer {
+        position: absolute;
+        inset: 0;
+      }
+      #starsCanvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .vignette {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse 75% 70% at 50% 40%, transparent 40%, color-mix(in srgb, var(--bg) 55%, transparent) 100%);
+      }
+
+      .wrap { position: relative; z-index: 1; }
+      .nav {
+        position: sticky; top: 0; backdrop-filter: blur(16px); background: var(--nav);
+        border-bottom: 1px solid var(--card-border); display: flex; align-items: center;
+        justify-content: space-between; padding: 12px 20px; gap: 12px;
+      }
+      .brand { font-weight: 700; letter-spacing: -0.02em; }
+      .nav-links { display: flex; gap: 16px; color: var(--muted); font-size: 13px; }
+      .nav-actions { display: flex; gap: 8px; align-items: center; }
+      .btn {
+        border: 1px solid var(--card-border); background: var(--card); color: var(--fg);
+        border-radius: 11px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #fff; border: none;
+        box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 35%, transparent);
+      }
+      html.dark .btn-primary { color: #0b1020; }
+
+      main { max-width: 1040px; margin: 0 auto; padding: 56px 20px 140px; }
+
+      /* Hero — primary CTAs live here only (no duplicate entry cards) */
+      .hero { text-align: center; padding: 56px 0 20px; }
+      .eyebrow {
+        display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 0.16em;
+        text-transform: uppercase; color: var(--muted); border: 1px solid var(--card-border);
+        background: color-mix(in srgb, var(--card) 80%, transparent); border-radius: 999px;
+        padding: 6px 12px; margin-bottom: 20px; backdrop-filter: blur(10px);
+      }
+      h1 {
+        margin: 0; font-size: clamp(2.1rem, 5.5vw, 3.6rem); line-height: 1.1;
+        letter-spacing: -0.03em; font-weight: 800;
+      }
+      .grad {
+        background: linear-gradient(90deg, #38bdf8, #818cf8, #c084fc);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+      }
+      html:not(.dark) .grad {
+        background: linear-gradient(90deg, #1d4ed8, #0284c7, #4f46e5);
+        -webkit-background-clip: text; background-clip: text;
+      }
+      .sub {
+        max-width: 540px; margin: 18px auto 0; color: var(--muted);
+        font-size: 16px; line-height: 1.65;
+      }
+      .base-url {
+        margin: 22px auto 0; max-width: 560px;
+        display: flex; align-items: stretch; gap: 0;
+        border-radius: 14px; overflow: hidden;
+        border: 1px solid var(--card-border);
+        background: var(--card);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(12px);
+      }
+      .base-url .label {
+        flex-shrink: 0; padding: 12px 14px; font-size: 12px; font-weight: 700;
+        color: var(--muted); border-right: 1px solid var(--card-border);
+        display: grid; place-items: center; letter-spacing: 0.04em;
+      }
+      .base-url .value {
+        flex: 1; min-width: 0; padding: 12px 14px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px; font-weight: 600; text-align: left;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .base-url .copy {
+        flex-shrink: 0; border: none; border-left: 1px solid var(--card-border);
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+        color: var(--accent); font-weight: 800; font-size: 12px;
+        padding: 0 16px; cursor: pointer;
+      }
+      .base-url .copy:hover {
+        background: color-mix(in srgb, var(--accent) 22%, transparent);
+      }
+      .cta-row {
+        display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 30px;
+      }
+      .cta-row .btn { padding: 12px 20px; border-radius: 12px; min-width: 140px; }
+      .cta-hint {
+        margin-top: 14px; font-size: 12px; color: var(--muted);
+      }
+      .cta-hint a { color: var(--accent); text-decoration: none; font-weight: 600; }
+      .cta-hint a:hover { text-decoration: underline; }
+
+
+      /* Unified capability tabs — match default HeroTerminalDemo light/dark */
+      .api-demo {
+        margin: 36px auto 0;
+        max-width: 720px;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid var(--demo-border);
+        background: var(--demo-card);
+        box-shadow: var(--demo-shadow);
+        backdrop-filter: blur(10px);
+        text-align: left;
+        color: var(--fg);
+      }
+      .api-demo-tabs {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 0 8px;
+        border-bottom: 1px solid var(--demo-border);
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+      .api-demo-tabs::-webkit-scrollbar { display: none; }
+      .api-demo-tabs .sep {
+        width: 1px;
+        height: 16px;
+        margin: 0 8px;
+        background: var(--demo-border);
+        flex-shrink: 0;
+      }
+      .api-demo-tab {
+        position: relative;
+        border: none;
+        background: transparent;
+        color: var(--demo-tab-idle);
+        font-weight: 600;
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        padding: 12px 10px;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: color .15s ease, border-color .15s ease;
+      }
+      .api-demo-tab:hover { color: var(--demo-tab-hover); }
+      .api-demo-tab.active {
+        color: var(--tab-active);
+        border-bottom-color: var(--tab-active);
+      }
+      /* per-protocol accent on active (align HeroTerminalDemo) */
+      .api-demo-tab.active[data-demo="0"] { color: #059669; border-bottom-color: #10b981; }
+      .api-demo-tab.active[data-demo="1"] { color: #d97706; border-bottom-color: #f59e0b; }
+      .api-demo-tab.active[data-demo="2"] { color: #2563eb; border-bottom-color: #3b82f6; }
+      .api-demo-tab.active[data-demo="3"] { color: #7c3aed; border-bottom-color: #8b5cf6; }
+      .api-demo-tab.active[data-demo="4"],
+      .api-demo-tab.active[data-demo="5"] { color: var(--tab-active); border-bottom-color: var(--tab-active); }
+      html.dark .api-demo-tab.active[data-demo="0"] { color: #34d399; border-bottom-color: #34d399; }
+      html.dark .api-demo-tab.active[data-demo="1"] { color: #fbbf24; border-bottom-color: #fbbf24; }
+      html.dark .api-demo-tab.active[data-demo="2"] { color: #60a5fa; border-bottom-color: #60a5fa; }
+      html.dark .api-demo-tab.active[data-demo="3"] { color: #a78bfa; border-bottom-color: #a78bfa; }
+      .api-demo-status {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 10px;
+        color: var(--code-muted);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding-right: 8px;
+        flex-shrink: 0;
+      }
+      .api-demo-status .dot {
+        width: 6px; height: 6px; border-radius: 999px;
+        background: #22c55e;
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.45);
+      }
+      .api-demo-endpoint {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 20px;
+        border-bottom: 1px solid var(--demo-border);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px;
+      }
+      .api-demo-method {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        padding: 3px 7px;
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--tab-active) 12%, transparent);
+        color: var(--tab-active);
+      }
+      .api-demo-path {
+        color: color-mix(in srgb, var(--fg) 75%, transparent);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .api-demo-body {
+        display: grid;
+        grid-template-rows: 1fr 1fr;
+        min-height: 300px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        line-height: 1.55;
+        background: transparent;
+      }
+      .api-demo-pane { padding: 16px 20px; }
+      .api-demo-pane + .api-demo-pane { border-top: 1px solid var(--demo-border); }
+      .api-demo-label {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--code-muted);
+        margin-bottom: 10px;
+      }
+      .api-demo-code {
+        color: color-mix(in srgb, var(--fg) 88%, transparent);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .api-demo-code .cmd { color: var(--code-cmd); font-weight: 600; }
+      .api-demo-code .flag { color: var(--code-flag); }
+      .api-demo-code .k { color: var(--code-key); }
+      .api-demo-code .s { color: var(--code-str); }
+      .api-demo-code .m { color: var(--code-muted); }
+      .api-demo-foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 20px;
+        border-top: 1px solid var(--demo-border);
+        background: var(--demo-foot);
+        font-size: 10px;
+        color: var(--code-muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .api-demo-config {
+        padding: 16px 20px 18px;
+        min-height: 300px;
+        text-align: left;
+        background: transparent;
+      }
+      .api-demo-config .panel-meta {
+        display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;
+      }
+      .api-demo-config .chip {
+        font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+        padding: 4px 8px; border-radius: 6px;
+        border: 1px solid var(--demo-border);
+        color: var(--code-muted);
+        background: transparent;
+      }
+      .api-demo-config .chip.on {
+        color: var(--tab-active);
+        border-color: color-mix(in srgb, var(--tab-active) 35%, var(--demo-border));
+        background: color-mix(in srgb, var(--tab-active) 10%, transparent);
+      }
+      /* 配置块：跟随主题的代码面，不是固定深色终端 */
+      .api-demo-config .term {
+        background: var(--term-bg);
+        color: var(--term-fg);
+        border-radius: 10px;
+        padding: 14px 16px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+        overflow: auto;
+        border: 1px solid var(--demo-border);
+      }
+      .api-demo-config .copy-row {
+        display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start;
+        justify-content: space-between; margin-top: 12px;
+      }
+      .api-demo-config .copy-row small {
+        flex: 1; min-width: 200px; color: var(--code-muted); font-size: 12px; line-height: 1.55;
+      }
+      .api-demo-config .copy-row .btn { flex-shrink: 0; }
+      .api-demo-view[hidden], .api-demo-config[hidden] { display: none !important; }
+      @media (max-width: 860px) {
+        .api-demo-body { min-height: 320px; }
+        .api-demo-tab { padding: 11px 8px; font-size: 10.5px; }
+      }
+
+      /* Service strip — 旧版气质文案，非通用产品指标 */
+      .service-strip {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+        margin: 44px 0 40px;
+      }
+      .service-item {
+        text-align: center; padding: 20px 14px; border-radius: 18px;
+        background: var(--card); border: 1px solid var(--card-border);
+        backdrop-filter: blur(14px); box-shadow: var(--shadow);
+      }
+      .service-item .title { font-weight: 800; font-size: 15px; margin-bottom: 6px; }
+      .service-item .desc { color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+      /* Integration demo: Codex | Claude switch */
+      .integrate {
+        border-radius: 22px;
+        border: 1px solid var(--card-border);
+        background: var(--card);
+        backdrop-filter: blur(16px);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .integrate-head {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 18px 20px 12px; border-bottom: 1px solid var(--card-border);
+      }
+      .integrate-head h2 { margin: 0; font-size: 1.15rem; letter-spacing: -0.02em; }
+      .integrate-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+      .tabs {
+        display: inline-flex; padding: 4px; border-radius: 12px;
+        background: color-mix(in srgb, var(--bg-deep) 55%, transparent);
+        border: 1px solid var(--card-border); gap: 4px;
+      }
+      .tab {
+        border: none; background: transparent; color: var(--muted); font-weight: 700;
+        font-size: 13px; padding: 8px 16px; border-radius: 9px; cursor: pointer;
+      }
+      .tab[aria-selected='true'] {
+        background: color-mix(in srgb, var(--tab-active) 18%, transparent);
+        color: var(--fg);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tab-active) 35%, transparent);
+      }
+      .panel { display: none; padding: 18px 20px 20px; }
+      .panel.active { display: block; }
+      .panel-meta {
+        display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px;
+      }
+      .chip {
+        font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+        padding: 4px 8px; border-radius: 999px; border: 1px solid var(--card-border);
+        color: var(--muted); background: color-mix(in srgb, var(--bg) 40%, transparent);
+      }
+      .chip.on {
+        color: var(--fg);
+        border-color: color-mix(in srgb, var(--tab-active) 40%, var(--card-border));
+        background: color-mix(in srgb, var(--tab-active) 12%, transparent);
+      }
+      /* legacy term tokens reused by config surfaces */
+      .term {
+        border-radius: 10px; border: 1px solid var(--demo-border); background: var(--term-bg);
+        color: var(--term-fg);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px; line-height: 1.55; white-space: pre-wrap;
+      }
+      .term .c, .term .cmd { color: var(--code-cmd); }
+      .term .s { color: var(--code-str); }
+      .term .k { color: var(--code-key); }
+      .term .x, .term .m { color: var(--code-muted); }
+      .copy-row {
+        display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px;
+      }
+      .copy-row small { color: var(--muted); font-size: 12px; }
+      .note {
+        margin-top: 28px; padding: 14px 16px; border-radius: 14px; border: 1px dashed var(--card-border);
+        color: var(--muted); font-size: 12px; line-height: 1.65;
+        background: color-mix(in srgb, var(--card) 70%, transparent);
+      }
+
+      /* Floating ball */
+      .fab { position: fixed; left: 22px; bottom: 22px; z-index: 30; }
+      .fab-btn {
+        width: 54px; height: 54px; border-radius: 50%; border: none; cursor: pointer; font-weight: 800;
+        background: linear-gradient(145deg, var(--accent), var(--accent-2)); color: #fff;
+        box-shadow: 0 14px 34px color-mix(in srgb, var(--accent) 40%, transparent);
+      }
+      html.dark .fab-btn { color: #0b1020; }
+      .fab-panel {
+        position: absolute; left: 0; bottom: 66px; width: min(300px, calc(100vw - 32px));
+        border-radius: 16px; background: var(--card); border: 1px solid var(--card-border);
+        backdrop-filter: blur(16px); box-shadow: var(--shadow); padding: 10px; display: none;
+      }
+      .fab-panel h4 {
+        margin: 4px 8px 10px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+      }
+      .link-item {
+        display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px;
+        text-decoration: none; color: inherit;
+      }
+      .link-item:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+      .avatar {
+        width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+        background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); font-weight: 800;
+      }
+      .link-item strong { display: block; font-size: 13px; }
+      .link-item small { color: var(--muted); font-size: 11px; }
+
+      @media (max-width: 860px) {
+        .service-strip { grid-template-columns: 1fr; }
+        .nav-links { display: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #starsCanvas { opacity: 0.85; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sky" aria-hidden="true">
+      <div class="milky"></div>
+      <div class="stars-layer"><canvas id="starsCanvas"></canvas></div>
+      <div class="vignette"></div>
+    </div>
+
+    <div class="wrap">
+      <!-- mockup only: 示意既有 HeaderBar/TopNav，正式实现删除本块，走 layout 顶栏 + HeaderNavModules -->
+      <header class="nav" aria-label="示意顶栏（非正式组件）">
+        <div class="brand">new-api · 既有顶栏示意</div>
+        <div class="nav-links" title="正式由 HeaderNavModules 控制显示">
+          <span>模型广场</span>
+          <span>排行榜</span>
+          <span>文档</span>
+        </div>
+        <div class="nav-actions">
+          <button class="btn" id="themeBtn" type="button">切换到浅色蓝白</button>
+          <button class="btn" type="button">登录</button>
+          <button class="btn btn-primary" type="button">注册</button>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div class="eyebrow">✦ Starfield Gateway</div>
+          <h1>
+            统一的<br />
+            <span class="grad">大模型接口网关</span>
+          </h1>
+          <p class="sub">
+            主视觉留给星空与品牌。用量排行、模型广场走顶栏；Hero 展示可复制基址，与现有首页一致。
+          </p>
+          <div class="base-url" id="baseUrlBar" title="点击复制 API 基址">
+            <div class="label">BASE URL</div>
+            <div class="value" id="baseUrlValue">https://your-gateway.example</div>
+            <button class="copy" id="baseUrlCopy" type="button">复制</button>
+          </div>
+          <div class="cta-row">
+            <button class="btn btn-primary" type="button">获取密钥 / 控制台</button>
+            <button class="btn" type="button">模型广场</button>
+          </div>
+          <p class="cta-hint">
+            数据页走<strong>既有顶栏</strong>（HeaderNavModules：排行榜 / 模型广场）；
+            此处不重复做第二套导航。路径：classic/default 均有 <code>/rankings</code>、<code>/pricing</code>。
+          </p>
+
+                    <!-- 统一展示：协议演示 + 第三方接入（同一 HeroTerminal 样式） -->
+          <div class="api-demo" id="apiDemo" aria-label="协议与接入">
+            <div class="api-demo-tabs" role="tablist" aria-label="协议与接入">
+              <button class="api-demo-tab active" type="button" data-demo="0" role="tab" aria-selected="true">Chat</button>
+              <button class="api-demo-tab" type="button" data-demo="1" role="tab" aria-selected="false">Responses</button>
+              <button class="api-demo-tab" type="button" data-demo="2" role="tab" aria-selected="false">Claude</button>
+              <button class="api-demo-tab" type="button" data-demo="3" role="tab" aria-selected="false">Gemini</button>
+              <span class="sep" aria-hidden="true"></span>
+              <button class="api-demo-tab" type="button" data-demo="4" role="tab" aria-selected="false">Codex</button>
+              <button class="api-demo-tab" type="button" data-demo="5" role="tab" aria-selected="false">Claude Code</button>
+              <div class="api-demo-status"><span class="dot"></span><span id="demoStatusText">200 ok</span></div>
+            </div>
+
+            <!-- 协议演示视图 0-3 -->
+            <div class="api-demo-view" id="demoProtocolView">
+              <div class="api-demo-endpoint">
+                <span class="api-demo-method" id="demoMethod">POST</span>
+                <code class="api-demo-path" id="demoPath">/v1/chat/completions</code>
+              </div>
+              <div class="api-demo-body">
+                <div class="api-demo-pane">
+                  <div class="api-demo-label">Request</div>
+                  <div class="api-demo-code" id="demoReq"></div>
+                </div>
+                <div class="api-demo-pane">
+                  <div class="api-demo-label">Response</div>
+                  <div class="api-demo-code" id="demoRes"></div>
+                </div>
+              </div>
+              <div class="api-demo-foot">
+                <span id="demoMeta">142 ms · 27 tokens · stream · sse</span>
+                <span>multi-protocol</span>
+              </div>
+            </div>
+
+            <!-- Codex 接入 4 -->
+            <div class="api-demo-config" id="demoCodexView" hidden>
+              <div class="panel-meta">
+                <span class="chip on">config.toml</span>
+                <span class="chip">auth.json</span>
+                <span class="chip">responses</span>
+              </div>
+              <div class="term" id="snippet-codex">[model_providers.OpenAI]
+name = "OpenAI"
+base_url = "https://your-gateway.example/v1"
+wire_api = "responses"
+requires_openai_auth = true</div>
+              <div class="term" id="snippet-codex-auth" style="margin-top:10px">{
+  "auth_mode": "apikey",
+  "OPENAI_API_KEY": "sk-your-new-api-token"
+}</div>
+              <div class="copy-row">
+                <small>
+                  ① 编辑 <code>~/.codex/config.toml</code> 添加上方 provider（base_url 换成你的网关）。
+                  ② 编辑 <code>~/.codex/auth.json</code> 填入 apikey（勿提交）。
+                  ③ 运行 <code>codex</code>。<strong>wire_api 必须是 responses</strong>。
+                </small>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn" type="button" data-copy="snippet-codex">复制 config</button>
+                  <button class="btn" type="button" data-copy="snippet-codex-auth">复制 auth</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Claude Code 接入 5 -->
+            <div class="api-demo-config" id="demoClaudeCodeView" hidden>
+              <div class="panel-meta">
+                <span class="chip on">settings.json</span>
+                <span class="chip">env</span>
+                <span class="chip">gateway</span>
+              </div>
+              <div class="term" id="snippet-claude">{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://your-gateway.example",
+    "ANTHROPIC_AUTH_TOKEN": "sk-your-new-api-token",
+    "ANTHROPIC_MODEL": "your-gateway-model",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "your-gateway-model",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "your-gateway-model",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "your-gateway-model",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1",
+    "CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING": "1",
+    "API_TIMEOUT_MS": "600000"
+  }
+}</div>
+              <div class="copy-row">
+                <small>
+                  写入 <code>~/.claude/settings.json</code>（或项目 <code>.claude/settings.json</code>）。
+                  模型 ID 用网关实际名称。禁用项用于降低第三方 400/遥测问题。
+                </small>
+                <button class="btn" type="button" data-copy="snippet-claude">复制</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 公益文案：并排在最下方 -->
+        <section class="service-strip" aria-label="服务说明">
+          <div class="service-item">
+            <div class="title">极速响应？</div>
+            <div class="desc">全球节点均未优化</div>
+          </div>
+          <div class="service-item">
+            <div class="title">稳定高可用？</div>
+            <div class="desc">私人自用服务</div>
+          </div>
+          <div class="service-item">
+            <div class="title">公益免费</div>
+            <div class="desc">用爱发电 随时跑路</div>
+          </div>
+        </section>
+
+        <div class="note">
+          <b>v3.0：</b>统一 Tab <strong>跟随浅色/深色主题</strong>（对齐 default HeroTerminalDemo：浅色白底卡片 + 深色 #0b0f17 面，代码用主题前景色而非固定黑终端）；
+          Chat→Gemini|Codex|Claude Code 同卡片；公益三条最下方并排。
+        </div>
+</main>
+    </div>
+
+    <div class="fab" id="fab">
+      <div class="fab-panel">
+        <h4>友情链接</h4>
+        <a class="link-item" href="#" onclick="return false"><div class="avatar">A</div><div><strong>AstrBot</strong><small>智能机器人框架</small></div></a>
+        <a class="link-item" href="#" onclick="return false"><div class="avatar">D</div><div><strong>Docs</strong><small>接口文档</small></div></a>
+      </div>
+      <button class="fab-btn" id="fabBtn" type="button" aria-label="友链">链</button>
+    </div>
+
+    <script>
+      const root = document.documentElement
+      const themeBtn = document.getElementById('themeBtn')
+      const fab = document.getElementById('fab')
+      const fabBtn = document.getElementById('fabBtn')
+      root.classList.add('dark')
+      themeBtn.textContent = '切换到浅色蓝白'
+      themeBtn.addEventListener('click', () => {
+        root.classList.toggle('dark')
+        themeBtn.textContent = root.classList.contains('dark') ? '切换到浅色蓝白' : '切换到深色黑蓝紫'
+        paintStars()
+        renderDemo(demoIndex)
+      })
+      fabBtn.addEventListener('click', () => fab.classList.toggle('open'))
+
+      // 基址展示：与现网一致用 origin；正式实现读 status.server_address
+      const baseUrlValue = document.getElementById('baseUrlValue')
+      const baseUrlCopy = document.getElementById('baseUrlCopy')
+      const liveBase = window.location.origin
+      if (baseUrlValue) baseUrlValue.textContent = liveBase
+      async function copyBase() {
+        const text = baseUrlValue ? baseUrlValue.textContent : liveBase
+        try {
+          await navigator.clipboard.writeText(text)
+          baseUrlCopy.textContent = '已复制'
+          setTimeout(() => (baseUrlCopy.textContent = '复制'), 1200)
+        } catch {
+          baseUrlCopy.textContent = '失败'
+          setTimeout(() => (baseUrlCopy.textContent = '复制'), 1200)
+        }
+      }
+      baseUrlCopy?.addEventListener('click', (e) => {
+        e.stopPropagation()
+        copyBase()
+      })
+      document.getElementById('baseUrlBar')?.addEventListener('click', () => copyBase())
+
+      document.querySelectorAll('[data-copy]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const el = document.getElementById(btn.getAttribute('data-copy'))
+          const text = el ? el.innerText : ''
+          const original = btn.textContent
+          try {
+            await navigator.clipboard.writeText(text)
+            btn.textContent = '已复制'
+            setTimeout(() => (btn.textContent = original), 1200)
+          } catch {
+            btn.textContent = '失败'
+            setTimeout(() => (btn.textContent = original), 1200)
+          }
+        })
+      })
+
+
+      // 统一 Tab：协议演示 0-3 + 第三方接入 4-5（HeroTerminal 样式）
+      const API_DEMOS = [
+        {
+          kind: 'protocol',
+          label: 'Chat',
+          method: 'POST',
+          path: '/v1/chat/completions',
+          req: '"model": "your-model",\n"messages": [\n  { "role": "user", "content": "..." }\n]',
+          res: '{\n  "choices": [{ "message": { "content": "..." } }],\n  "usage": { "total_tokens": 27 }\n}',
+          meta: '142 ms · 27 tokens · stream · sse',
+          status: '200 ok',
+        },
+        {
+          kind: 'protocol',
+          label: 'Responses',
+          method: 'POST',
+          path: '/v1/responses',
+          req: '"model": "your-model",\n"input": "..."',
+          res: '{\n  "output": [{ "type": "output_text", "text": "..." }],\n  "usage": { "total_tokens": 31 }\n}',
+          meta: '168 ms · 31 tokens · stream · sse',
+          status: '200 ok',
+        },
+        {
+          kind: 'protocol',
+          label: 'Claude',
+          method: 'POST',
+          path: '/v1/messages',
+          req: '"model": "your-model",\n"max_tokens": 1024,\n"messages": [\n  { "role": "user", "content": "..." }\n]',
+          res: '{\n  "content": [{ "type": "text", "text": "..." }],\n  "usage": { "input_tokens": 12, "output_tokens": 17 }\n}',
+          meta: '156 ms · 29 tokens · stream · sse',
+          status: '200 ok',
+        },
+        {
+          kind: 'protocol',
+          label: 'Gemini',
+          method: 'POST',
+          path: '/v1beta/models/{model}:generateContent',
+          req: '"contents": [\n  { "role": "user",\n    "parts": [{ "text": "..." }] }\n]',
+          res: '{\n  "candidates": [{ "content": { "parts": [{ "text": "..." }] } }],\n  "usageMetadata": { "totalTokenCount": 25 }\n}',
+          meta: '93 ms · 25 tokens · stream · sse',
+          status: '200 ok',
+        },
+        { kind: 'codex', label: 'Codex', status: 'setup' },
+        { kind: 'claude-code', label: 'Claude Code', status: 'setup' },
+      ]
+      let demoIndex = 0
+      let demoTimer = 0
+      const demoTabs = [...document.querySelectorAll('.api-demo-tab')]
+      const demoMethod = document.getElementById('demoMethod')
+      const demoPath = document.getElementById('demoPath')
+      const demoReq = document.getElementById('demoReq')
+      const demoRes = document.getElementById('demoRes')
+      const demoMeta = document.getElementById('demoMeta')
+      const demoStatusText = document.getElementById('demoStatusText')
+      const demoProtocolView = document.getElementById('demoProtocolView')
+      const demoCodexView = document.getElementById('demoCodexView')
+      const demoClaudeCodeView = document.getElementById('demoClaudeCodeView')
+
+
+      function escapeHtml(s) {
+        return String(s)
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+      }
+      function colorizeJsonish(text) {
+        // 简单着色：字符串 / 标点保持可读，跟随主题 token
+        return escapeHtml(text)
+          .replace(/(&quot;[^&]*&quot;)/g, '<span class="s">$1</span>')
+          .replace(/\b(\d+)\b/g, '<span class="k">$1</span>')
+      }
+      function formatProtocolRequest(d) {
+        const path = escapeHtml(d.path)
+        const body = escapeHtml(d.req)
+          .split('\n')
+          .map((line) => '    ' + line)
+          .join('\n')
+        return (
+          '<span class="cmd">curl</span> <span class="flag">-X</span> <span class="flag">POST</span> ' +
+          '<span class="s">"' + path + '"</span> <span class="m">\\</span>\n' +
+          '  <span class="flag">-H</span> <span class="s">"Authorization: Bearer sk-••••"</span> <span class="m">\\</span>\n' +
+          '  <span class="flag">-d</span> <span class="s">\'{</span>\n' +
+          body.split('\n').map((l) => {
+            // color keys roughly
+            return l
+              .replace(/(&quot;[^&]+&quot;)(\s*:)/g, '<span class="k">$1</span>$2')
+              .replace(/:\s*(&quot;[^&]*&quot;)/g, ': <span class="s">$1</span>')
+          }).join('\n') +
+          '\n  <span class="s">}\'</span>'
+        )
+      }
+
+      function renderDemo(i) {
+        demoIndex = i
+        const d = API_DEMOS[i]
+        demoTabs.forEach((btn, idx) => {
+          const on = idx === i
+          btn.classList.toggle('active', on)
+          btn.setAttribute('aria-selected', String(on))
+        })
+        if (demoStatusText) demoStatusText.textContent = d.status || '200 ok'
+
+        const isProtocol = d.kind === 'protocol'
+        if (demoProtocolView) demoProtocolView.hidden = !isProtocol
+        if (demoCodexView) demoCodexView.hidden = d.kind !== 'codex'
+        if (demoClaudeCodeView) demoClaudeCodeView.hidden = d.kind !== 'claude-code'
+
+        if (isProtocol) {
+          if (demoMethod) demoMethod.textContent = d.method
+          if (demoPath) demoPath.textContent = d.path
+          // 与 HeroTerminalDemo 类似：浅色/深色都用页面前景色 + 语法着色，不用黑底终端
+          if (demoReq) demoReq.innerHTML = formatProtocolRequest(d)
+          if (demoRes) demoRes.innerHTML = colorizeJsonish(d.res)
+          if (demoMeta) demoMeta.textContent = d.meta
+          // method badge accent
+          const accents = ['#059669', '#d97706', '#2563eb', '#7c3aed']
+          const accentsDark = ['#34d399', '#fbbf24', '#60a5fa', '#a78bfa']
+          const dark = root.classList.contains('dark')
+          const c = (dark ? accentsDark : accents)[i] || 'var(--tab-active)'
+          if (demoMethod) {
+            demoMethod.style.color = c
+            demoMethod.style.background = `color-mix(in srgb, ${c} 14%, transparent)`
+          }
+        }
+      }
+      function startDemoCycle() {
+        // 仅协议 Tab 自动轮播；点到接入配置则停止
+        clearInterval(demoTimer)
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+        if (API_DEMOS[demoIndex].kind !== 'protocol') return
+        demoTimer = setInterval(() => {
+          // 只在 0-3 协议间轮播
+          const next = (demoIndex + 1) % 4
+          renderDemo(next)
+        }, 4500)
+      }
+      demoTabs.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          renderDemo(Number(btn.getAttribute('data-demo') || 0))
+          startDemoCycle()
+        })
+      })
+      renderDemo(0)
+      startDemoCycle()
+
+      // Dense starfield on canvas
+      const canvas = document.getElementById('starsCanvas')
+      const ctx = canvas.getContext('2d')
+      let stars = []
+      let raf = 0
+
+      function paintStars() {
+        canvas.width = window.innerWidth * devicePixelRatio
+        canvas.height = window.innerHeight * devicePixelRatio
+        canvas.style.width = window.innerWidth + 'px'
+        canvas.style.height = window.innerHeight + 'px'
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+        ctx.scale(devicePixelRatio, devicePixelRatio)
+
+        const dark = root.classList.contains('dark')
+        // 浅色：更少、更淡、几乎不闪；深色：更密可轻闪
+        const count = dark
+          ? Math.min(380, Math.floor((window.innerWidth * window.innerHeight) / 3000))
+          : Math.min(160, Math.floor((window.innerWidth * window.innerHeight) / 7000))
+        stars = Array.from({ length: count }, () => ({
+          x: Math.random() * window.innerWidth,
+          y: Math.random() * window.innerHeight,
+          r: dark ? Math.random() * 1.5 + 0.3 : Math.random() * 1.1 + 0.25,
+          a: dark ? Math.random() * 0.55 + 0.25 : Math.random() * 0.18 + 0.08,
+          tw: Math.random() * Math.PI * 2,
+          sp: dark ? 0.006 + Math.random() * 0.016 : 0.0015 + Math.random() * 0.004,
+          bright: dark ? Math.random() > 0.9 : Math.random() > 0.97,
+        }))
+      }
+
+      function frame(t) {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
+        const dark = root.classList.contains('dark')
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        for (const s of stars) {
+          const tw = reduce
+            ? 1
+            : dark
+              ? 0.55 + 0.45 * Math.sin(t * s.sp + s.tw)
+              : 0.92 + 0.08 * Math.sin(t * s.sp + s.tw)
+          const alpha = s.a * tw
+          ctx.beginPath()
+          ctx.fillStyle = dark
+            ? `rgba(240,248,255,${alpha})`
+            : `rgba(59, 100, 180,${alpha})`
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2)
+          ctx.fill()
+          if (s.bright && dark) {
+            ctx.beginPath()
+            ctx.fillStyle = `rgba(186,230,253,${alpha * 0.28})`
+            ctx.arc(s.x, s.y, s.r * 2.8, 0, Math.PI * 2)
+            ctx.fill()
+          }
+        }
+        if (!reduce) {
+          raf = requestAnimationFrame(frame)
+        }
+      }
+
+      paintStars()
+      raf = requestAnimationFrame(frame)
+      window.addEventListener('resize', () => {
+        cancelAnimationFrame(raf)
+        paintStars()
+        raf = requestAnimationFrame(frame)
+      })
+
+    </script>
+  </body>
+</html>

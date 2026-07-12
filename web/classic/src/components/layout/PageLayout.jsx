@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import HeaderBar from './headerbar';
+import FloatingFriendLinks from './FloatingFriendLinks';
 import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import App from '../../App';
@@ -234,7 +235,8 @@ const PageLayout = () => {
         </Layout>
       </Layout>
       <ToastContainer />
-    </Layout>
+          <FloatingFriendLinks />
+</Layout>
   );
 };
 

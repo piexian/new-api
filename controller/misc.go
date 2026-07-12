@@ -113,6 +113,7 @@ func GetStatus(c *gin.Context) {
 		"uptime_kuma_enabled":   cs.UptimeKumaEnabled,
 		"announcements_enabled": cs.AnnouncementsEnabled,
 		"faq_enabled":           cs.FAQEnabled,
+		"friend_links_enabled":  cs.FriendLinksEnabled,
 
 		// 模块管理配置
 		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
@@ -143,6 +144,9 @@ func GetStatus(c *gin.Context) {
 	}
 	if cs.FAQEnabled {
 		data["faq"] = console_setting.GetFAQ()
+	}
+	if cs.FriendLinksEnabled {
+		data["friend_links"] = console_setting.GetFriendLinks()
 	}
 
 	// Add enabled custom OAuth providers
