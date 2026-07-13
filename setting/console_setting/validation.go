@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 var (
@@ -28,6 +29,43 @@ func parseJSONArray(jsonStr string, typeName string) ([]map[string]interface{}, 
 		return nil, fmt.Errorf("%s格式错误：%s", typeName, err.Error())
 	}
 	return list, nil
+}
+
+// isHTTPIconURL 判断友链图标是否为 http(s) 图片地址。
+func isHTTPIconURL(icon string) bool {
+	lower := strings.ToLower(strings.TrimSpace(icon))
+	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
+}
+
+// validateFriendLinkIcon 允许：
+// 1) 空
+// 2) http(s) 图片 URL
+// 3) 短 emoji / 文本图标（非 URL）
+func validateFriendLinkIcon(icon string, index int) error {
+	icon = strings.TrimSpace(icon)
+	if icon == "" {
+		return nil
+	}
+	if isHTTPIconURL(icon) {
+		if len(icon) > 500 {
+			return fmt.Errorf("第%d个友链的图标URL长度不能超过500字符", index)
+		}
+		return validateURL(icon, index, "友链图标")
+	}
+	// emoji / 短文本图标
+	if utf8.RuneCountInString(icon) > 16 {
+		return fmt.Errorf("第%d个友链的图标表情长度不能超过16个字符", index)
+	}
+	lower := strings.ToLower(icon)
+	for _, bad := range []string{"javascript:", "data:", "vbscript:", "<", ">"} {
+		if strings.Contains(lower, bad) {
+			return fmt.Errorf("第%d个友链的图标包含不允许的内容", index)
+		}
+	}
+	if err := checkDangerousContent(icon, index, "友链图标"); err != nil {
+		return err
+	}
+	return nil
 }
 
 func validateURL(urlStr string, index int, itemType string) error {
@@ -301,7 +339,7 @@ func GetUptimeKumaGroups() []map[string]interface{} {
 	return getJSONList(GetConsoleSetting().UptimeKumaGroups)
 }
 
-// validateFriendLinks 校验友链 JSON：name/url 必填，最多 30 条。
+// validateFriendLinks 校验友链 JSON：name/url 必填，最多 30 条；icon 可为 http(s) URL 或 emoji。
 func validateFriendLinks(friendLinksStr string) error {
 	list, err := parseJSONArray(friendLinksStr, "友链")
 	if err != nil {
@@ -329,13 +367,8 @@ func validateFriendLinks(friendLinksStr string) error {
 			return fmt.Errorf("第%d个友链的URL长度不能超过500字符", i+1)
 		}
 		if icon, ok := item["icon"].(string); ok {
-			if len(icon) > 500 {
-				return fmt.Errorf("第%d个友链的图标URL长度不能超过500字符", i+1)
-			}
-			if strings.TrimSpace(icon) != "" {
-				if err := validateURL(icon, i+1, "友链图标"); err != nil {
-					return err
-				}
+			if err := validateFriendLinkIcon(icon, i+1); err != nil {
+				return err
 			}
 		}
 		if desc, ok := item["description"].(string); ok {

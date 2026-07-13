@@ -8,13 +8,20 @@ import (
 )
 
 func GetRankings(c *gin.Context) {
-	result, err := service.GetRankingsSnapshot(c.DefaultQuery("period", "week"))
+	period := c.DefaultQuery("period", "week")
+	result, err := service.GetRankingsSnapshot(period)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
+	}
+
+	if userID := c.GetInt("id"); userID > 0 {
+		result = service.AttachRankingsViewer(result, userID, c.GetString("username"))
+	} else {
+		result = service.PublicRankingsSnapshot(result)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

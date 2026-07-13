@@ -26,6 +26,7 @@ import {
   ModelsSection,
   PulseSection,
   RankingsHero,
+  UsersSection,
 } from './components'
 import { useRankings } from './hooks/use-rankings'
 import type { RankingPeriod } from './types'
@@ -76,6 +77,14 @@ export function Rankings() {
                 rows={snapshot.models}
                 period={period}
               />
+
+              {Array.isArray(snapshot.users) ? (
+                <UsersSection
+                  rows={snapshot.users}
+                  period={period}
+                  me={snapshot.me}
+                />
+              ) : null}
 
               <MarketShareSection
                 history={snapshot.vendor_share_history}

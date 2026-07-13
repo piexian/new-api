@@ -72,14 +72,14 @@ export function Hero(props: HeroProps) {
           ✦ Starfield Gateway
         </p>
         <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'>
-          {t('统一的')}
+          {t('Unified')}
           <br />
           <span className='bg-gradient-to-r from-blue-500 via-sky-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-violet-400 dark:to-purple-500'>
-            {t('大模型接口网关')}
+            {t('AI API Gateway')}
           </span>
         </h1>
         <p className='text-muted-foreground/80 mt-5 max-w-lg text-base leading-relaxed md:text-lg'>
-          {t('多模型统一接入，只需将基址替换为：')}
+          {t('One base URL for multi-model access:')}
         </p>
 
         <div
@@ -113,7 +113,9 @@ export function Hero(props: HeroProps) {
 
         <div className='mt-8 flex flex-wrap items-center justify-center gap-3'>
           <Button className='group rounded-lg' render={<Link to={primaryTo} />}>
-            {props.isAuthenticated ? t('Go to Dashboard') : t('获取密钥 / 控制台')}
+            {props.isAuthenticated
+              ? t('Go to Dashboard')
+              : t('Get API Key / Console')}
             <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
           </Button>
           <Button
@@ -121,12 +123,9 @@ export function Hero(props: HeroProps) {
             className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
             render={<Link to={pricingTo} />}
           >
-            {t('模型广场')}
+            {t('Model Square')}
           </Button>
         </div>
-        <p className='text-muted-foreground mt-4 text-xs'>
-          {t('数据页走既有顶栏（模型广场 / 排行榜），首页不重复导航。')}
-        </p>
       </div>
 
       <HeroCapabilityTabs />

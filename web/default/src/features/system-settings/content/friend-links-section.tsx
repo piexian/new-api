@@ -20,14 +20,7 @@ import { useEffect, useState } from 'react'
 import * as z from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import {
-  ArrowDown,
-  ArrowUp,
-  Edit,
-  Plus,
-  Save,
-  Trash2,
-} from 'lucide-react'
+import { ArrowDown, ArrowUp, Edit, Plus, Save, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import {
@@ -97,6 +90,69 @@ const friendLinkSchema = z.object({
 
 type FriendLinkFormValues = z.infer<typeof friendLinkSchema>
 
+function isHttpIcon(icon?: string) {
+  if (!icon) return false
+  const v = icon.trim().toLowerCase()
+  return v.startsWith('http://') || v.startsWith('https://')
+}
+
+function FriendLinkIconPreview(props: { icon?: string; name: string }) {
+  const icon = (props.icon || '').trim()
+  if (icon && isHttpIcon(icon)) {
+    return <img src={icon} alt='' className='size-8 rounded object-cover' />
+  }
+  if (icon) {
+    return (
+      <div className='bg-muted flex size-8 items-center justify-center rounded text-base leading-none'>
+        {icon}
+      </div>
+    )
+  }
+  return (
+    <div className='bg-muted flex size-8 items-center justify-center rounded text-xs font-bold'>
+      {(props.name || '?').slice(0, 1).toUpperCase()}
+    </div>
+  )
+}
+
+function normalizeFriendLinks(parsed: unknown[]): FriendLinkItem[] {
+  const usedIds = new Set<number>()
+  let nextId =
+    Math.max(
+      0,
+      ...parsed.map((item) => {
+        if (!item || typeof item !== 'object' || !('id' in item)) return 0
+        return typeof item.id === 'number' && Number.isInteger(item.id)
+          ? item.id
+          : 0
+      })
+    ) + 1
+
+  return parsed.map((item, idx) => {
+    const row =
+      item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+    let id =
+      typeof row.id === 'number' &&
+      Number.isInteger(row.id) &&
+      row.id > 0 &&
+      !usedIds.has(row.id)
+        ? row.id
+        : 0
+    while (id === 0 || usedIds.has(id)) id = nextId++
+    usedIds.add(id)
+
+    return {
+      id,
+      name: typeof row.name === 'string' ? row.name : '',
+      url: typeof row.url === 'string' ? row.url : '',
+      icon: typeof row.icon === 'string' ? row.icon : '',
+      description: typeof row.description === 'string' ? row.description : '',
+      order: typeof row.order === 'number' ? row.order : idx,
+      enabled: row.enabled !== false,
+    }
+  })
+}
+
 export function FriendLinksSection({ enabled, data }: FriendLinksSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -128,24 +184,7 @@ export function FriendLinksSection({ enabled, data }: FriendLinksSectionProps) {
         setList([])
         return
       }
-      setList(
-        parsed.map((item, idx) => {
-          const row =
-            item && typeof item === 'object'
-              ? (item as Record<string, unknown>)
-              : {}
-          return {
-            id: typeof row.id === 'number' ? row.id : idx + 1,
-            name: typeof row.name === 'string' ? row.name : '',
-            url: typeof row.url === 'string' ? row.url : '',
-            icon: typeof row.icon === 'string' ? row.icon : '',
-            description:
-              typeof row.description === 'string' ? row.description : '',
-            order: typeof row.order === 'number' ? row.order : idx,
-            enabled: row.enabled === false ? false : true,
-          }
-        })
-      )
+      setList(normalizeFriendLinks(parsed))
     } catch {
       setList([])
     }
@@ -169,29 +208,38 @@ export function FriendLinksSection({ enabled, data }: FriendLinksSectionProps) {
   }
 
   const handleAdd = () => {
-    setEditing(null)
-    form.reset({
+    const values = {
       name: '',
       url: '',
       icon: '',
       description: '',
       order: list.length,
       enabled: true,
-    })
+    }
+    setEditing(null)
+    form.reset(values, { keepDefaultValues: false })
     setShowDialog(true)
+    queueMicrotask(() => {
+      form.reset(values, { keepDefaultValues: false })
+    })
   }
 
   const handleEdit = (item: FriendLinkItem) => {
+    const values = {
+      name: item.name || '',
+      url: item.url || '',
+      icon: item.icon || '',
+      description: item.description || '',
+      order: typeof item.order === 'number' ? item.order : 0,
+      enabled: item.enabled !== false,
+    }
     setEditing(item)
-    form.reset({
-      name: item.name,
-      url: item.url,
-      icon: item.icon,
-      description: item.description,
-      order: item.order,
-      enabled: item.enabled,
-    })
+    form.reset(values, { keepDefaultValues: false })
     setShowDialog(true)
+    // Dialog 挂载后再次 reset，避免 RHF 空白默认值覆盖
+    queueMicrotask(() => {
+      form.reset(values, { keepDefaultValues: false })
+    })
   }
 
   const handleDelete = (item: FriendLinkItem) => {
@@ -267,10 +315,11 @@ export function FriendLinksSection({ enabled, data }: FriendLinksSectionProps) {
 
   const handleSaveAll = async () => {
     try {
+      // 保留 id，便于编辑回填与稳定排序
       const payload = list
         .slice()
         .sort((a, b) => a.order - b.order)
-        .map(({ id: _id, ...rest }) => rest)
+        .map(({ id, ...rest }) => ({ id, ...rest }))
       const result = await updateOption.mutateAsync({
         key: 'console_setting.friend_links',
         value: JSON.stringify(payload),
@@ -376,17 +425,10 @@ export function FriendLinksSection({ enabled, data }: FriendLinksSectionProps) {
                       />
                     </TableCell>
                     <TableCell>
-                      {item.icon ? (
-                        <img
-                          src={item.icon}
-                          alt=''
-                          className='size-8 rounded object-cover'
-                        />
-                      ) : (
-                        <div className='bg-muted flex size-8 items-center justify-center rounded text-xs font-bold'>
-                          {item.name.slice(0, 1).toUpperCase()}
-                        </div>
-                      )}
+                      <FriendLinkIconPreview
+                        icon={item.icon}
+                        name={item.name}
+                      />
                     </TableCell>
                     <TableCell className='font-medium'>{item.name}</TableCell>
                     <TableCell className='text-muted-foreground max-w-[160px] truncate text-sm'>
@@ -438,14 +480,30 @@ export function FriendLinksSection({ enabled, data }: FriendLinksSectionProps) {
         </div>
       </div>
 
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+      <Dialog
+        open={showDialog}
+        onOpenChange={(open) => {
+          setShowDialog(open)
+          if (!open) {
+            setEditing(null)
+            form.reset({
+              name: '',
+              url: '',
+              icon: '',
+              description: '',
+              order: list.length,
+              enabled: true,
+            })
+          }
+        }}
+      >
+        <DialogContent key={editing ? `edit-${editing.id}` : 'add'}>
           <DialogHeader>
             <DialogTitle>
               {editing ? t('Edit Friend Link') : t('Add Friend Link')}
             </DialogTitle>
             <DialogDescription>
-              {t('name, url required; icon/description optional')}
+              {t('name, url required; icon can be image URL or emoji')}
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -484,9 +542,12 @@ export function FriendLinksSection({ enabled, data }: FriendLinksSectionProps) {
                 name='icon'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Icon URL')}</FormLabel>
+                    <FormLabel>{t('Icon (URL or emoji)')}</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder='https://.../icon.png' />
+                      <Input
+                        {...field}
+                        placeholder='https://.../icon.png  or  🤖'
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

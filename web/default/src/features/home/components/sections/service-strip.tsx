@@ -21,16 +21,16 @@ import { cn } from '@/lib/utils'
 
 const ITEMS = [
   {
-    title: '极速响应？',
-    desc: '全球节点均未优化',
+    title: 'Lightning fast?',
+    desc: 'No global edge optimization yet',
   },
   {
-    title: '稳定高可用？',
-    desc: '私人自用服务',
+    title: 'High availability?',
+    desc: 'Personal hobby service',
   },
   {
-    title: '公益免费',
-    desc: '用爱发电 随时跑路',
+    title: 'Community free',
+    desc: 'Powered by love — may disappear anytime',
   },
 ] as const
 
@@ -39,7 +39,7 @@ export function ServiceStrip() {
 
   return (
     <section
-      aria-label={t('服务说明')}
+      aria-label={t('Service notes')}
       className='relative z-10 mx-auto w-full max-w-5xl px-6 pb-16'
     >
       <div className='grid gap-3 md:grid-cols-3'>

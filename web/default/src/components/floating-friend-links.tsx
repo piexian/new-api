@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { ExternalLink, Link2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
 
@@ -84,8 +84,7 @@ function clampPos(pos: BallPos): BallPos {
 function parseFriendLinks(status: unknown): FriendLink[] {
   if (!status || typeof status !== 'object') return []
   const enabled =
-    !('friend_links_enabled' in status) ||
-    status.friend_links_enabled !== false
+    !('friend_links_enabled' in status) || status.friend_links_enabled !== false
   if (!enabled) return []
   if (!('friend_links' in status)) return []
   const list = status.friend_links
@@ -105,12 +104,52 @@ function parseFriendLinks(status: unknown): FriendLink[] {
         'description' in item && typeof item.description === 'string'
           ? item.description
           : undefined,
-      order:
-        'order' in item && typeof item.order === 'number' ? item.order : 0,
+      order: 'order' in item && typeof item.order === 'number' ? item.order : 0,
     })
   }
   out.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   return out
+}
+
+function isHttpIcon(icon?: string) {
+  if (!icon) return false
+  const v = icon.trim().toLowerCase()
+  return v.startsWith('http://') || v.startsWith('https://')
+}
+
+function FriendLinkIcon(props: {
+  icon?: string
+  name: string
+  className?: string
+}) {
+  const icon = (props.icon || '').trim()
+  if (icon && isHttpIcon(icon)) {
+    return (
+      <img
+        src={icon}
+        alt=''
+        className={props.className ?? 'size-8 rounded-lg object-cover'}
+      />
+    )
+  }
+  if (icon) {
+    return (
+      <div
+        className={
+          props.className ??
+          'bg-primary/10 flex size-8 items-center justify-center rounded-lg text-base leading-none'
+        }
+        aria-hidden
+      >
+        {icon}
+      </div>
+    )
+  }
+  return (
+    <div className='bg-primary/10 text-primary flex size-8 items-center justify-center rounded-lg text-xs font-extrabold'>
+      {props.name.slice(0, 1).toUpperCase()}
+    </div>
+  )
 }
 
 export function FloatingFriendLinks() {
@@ -200,7 +239,7 @@ export function FloatingFriendLinks() {
           )}
         >
           <div className='border-b px-3 py-2 text-sm font-bold'>
-            {t('友情链接')}
+            {t('Friend Links')}
           </div>
           <div className='max-h-72 overflow-auto p-2'>
             {links.map((link) => (
@@ -211,17 +250,7 @@ export function FloatingFriendLinks() {
                 rel='noreferrer noopener'
                 className='hover:bg-muted/60 flex items-center gap-3 rounded-xl px-2 py-2 transition-colors'
               >
-                {link.icon ? (
-                  <img
-                    src={link.icon}
-                    alt=''
-                    className='size-8 rounded-lg object-cover'
-                  />
-                ) : (
-                  <div className='bg-primary/10 text-primary flex size-8 items-center justify-center rounded-lg text-xs font-extrabold'>
-                    {link.name.slice(0, 1).toUpperCase()}
-                  </div>
-                )}
+                <FriendLinkIcon icon={link.icon} name={link.name} />
                 <div className='min-w-0 flex-1'>
                   <div className='flex items-center gap-1 truncate text-sm font-semibold'>
                     {link.name}
@@ -240,7 +269,7 @@ export function FloatingFriendLinks() {
       ) : null}
       <button
         type='button'
-        aria-label={t('友情链接')}
+        aria-label={t('Friend Links')}
         aria-expanded={open}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -248,7 +277,7 @@ export function FloatingFriendLinks() {
         className={cn(
           'flex size-[54px] items-center justify-center rounded-full border shadow-lg select-none',
           'border-border/50 bg-gradient-to-br from-sky-500 to-indigo-600 text-white',
-          'touch-none cursor-grab active:cursor-grabbing'
+          'cursor-grab touch-none active:cursor-grabbing'
         )}
       >
         <Link2 className='size-5' />

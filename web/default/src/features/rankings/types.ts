@@ -123,10 +123,39 @@ export type VendorShareSeries = {
   buckets: number
 }
 
+export type UserRanking = {
+  rank: number
+  previous_rank?: number
+  /** Public display name only — API never returns user_id. */
+  username: string
+  total_tokens: number
+  total_quota: number
+  request_count: number
+  /** Share of all user tokens in the period (0..1). */
+  share: number
+  growth_pct: number
+}
+
+export type UserRankingSelf = {
+  username: string
+  rank: number
+  total_tokens: number
+  total_quota: number
+  request_count: number
+  share: number
+  growth_pct: number
+  in_top_list: boolean
+  total_users: number
+}
+
 export type RankingsSnapshot = {
   // Overall (all categories) ------------------------------------------------
   models: ModelRanking[]
   vendors: VendorRanking[]
+  /** Authenticated-only users by token consumption; null for guests. */
+  users: UserRanking[] | null
+  /** Present when logged in — viewer's own rank card. */
+  me?: UserRankingSelf
   /** Largest rank gainers in this period. */
   top_movers: RankingMover[]
   /** Largest rank losers in this period. */

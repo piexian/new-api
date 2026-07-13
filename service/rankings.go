@@ -21,12 +21,44 @@ const (
 )
 
 type RankingsResponse struct {
-	Models             []RankedModel      `json:"models"`
-	Vendors            []RankedVendor     `json:"vendors"`
+	Models   []RankedModel  `json:"models"`
+	Vendors  []RankedVendor `json:"vendors"`
+	Users    []RankedUser   `json:"users"`
+	allUsers []RankedUser
+	// Me 仅在登录用户请求时返回。
+	Me                 *RankedUserSelf    `json:"me,omitempty"`
 	TopMovers          []RankingMover     `json:"top_movers"`
 	TopDroppers        []RankingMover     `json:"top_droppers"`
 	ModelsHistory      ModelHistorySeries `json:"models_history"`
 	VendorShareHistory VendorShareSeries  `json:"vendor_share_history"`
+}
+
+// RankedUser 是登录后可见的用户消费排行，不序列化内部用户 ID。
+type RankedUser struct {
+	userID       int
+	Rank         int     `json:"rank"`
+	PreviousRank *int    `json:"previous_rank,omitempty"`
+	Username     string  `json:"username"`
+	TotalTokens  int64   `json:"total_tokens"`
+	TotalQuota   int64   `json:"total_quota"`
+	RequestCount int64   `json:"request_count"`
+	Share        float64 `json:"share"`
+	GrowthPct    float64 `json:"growth_pct"`
+}
+
+// RankedUserSelf 是当前登录用户的排名卡片。
+type RankedUserSelf struct {
+	Username     string  `json:"username"`
+	Rank         int     `json:"rank"`
+	TotalTokens  int64   `json:"total_tokens"`
+	TotalQuota   int64   `json:"total_quota"`
+	RequestCount int64   `json:"request_count"`
+	Share        float64 `json:"share"`
+	GrowthPct    float64 `json:"growth_pct"`
+	// InTopList 表示用户是否已出现在前端榜单中。
+	InTopList bool `json:"in_top_list"`
+	// TotalUsers 是当前周期内有 Token 用量的用户数。
+	TotalUsers int64 `json:"total_users"`
 }
 
 type RankedModel struct {
@@ -211,9 +243,26 @@ func buildRankingsSnapshot(config rankingPeriodConfig, now time.Time) (*Rankings
 	vendorHistory := buildVendorShareHistory(currentBuckets, vendors, totalTokens, meta, config)
 	movers, droppers := buildRankingMovers(rankedModels)
 
+	// 用户消费排行仅对登录用户公开，内部用户 ID 不进入 API 响应。
+	currentUsers, err := model.GetRankingUserQuotaTotals(startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+	var previousUsers []model.RankingUserQuotaTotal
+	if config.hasPrevious {
+		previousStart, previousEnd := previousRankingTimeRange(config, startTime)
+		previousUsers, err = model.GetRankingUserQuotaTotals(previousStart, previousEnd)
+		if err != nil {
+			return nil, err
+		}
+	}
+	rankedUsers := buildRankedUsers(currentUsers, previousUsers, config.hasPrevious)
+
 	return &RankingsResponse{
 		Models:             limitRankedModels(rankedModels, rankingLeaderboardLimit),
 		Vendors:            vendors,
+		Users:              limitRankedUsers(rankedUsers, rankingLeaderboardLimit),
+		allUsers:           rankedUsers,
 		TopMovers:          movers,
 		TopDroppers:        droppers,
 		ModelsHistory:      modelHistory,
@@ -596,4 +645,103 @@ func minInt(a int, b int) int {
 		return a
 	}
 	return b
+}
+
+// PublicRankingsSnapshot 从缓存快照中移除仅登录可见的用户数据。
+func PublicRankingsSnapshot(resp *RankingsResponse) *RankingsResponse {
+	if resp == nil {
+		return nil
+	}
+	out := *resp
+	out.Users = nil
+	out.Me = nil
+	return &out
+}
+
+// AttachRankingsViewer 从同一缓存快照附加登录用户排名，避免时间窗口不一致。
+func AttachRankingsViewer(resp *RankingsResponse, userID int, username string) *RankingsResponse {
+	if resp == nil || userID <= 0 {
+		return PublicRankingsSnapshot(resp)
+	}
+
+	out := *resp
+	out.Me = &RankedUserSelf{
+		Username:   username,
+		TotalUsers: int64(len(resp.allUsers)),
+	}
+	for _, user := range resp.allUsers {
+		if user.userID != userID {
+			continue
+		}
+		out.Me = &RankedUserSelf{
+			Username:     user.Username,
+			Rank:         user.Rank,
+			TotalTokens:  user.TotalTokens,
+			TotalQuota:   user.TotalQuota,
+			RequestCount: user.RequestCount,
+			Share:        user.Share,
+			GrowthPct:    user.GrowthPct,
+			InTopList:    user.Rank <= len(resp.Users),
+			TotalUsers:   int64(len(resp.allUsers)),
+		}
+		break
+	}
+	return &out
+}
+
+func buildRankedUsers(current []model.RankingUserQuotaTotal, previous []model.RankingUserQuotaTotal, showGrowth bool) []RankedUser {
+	previousRanks := make(map[int]int, len(previous))
+	previousTokens := make(map[int]int64, len(previous))
+	for idx, item := range previous {
+		if item.UserID <= 0 || item.Username == "" {
+			continue
+		}
+		previousRanks[item.UserID] = idx + 1
+		previousTokens[item.UserID] = item.TotalTokens
+	}
+
+	totalTokens := int64(0)
+	for _, item := range current {
+		if item.UserID <= 0 || item.Username == "" {
+			continue
+		}
+		totalTokens += item.TotalTokens
+	}
+
+	rows := make([]RankedUser, 0, len(current))
+	rank := 0
+	for _, item := range current {
+		if item.UserID <= 0 || item.Username == "" {
+			continue
+		}
+		rank++
+		var previousRank *int
+		if prev, ok := previousRanks[item.UserID]; ok {
+			prevCopy := prev
+			previousRank = &prevCopy
+		}
+		growth := 0.0
+		if showGrowth {
+			growth = rankingGrowthPct(item.TotalTokens, previousTokens[item.UserID])
+		}
+		rows = append(rows, RankedUser{
+			userID:       item.UserID,
+			Rank:         rank,
+			PreviousRank: previousRank,
+			Username:     item.Username,
+			TotalTokens:  item.TotalTokens,
+			TotalQuota:   item.TotalQuota,
+			RequestCount: item.RequestCount,
+			Share:        rankingShare(item.TotalTokens, totalTokens),
+			GrowthPct:    growth,
+		})
+	}
+	return rows
+}
+
+func limitRankedUsers(rows []RankedUser, limit int) []RankedUser {
+	if limit <= 0 || len(rows) <= limit {
+		return rows
+	}
+	return rows[:limit]
 }

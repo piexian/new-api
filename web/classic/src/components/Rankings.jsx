@@ -95,13 +95,25 @@ const VENDOR_COLOURS = {
 };
 
 const FALLBACK_PALETTE = [
-  '#0ea5e9', '#22c55e', '#a855f7', '#f97316', '#14b8a6',
-  '#eab308', '#ec4899', '#84cc16', '#6366f1', '#10b981',
-  '#f43f5e', '#0891b2', '#94a3b8',
+  '#0ea5e9',
+  '#22c55e',
+  '#a855f7',
+  '#f97316',
+  '#14b8a6',
+  '#eab308',
+  '#ec4899',
+  '#84cc16',
+  '#6366f1',
+  '#10b981',
+  '#f43f5e',
+  '#0891b2',
+  '#94a3b8',
 ];
 
 function getVendorColour(name, idx) {
-  return VENDOR_COLOURS[name] ?? FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length];
+  return (
+    VENDOR_COLOURS[name] ?? FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length]
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -122,8 +134,7 @@ const PERIODS = [
 
 /** Rank number with delta arrow */
 function RankCell({ rank, previousRank }) {
-  const delta =
-    previousRank != null ? previousRank - rank : null;
+  const delta = previousRank != null ? previousRank - rank : null;
   const isNew = previousRank == null;
 
   return (
@@ -181,7 +192,9 @@ function ModelLeaderboard({ rows, t }) {
         dataIndex: 'rank',
         key: 'rank',
         width: 80,
-        render: (rank, row) => <RankCell rank={rank} previousRank={row.previous_rank} />,
+        render: (rank, row) => (
+          <RankCell rank={rank} previousRank={row.previous_rank} />
+        ),
       },
       {
         title: t('模型'),
@@ -193,7 +206,9 @@ function ModelLeaderboard({ rows, t }) {
               {getLobeHubIcon(row.vendor_icon, 20)}
             </span>
             <div className='min-w-0'>
-              <div className='font-mono text-sm font-medium truncate'>{name}</div>
+              <div className='font-mono text-sm font-medium truncate'>
+                {name}
+              </div>
               <div className='text-xs text-gray-500 truncate'>{row.vendor}</div>
             </div>
           </div>
@@ -218,7 +233,9 @@ function ModelLeaderboard({ rows, t }) {
         width: 90,
         sorter: (a, b) => a.share - b.share,
         render: (val) => (
-          <span className='font-mono tabular-nums text-sm'>{formatShare(val)}</span>
+          <span className='font-mono tabular-nums text-sm'>
+            {formatShare(val)}
+          </span>
         ),
       },
       {
@@ -243,7 +260,9 @@ function ModelLeaderboard({ rows, t }) {
       empty={
         <Empty
           image={<IllustrationNoResult style={{ width: 100, height: 100 }} />}
-          darkModeImage={<IllustrationNoResultDark style={{ width: 100, height: 100 }} />}
+          darkModeImage={
+            <IllustrationNoResultDark style={{ width: 100, height: 100 }} />
+          }
           description={t('暂无数据')}
         />
       }
@@ -257,7 +276,9 @@ function VendorShareList({ rows, t }) {
     return (
       <Empty
         image={<IllustrationNoResult style={{ width: 100, height: 100 }} />}
-        darkModeImage={<IllustrationNoResultDark style={{ width: 100, height: 100 }} />}
+        darkModeImage={
+          <IllustrationNoResultDark style={{ width: 100, height: 100 }} />
+        }
         description={t('暂无数据')}
       />
     );
@@ -327,9 +348,7 @@ function VendorShareBars({ rows }) {
 /** Movers / droppers cards */
 function MoversCard({ title, icon, items, intent, t }) {
   const emptyLabel =
-    intent === 'up'
-      ? t('暂无明显上升趋势')
-      : t('暂无明显下降趋势');
+    intent === 'up' ? t('暂无明显上升趋势') : t('暂无明显下降趋势');
   return (
     <Card
       className='!rounded-2xl'
@@ -342,7 +361,9 @@ function MoversCard({ title, icon, items, intent, t }) {
       bodyStyle={{ padding: '8px 16px' }}
     >
       {items.length === 0 ? (
-        <div className='text-center text-gray-400 py-6 text-xs'>{emptyLabel}</div>
+        <div className='text-center text-gray-400 py-6 text-xs'>
+          {emptyLabel}
+        </div>
       ) : (
         <ul>
           {items.map((row) => (
@@ -360,9 +381,7 @@ function MoversCard({ title, icon, items, intent, t }) {
               </div>
               <span
                 className={`inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-semibold tabular-nums ${
-                  intent === 'up'
-                    ? 'text-emerald-500'
-                    : 'text-rose-500'
+                  intent === 'up' ? 'text-emerald-500' : 'text-rose-500'
                 }`}
               >
                 {intent === 'up' ? (
@@ -408,6 +427,160 @@ function RankingsSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
+// User consumption leaderboard (username only — no user_id)
+// ---------------------------------------------------------------------------
+
+function MyRankCard({ me, t }) {
+  if (!me) return null;
+  const rankLabel = me.rank > 0 ? `#${me.rank}` : t('未上榜');
+  return (
+    <div
+      style={{
+        marginBottom: 12,
+        padding: '12px 14px',
+        borderRadius: 12,
+        border: '1px solid var(--semi-color-border)',
+        background: 'var(--semi-color-fill-0)',
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          color: 'var(--semi-color-text-2)',
+          marginBottom: 4,
+        }}
+      >
+        {t('我的排名')}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <div className='font-mono font-semibold'>{me.username}</div>
+          <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)' }}>
+            {rankLabel}
+            {me.total_users > 0
+              ? ` / ${Number(me.total_users).toLocaleString()} ${t('用户')}`
+              : ''}
+            {me.in_top_list ? ` · ${t('已在榜内')}` : ''}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 16, textAlign: 'right' }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)' }}>
+              {t('总 Token')}
+            </div>
+            <div className='font-mono font-semibold'>
+              {formatTokens(me.total_tokens || 0)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)' }}>
+              {t('占比')}
+            </div>
+            <div className='font-mono'>{formatShare(me.share || 0)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)' }}>
+              {t('增长')}
+            </div>
+            <GrowthCell pct={me.growth_pct || 0} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UserLeaderboard({ rows, t }) {
+  const columns = useMemo(
+    () => [
+      {
+        title: '#',
+        dataIndex: 'rank',
+        key: 'rank',
+        width: 80,
+        render: (rank, row) => (
+          <RankCell rank={rank} previousRank={row.previous_rank} />
+        ),
+      },
+      {
+        title: t('用户名'),
+        dataIndex: 'username',
+        key: 'username',
+        render: (name) => (
+          <div className='font-mono text-sm font-medium truncate'>{name}</div>
+        ),
+      },
+      {
+        title: t('总 Token'),
+        dataIndex: 'total_tokens',
+        key: 'total_tokens',
+        width: 120,
+        render: (v) => (
+          <span className='font-mono tabular-nums text-sm font-semibold'>
+            {formatTokens(v)}
+          </span>
+        ),
+      },
+      {
+        title: t('请求数'),
+        dataIndex: 'request_count',
+        key: 'request_count',
+        width: 100,
+        render: (v) => (
+          <span className='font-mono tabular-nums text-xs text-gray-500'>
+            {Number(v || 0).toLocaleString()}
+          </span>
+        ),
+      },
+      {
+        title: t('占比'),
+        dataIndex: 'share',
+        key: 'share',
+        width: 90,
+        render: (v) => <Tag size='small'>{formatShare(v)}</Tag>,
+      },
+      {
+        title: t('增长'),
+        dataIndex: 'growth_pct',
+        key: 'growth_pct',
+        width: 90,
+        render: (v) => <GrowthCell pct={v} />,
+      },
+    ],
+    [t],
+  );
+
+  if (!rows || rows.length === 0) {
+    return (
+      <Empty
+        image={<IllustrationNoResult style={{ width: 100, height: 100 }} />}
+        darkModeImage={
+          <IllustrationNoResultDark style={{ width: 100, height: 100 }} />
+        }
+        description={t('暂无用户排行数据')}
+      />
+    );
+  }
+
+  return (
+    <Table
+      size='small'
+      columns={columns}
+      dataSource={rows}
+      rowKey='username'
+      pagination={false}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Rankings component
 // ---------------------------------------------------------------------------
 
@@ -418,27 +591,30 @@ const Rankings = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchData = useCallback(async (p) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await API.get('/api/rankings', {
-        params: { period: p },
-      });
-      const { success, message, data: snapshot } = res.data;
-      if (success) {
-        setData(snapshot);
-      } else {
-        setError(message || t('加载排行榜数据失败'));
-        showError(message);
+  const fetchData = useCallback(
+    async (p) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await API.get('/api/rankings', {
+          params: { period: p },
+        });
+        const { success, message, data: snapshot } = res.data;
+        if (success) {
+          setData(snapshot);
+        } else {
+          setError(message || t('加载排行榜数据失败'));
+          showError(message);
+        }
+      } catch (err) {
+        setError(t('加载排行榜数据失败'));
+        showError(err);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError(t('加载排行榜数据失败'));
-      showError(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+    },
+    [t],
+  );
 
   useEffect(() => {
     fetchData(period);
@@ -453,7 +629,11 @@ const Rankings = () => {
       {/* Hero section */}
       <div className='mb-6'>
         <Title heading={2} style={{ marginBottom: 4 }}>
-          <Trophy size={24} className='inline mr-2' style={{ verticalAlign: 'middle' }} />
+          <Trophy
+            size={24}
+            className='inline mr-2'
+            style={{ verticalAlign: 'middle' }}
+          />
           {t('排行榜')}
         </Title>
         <Paragraph type='tertiary' size='small'>
@@ -504,6 +684,21 @@ const Rankings = () => {
               <ModelLeaderboard rows={data.models || []} t={t} />
             </Card>
 
+            {Array.isArray(data.users) ? (
+              <Card
+                className='!rounded-2xl'
+                title={
+                  <div className='flex items-center gap-2'>
+                    <Trophy size={16} />
+                    {t('用户消耗排行')}
+                  </div>
+                }
+              >
+                {data.me ? <MyRankCard me={data.me} t={t} /> : null}
+                <UserLeaderboard rows={data.users} t={t} />
+              </Card>
+            ) : null}
+
             {/* Vendor market share */}
             <Card
               className='!rounded-2xl'
@@ -516,7 +711,9 @@ const Rankings = () => {
             >
               <VendorShareBars rows={data.vendors || []} />
               <div className='mt-4 border-t pt-4'>
-                <h4 className='text-sm font-semibold mb-3'>{t('供应商排行')}</h4>
+                <h4 className='text-sm font-semibold mb-3'>
+                  {t('供应商排行')}
+                </h4>
                 <VendorShareList rows={data.vendors || []} t={t} />
               </div>
             </Card>

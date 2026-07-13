@@ -101,6 +101,7 @@ func performHeaderNavRequest(t *testing.T, handler gin.HandlerFunc, authenticate
 	router.GET("/api/test", handler, func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"success":    true,
+			"username":   c.GetString("username"),
 			"role":       c.GetInt("role"),
 			"group":      c.GetString("group"),
 			"user_group": c.GetString("user_group"),
@@ -209,7 +210,35 @@ func TestAdminAuthRefreshesSessionRoleAndGroupFromUserCache(t *testing.T) {
 	})
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	require.JSONEq(t, `{"success":true,"role":10,"group":"91vip","user_group":"91vip"}`, recorder.Body.String())
+	require.JSONEq(t, `{"success":true,"username":"tester","role":10,"group":"91vip","user_group":"91vip"}`, recorder.Body.String())
+}
+
+func TestTryUserAuthRefreshesUsernameFromUserCache(t *testing.T) {
+	recorder := performHeaderNavRequest(t, TryUserAuth(), true, model.User{
+		Id:       1,
+		Username: "current-name",
+		Password: "password123",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+	})
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"success":true,"username":"current-name","role":1,"group":"default","user_group":"default"}`, recorder.Body.String())
+}
+
+func TestTryUserAuthIgnoresDisabledUser(t *testing.T) {
+	recorder := performHeaderNavRequest(t, TryUserAuth(), true, model.User{
+		Id:       1,
+		Username: "tester",
+		Password: "password123",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusDisabled,
+		Group:    "default",
+	})
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"success":true,"username":"","role":0,"group":"","user_group":""}`, recorder.Body.String())
 }
 
 func TestHeaderNavModulePublicOrUserAuthRequiresLoginWhenRequireAuth(t *testing.T) {

@@ -64,6 +64,62 @@ function readPos() {
   return defaultPos();
 }
 
+function isHttpIcon(icon) {
+  if (!icon) return false;
+  const v = String(icon).trim().toLowerCase();
+  return v.startsWith('http://') || v.startsWith('https://');
+}
+
+function FriendLinkIcon({ icon, name }) {
+  const value = (icon || '').trim();
+  if (value && isHttpIcon(value)) {
+    return (
+      <img
+        src={value}
+        alt=''
+        style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }}
+      />
+    );
+  }
+  if (value) {
+    return (
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 8,
+          display: 'grid',
+          placeItems: 'center',
+          background: 'var(--semi-color-primary-light-default)',
+          fontSize: 18,
+          lineHeight: 1,
+        }}
+        aria-hidden
+      >
+        {value}
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        display: 'grid',
+        placeItems: 'center',
+        background: 'var(--semi-color-primary-light-default)',
+        color: 'var(--semi-color-primary)',
+        fontWeight: 800,
+      }}
+    >
+      {String(name || '')
+        .slice(0, 1)
+        .toUpperCase()}
+    </div>
+  );
+}
+
 const FloatingFriendLinks = () => {
   const { t } = useTranslation();
   const [statusState] = useContext(StatusContext);
@@ -184,30 +240,11 @@ const FloatingFriendLinks = () => {
                   color: 'inherit',
                 }}
               >
-                {link.icon ? (
-                  <img
-                    src={link.icon}
-                    alt=''
-                    style={{ width: 32, height: 32, borderRadius: 8 }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 8,
-                      display: 'grid',
-                      placeItems: 'center',
-                      background: 'var(--semi-color-primary-light-default)',
-                      color: 'var(--semi-color-primary)',
-                      fontWeight: 800,
-                    }}
-                  >
-                    {String(link.name).slice(0, 1).toUpperCase()}
-                  </div>
-                )}
+                <FriendLinkIcon icon={link.icon} name={link.name} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{link.name}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>
+                    {link.name}
+                  </div>
                   {link.description ? (
                     <div
                       style={{

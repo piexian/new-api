@@ -275,9 +275,19 @@ func authHelper(c *gin.Context, minRole int) {
 func TryUserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
-		id := session.Get("id")
-		if id != nil {
-			c.Set("id", id)
+		id, ok := session.Get("id").(int)
+		if !ok || id <= 0 {
+			c.Next()
+			return
+		}
+
+		user, err := model.GetUserCache(id)
+		if err == nil && user.Status == common.UserStatusEnabled && validUserInfo(user.Username, user.Role) {
+			c.Set("id", user.Id)
+			c.Set("username", user.Username)
+			c.Set("role", user.Role)
+			c.Set("group", user.Group)
+			c.Set("user_group", user.Group)
 		}
 		c.Next()
 	}

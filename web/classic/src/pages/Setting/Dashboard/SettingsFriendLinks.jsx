@@ -32,6 +32,69 @@ import { IconPlus, IconDelete, IconSave } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
 import { API, showError, showSuccess } from '../../../helpers';
 
+function isHttpIcon(icon) {
+  if (!icon) return false;
+  const v = String(icon).trim().toLowerCase();
+  return v.startsWith('http://') || v.startsWith('https://');
+}
+
+function FriendLinkIconPreview({ icon, name }) {
+  const value = (icon || '').trim();
+  if (value && isHttpIcon(value)) {
+    return (
+      <img
+        src={value}
+        alt=''
+        style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }}
+      />
+    );
+  }
+  if (value) {
+    return (
+      <span style={{ fontSize: 20, lineHeight: '28px' }} aria-hidden>
+        {value}
+      </span>
+    );
+  }
+  return (
+    <span style={{ fontWeight: 700 }}>
+      {String(name || '?')
+        .slice(0, 1)
+        .toUpperCase()}
+    </span>
+  );
+}
+
+function normalizeFriendLinks(parsed) {
+  const usedIds = new Set();
+  let nextId =
+    Math.max(
+      0,
+      ...parsed.map((item) =>
+        Number.isInteger(item?.id) && item.id > 0 ? item.id : 0,
+      ),
+    ) + 1;
+
+  return parsed.map((item, idx) => {
+    const row = item && typeof item === 'object' ? item : {};
+    let id =
+      Number.isInteger(row.id) && row.id > 0 && !usedIds.has(row.id)
+        ? row.id
+        : 0;
+    while (id === 0 || usedIds.has(id)) id = nextId++;
+    usedIds.add(id);
+    return {
+      id,
+      name: typeof row.name === 'string' ? row.name : '',
+      url: typeof row.url === 'string' ? row.url : '',
+      icon: typeof row.icon === 'string' ? row.icon : '',
+      description: typeof row.description === 'string' ? row.description : '',
+      order: typeof row.order === 'number' ? row.order : idx,
+      enabled: row.enabled !== false,
+    };
+  });
+}
+
 const SettingsFriendLinks = ({ options, refresh }) => {
   const { t } = useTranslation();
   const [list, setList] = useState([]);
@@ -41,6 +104,14 @@ const SettingsFriendLinks = ({ options, refresh }) => {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [formApi, setFormApi] = useState(null);
+  const [draftForm, setDraftForm] = useState({
+    name: '',
+    url: '',
+    icon: '',
+    description: '',
+    order: 0,
+    enabled: true,
+  });
 
   const parseList = (raw) => {
     if (!raw) {
@@ -49,7 +120,7 @@ const SettingsFriendLinks = ({ options, refresh }) => {
     }
     try {
       const parsed = JSON.parse(raw);
-      setList(Array.isArray(parsed) ? parsed : []);
+      setList(Array.isArray(parsed) ? normalizeFriendLinks(parsed) : []);
     } catch {
       setList([]);
     }
@@ -61,8 +132,18 @@ const SettingsFriendLinks = ({ options, refresh }) => {
 
   useEffect(() => {
     const enabledStr = options['console_setting.friend_links_enabled'];
-    setPanelEnabled(enabledStr === undefined ? true : enabledStr === true || enabledStr === 'true');
+    setPanelEnabled(
+      enabledStr === undefined
+        ? true
+        : enabledStr === true || enabledStr === 'true',
+    );
   }, [options['console_setting.friend_links_enabled']]);
+
+  // Modal 打开后回填表单（等 formApi 就绪，避免空白表单）
+  useEffect(() => {
+    if (!showModal || !formApi) return;
+    formApi.setValues(draftForm);
+  }, [showModal, formApi, draftForm]);
 
   const handleToggleEnabled = async (checked) => {
     try {
@@ -107,27 +188,32 @@ const SettingsFriendLinks = ({ options, refresh }) => {
     }
   };
 
+  const emptyForm = () => ({
+    name: '',
+    url: '',
+    icon: '',
+    description: '',
+    order: list.length,
+    enabled: true,
+  });
+
   const openAdd = () => {
     setEditing(null);
+    setDraftForm(emptyForm());
     setShowModal(true);
-    setTimeout(() => {
-      formApi?.setValues({
-        name: '',
-        url: '',
-        icon: '',
-        description: '',
-        order: list.length,
-        enabled: true,
-      });
-    }, 0);
   };
 
   const openEdit = (row) => {
     setEditing(row);
+    setDraftForm({
+      name: row.name || '',
+      url: row.url || '',
+      icon: row.icon || '',
+      description: row.description || '',
+      order: typeof row.order === 'number' ? row.order : 0,
+      enabled: row.enabled !== false,
+    });
     setShowModal(true);
-    setTimeout(() => {
-      formApi?.setValues({ ...row });
-    }, 0);
   };
 
   const saveRow = () => {
@@ -143,7 +229,8 @@ const SettingsFriendLinks = ({ options, refresh }) => {
           showError(t('友链最多 30 条'));
           return;
         }
-        setList((prev) => [...prev, values]);
+        const id = Math.max(0, ...list.map((item) => item.id || 0)) + 1;
+        setList((prev) => [...prev, { id, ...values }]);
       }
       setHasChanges(true);
       setShowModal(false);
@@ -171,6 +258,14 @@ const SettingsFriendLinks = ({ options, refresh }) => {
 
   const columns = [
     {
+      title: t('图标'),
+      dataIndex: 'icon',
+      width: 64,
+      render: (icon, record) => (
+        <FriendLinkIconPreview icon={icon} name={record.name} />
+      ),
+    },
+    {
       title: t('名称'),
       dataIndex: 'name',
     },
@@ -178,7 +273,10 @@ const SettingsFriendLinks = ({ options, refresh }) => {
       title: t('URL'),
       dataIndex: 'url',
       render: (text) => (
-        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 220 }}>
+        <Typography.Text
+          ellipsis={{ showTooltip: true }}
+          style={{ maxWidth: 220 }}
+        >
           {text}
         </Typography.Text>
       ),
@@ -202,7 +300,10 @@ const SettingsFriendLinks = ({ options, refresh }) => {
           <Button size='small' onClick={() => move(idx, 1)}>
             ↓
           </Button>
-          <Button size='small' onClick={() => openEdit({ ...record, __idx: idx })}>
+          <Button
+            size='small'
+            onClick={() => openEdit({ ...record, __idx: idx })}
+          >
             {t('编辑')}
           </Button>
           <Button size='small' type='danger' onClick={() => removeRow(idx)}>
@@ -215,7 +316,13 @@ const SettingsFriendLinks = ({ options, refresh }) => {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginBottom: 12,
+        }}
+      >
         <Space>
           <Switch checked={panelEnabled} onChange={handleToggleEnabled} />
           <span>{t('启用友链悬浮球')}</span>
@@ -237,7 +344,7 @@ const SettingsFriendLinks = ({ options, refresh }) => {
       </div>
       <Table
         columns={columns}
-        dataSource={list.map((item, idx) => ({ ...item, key: idx }))}
+        dataSource={list.map((item) => ({ ...item, key: item.id }))}
         pagination={false}
       />
 
@@ -249,7 +356,12 @@ const SettingsFriendLinks = ({ options, refresh }) => {
         okText={t('确定')}
         cancelText={t('取消')}
       >
-        <Form getFormApi={setFormApi} labelPosition='top'>
+        <Form
+          key={editing ? `edit-${editing.__idx}` : 'add'}
+          getFormApi={setFormApi}
+          initValues={draftForm}
+          labelPosition='top'
+        >
           <Form.Input
             field='name'
             label={t('名称')}
@@ -268,7 +380,11 @@ const SettingsFriendLinks = ({ options, refresh }) => {
               },
             ]}
           />
-          <Form.Input field='icon' label={t('图标 URL')} />
+          <Form.Input
+            field='icon'
+            label={t('图标（URL 或 emoji）')}
+            placeholder='https://... 或 🤖'
+          />
           <Form.Input field='description' label={t('描述')} />
           <Form.InputNumber field='order' label={t('排序')} />
           <Form.Switch field='enabled' label={t('启用')} />

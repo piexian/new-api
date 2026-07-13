@@ -64,3 +64,37 @@ func applyRankingQuotaTimeRange(query *gorm.DB, startTime int64, endTime int64) 
 	}
 	return query
 }
+
+type RankingUserQuotaTotal struct {
+	UserID       int    `json:"-"`
+	Username     string `json:"username"`
+	TotalTokens  int64  `json:"total_tokens"`
+	TotalQuota   int64  `json:"total_quota"`
+	RequestCount int64  `json:"request_count"`
+}
+
+// GetRankingUserQuotaTotals 按稳定的用户 ID 聚合，并使用当前用户名展示。
+func GetRankingUserQuotaTotals(startTime int64, endTime int64) ([]RankingUserQuotaTotal, error) {
+	var rows []RankingUserQuotaTotal
+	query := DB.Table("quota_data").
+		Joins("INNER JOIN users ON users.id = quota_data.user_id AND users.deleted_at IS NULL").
+		Select("quota_data.user_id, users.username, sum(quota_data.token_used) as total_tokens, sum(quota_data.quota) as total_quota, sum(quota_data.count) as request_count").
+		Where("quota_data.user_id > 0").
+		Where("users.username <> ''").
+		Group("quota_data.user_id, users.username").
+		Having("sum(quota_data.token_used) > 0").
+		Order("total_tokens DESC, quota_data.user_id ASC")
+	query = applyRankingUserQuotaTimeRange(query, startTime, endTime)
+	err := query.Find(&rows).Error
+	return rows, err
+}
+
+func applyRankingUserQuotaTimeRange(query *gorm.DB, startTime int64, endTime int64) *gorm.DB {
+	if startTime > 0 {
+		query = query.Where("quota_data.created_at >= ?", startTime)
+	}
+	if endTime > 0 {
+		query = query.Where("quota_data.created_at <= ?", endTime)
+	}
+	return query
+}

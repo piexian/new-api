@@ -74,3 +74,30 @@ func TestGetFriendLinksFiltersAndSorts(t *testing.T) {
 		t.Fatal("expected empty when disabled")
 	}
 }
+
+func TestValidateFriendLinksAllowsEmojiIcon(t *testing.T) {
+	raw := `[{"name":"Bot","url":"https://example.com","icon":"🤖","description":"emoji","order":1,"enabled":true}]`
+	if err := ValidateConsoleSettings(raw, "FriendLinks"); err != nil {
+		t.Fatalf("expected emoji icon ok, got %v", err)
+	}
+	// complex ZWJ emoji sequence
+	raw2 := `[{"name":"Flags","url":"https://example.com","icon":"👨‍💻"}]`
+	if err := ValidateConsoleSettings(raw2, "FriendLinks"); err != nil {
+		t.Fatalf("expected complex emoji ok, got %v", err)
+	}
+}
+
+func TestValidateFriendLinksRejectsDangerousIcon(t *testing.T) {
+	raw := `[{"name":"x","url":"https://example.com","icon":"javascript:alert(1)"}]`
+	err := ValidateConsoleSettings(raw, "FriendLinks")
+	if err == nil {
+		t.Fatal("expected dangerous icon rejected")
+	}
+}
+
+func TestValidateFriendLinksStillAcceptsIconURL(t *testing.T) {
+	raw := `[{"name":"x","url":"https://example.com","icon":"https://cdn.example.com/a.png"}]`
+	if err := ValidateConsoleSettings(raw, "FriendLinks"); err != nil {
+		t.Fatalf("expected icon url ok, got %v", err)
+	}
+}

@@ -50,6 +50,7 @@ const PageLayout = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { i18n } = useTranslation();
   const location = useLocation();
+  const isHomeRoute = location.pathname === '/' || location.pathname === '';
 
   const cardProPages = [
     '/console/channel',
@@ -235,8 +236,8 @@ const PageLayout = () => {
         </Layout>
       </Layout>
       <ToastContainer />
-          <FloatingFriendLinks />
-</Layout>
+      {isHomeRoute ? <FloatingFriendLinks /> : null}
+    </Layout>
   );
 };
 
