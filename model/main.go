@@ -144,7 +144,7 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, common.DatabaseType, error)
 				DSN:                  dsn,
 				PreferSimpleProtocol: true, // disables implicit prepared statement usage
 			}), &gorm.Config{
-				PrepareStmt: true, // precompile SQL
+				PrepareStmt: false, // 兼容 PgBouncer，避免迁移后复用失效语句
 			})
 			return db, common.DatabaseTypePostgreSQL, err
 		}
@@ -295,6 +295,11 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&SystemInstance{},
+		&SystemTask{},
+		&SystemTaskLock{},
+		&CasbinRule{},
+		&AuthzRole{},
 		&IPBan{},
 	)
 	if err != nil {
@@ -352,6 +357,11 @@ func migrateDBFast() error {
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
+		{&SystemInstance{}, "SystemInstance"},
+		{&SystemTask{}, "SystemTask"},
+		{&SystemTaskLock{}, "SystemTaskLock"},
+		{&CasbinRule{}, "CasbinRule"},
+		{&AuthzRole{}, "AuthzRole"},
 		{&IPBan{}, "IPBan"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
@@ -524,6 +534,7 @@ func ensureSubscriptionPlanTableSQLite() error {
 ` + "`waffo_pancake_product_id`" + ` varchar(128) DEFAULT '',
 ` + "`max_purchase_per_user`" + ` integer DEFAULT 0,
 ` + "`upgrade_group`" + ` varchar(64) DEFAULT '',
+` + "`downgrade_group`" + ` varchar(64) DEFAULT '',
 ` + "`model_restrict_mode`" + ` varchar(16) DEFAULT '',
 ` + "`model_restrict_group`" + ` varchar(64) DEFAULT '',
 ` + "`allowed_models`" + ` text DEFAULT '',
@@ -566,6 +577,7 @@ PRIMARY KEY (` + "`id`" + `)
 		{Name: "waffo_pancake_product_id", DDL: "`waffo_pancake_product_id` varchar(128) DEFAULT ''"},
 		{Name: "max_purchase_per_user", DDL: "`max_purchase_per_user` integer DEFAULT 0"},
 		{Name: "upgrade_group", DDL: "`upgrade_group` varchar(64) DEFAULT ''"},
+		{Name: "downgrade_group", DDL: "`downgrade_group` varchar(64) DEFAULT ''"},
 		{Name: "model_restrict_mode", DDL: "`model_restrict_mode` varchar(16) DEFAULT ''"},
 		{Name: "model_restrict_group", DDL: "`model_restrict_group` varchar(64) DEFAULT ''"},
 		{Name: "allowed_models", DDL: "`allowed_models` text DEFAULT ''"},
