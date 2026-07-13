@@ -451,12 +451,10 @@ export const useChannelsData = () => {
         res = await API.delete(`/api/channel/${id}/`);
         break;
       case 'enable':
-        data.status = 1;
-        res = await API.put('/api/channel/', data);
+        res = await API.post(`/api/channel/${id}/status`, { status: 1 });
         break;
       case 'disable':
-        data.status = 2;
-        res = await API.put('/api/channel/', data);
+        res = await API.post(`/api/channel/${id}/status`, { status: 2 });
         break;
       case 'priority':
         if (value === '') return;
@@ -478,12 +476,14 @@ export const useChannelsData = () => {
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('操作成功完成！'));
-      let channel = res.data.data;
-      let newChannels = [...channels];
-      if (action !== 'delete') {
+      if (action === 'delete' || action === 'enable' || action === 'disable') {
+        await refresh();
+      } else {
+        const channel = res.data.data;
+        const newChannels = [...channels];
         record.status = channel.status;
+        setChannels(newChannels);
       }
-      setChannels(newChannels);
     } else {
       showError(message);
     }

@@ -776,6 +776,7 @@ func DisableTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	service.ResetProxyClientCache()
 	recordManageAudit(c, "channel.tag_disable", map[string]interface{}{
 		"tag": channelTag.Tag,
 	})
@@ -802,6 +803,7 @@ func EnableTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
+	service.ResetProxyClientCache()
 	recordManageAudit(c, "channel.tag_enable", map[string]interface{}{
 		"tag": channelTag.Tag,
 	})
@@ -936,7 +938,32 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 	if _, ok := requestData["status"]; ok {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		if !isLegacyChannelStatusUpdate(requestData) || channel.Id <= 0 || !isManageableChannelStatus(channel.Status) {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		changed, err := model.UpdateChannelStatusWithError(channel.Id, "", channel.Status, "manual legacy operation")
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if changed {
+			service.ResetProxyClientCache()
+		}
+		recordManageAudit(c, "channel.status_update", map[string]interface{}{
+			"id":      channel.Id,
+			"status":  channel.Status,
+			"changed": changed,
+			"legacy":  true,
+		})
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data": gin.H{
+				"id":     channel.Id,
+				"status": channel.Status,
+			},
+		})
 		return
 	}
 	clearChannelReadOnlyFields(&channel, requestData)
@@ -1094,7 +1121,7 @@ func UpdateChannel(c *gin.Context) {
 
 func UpdateChannelStatus(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
+	if err != nil || id <= 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
@@ -1103,9 +1130,12 @@ func UpdateChannelStatus(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	changed := model.UpdateChannelStatus(id, "", req.Status, "manual operation")
+	changed, err := model.UpdateChannelStatusWithError(id, "", req.Status, "manual operation")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if changed {
-		model.InitChannelCache()
 		service.ResetProxyClientCache()
 	}
 	recordManageAudit(c, "channel.status_update", map[string]interface{}{
@@ -1126,26 +1156,57 @@ func BatchUpdateChannelStatus(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	changedCount := 0
+	uniqueIds := make([]int, 0, len(req.Ids))
+	seenIds := make(map[int]struct{}, len(req.Ids))
 	for _, id := range req.Ids {
-		if model.UpdateChannelStatus(id, "", req.Status, "manual batch operation") {
+		if id <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if _, ok := seenIds[id]; ok {
+			continue
+		}
+		seenIds[id] = struct{}{}
+		uniqueIds = append(uniqueIds, id)
+	}
+
+	changedCount := 0
+	successCount := 0
+	for _, id := range uniqueIds {
+		changed, err := model.UpdateChannelStatusWithError(id, "", req.Status, "manual batch operation")
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to update channel status in batch: channel_id=%d, status=%d, error=%v", id, req.Status, err))
+			continue
+		}
+		successCount++
+		if changed {
 			changedCount++
 		}
 	}
 	if changedCount > 0 {
-		model.InitChannelCache()
 		service.ResetProxyClientCache()
 	}
 	recordManageAudit(c, "channel.status_update_batch", map[string]interface{}{
-		"count":  changedCount,
-		"total":  len(req.Ids),
-		"status": req.Status,
+		"changed_count": changedCount,
+		"success_count": successCount,
+		"failed_count":  len(uniqueIds) - successCount,
+		"total":         len(uniqueIds),
+		"status":        req.Status,
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    changedCount,
+		"data":    successCount,
 	})
+}
+
+func isLegacyChannelStatusUpdate(requestData map[string]any) bool {
+	if len(requestData) != 2 {
+		return false
+	}
+	_, hasId := requestData["id"]
+	_, hasStatus := requestData["status"]
+	return hasId && hasStatus
 }
 
 func isManageableChannelStatus(status int) bool {

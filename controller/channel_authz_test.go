@@ -129,14 +129,14 @@ func TestClearChannelReadOnlyFields(t *testing.T) {
 	assert.Equal(t, "default", channel.Group)
 }
 
-func TestUpdateChannelRejectsStatusField(t *testing.T) {
+func TestUpdateChannelRejectsMixedStatusUpdate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(
 		http.MethodPut,
 		"/api/channel/",
-		bytes.NewBufferString(`{"id":1,"status":2}`),
+		bytes.NewBufferString(`{"id":1,"status":2,"name":"mixed update"}`),
 	)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 
@@ -149,6 +149,12 @@ func TestUpdateChannelRejectsStatusField(t *testing.T) {
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	assert.False(t, response.Success)
+}
+
+func TestLegacyChannelStatusUpdateShape(t *testing.T) {
+	assert.True(t, isLegacyChannelStatusUpdate(map[string]any{"id": 1, "status": 2}))
+	assert.False(t, isLegacyChannelStatusUpdate(map[string]any{"id": 1, "status": 2, "name": "mixed"}))
+	assert.False(t, isLegacyChannelStatusUpdate(map[string]any{"status": 2}))
 }
 
 func TestChannelStatusValidation(t *testing.T) {

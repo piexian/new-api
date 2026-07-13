@@ -277,46 +277,21 @@ func CacheGetChannelInfo(id int) (*ChannelInfo, error) {
 	return &c.ChannelInfo, nil
 }
 
-func CacheUpdateChannelStatus(id int, status int) {
-	if !common.MemoryCacheEnabled {
-		return
-	}
-	channelSyncLock.Lock()
-	defer channelSyncLock.Unlock()
-	if channel, ok := channelsIDM[id]; ok {
-		channel.Status = status
-	}
-	if status != common.ChannelStatusEnabled {
-		// delete the channel from group2model2channels
-		for group, model2channels := range group2model2channels {
-			for model, channels := range model2channels {
-				for i, channelId := range channels {
-					if channelId == id {
-						// remove the channel from the slice
-						group2model2channels[group][model] = append(channels[:i], channels[i+1:]...)
-						break
-					}
-				}
-			}
-		}
-	}
-}
-
-func CacheUpdateChannel(channel *Channel) {
-	if !common.MemoryCacheEnabled {
-		return
-	}
-	channelSyncLock.Lock()
-	if channel == nil {
-		channelSyncLock.Unlock()
-		return
-	}
-
+func updateChannelCacheEntryLocked(channel *Channel) {
 	if channelsIDM == nil {
 		channelsIDM = make(map[int]*Channel)
 	}
 	if oldChannel, ok := channelsIDM[channel.Id]; ok {
 		logger.LogDebug(nil, "CacheUpdateChannel before: id=%d, name=%s, status=%d, polling_index=%d", channel.Id, channel.Name, channel.Status, oldChannel.ChannelInfo.MultiKeyPollingIndex)
+		if channel.ChannelInfo.IsMultiKey &&
+			oldChannel.ChannelInfo.IsMultiKey &&
+			channel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling &&
+			oldChannel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling {
+			channel.ChannelInfo.MultiKeyPollingIndex = oldChannel.ChannelInfo.MultiKeyPollingIndex
+		}
+	}
+	if channel.ChannelInfo.IsMultiKey {
+		channel.Keys = channel.GetKeys()
 	}
 	channelsIDM[channel.Id] = channel
 	if channel2advancedCustomConfig == nil {
@@ -332,6 +307,60 @@ func CacheUpdateChannel(channel *Channel) {
 		delete(channel2advancedCustomConfig, channel.Id)
 	}
 	logger.LogDebug(nil, "CacheUpdateChannel after: id=%d, name=%s, status=%d, polling_index=%d", channel.Id, channel.Name, channel.Status, channel.ChannelInfo.MultiKeyPollingIndex)
+}
+
+func removeChannelFromRoutingLocked(channelId int) {
+	for group, model2channels := range group2model2channels {
+		for model, channelIds := range model2channels {
+			filtered := make([]int, 0, len(channelIds))
+			for _, existingId := range channelIds {
+				if existingId != channelId {
+					filtered = append(filtered, existingId)
+				}
+			}
+			group2model2channels[group][model] = filtered
+		}
+	}
+}
+
+func addChannelToRoutingLocked(channel *Channel) {
+	if group2model2channels == nil {
+		group2model2channels = make(map[string]map[string][]int)
+	}
+	for _, group := range strings.Split(channel.Group, ",") {
+		if group2model2channels[group] == nil {
+			group2model2channels[group] = make(map[string][]int)
+		}
+		for _, model := range strings.Split(channel.Models, ",") {
+			channelIds := append(group2model2channels[group][model], channel.Id)
+			sort.Slice(channelIds, func(i, j int) bool {
+				return channelsIDM[channelIds[i]].GetPriority() > channelsIDM[channelIds[j]].GetPriority()
+			})
+			group2model2channels[group][model] = channelIds
+		}
+	}
+}
+
+func CacheUpdateChannelStatus(channel *Channel) {
+	if !common.MemoryCacheEnabled || channel == nil {
+		return
+	}
+	channelSyncLock.Lock()
+	updateChannelCacheEntryLocked(channel)
+	removeChannelFromRoutingLocked(channel.Id)
+	if channel.Status == common.ChannelStatusEnabled {
+		addChannelToRoutingLocked(channel)
+	}
+	channelSyncLock.Unlock()
+	InvalidatePricingCache()
+}
+
+func CacheUpdateChannel(channel *Channel) {
+	if !common.MemoryCacheEnabled || channel == nil {
+		return
+	}
+	channelSyncLock.Lock()
+	updateChannelCacheEntryLocked(channel)
 	// Lock ordering: do NOT hold channelSyncLock while calling
 	// InvalidatePricingCache. GetPricing acquires updatePricingLock first and then
 	// channelSyncLock.RLock (via loadPricingAdvancedCustomConfigs); acquiring
