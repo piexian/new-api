@@ -702,13 +702,15 @@ func (user *User) Update(updatePassword bool) error {
 		}
 	}
 	newUser := *user
-	DB.First(&user, user.Id)
-	if err = DB.Model(user).Updates(newUser).Error; err != nil {
+	var currentUser User
+	if err = DB.First(&currentUser, user.Id).Error; err != nil {
+		return err
+	}
+	if err = DB.Model(&currentUser).Updates(newUser).Error; err != nil {
 		return err
 	}
 
-	// Update cache
-	return updateUserCache(*user)
+	return invalidateUserCache(user.Id)
 }
 
 func (user *User) Edit(updatePassword bool) error {
@@ -732,13 +734,15 @@ func (user *User) Edit(updatePassword bool) error {
 		updates["password"] = newUser.Password
 	}
 
-	DB.First(&user, user.Id)
-	if err = DB.Model(user).Updates(updates).Error; err != nil {
+	var currentUser User
+	if err = DB.First(&currentUser, user.Id).Error; err != nil {
+		return err
+	}
+	if err = DB.Model(&currentUser).Updates(updates).Error; err != nil {
 		return err
 	}
 
-	// Update cache
-	return updateUserCache(*user)
+	return invalidateUserCache(user.Id)
 }
 
 func (user *User) ClearBinding(bindingType string) error {
@@ -771,7 +775,7 @@ func (user *User) ClearBinding(bindingType string) error {
 		return err
 	}
 
-	return updateUserCache(*user)
+	return invalidateUserCache(user.Id)
 }
 
 func (user *User) Delete() error {
@@ -790,8 +794,10 @@ func (user *User) HardDelete() error {
 	if user.Id == 0 {
 		return errors.New("id 为空！")
 	}
-	err := DB.Unscoped().Delete(user).Error
-	return err
+	if err := DB.Unscoped().Delete(user).Error; err != nil {
+		return err
+	}
+	return invalidateUserCache(user.Id)
 }
 
 // ValidateAndFill check password & user status
@@ -1052,16 +1058,6 @@ func GetUserEmail(id int) (email string, err error) {
 
 // GetUserGroup gets group from Redis first, falls back to DB if needed
 func GetUserGroup(id int, fromDB bool) (group string, err error) {
-	defer func() {
-		// Update Redis cache asynchronously on successful DB read
-		if shouldUpdateRedis(fromDB, err) {
-			gopool.Go(func() {
-				if err := updateUserGroupCache(id, group); err != nil {
-					common.SysLog("failed to update user group cache: " + err.Error())
-				}
-			})
-		}
-	}()
 	if !fromDB && common.RedisEnabled {
 		group, err := getUserGroupCache(id)
 		if err == nil {

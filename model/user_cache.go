@@ -51,12 +51,19 @@ func getUserCacheKey(userId int) string {
 	return fmt.Sprintf("user:%d", userId)
 }
 
+func getUserCacheVersionKey(userId int) string {
+	return fmt.Sprintf("user:%d:version", userId)
+}
+
 // invalidateUserCache clears user cache
 func invalidateUserCache(userId int) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	return common.RedisDelKey(getUserCacheKey(userId))
+	return common.RedisBumpVersionAndDelete(
+		getUserCacheVersionKey(userId),
+		getUserCacheKey(userId),
+	)
 }
 
 // InvalidateUserCache is the exported version of invalidateUserCache.
@@ -65,34 +72,23 @@ func InvalidateUserCache(userId int) error {
 	return invalidateUserCache(userId)
 }
 
-// updateUserCache updates all user cache fields using hash
-func updateUserCache(user User) error {
+// fillUserCacheIfVersion 仅在数据库读取期间未发生失效时回填缓存。
+func fillUserCacheIfVersion(user User, version int64) (bool, error) {
 	if !common.RedisEnabled {
-		return nil
+		return false, nil
 	}
 
-	return common.RedisHSetObj(
+	return common.RedisHSetObjIfVersion(
 		getUserCacheKey(user.Id),
+		getUserCacheVersionKey(user.Id),
+		version,
 		user.ToBaseUser(),
 		time.Duration(common.RedisKeyCacheSeconds())*time.Second,
 	)
 }
 
 // GetUserCache gets complete user cache from hash
-func GetUserCache(userId int) (userCache *UserBase, err error) {
-	var user *User
-	var fromDB bool
-	defer func() {
-		// Update Redis cache asynchronously on successful DB read
-		if shouldUpdateRedis(fromDB, err) && user != nil {
-			gopool.Go(func() {
-				if err := updateUserCache(*user); err != nil {
-					common.SysLog("failed to update user status cache: " + err.Error())
-				}
-			})
-		}
-	}()
-
+func GetUserCache(userId int) (*UserBase, error) {
 	// Try getting from Redis first
 	userCache, hasRoleField, err := cacheGetUserBase(userId)
 	if err == nil {
@@ -103,27 +99,29 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 		}
 	}
 
+	var cacheVersion int64
+	canFillCache := false
+	if common.RedisEnabled {
+		cacheVersion, err = common.RedisGetVersion(getUserCacheVersionKey(userId))
+		canFillCache = err == nil
+	}
+
 	// If Redis fails, get from DB
-	fromDB = true
-	user, err = GetUserById(userId, false)
+	user, err := GetUserById(userId, false)
 	if err != nil {
 		return nil, err // Return nil and error if DB lookup fails
 	}
 
-	// Create cache object from user data
-	userCache = &UserBase{
-		Id:            user.Id,
-		Role:          user.Role,
-		Group:         user.Group,
-		Quota:         user.Quota,
-		Status:        user.Status,
-		Username:      user.Username,
-		Setting:       user.Setting,
-		Email:         user.Email,
-		DisableReason: user.DisableReason,
+	if canFillCache {
+		userSnapshot := *user
+		gopool.Go(func() {
+			if _, err := fillUserCacheIfVersion(userSnapshot, cacheVersion); err != nil {
+				common.SysLog("failed to fill user cache: " + err.Error())
+			}
+		})
 	}
 
-	return userCache, nil
+	return user.ToBaseUser(), nil
 }
 
 func cacheGetUserBase(userId int) (*UserBase, bool, error) {
@@ -213,15 +211,9 @@ func updateUserQuotaCache(userId int, quota int) error {
 	return common.RedisHSetField(getUserCacheKey(userId), "Quota", fmt.Sprintf("%d", quota))
 }
 
-func updateUserGroupCache(userId int, group string) error {
-	if !common.RedisEnabled {
-		return nil
-	}
-	return common.RedisHSetField(getUserCacheKey(userId), "Group", group)
-}
-
-func UpdateUserGroupCache(userId int, group string) error {
-	return updateUserGroupCache(userId, group)
+// UpdateUserGroupCache 通过失效全量快照刷新分组，避免旧回填覆盖新分组。
+func UpdateUserGroupCache(userId int, _ string) error {
+	return invalidateUserCache(userId)
 }
 
 func updateUserNameCache(userId int, username string) error {

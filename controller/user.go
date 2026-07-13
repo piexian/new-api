@@ -1256,7 +1256,8 @@ func ManageUser(c *gin.Context) {
 		return
 	}
 
-	if req.Action == "disable" || req.Action == "enable" {
+	switch req.Action {
+	case "disable", "enable":
 		if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Updates(map[string]any{
 			"status":         user.Status,
 			"disable_reason": user.DisableReason,
@@ -1264,18 +1265,21 @@ func ManageUser(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
-	} else if err := user.Update(false); err != nil {
-		common.ApiError(c, err)
-		return
+	case "delete":
+	default:
+		if err := user.Update(false); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
-	// 启用 / 禁用 / 角色调整后，强制失效用户缓存与其全部令牌缓存，
-	// 避免在 Redis TTL 过期前仍使用旧状态（尤其是禁用后仍可发起请求的问题）。
-	// InvalidateUserCache 会让下一次 GetUserCache 从数据库重新加载，
-	// InvalidateUserTokensCache 则确保令牌侧的缓存也同步刷新。
-	if req.Action == "disable" || req.Action == "enable" || req.Action == "promote" || req.Action == "demote" {
+	// 启用 / 禁用直接更新数据库，需要在此失效用户缓存；角色调整由 User.Update 统一失效。
+	if req.Action == "disable" || req.Action == "enable" {
 		if err := model.InvalidateUserCache(user.Id); err != nil {
 			common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d: %s", user.Id, err.Error()))
 		}
+	}
+	// 权限或状态变化后同步失效该用户的全部令牌缓存。
+	if req.Action == "disable" || req.Action == "enable" || req.Action == "promote" || req.Action == "demote" {
 		if err := model.InvalidateUserTokensCache(user.Id); err != nil {
 			common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
 		}

@@ -16,6 +16,22 @@ import (
 var RDB *redis.Client
 var RedisEnabled = true
 
+var redisHSetObjIfVersionScript = redis.NewScript(`
+local current_version = redis.call("GET", KEYS[1])
+if not current_version then
+    current_version = "0"
+end
+if current_version ~= ARGV[1] then
+    return 0
+end
+redis.call("HSET", KEYS[2], unpack(ARGV, 3))
+local expiration = tonumber(ARGV[2])
+if expiration and expiration > 0 then
+    redis.call("EXPIRE", KEYS[2], expiration)
+end
+return 1
+`)
+
 func RedisKeyCacheSeconds() int {
 	return SyncFrequency
 }
@@ -104,20 +120,20 @@ func RedisDelKey(key string) error {
 	return RDB.Del(ctx, key).Err()
 }
 
-func RedisHSetObj(key string, obj interface{}, expiration time.Duration) error {
-	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis HSET: key=%s, obj=%+v, expiration=%v", key, obj, expiration))
-	}
-	ctx := context.Background()
-
+func redisObjToHash(obj interface{}) (map[string]interface{}, error) {
 	data := make(map[string]interface{})
-
-	// 使用反射遍历结构体字段
-	v := reflect.ValueOf(obj).Elem()
+	value := reflect.ValueOf(obj)
+	if value.Kind() != reflect.Ptr || value.IsNil() {
+		return nil, fmt.Errorf("obj must be a non-nil pointer to a struct, got %T", obj)
+	}
+	v := value.Elem()
+	if v.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("obj must be a pointer to a struct, got %T", obj)
+	}
 	t := v.Type()
 	for i := 0; i < v.NumField(); i++ {
 		field := t.Field(i)
-		value := v.Field(i)
+		fieldValue := v.Field(i)
 
 		// Skip DeletedAt field
 		if field.Type.String() == "gorm.DeletedAt" {
@@ -125,22 +141,34 @@ func RedisHSetObj(key string, obj interface{}, expiration time.Duration) error {
 		}
 
 		// 处理指针类型
-		if value.Kind() == reflect.Ptr {
-			if value.IsNil() {
+		if fieldValue.Kind() == reflect.Ptr {
+			if fieldValue.IsNil() {
 				data[field.Name] = ""
 				continue
 			}
-			value = value.Elem()
+			fieldValue = fieldValue.Elem()
 		}
 
 		// 处理布尔类型
-		if value.Kind() == reflect.Bool {
-			data[field.Name] = strconv.FormatBool(value.Bool())
+		if fieldValue.Kind() == reflect.Bool {
+			data[field.Name] = strconv.FormatBool(fieldValue.Bool())
 			continue
 		}
 
 		// 其他类型直接转换为字符串
-		data[field.Name] = fmt.Sprintf("%v", value.Interface())
+		data[field.Name] = fmt.Sprintf("%v", fieldValue.Interface())
+	}
+	return data, nil
+}
+
+func RedisHSetObj(key string, obj interface{}, expiration time.Duration) error {
+	if DebugEnabled {
+		SysLog(fmt.Sprintf("Redis HSET: key=%s, obj=%+v, expiration=%v", key, obj, expiration))
+	}
+	ctx := context.Background()
+	data, err := redisObjToHash(obj)
+	if err != nil {
+		return err
 	}
 
 	txn := RDB.TxPipeline()
@@ -151,11 +179,59 @@ func RedisHSetObj(key string, obj interface{}, expiration time.Duration) error {
 		txn.Expire(ctx, key, expiration)
 	}
 
-	_, err := txn.Exec(ctx)
+	_, err = txn.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to execute transaction: %w", err)
 	}
 	return nil
+}
+
+func RedisGetVersion(key string) (int64, error) {
+	ctx := context.Background()
+	version, err := RDB.Get(ctx, key).Int64()
+	if errors.Is(err, redis.Nil) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("failed to get Redis version: %w", err)
+	}
+	return version, nil
+}
+
+// RedisBumpVersionAndDelete 原子推进版本并删除对应缓存。
+func RedisBumpVersionAndDelete(versionKey string, cacheKey string) error {
+	ctx := context.Background()
+	txn := RDB.TxPipeline()
+	txn.Incr(ctx, versionKey)
+	txn.Del(ctx, cacheKey)
+	if _, err := txn.Exec(ctx); err != nil {
+		return fmt.Errorf("failed to invalidate versioned Redis cache: %w", err)
+	}
+	return nil
+}
+
+// RedisHSetObjIfVersion 仅在版本未变化时写入缓存对象。
+func RedisHSetObjIfVersion(key string, versionKey string, expectedVersion int64, obj interface{}, expiration time.Duration) (bool, error) {
+	data, err := redisObjToHash(obj)
+	if err != nil {
+		return false, err
+	}
+	args := make([]interface{}, 0, 2+len(data)*2)
+	args = append(args, strconv.FormatInt(expectedVersion, 10), int64(expiration/time.Second))
+	for field, value := range data {
+		args = append(args, field, value)
+	}
+
+	written, err := redisHSetObjIfVersionScript.Run(
+		context.Background(),
+		RDB,
+		[]string{versionKey, key},
+		args...,
+	).Int64()
+	if err != nil {
+		return false, fmt.Errorf("failed to conditionally update Redis cache: %w", err)
+	}
+	return written == 1, nil
 }
 
 func RedisHGetObj(key string, obj interface{}) error {
