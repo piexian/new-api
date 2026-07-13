@@ -10,6 +10,18 @@ const semiUiDir = path.resolve(
   path.dirname(require.resolve('@douyinfe/semi-ui')),
   '../..',
 );
+const classicVisactorPackages = [
+  '@visactor/vchart',
+  '@visactor/vgrammar-core',
+  '@visactor/vrender-core',
+  '@visactor/vrender-kits',
+];
+const classicVisactorAliases = Object.fromEntries(
+  classicVisactorPackages.map((packageName) => [
+    packageName,
+    path.resolve(path.dirname(require.resolve(packageName)), '..'),
+  ]),
+);
 
 export default defineConfig(({ envMode }) => {
   const env = loadEnv({ mode: envMode, prefixes: ['VITE_'] });
@@ -40,6 +52,8 @@ export default defineConfig(({ envMode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
+        // Bun workspace 会并存 VChart 1.x/2.x，经典前端必须固定到同一套 1.x 单例。
+        ...classicVisactorAliases,
         '@douyinfe/semi-ui/dist/css/semi.css': path.resolve(
           semiUiDir,
           'dist/css/semi.css',
