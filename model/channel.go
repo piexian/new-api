@@ -164,13 +164,32 @@ func ApplyChannelGroupFilter(query *gorm.DB, group string) *gorm.DB {
 
 // Value implements driver.Valuer interface
 func (c ChannelInfo) Value() (driver.Value, error) {
-	return common.Marshal(&c)
+	value, err := common.Marshal(&c)
+	if err != nil {
+		return nil, err
+	}
+	return string(value), nil
 }
 
 // Scan implements sql.Scanner interface
 func (c *ChannelInfo) Scan(value interface{}) error {
-	bytesValue, _ := value.([]byte)
-	return common.Unmarshal(bytesValue, c)
+	var data []byte
+	switch typedValue := value.(type) {
+	case nil:
+		*c = ChannelInfo{}
+		return nil
+	case string:
+		data = []byte(typedValue)
+	case []byte:
+		data = typedValue
+	default:
+		return fmt.Errorf("unsupported ChannelInfo scan type %T", value)
+	}
+	if len(data) == 0 {
+		*c = ChannelInfo{}
+		return nil
+	}
+	return common.Unmarshal(data, c)
 }
 
 const (
