@@ -37,6 +37,45 @@ func TestChannelStatusRoutesRegisterWithoutConflict(t *testing.T) {
 	})
 }
 
+func TestSetApiRouterRegistersPermissionRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+
+	require.NotPanics(t, func() {
+		SetApiRouter(engine)
+	})
+
+	routes := make(map[string]struct{}, len(engine.Routes()))
+	for _, route := range engine.Routes() {
+		routes[route.Method+" "+route.Path] = struct{}{}
+	}
+	for _, route := range channelPermissionRoutes {
+		assert.Contains(t, routes, route.method+" /api/channel"+route.path)
+	}
+
+	requiredRoutes := []string{
+		http.MethodGet + " /api/authz/catalog",
+		http.MethodPost + " /api/channel/:id/key",
+		http.MethodGet + " /api/channel/ops",
+		http.MethodPost + " /api/channel/:id/status",
+		http.MethodPost + " /api/channel/status/batch",
+		http.MethodPost + " /api/channel/codex/oauth/start",
+		http.MethodPost + " /api/channel/codex/oauth/complete",
+		http.MethodPost + " /api/channel/:id/codex/oauth/start",
+		http.MethodPost + " /api/channel/:id/codex/oauth/complete",
+		http.MethodPost + " /api/channel/:id/codex/refresh",
+		http.MethodGet + " /api/channel/:id/codex/usage",
+		http.MethodGet + " /api/channel/:id/codex/usage/reset-credits",
+		http.MethodPost + " /api/channel/:id/codex/usage/reset",
+		http.MethodGet + " /api/channel/:id/minimax/usage",
+		http.MethodGet + " /api/channel/:id/zhipu/coding_plan/usage",
+		http.MethodGet + " /api/channel/:id/kimi/coding_plan/usage",
+	}
+	for _, route := range requiredRoutes {
+		assert.Contains(t, routes, route)
+	}
+}
+
 func assertChannelRoutePermission(t *testing.T, method string, path string, permission authz.Permission, handler any) {
 	t.Helper()
 	for _, route := range channelPermissionRoutes {
