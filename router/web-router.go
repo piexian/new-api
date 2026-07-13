@@ -1,14 +1,18 @@
 package router
 
 import (
+	"bytes"
+	"crypto/rand"
 	"embed"
+	"encoding/base64"
+	"html"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
-	"github.com/gin-contrib/gzip"
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 )
@@ -25,21 +29,22 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	defaultFS := common.EmbedFolder(assets.DefaultBuildFS, "web/default/dist")
 	classicFS := common.EmbedFolder(assets.ClassicBuildFS, "web/classic/dist")
 
-	router.Use(gzip.Gzip(gzip.DefaultCompression))
+	router.Use(middleware.Gzip())
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
 	router.Use(serveThemeStatic(defaultFS, classicFS))
+	registerCrawlerRoutes(router)
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
-		if shouldReturnRelayNotFound(c.Request.RequestURI) {
+		if shouldReturnRelayNotFound(c.Request.URL.Path) {
+			c.Header("Cache-Control", "no-store")
 			controller.RelayNotFound(c)
 			return
 		}
-		c.Header("Cache-Control", "no-cache")
 		if getRequestFrontendTheme(c) == common.FrontendThemeClassic {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.ClassicIndexPage)
+			serveIndexPage(c, assets.ClassicIndexPage)
 		} else {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.DefaultIndexPage)
+			serveIndexPage(c, assets.DefaultIndexPage)
 		}
 	})
 }
@@ -49,7 +54,8 @@ func serveThemeStatic(defaultFS, classicFS static.ServeFileSystem) gin.HandlerFu
 	classicServer := http.StripPrefix("/", http.FileServer(classicFS))
 
 	return func(c *gin.Context) {
-		if c.Request.URL.Path == "/" {
+		switch c.Request.URL.Path {
+		case "/", "/index.html", "/robots.txt", "/sitemap.xml":
 			return
 		}
 
@@ -61,6 +67,62 @@ func serveThemeStatic(defaultFS, classicFS static.ServeFileSystem) gin.HandlerFu
 		server.ServeHTTP(c.Writer, c.Request)
 		c.Abort()
 	}
+}
+
+func serveIndexPage(c *gin.Context, indexPage []byte) {
+	nonce, err := generateCSPNonce()
+	if err != nil {
+		common.SysError("failed to generate CSP nonce: " + err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	body := bytes.ReplaceAll(indexPage, []byte(middleware.CSPNoncePlaceholder), []byte(nonce))
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	middleware.SetContentSecurityPolicy(c, nonce)
+	if c.Request.Method == http.MethodHead {
+		c.Header("Content-Length", strconv.Itoa(len(body)))
+		c.Status(http.StatusOK)
+		return
+	}
+	c.Data(http.StatusOK, "text/html; charset=utf-8", body)
+}
+
+func generateCSPNonce() (string, error) {
+	value := make([]byte, 18)
+	if _, err := rand.Read(value); err != nil {
+		return "", err
+	}
+	return base64.RawStdEncoding.EncodeToString(value), nil
+}
+
+func registerCrawlerRoutes(router *gin.Engine) {
+	router.Match([]string{http.MethodGet, http.MethodHead}, "/robots.txt", func(c *gin.Context) {
+		body := []byte("User-agent: *\nDisallow: /api/\nDisallow: /v1/\nDisallow: /console\nDisallow: /dashboard\n")
+		serveCrawlerContent(c, "text/plain; charset=utf-8", body)
+	})
+	router.Match([]string{http.MethodGet, http.MethodHead}, "/sitemap.xml", func(c *gin.Context) {
+		scheme := "http"
+		if c.Request.TLS != nil || strings.EqualFold(c.GetHeader("X-Forwarded-Proto"), "https") {
+			scheme = "https"
+		}
+		location := html.EscapeString(scheme + "://" + c.Request.Host + "/")
+		body := []byte("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+			"<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" +
+			"<url><loc>" + location + "</loc></url></urlset>\n")
+		serveCrawlerContent(c, "application/xml; charset=utf-8", body)
+	})
+}
+
+func serveCrawlerContent(c *gin.Context, contentType string, body []byte) {
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Length", strconv.Itoa(len(body)))
+	if c.Request.Method == http.MethodHead {
+		c.Status(http.StatusOK)
+		return
+	}
+	c.Data(http.StatusOK, contentType, body)
 }
 
 func selectThemeStatic(

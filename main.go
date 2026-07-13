@@ -184,6 +184,7 @@ func main() {
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
 	server.Use(middleware.Version())
+	server.Use(middleware.SecurityHeaders())
 	server.Use(middleware.I18n())
 	server.Use(middleware.IPBan())
 	middleware.SetUpLogger(server)
@@ -255,7 +256,9 @@ func InjectUmamiAnalytics() {
 		if umamiScriptURL == "" {
 			umamiScriptURL = "https://analytics.umami.is/script.js"
 		}
-		analyticsInjectBuilder.WriteString("<script defer src=\"")
+		analyticsInjectBuilder.WriteString("<script nonce=\"")
+		analyticsInjectBuilder.WriteString(middleware.CSPNoncePlaceholder)
+		analyticsInjectBuilder.WriteString("\" defer src=\"")
 		analyticsInjectBuilder.WriteString(umamiScriptURL)
 		analyticsInjectBuilder.WriteString("\" data-website-id=\"")
 		analyticsInjectBuilder.WriteString(umamiSiteID)
@@ -273,10 +276,14 @@ func InjectGoogleAnalytics() {
 	if os.Getenv("GOOGLE_ANALYTICS_ID") != "" {
 		gaID := os.Getenv("GOOGLE_ANALYTICS_ID")
 		// Google Analytics 4 (gtag.js)
-		analyticsInjectBuilder.WriteString("<script async src=\"https://www.googletagmanager.com/gtag/js?id=")
+		analyticsInjectBuilder.WriteString("<script nonce=\"")
+		analyticsInjectBuilder.WriteString(middleware.CSPNoncePlaceholder)
+		analyticsInjectBuilder.WriteString("\" async src=\"https://www.googletagmanager.com/gtag/js?id=")
 		analyticsInjectBuilder.WriteString(gaID)
 		analyticsInjectBuilder.WriteString("\"></script>")
-		analyticsInjectBuilder.WriteString("<script>")
+		analyticsInjectBuilder.WriteString("<script nonce=\"")
+		analyticsInjectBuilder.WriteString(middleware.CSPNoncePlaceholder)
+		analyticsInjectBuilder.WriteString("\">")
 		analyticsInjectBuilder.WriteString("window.dataLayer = window.dataLayer || [];")
 		analyticsInjectBuilder.WriteString("function gtag(){dataLayer.push(arguments);}")
 		analyticsInjectBuilder.WriteString("gtag('js', new Date());")
