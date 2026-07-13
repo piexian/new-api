@@ -82,9 +82,7 @@ export const useModelsData = () => {
 
   const hasActiveSearch = (filters = EMPTY_SEARCH_FILTERS) => {
     const normalized = normalizeSearchFilters(filters);
-    return (
-      normalized.searchKeyword !== '' || normalized.searchVendor !== ''
-    );
+    return normalized.searchKeyword !== '' || normalized.searchVendor !== '';
   };
 
   const applyListData = (data, fallbackPage) => {
@@ -179,11 +177,7 @@ export const useModelsData = () => {
     setLoading(false);
   };
 
-  const loadSearchModels = async (
-    searchFilters,
-    page = 1,
-    size = pageSize,
-  ) => {
+  const loadSearchModels = async (searchFilters, page = 1, size = pageSize) => {
     setLoading(true);
     try {
       const normalized = normalizeSearchFilters(searchFilters);

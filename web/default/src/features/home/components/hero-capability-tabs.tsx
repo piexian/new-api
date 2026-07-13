@@ -18,10 +18,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
+
 import { Button } from '@/components/ui/button'
 import { useStatus } from '@/hooks/use-status'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { cn } from '@/lib/utils'
 
 type AccentTone = 'emerald' | 'amber' | 'blue' | 'violet' | 'sky' | 'fuchsia'
 
@@ -70,7 +71,8 @@ const ACCENT: Record<
   blue: {
     activeText: 'text-blue-600 dark:text-blue-400',
     activeBorder: 'border-blue-500 dark:border-blue-400',
-    badge: 'bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400',
+    badge:
+      'bg-blue-500/10 text-blue-600 dark:bg-blue-400/10 dark:text-blue-400',
   },
   violet: {
     activeText: 'text-violet-600 dark:text-violet-400',
@@ -385,8 +387,12 @@ export function HeroCapabilityTabs() {
                   Request
                 </div>
                 <pre className='text-foreground/80 whitespace-pre-wrap'>
-                  <span className='text-teal-700 dark:text-emerald-400'>curl</span>{' '}
-                  <span className='text-amber-700 dark:text-amber-300'>-X POST</span>{' '}
+                  <span className='text-teal-700 dark:text-emerald-400'>
+                    curl
+                  </span>{' '}
+                  <span className='text-amber-700 dark:text-amber-300'>
+                    -X POST
+                  </span>{' '}
                   <span className='text-violet-700 dark:text-violet-300'>
                     &quot;{active.endpoint}&quot;
                   </span>
@@ -394,7 +400,9 @@ export function HeroCapabilityTabs() {
                   {active.headers.map((h) => (
                     <span key={h}>
                       {'  '}
-                      <span className='text-amber-700 dark:text-amber-300'>-H</span>{' '}
+                      <span className='text-amber-700 dark:text-amber-300'>
+                        -H
+                      </span>{' '}
                       <span className='text-violet-700 dark:text-violet-300'>
                         {h}
                       </span>
@@ -402,7 +410,9 @@ export function HeroCapabilityTabs() {
                     </span>
                   ))}
                   {'  '}
-                  <span className='text-amber-700 dark:text-amber-300'>-d</span>{' '}
+                  <span className='text-amber-700 dark:text-amber-300'>
+                    -d
+                  </span>{' '}
                   <span className='text-violet-700 dark:text-violet-300'>
                     &apos;{'{'}
                     {'\n'}

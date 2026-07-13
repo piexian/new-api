@@ -40,7 +40,12 @@ import {
   IconDelete,
   IconRefresh,
 } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess, getOAuthProviderIcon } from '../../helpers';
+import {
+  API,
+  showError,
+  showSuccess,
+  getOAuthProviderIcon,
+} from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
@@ -200,8 +205,10 @@ const ACCESS_POLICY_TEMPLATES = {
 };
 
 const ACCESS_DENIED_TEMPLATES = {
-  level_hint: '需要等级 {{required}}，你当前等级 {{current}}（字段：{{field}}）',
-  org_hint: '仅限指定组织或角色访问。组织={{current.org}}，角色={{current.roles}}',
+  level_hint:
+    '需要等级 {{required}}，你当前等级 {{current}}（字段：{{field}}）',
+  org_hint:
+    '仅限指定组织或角色访问。组织={{current.org}}，角色={{current.roles}}',
 };
 
 const CustomOAuthSetting = ({ serverAddress }) => {
@@ -234,7 +241,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
   const normalizeBaseUrl = (url) => (url || '').trim().replace(/\/+$/, '');
 
   const inferBaseUrlFromProvider = (provider) => {
-    const endpoint = provider?.authorization_endpoint || provider?.token_endpoint;
+    const endpoint =
+      provider?.authorization_endpoint || provider?.token_endpoint;
     if (!endpoint) return '';
     try {
       const url = new URL(endpoint);
@@ -330,7 +338,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       'token_endpoint',
       'user_info_endpoint',
     ];
-    
+
     if (!editingProvider) {
       requiredFields.push('client_secret');
     }
@@ -343,15 +351,25 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     }
 
     // Validate endpoint URLs must be full URLs
-    const endpointFields = ['authorization_endpoint', 'token_endpoint', 'user_info_endpoint'];
+    const endpointFields = [
+      'authorization_endpoint',
+      'token_endpoint',
+      'user_info_endpoint',
+    ];
     for (const field of endpointFields) {
       const value = currentValues[field];
-      if (value && !value.startsWith('http://') && !value.startsWith('https://')) {
+      if (
+        value &&
+        !value.startsWith('http://') &&
+        !value.startsWith('https://')
+      ) {
         // Check if user selected a preset but forgot to fill issuer URL
         if (selectedPreset && !baseUrl) {
           showError(t('请先填写 Issuer URL，以自动生成完整的端点 URL'));
         } else {
-          showError(t('端点 URL 必须是完整地址（以 http:// 或 https:// 开头）'));
+          showError(
+            t('端点 URL 必须是完整地址（以 http:// 或 https:// 开头）'),
+          );
         }
         return;
       }
@@ -366,7 +384,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
       if (editingProvider) {
         res = await API.put(
           `/api/custom-oauth-provider/${editingProvider.id}`,
-          payload
+          payload,
         );
       } else {
         res = await API.post('/api/custom-oauth-provider/', payload);
@@ -597,7 +615,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
         <Space>
           <Button
             icon={<IconEdit />}
-            size="small"
+            size='small'
             onClick={() => handleEdit(record)}
           >
             {t('编辑')}
@@ -606,7 +624,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             title={t('确定要删除此 OAuth 提供商吗？')}
             onConfirm={() => handleDelete(record.id)}
           >
-            <Button icon={<IconDelete />} size="small" type="danger">
+            <Button icon={<IconDelete />} size='small' type='danger'>
               {t('删除')}
             </Button>
           </Popconfirm>
@@ -623,11 +641,11 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     <Card>
       <Form.Section text={t('自定义 OAuth 提供商')}>
         <Banner
-          type="info"
+          type='info'
           description={
             <>
               {t(
-                '配置自定义 OAuth 提供商，支持 GitHub Enterprise、GitLab、Gitea、Nextcloud、Keycloak、ORY 等兼容 OAuth 2.0 协议的身份提供商'
+                '配置自定义 OAuth 提供商，支持 GitHub Enterprise、GitLab、Gitea、Nextcloud、Keycloak、ORY 等兼容 OAuth 2.0 协议的身份提供商',
               )}
               <br />
               {t('回调 URL 格式')}: {serverAddress || t('网站地址')}/oauth/
@@ -639,7 +657,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
 
         <Button
           icon={<IconPlus />}
-          theme="solid"
+          theme='solid'
           onClick={handleAdd}
           style={{ marginBottom: 16 }}
         >
@@ -650,13 +668,15 @@ const CustomOAuthSetting = ({ serverAddress }) => {
           columns={columns}
           dataSource={providers}
           loading={loading}
-          rowKey="id"
+          rowKey='id'
           pagination={false}
           empty={t('暂无自定义 OAuth 提供商')}
         />
 
         <Modal
-          title={editingProvider ? t('编辑 OAuth 提供商') : t('添加 OAuth 提供商')}
+          title={
+            editingProvider ? t('编辑 OAuth 提供商') : t('添加 OAuth 提供商')
+          }
           visible={modalVisible}
           onCancel={closeModal}
           width={860}
@@ -677,7 +697,9 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Switch
                   checked={!!formValues.enabled}
                   size='large'
-                  onChange={(checked) => mergeFormValues({ enabled: !!checked })}
+                  onChange={(checked) =>
+                    mergeFormValues({ enabled: !!checked })
+                  }
                 />
                 <Tag color={formValues.enabled ? 'green' : 'grey'}>
                   {formValues.enabled ? t('已启用') : t('已禁用')}
@@ -700,7 +722,10 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Text strong style={{ display: 'block', marginBottom: 8 }}>
               {t('Configuration')}
             </Text>
-            <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+            <Text
+              type='secondary'
+              style={{ display: 'block', marginBottom: 8 }}
+            >
               {t('先填写配置，再自动填充 OAuth 端点，能显著减少手工输入')}
             </Text>
             {discoveryInfo && (
@@ -715,22 +740,18 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     </div>
                     {discoveryAutoFilledLabels ? (
                       <div>
-                        {t('自动填充字段')}:
-                        {' '}
-                        {discoveryAutoFilledLabels}
+                        {t('自动填充字段')}: {discoveryAutoFilledLabels}
                       </div>
                     ) : null}
                     {discoveryInfo.scopesSupported?.length ? (
                       <div>
-                        {t('Discovery scopes')}:
-                        {' '}
+                        {t('Discovery scopes')}:{' '}
                         {discoveryInfo.scopesSupported.join(', ')}
                       </div>
                     ) : null}
                     {discoveryInfo.claimsSupported?.length ? (
                       <div>
-                        {t('Discovery claims')}:
-                        {' '}
+                        {t('Discovery claims')}:{' '}
                         {discoveryInfo.claimsSupported.join(', ')}
                       </div>
                     ) : null}
@@ -742,7 +763,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Row gutter={16}>
               <Col span={8}>
                 <Form.Select
-                  field="preset"
+                  field='preset'
                   label={t('预设模板')}
                   placeholder={t('选择预设模板（可选）')}
                   value={selectedPreset}
@@ -758,7 +779,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               </Col>
               <Col span={10}>
                 <Form.Input
-                  field="base_url"
+                  field='base_url'
                   label={t('发行者 URL（Issuer URL）')}
                   placeholder={t('例如：https://gitea.example.com')}
                   value={baseUrl}
@@ -772,13 +793,19 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     OAUTH_PRESETS[selectedPreset]?.needsBaseUrl === false
                       ? null
                       : selectedPreset
-                      ? t('填写后会自动拼接预设端点')
-                      : t('可选：用于自动生成端点或 Discovery URL')
+                        ? t('填写后会自动拼接预设端点')
+                        : t('可选：用于自动生成端点或 Discovery URL')
                   }
                 />
               </Col>
               <Col span={6}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    height: '100%',
+                  }}
+                >
                   <Button
                     icon={<IconRefresh />}
                     onClick={handleFetchFromDiscovery}
@@ -793,10 +820,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Row gutter={16}>
               <Col span={24}>
                 <Form.Input
-                  field="well_known"
+                  field='well_known'
                   label={t('发现文档地址（Discovery URL，可选）')}
-                  placeholder={t('例如：https://example.com/.well-known/openid-configuration')}
-                  extraText={t('可留空；留空时会尝试使用 Issuer URL + /.well-known/openid-configuration')}
+                  placeholder={t(
+                    '例如：https://example.com/.well-known/openid-configuration',
+                  )}
+                  extraText={t(
+                    '可留空；留空时会尝试使用 Issuer URL + /.well-known/openid-configuration',
+                  )}
                 />
               </Col>
             </Row>
@@ -804,7 +835,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
-                  field="name"
+                  field='name'
                   label={t('显示名称')}
                   placeholder={t('例如：GitHub Enterprise')}
                   rules={[{ required: true, message: t('请输入显示名称') }]}
@@ -812,8 +843,8 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               </Col>
               <Col span={12}>
                 <Form.Input
-                  field="slug"
-                  label="Slug"
+                  field='slug'
+                  label='Slug'
                   placeholder={t('例如：github-enterprise')}
                   extraText={t('URL 标识，只能包含小写字母、数字和连字符')}
                   rules={[{ required: true, message: t('请输入 Slug') }]}
@@ -826,7 +857,9 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Form.Input
                   field='icon'
                   label={t('图标')}
-                  placeholder={t('例如：github / si:google / https://example.com/logo.png / 🐱')}
+                  placeholder={t(
+                    '例如：github / si:google / https://example.com/logo.png / 🐱',
+                  )}
                   extraText={
                     <span>
                       {t(
@@ -859,17 +892,17 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
-                  field="client_id"
-                  label="Client ID"
+                  field='client_id'
+                  label='Client ID'
                   placeholder={t('OAuth Client ID')}
                   rules={[{ required: true, message: t('请输入 Client ID') }]}
                 />
               </Col>
               <Col span={12}>
                 <Form.Input
-                  field="client_secret"
-                  label="Client Secret"
-                  type="password"
+                  field='client_secret'
+                  label='Client Secret'
+                  type='password'
                   placeholder={
                     editingProvider
                       ? t('留空则保持原有密钥')
@@ -891,7 +924,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Row gutter={16}>
               <Col span={24}>
                 <Form.Input
-                  field="authorization_endpoint"
+                  field='authorization_endpoint'
                   label={t('Authorization Endpoint')}
                   placeholder={
                     selectedPreset && OAUTH_PRESETS[selectedPreset]
@@ -900,7 +933,10 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                       : 'https://example.com/oauth/authorize'
                   }
                   rules={[
-                    { required: true, message: t('请输入 Authorization Endpoint') },
+                    {
+                      required: true,
+                      message: t('请输入 Authorization Endpoint'),
+                    },
                   ]}
                 />
               </Col>
@@ -909,23 +945,27 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
-                  field="token_endpoint"
+                  field='token_endpoint'
                   label={t('Token Endpoint')}
                   placeholder={
                     selectedPreset && OAUTH_PRESETS[selectedPreset]
-                      ? t('自动生成：') + OAUTH_PRESETS[selectedPreset].token_endpoint
+                      ? t('自动生成：') +
+                        OAUTH_PRESETS[selectedPreset].token_endpoint
                       : 'https://example.com/oauth/token'
                   }
-                  rules={[{ required: true, message: t('请输入 Token Endpoint') }]}
+                  rules={[
+                    { required: true, message: t('请输入 Token Endpoint') },
+                  ]}
                 />
               </Col>
               <Col span={12}>
                 <Form.Input
-                  field="user_info_endpoint"
+                  field='user_info_endpoint'
                   label={t('User Info Endpoint')}
                   placeholder={
                     selectedPreset && OAUTH_PRESETS[selectedPreset]
-                      ? t('自动生成：') + OAUTH_PRESETS[selectedPreset].user_info_endpoint
+                      ? t('自动生成：') +
+                        OAUTH_PRESETS[selectedPreset].user_info_endpoint
                       : 'https://example.com/api/user'
                   }
                   rules={[
@@ -938,9 +978,9 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
-                  field="scopes"
+                  field='scopes'
                   label={t('Scopes（可选）')}
-                  placeholder="openid profile email"
+                  placeholder='openid profile email'
                   extraText={
                     discoveryInfo?.scopesSupported?.length
                       ? t('Discovery 建议 scopes：') +
@@ -954,14 +994,19 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Text strong style={{ display: 'block', margin: '16px 0 8px' }}>
               {t('字段映射')}
             </Text>
-            <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-              {t('配置如何从用户信息 API 响应中提取用户数据，支持 JSONPath 语法')}
+            <Text
+              type='secondary'
+              style={{ display: 'block', marginBottom: 8 }}
+            >
+              {t(
+                '配置如何从用户信息 API 响应中提取用户数据，支持 JSONPath 语法',
+              )}
             </Text>
 
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
-                  field="user_id_field"
+                  field='user_id_field'
                   label={t('用户 ID 字段（可选）')}
                   placeholder={t('例如：sub、id、data.user.id')}
                   extraText={t('用于唯一标识用户的字段路径')}
@@ -969,7 +1014,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               </Col>
               <Col span={12}>
                 <Form.Input
-                  field="username_field"
+                  field='username_field'
                   label={t('用户名字段（可选）')}
                   placeholder={t('例如：preferred_username、login')}
                 />
@@ -979,14 +1024,14 @@ const CustomOAuthSetting = ({ serverAddress }) => {
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input
-                  field="display_name_field"
+                  field='display_name_field'
                   label={t('显示名称字段（可选）')}
                   placeholder={t('例如：name、full_name')}
                 />
               </Col>
               <Col span={12}>
                 <Form.Input
-                  field="email_field"
+                  field='email_field'
                   label={t('邮箱字段（可选）')}
                   placeholder={t('例如：email')}
                 />
@@ -1006,7 +1051,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Select
-                      field="auth_style"
+                      field='auth_style'
                       label={t('认证方式')}
                       optionList={[
                         { value: 0, label: t('自动检测') },
@@ -1020,15 +1065,22 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                 <Text strong style={{ display: 'block', margin: '16px 0 8px' }}>
                   {t('准入策略')}
                 </Text>
-                <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                  {t('可选：基于用户信息 JSON 做组合条件准入，条件不满足时返回自定义提示')}
+                <Text
+                  type='secondary'
+                  style={{ display: 'block', marginBottom: 8 }}
+                >
+                  {t(
+                    '可选：基于用户信息 JSON 做组合条件准入，条件不满足时返回自定义提示',
+                  )}
                 </Text>
                 <Row gutter={16}>
                   <Col span={24}>
                     <Form.TextArea
                       field='access_policy'
                       value={formValues.access_policy || ''}
-                      onChange={(value) => mergeFormValues({ access_policy: value })}
+                      onChange={(value) =>
+                        mergeFormValues({ access_policy: value })
+                      }
                       label={t('准入策略 JSON（可选）')}
                       rows={6}
                       placeholder={`{
@@ -1038,14 +1090,26 @@ const CustomOAuthSetting = ({ serverAddress }) => {
     {"field": "active", "op": "eq", "value": true}
   ]
 }`}
-                      extraText={t('支持逻辑 and/or 与嵌套 groups；操作符支持 eq/ne/gt/gte/lt/lte/in/not_in/contains/exists')}
+                      extraText={t(
+                        '支持逻辑 and/or 与嵌套 groups；操作符支持 eq/ne/gt/gte/lt/lte/in/not_in/contains/exists',
+                      )}
                       showClear
                     />
                     <Space spacing={8} style={{ marginTop: 8 }}>
-                      <Button size='small' theme='light' onClick={() => applyAccessPolicyTemplate('level_active')}>
+                      <Button
+                        size='small'
+                        theme='light'
+                        onClick={() =>
+                          applyAccessPolicyTemplate('level_active')
+                        }
+                      >
                         {t('填充模板：等级+激活')}
                       </Button>
-                      <Button size='small' theme='light' onClick={() => applyAccessPolicyTemplate('org_or_role')}>
+                      <Button
+                        size='small'
+                        theme='light'
+                        onClick={() => applyAccessPolicyTemplate('org_or_role')}
+                      >
                         {t('填充模板：组织或角色')}
                       </Button>
                     </Space>
@@ -1056,17 +1120,31 @@ const CustomOAuthSetting = ({ serverAddress }) => {
                     <Form.Input
                       field='access_denied_message'
                       value={formValues.access_denied_message || ''}
-                      onChange={(value) => mergeFormValues({ access_denied_message: value })}
+                      onChange={(value) =>
+                        mergeFormValues({ access_denied_message: value })
+                      }
                       label={t('拒绝提示模板（可选）')}
-                      placeholder={t('例如：需要等级 {{required}}，你当前等级 {{current}}')}
-                      extraText={t('可用变量：{{provider}} {{field}} {{op}} {{required}} {{current}} 以及 {{current.path}}')}
+                      placeholder={t(
+                        '例如：需要等级 {{required}}，你当前等级 {{current}}',
+                      )}
+                      extraText={t(
+                        '可用变量：{{provider}} {{field}} {{op}} {{required}} {{current}} 以及 {{current.path}}',
+                      )}
                       showClear
                     />
                     <Space spacing={8} style={{ marginTop: 8 }}>
-                      <Button size='small' theme='light' onClick={() => applyDeniedTemplate('level_hint')}>
+                      <Button
+                        size='small'
+                        theme='light'
+                        onClick={() => applyDeniedTemplate('level_hint')}
+                      >
                         {t('填充模板：等级提示')}
                       </Button>
-                      <Button size='small' theme='light' onClick={() => applyDeniedTemplate('org_hint')}>
+                      <Button
+                        size='small'
+                        theme='light'
+                        onClick={() => applyDeniedTemplate('org_hint')}
+                      >
                         {t('填充模板：组织提示')}
                       </Button>
                     </Space>

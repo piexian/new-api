@@ -18,24 +18,35 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { cn } from '@/lib/utils'
-import {
-  formatLatency,
-  formatThroughput,
-} from '@/features/performance-metrics/lib/format'
 
 export type ModelPerfBadgeData = {
   avg_latency_ms: number
   success_rate: number
   avg_tps: number
+  recent_success_rates?: number[]
 }
 
 export interface ModelPerfBadgeProps extends React.HTMLAttributes<HTMLDivElement> {
   perf: ModelPerfBadgeData | undefined
 }
 
+function formatCompactNumber(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '—'
+  return value > 1 ? String(Math.round(value)) : value.toFixed(1)
+}
+
+function formatCompactLatency(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return '—'
+  if (ms >= 1_000) return `${formatCompactNumber(ms / 1_000)}s`
+  return `${formatCompactNumber(ms)}ms`
+}
+
 function formatCompactThroughput(tps: number): string {
-  return formatThroughput(tps).replace(' t/s', 'tps')
+  if (!Number.isFinite(tps) || tps <= 0) return '—'
+  if (tps >= 1_000) return `${formatCompactNumber(tps / 1_000)}Kt`
+  return `${formatCompactNumber(tps)}t`
 }
 
 function getStatusConfig(successRate: number) {
@@ -57,8 +68,7 @@ function getStatusConfig(successRate: number) {
   if (successRate < 99) {
     return {
       labelKey: 'Monitoring low',
-      className:
-        'bg-sky-500/10 text-sky-700 ring-sky-500/25 dark:text-sky-300',
+      className: 'bg-sky-500/10 text-sky-700 ring-sky-500/25 dark:text-sky-300',
     }
   }
 
@@ -104,7 +114,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
           {t('Latency short')}
         </div>
         <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
-          {avg_latency_ms > 0 ? formatLatency(avg_latency_ms) : '—'}
+          {formatCompactLatency(avg_latency_ms)}
         </div>
       </div>
       <div title={t('Throughput')} className='min-w-0'>

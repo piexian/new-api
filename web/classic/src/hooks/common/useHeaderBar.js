@@ -43,7 +43,9 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [logoLoaded, setLogoLoaded] = useState(false);
   const navigate = useNavigate();
-  const [currentLang, setCurrentLang] = useState(normalizeLanguage(i18n.language));
+  const [currentLang, setCurrentLang] = useState(
+    normalizeLanguage(i18n.language),
+  );
   const location = useLocation();
 
   const loading = statusState?.status === undefined;
@@ -240,7 +242,9 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const handleFrontendSwitch = useCallback(() => {
     switchFrontendTheme(
       'default',
-      t('即将切换到新版现代化前端，并跳转到对应页面。如果新版前端没有保留本地登录状态，请重新登录。'),
+      t(
+        '即将切换到新版现代化前端，并跳转到对应页面。如果新版前端没有保留本地登录状态，请重新登录。',
+      ),
     );
   }, [t]);
 

@@ -16,108 +16,62 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
-import { Link, useLocation } from '@tanstack/react-router'
-import { useTranslation } from 'react-i18next'
-import { ArrowLeft } from 'lucide-react'
-import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+
+import { Sidebar, SidebarContent, SidebarRail } from '@/components/ui/sidebar'
 import { useLayout } from '@/context/layout-provider'
-import { useSidebarConfig } from '@/hooks/use-sidebar-config'
-import { useSidebarData } from '@/hooks/use-sidebar-data'
-import { DASHBOARD_DEFAULT_SECTION } from '@/features/dashboard/section-registry'
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarRail,
-  SidebarSeparator,
-  useSidebar,
-} from '@/components/ui/sidebar'
-import {
-  getNavGroupsForPath,
-  isInWorkspace,
-  WORKSPACE_IDS,
-} from '../lib/workspace-registry'
+import { useSidebarView } from '@/hooks/use-sidebar-view'
+import { MOTION_TRANSITION, MOTION_VARIANTS } from '@/lib/motion'
+
 import { NavGroup } from './nav-group'
+import { SidebarViewHeader } from './sidebar-view-header'
 
 /**
- * Application sidebar component
- * Fetches corresponding navigation menu from workspace registry based on current path
- * Dynamically filters navigation items based on backend SidebarModulesAdmin configuration
+ * Application sidebar.
  *
- * Automatically matches workspace configuration for current path through workspace registry system
- * Adding new workspaces only requires registration in workspace-registry.ts
+ * Adopts the Vercel / Cloudflare "drill-in" pattern: the URL drives
+ * which sidebar *view* is rendered. Clicking a top-level entry like
+ * `System Settings` swaps the sidebar to a contextual workspace —
+ * with a `← Back to Dashboard` affordance — instead of stacking the
+ * sub-navigation inside the root tree.
+ *
+ * Architecture:
+ *   - View resolution + filtering: {@link useSidebarView}
+ *   - View registry: `layout/lib/sidebar-view-registry.ts`
+ *   - Per-view header: {@link SidebarViewHeader}
+ *
+ * Adding a new nested view only requires registering a {@link SidebarView}
+ * in the registry; this component requires no changes.
  */
 export function AppSidebar() {
-  const { t } = useTranslation()
   const { collapsible, variant } = useLayout()
-  const { pathname } = useLocation()
-  const userRole = useAuthStore((state) => state.auth.user?.role)
-  const sidebarData = useSidebarData()
-  const isSystemSettings = isInWorkspace(
-    pathname,
-    WORKSPACE_IDS.SYSTEM_SETTINGS
-  )
-
-  // Get navigation group configuration corresponding to current path from workspace registry
-  const allNavGroups = getNavGroupsForPath(pathname, t) || sidebarData.navGroups
-
-  // Filter sidebar navigation items based on backend configuration
-  const configFilteredNavGroups = useSidebarConfig(allNavGroups)
-
-  // Filter navigation groups based on user role
-  // Non-Admin users cannot see Admin navigation group
-  const currentNavGroups = useMemo(() => {
-    const isAdmin = userRole && userRole >= ROLE.ADMIN
-    return configFilteredNavGroups.filter((group) => {
-      if (group.id === 'admin') {
-        return isAdmin
-      }
-      return true
-    })
-  }, [configFilteredNavGroups, userRole])
+  const { key, view, navGroups } = useSidebarView()
+  const shouldReduce = useReducedMotion()
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
+      {view && <SidebarViewHeader view={view} />}
+
       <SidebarContent className='py-2'>
-        {isSystemSettings && <SystemSettingsBackItem />}
-        {currentNavGroups.map((props) => {
-          const key = props.id || props.title
-          return <NavGroup key={key} {...props} />
-        })}
+        <AnimatePresence mode='wait' initial={false}>
+          <motion.div
+            key={key}
+            initial={
+              shouldReduce ? false : MOTION_VARIANTS.sidebarSlide.initial
+            }
+            animate={MOTION_VARIANTS.sidebarSlide.animate}
+            exit={shouldReduce ? undefined : MOTION_VARIANTS.sidebarSlide.exit}
+            transition={MOTION_TRANSITION.fast}
+            className='flex flex-col'
+          >
+            {navGroups.map((props) => (
+              <NavGroup key={props.id || props.title} {...props} />
+            ))}
+          </motion.div>
+        </AnimatePresence>
       </SidebarContent>
+
       <SidebarRail />
     </Sidebar>
-  )
-}
-
-function SystemSettingsBackItem() {
-  const { t } = useTranslation()
-  const { setOpenMobile } = useSidebar()
-
-  return (
-    <>
-      <SidebarMenu className='px-2'>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            tooltip={t('Back')}
-            render={
-              <Link
-                to='/dashboard/$section'
-                params={{ section: DASHBOARD_DEFAULT_SECTION }}
-                onClick={() => setOpenMobile(false)}
-              />
-            }
-          >
-            <ArrowLeft />
-            <span>{t('Back')}</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-      <SidebarSeparator className='my-1' />
-    </>
   )
 }

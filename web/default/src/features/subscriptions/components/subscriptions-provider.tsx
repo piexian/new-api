@@ -16,10 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import useDialogState from '@/hooks/use-dialog'
+import React, { useState } from 'react'
+
 import { getTopupInfo } from '@/features/wallet/api'
+import useDialogState from '@/hooks/use-dialog'
+
 import { type PlanRecord, type SubscriptionsDialogType } from '../types'
 
 type SubscriptionsContextType = {

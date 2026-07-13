@@ -16,15 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
-import {
-  INTERFACE_LANGUAGE_OPTIONS,
-  normalizeInterfaceLanguage,
-} from '@/i18n/languages'
 import { Languages, Loader2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useAuthStore } from '@/stores/auth-store'
+
 import {
   Select,
   SelectContent,
@@ -34,6 +30,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { TitledCard } from '@/components/ui/titled-card'
+import {
+  INTERFACE_LANGUAGE_OPTIONS,
+  normalizeInterfaceLanguage,
+} from '@/i18n/languages'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { updateUserLanguage, updateUserLogLanguage } from '../api'
 import { parseUserSettings } from '../lib'
 import type { UserProfile } from '../types'
@@ -51,7 +53,7 @@ const LOG_LANGUAGE_OPTIONS = [
 
 function normalizeLogLanguage(value?: string | null) {
   if (!value) return 'follow'
-  const normalized = value.trim().replace(/_/g, '-').toLowerCase()
+  const normalized = value.trim().replaceAll('_', '-').toLowerCase()
   if (normalized.startsWith('zh')) return 'zh'
   if (normalized.startsWith('en')) return 'en'
   return 'follow'
@@ -77,8 +79,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
   )
 
   const [currentLanguage, setCurrentLanguage] = useState(savedLanguage)
-  const [currentLogLanguage, setCurrentLogLanguage] =
-    useState(savedLogLanguage)
+  const [currentLogLanguage, setCurrentLogLanguage] = useState(savedLogLanguage)
 
   useEffect(() => {
     setCurrentLanguage(savedLanguage)
@@ -123,7 +124,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
 
       props.onProfileUpdate()
       toast.success(t('Language preference saved'))
-    } catch (_error) {
+    } catch {
       setCurrentLanguage(previousLanguage)
       await i18n.changeLanguage(previousLanguage)
       toast.error(t('Failed to update settings'))
@@ -151,7 +152,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
       updateAuthSetting({ log_language: value })
       props.onProfileUpdate()
       toast.success(t('Log language preference saved'))
-    } catch (_error) {
+    } catch {
       setCurrentLogLanguage(previousLogLanguage)
       toast.error(t('Failed to update settings'))
     } finally {
@@ -164,6 +165,8 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
       title={t('Language Preferences')}
       description={t('Set the language used across the interface')}
       icon={<Languages className='h-4 w-4' />}
+      iconTone='chart-4'
+      disableHoverEffect
     >
       <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
         <div className='space-y-1'>
@@ -176,12 +179,10 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
         </div>
         <div className='flex items-center gap-2 sm:min-w-48'>
           <Select
-            items={[
-              ...INTERFACE_LANGUAGE_OPTIONS.map((language) => ({
-                value: language.code,
-                label: language.label,
-              })),
-            ]}
+            items={INTERFACE_LANGUAGE_OPTIONS.map((language) => ({
+              value: language.code,
+              label: language.label,
+            }))}
             value={currentLanguage}
             onValueChange={handleLanguageChange}
             disabled={saving}

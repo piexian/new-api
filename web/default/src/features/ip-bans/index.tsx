@@ -17,7 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
+
 import { SectionPageLayout } from '@/components/layout'
+
 import { IPBansDialogs } from './components/ip-bans-dialogs'
 import { IPBansPrimaryButtons } from './components/ip-bans-primary-buttons'
 import { IPBansProvider } from './components/ip-bans-provider'
@@ -30,9 +32,6 @@ export function IPBans() {
     <IPBansProvider>
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('IP Bans')}</SectionPageLayout.Title>
-        <SectionPageLayout.Description>
-          {t('Block abusive IP addresses and CIDR ranges.')}
-        </SectionPageLayout.Description>
         <SectionPageLayout.Actions>
           <IPBansPrimaryButtons />
         </SectionPageLayout.Actions>

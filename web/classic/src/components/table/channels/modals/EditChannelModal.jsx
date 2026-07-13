@@ -65,7 +65,6 @@ import {
 import ModelSelectModal from './ModelSelectModal';
 import SingleModelSelectModal from './SingleModelSelectModal';
 import OllamaModelModal from './OllamaModelModal';
-import CodexOAuthModal from './CodexOAuthModal';
 import ParamOverrideEditorModal from './ParamOverrideEditorModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
@@ -409,7 +408,6 @@ const EditChannelModal = (props) => {
   }, [inputs.param_override, t]);
   const [isIonetChannel, setIsIonetChannel] = useState(false);
   const [ionetMetadata, setIonetMetadata] = useState(null);
-  const [codexOAuthModalVisible, setCodexOAuthModalVisible] = useState(false);
   const [codexCredentialRefreshing, setCodexCredentialRefreshing] =
     useState(false);
   const [paramOverrideEditorVisible, setParamOverrideEditorVisible] =
@@ -1335,11 +1333,6 @@ const EditChannelModal = (props) => {
     }
   };
 
-  const handleCodexOAuthGenerated = (key) => {
-    handleInputChange('key', key);
-    formatJsonField('key');
-  };
-
   const handleRefreshCodexCredential = async () => {
     if (!isEdit) return;
 
@@ -1909,7 +1902,7 @@ const EditChannelModal = (props) => {
     ) {
       settings.allow_service_tier = localInputs.allow_service_tier === true;
       // 仅 OpenAI 渠道需要 store / safety_identifier / include_obfuscation
-      if (localInputs.type === 1) {
+      if (localInputs.type === 1 || localInputs.type === 57) {
         settings.disable_store = localInputs.disable_store === true;
         settings.allow_safety_identifier =
           localInputs.allow_safety_identifier === true;

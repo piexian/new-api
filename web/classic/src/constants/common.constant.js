@@ -26,8 +26,7 @@ export const LOGIN_FEATURE_UPDATE_PROMPT_KEY =
   'login_feature_update_prompt_once';
 export const FEATURE_UPDATE_PROMPT_CHECKED_KEY =
   'feature_update_frontend_v2_checked';
-export const FEATURE_UPDATE_FRONTEND_V2_DISMISSED =
-  'frontend_v2_dismissed';
+export const FEATURE_UPDATE_FRONTEND_V2_DISMISSED = 'frontend_v2_dismissed';
 
 export const API_ENDPOINTS = [
   '/v1/chat/completions',

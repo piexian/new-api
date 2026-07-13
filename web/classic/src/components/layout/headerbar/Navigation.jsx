@@ -61,7 +61,11 @@ const Navigation = ({
       if (link.itemKey === 'pricing' && pricingRequireAuth && !userState.user) {
         targetPath = '/login';
       }
-      if (link.itemKey === 'rankings' && rankingsRequireAuth && !userState.user) {
+      if (
+        link.itemKey === 'rankings' &&
+        rankingsRequireAuth &&
+        !userState.user
+      ) {
         targetPath = '/login';
       }
 

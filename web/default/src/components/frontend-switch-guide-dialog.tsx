@@ -1,10 +1,24 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  FRONTEND_RETURN_TIP_DISMISSED_KEY,
-  FRONTEND_RETURN_TIP_PENDING_KEY,
-} from '@/lib/constants'
-import { switchToClassicFrontend } from '@/lib/frontend-theme'
+
 import {
   AlertDialog,
   AlertDialogContent,
@@ -15,6 +29,11 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  FRONTEND_RETURN_TIP_DISMISSED_KEY,
+  FRONTEND_RETURN_TIP_PENDING_KEY,
+} from '@/lib/constants'
+import { switchToClassicFrontend } from '@/lib/frontend-theme'
 
 function clearPendingTip() {
   try {
@@ -39,9 +58,7 @@ export function FrontendSwitchGuideDialog() {
 
   useEffect(() => {
     try {
-      if (
-        window.localStorage.getItem(FRONTEND_RETURN_TIP_DISMISSED_KEY)
-      ) {
+      if (window.localStorage.getItem(FRONTEND_RETURN_TIP_DISMISSED_KEY)) {
         clearPendingTip()
         return
       }
@@ -67,7 +84,12 @@ export function FrontendSwitchGuideDialog() {
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={(next) => { if (!next) handleClose() }}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) handleClose()
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
@@ -96,9 +118,7 @@ export function FrontendSwitchGuideDialog() {
           <Button variant='outline' onClick={handleSwitchToClassic}>
             {t('Switch to classic frontend')}
           </Button>
-          <Button onClick={handleClose}>
-            {t('Confirm')}
-          </Button>
+          <Button onClick={handleClose}>{t('Confirm')}</Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

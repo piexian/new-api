@@ -39,7 +39,7 @@ import {
   Minimax,
   Wenxin,
   Spark,
-  Midjourney,
+  Midjourney as MjProxyIcon,
   Hunyuan,
   Cohere,
   Cloudflare,
@@ -102,7 +102,6 @@ import {
   SiGitlab,
   SiGoogle,
   SiKeycloak,
-  SiLinkedin,
   SiNextcloud,
   SiNotion,
   SiOkta,
@@ -115,6 +114,7 @@ import {
   SiWechat,
   SiX,
 } from 'react-icons/si';
+import { FaLinkedin, FaSlack } from 'react-icons/fa';
 
 // 获取侧边栏Lucide图标组件
 export function getLucideIcon(key, selected = false) {
@@ -269,8 +269,8 @@ export const getModelCategories = (() => {
         filter: (model) => model.model_name.toLowerCase().includes('spark'),
       },
       midjourney: {
-        label: 'Midjourney',
-        icon: <Midjourney />,
+        label: 'MjProxy',
+        icon: <MjProxyIcon />,
         filter: (model) => model.model_name.toLowerCase().includes('mj_'),
       },
       tencent: {
@@ -352,9 +352,9 @@ export function getChannelIcon(channelType) {
     case 57: // Codex
     case 67: // Advanced Custom
       return <OpenAI size={iconSize} />;
-    case 2: // Midjourney Proxy
-    case 5: // Midjourney Proxy Plus
-      return <Midjourney size={iconSize} />;
+    case 2: // MjProxy
+    case 5: // MjProxyPlus
+      return <MjProxyIcon size={iconSize} />;
     case 36: // Suno API
       return <Suno size={iconSize} />;
     case 4: // Ollama
@@ -541,7 +541,7 @@ const oauthProviderIconMap = {
   google: SiGoogle,
   discord: SiDiscord,
   facebook: SiFacebook,
-  linkedin: SiLinkedin,
+  linkedin: FaLinkedin,
   x: SiX,
   twitter: SiX,
   slack: SiSlack,
@@ -1102,12 +1102,12 @@ export function getQuotaWithUnit(quota, digits = 6) {
   return (quota / quotaPerUnit).toFixed(digits);
 }
 
+// amount 为系统内部的美元值
 export function renderQuotaWithAmount(amount) {
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
-  if (quotaDisplayType === 'TOKENS') {
+  const { symbol, rate, type } = getCurrencyConfig();
+  if (type === 'TOKENS') {
     return renderNumber(renderUnitWithQuota(amount));
   }
-
   const numericAmount = Number(amount);
   const formattedAmount = Number.isFinite(numericAmount)
     ? numericAmount.toFixed(2)
@@ -1126,7 +1126,7 @@ export function renderQuotaWithAmount(amount) {
     } catch (e) {}
     return symbol + formattedAmount;
   }
-  return '$' + formattedAmount;
+  return symbol + (numericAmount * rate).toFixed(2);
 }
 
 /**

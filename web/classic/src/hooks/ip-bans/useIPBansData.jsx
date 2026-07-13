@@ -160,7 +160,10 @@ export const useIPBansData = () => {
   };
 
   const handleRow = (record) => {
-    if (record.expires_at > 0 && record.expires_at <= Math.floor(Date.now() / 1000)) {
+    if (
+      record.expires_at > 0 &&
+      record.expires_at <= Math.floor(Date.now() / 1000)
+    ) {
       return {
         style: {
           background: 'var(--semi-color-disabled-border)',

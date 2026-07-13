@@ -1,4 +1,23 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import type { TFunction } from 'i18next'
+
 import type { SubscriptionPlan, UserSubscription } from '../types'
 
 export function parseAllowedModels(value?: string): string[] {
@@ -23,17 +42,21 @@ export function getModelRestrictionMeta(
     const restrictGroup = String(plan?.model_restrict_group || '').trim()
     const upgradeGroup = String(plan?.upgrade_group || '').trim()
     const displayGroup = restrictGroup || upgradeGroup
+    let tooltip = t(
+      'When empty, the upgrade group is used first, otherwise the current user group is used.'
+    )
+    if (restrictGroup) {
+      tooltip = t('Only models in the selected restriction group are allowed.')
+    } else if (upgradeGroup) {
+      tooltip = t(
+        'When no restriction group is selected, the upgrade group is used.'
+      )
+    }
     return {
       label: displayGroup
         ? `${t('Model Restriction')}: ${t('Restrict by model group')} (${displayGroup})`
         : `${t('Model Restriction')}: ${t('Restrict by model group')}`,
-      tooltip: restrictGroup
-        ? t('Only models in the selected restriction group are allowed.')
-        : upgradeGroup
-          ? t('When no restriction group is selected, the upgrade group is used.')
-          : t(
-              'When empty, the upgrade group is used first, otherwise the current user group is used.'
-            ),
+      tooltip,
     }
   }
 

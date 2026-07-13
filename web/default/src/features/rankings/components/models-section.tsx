@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { BarChart3, Trophy } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -32,6 +33,7 @@ import {
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
+
 import { formatShare, formatTokens } from '../lib/format'
 import type { ModelHistorySeries, ModelRanking, RankingPeriod } from '../types'
 import { ModelLink, VendorLink } from './entity-links'
@@ -43,7 +45,6 @@ const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
   week: 'Weekly token usage by model across the past few weeks',
   month: 'Daily token usage by model across the past month',
   year: 'Weekly token usage by model across the past year',
-  all: 'Token usage by model since launch',
 }
 
 const TOOLTIP_MAX_ROWS = 10
@@ -62,6 +63,14 @@ type ModelsSectionProps = {
 export function ModelsSection(props: ModelsSectionProps) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
+  const chartTextColor =
+    resolvedTheme === 'dark'
+      ? 'rgba(255, 255, 255, 0.68)'
+      : 'rgba(15, 23, 42, 0.58)'
+  const chartGridColor =
+    resolvedTheme === 'dark'
+      ? 'rgba(255, 255, 255, 0.12)'
+      : 'rgba(15, 23, 42, 0.12)'
 
   // Order points so the largest model appears at the bottom of every stack.
   const orderedPoints = useMemo(() => {
@@ -98,7 +107,7 @@ export function ModelsSection(props: ModelsSectionProps) {
         {
           orient: 'bottom',
           label: {
-            style: { fill: 'currentColor', fontSize: 10 },
+            style: { fill: chartTextColor, fontSize: 10 },
             autoHide: true,
             autoLimit: true,
           },
@@ -108,9 +117,12 @@ export function ModelsSection(props: ModelsSectionProps) {
           orient: 'left',
           label: {
             formatMethod: (val: number | string) => formatTokens(Number(val)),
-            style: { fill: 'currentColor', fontSize: 10 },
+            style: { fill: chartTextColor, fontSize: 10 },
           },
-          grid: { visible: true, style: { lineDash: [3, 3] } },
+          grid: {
+            visible: true,
+            style: { lineDash: [3, 3], stroke: chartGridColor },
+          },
         },
       ],
       tooltip: {
@@ -165,7 +177,7 @@ export function ModelsSection(props: ModelsSectionProps) {
       },
       animationAppear: { duration: 500 },
     }
-  }, [orderedPoints, t])
+  }, [chartGridColor, chartTextColor, orderedPoints, t])
 
   return (
     <Card className='rounded-lg'>
@@ -291,9 +303,7 @@ function FeaturedModelRow(props: { row: ModelRanking }) {
           {props.row.model_name}
         </ModelLink>
         <p className='text-muted-foreground truncate text-xs'>
-          <VendorLink vendor={props.row.vendor}>
-            {props.row.vendor}
-          </VendorLink>
+          <VendorLink vendor={props.row.vendor}>{props.row.vendor}</VendorLink>
         </p>
       </div>
       <div className='shrink-0 text-right'>

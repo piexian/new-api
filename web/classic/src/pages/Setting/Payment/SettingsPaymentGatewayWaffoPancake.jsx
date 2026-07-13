@@ -136,10 +136,11 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
                 >
                   Waffo Pancake 控制台
                 </a>
-                获取，保存后系统会自动在该商户名下创建 Store + Product，无需手动配置；
-                环境（test / 生产）由你粘贴的 API 私钥本身决定。
-                请在 Pancake 控制台把下面两个回调地址分别注册到 Test Mode 和 Production Mode
-                两个 webhook 位置，分开走避免测试流量污染生产数据：
+                获取，保存后系统会自动在该商户名下创建 Store +
+                Product，无需手动配置； 环境（test / 生产）由你粘贴的 API
+                私钥本身决定。 请在 Pancake 控制台把下面两个回调地址分别注册到
+                Test Mode 和 Production Mode 两个 webhook
+                位置，分开走避免测试流量污染生产数据：
                 <br />
                 {t('Test 回调地址')}：
                 {props.options.ServerAddress
@@ -185,7 +186,9 @@ export default function SettingsPaymentGatewayWaffoPancake(props) {
                 field='WaffoPancakePrivateKey'
                 label={t('API 私钥')}
                 placeholder={t('填写后覆盖当前私钥，留空表示保持当前不变')}
-                extraText={t('⚠ 测试 / 生产环境由你粘进来的 API 私钥本身决定——集成阶段用 Test Key，正式上线时再换成 Production Key')}
+                extraText={t(
+                  '⚠ 测试 / 生产环境由你粘进来的 API 私钥本身决定——集成阶段用 Test Key，正式上线时再换成 Production Key',
+                )}
                 type='password'
                 autosize={{ minRows: 4, maxRows: 8 }}
               />

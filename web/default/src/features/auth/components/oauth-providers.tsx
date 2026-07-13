@@ -19,15 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SiQq, SiSteam } from 'react-icons/si'
+
 import {
   IconDiscord,
   IconGithub,
   IconLinuxDo,
   IconWeChat,
 } from '@/assets/brand-icons'
-import { cn } from '@/lib/utils'
-import { handleSteamOAuth } from '@/lib/oauth'
 import { Button } from '@/components/ui/button'
+import { handleSteamOAuth } from '@/lib/oauth'
+import { cn } from '@/lib/utils'
+
 import { useOAuthLogin } from '../hooks/use-oauth-login'
 import type { SystemStatus } from '../types'
 

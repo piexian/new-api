@@ -85,10 +85,7 @@ const ModelPerfBadge = ({ perf, t, className = '' }) => {
           {formatCompactThroughput(perf.avg_tps)}
         </Text>
       </div>
-      <div
-        title={`${t('成功率')}: ${successRateText}`}
-        className='min-w-0'
-      >
+      <div title={`${t('成功率')}: ${successRateText}`} className='min-w-0'>
         <div className='text-[10px] leading-4 text-gray-400'>{t('状态')}</div>
         <div className='flex h-4 items-center justify-end'>
           <span

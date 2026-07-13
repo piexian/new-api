@@ -13,6 +13,9 @@ var (
 	ErrUserEmptyCredentials = errors.New("empty credentials")
 	ErrUserDisabled         = errors.New("user disabled")
 	ErrUserNotFound         = errors.New("user not found")
+	ErrEmailAlreadyTaken    = errors.New("email already taken")
+	ErrEmailNotFound        = errors.New("email not found")
+	ErrEmailAmbiguous       = errors.New("email matches multiple users")
 )
 
 // Token auth errors

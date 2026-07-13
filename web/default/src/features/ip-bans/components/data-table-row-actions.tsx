@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type Row } from '@tanstack/react-table'
+import type { Row } from '@tanstack/react-table'
 import { Edit, MoreHorizontal, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -28,6 +29,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+
 import { ipBanSchema } from '../types'
 import { useIPBans } from './ip-bans-provider'
 

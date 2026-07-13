@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -72,7 +71,7 @@ func CreateCodexOAuthAuthorizationFlow() (*CodexOAuthAuthorizationFlow, error) {
 	if err != nil {
 		return nil, err
 	}
-	u, err := buildCodexAuthorizeURL(state, challenge)
+	authorizeURL, err := buildCodexAuthorizeURL(state, challenge)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +79,7 @@ func CreateCodexOAuthAuthorizationFlow() (*CodexOAuthAuthorizationFlow, error) {
 		State:        state,
 		Verifier:     verifier,
 		Challenge:    challenge,
-		AuthorizeURL: u,
+		AuthorizeURL: authorizeURL,
 	}, nil
 }
 
@@ -147,45 +146,45 @@ func exchangeCodexAuthorizationCode(
 	verifier string,
 	redirectURI string,
 ) (*CodexOAuthTokenResult, error) {
-	c := strings.TrimSpace(code)
-	v := strings.TrimSpace(verifier)
-	if c == "" {
+	code = strings.TrimSpace(code)
+	verifier = strings.TrimSpace(verifier)
+	if code == "" {
 		return nil, errors.New("empty authorization code")
 	}
-	if v == "" {
+	if verifier == "" {
 		return nil, errors.New("empty code_verifier")
 	}
 
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("client_id", clientID)
-	form.Set("code", c)
-	form.Set("code_verifier", v)
+	form.Set("code", code)
+	form.Set("code_verifier", verifier)
 	form.Set("redirect_uri", redirectURI)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Set("Accept", "application/json")
 
-	resp, err := client.Do(req)
+	response, err := client.Do(request)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer response.Body.Close()
 
 	var payload struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
 		ExpiresIn    int    `json:"expires_in"`
 	}
-	if err := common.DecodeJson(resp.Body, &payload); err != nil {
+	if err := common.DecodeJson(response.Body, &payload); err != nil {
 		return nil, err
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("codex oauth code exchange failed: status=%d", resp.StatusCode)
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("codex oauth code exchange failed: status=%d", response.StatusCode)
 	}
 	if strings.TrimSpace(payload.AccessToken) == "" || strings.TrimSpace(payload.RefreshToken) == "" || payload.ExpiresIn <= 0 {
 		return nil, errors.New("codex oauth token response missing fields")
@@ -211,44 +210,44 @@ func getCodexOAuthHTTPClient(proxyURL string) (*http.Client, error) {
 }
 
 func buildCodexAuthorizeURL(state string, challenge string) (string, error) {
-	u, err := url.Parse(codexOAuthAuthorizeURL)
+	authorizeURL, err := url.Parse(codexOAuthAuthorizeURL)
 	if err != nil {
 		return "", err
 	}
-	q := u.Query()
-	q.Set("response_type", "code")
-	q.Set("client_id", codexOAuthClientID)
-	q.Set("redirect_uri", codexOAuthRedirectURI)
-	q.Set("scope", codexOAuthScope)
-	q.Set("code_challenge", challenge)
-	q.Set("code_challenge_method", "S256")
-	q.Set("state", state)
-	q.Set("id_token_add_organizations", "true")
-	q.Set("codex_cli_simplified_flow", "true")
-	q.Set("originator", "codex_cli_rs")
-	u.RawQuery = q.Encode()
-	return u.String(), nil
+	query := authorizeURL.Query()
+	query.Set("response_type", "code")
+	query.Set("client_id", codexOAuthClientID)
+	query.Set("redirect_uri", codexOAuthRedirectURI)
+	query.Set("scope", codexOAuthScope)
+	query.Set("code_challenge", challenge)
+	query.Set("code_challenge_method", "S256")
+	query.Set("state", state)
+	query.Set("id_token_add_organizations", "true")
+	query.Set("codex_cli_simplified_flow", "true")
+	query.Set("originator", "codex_cli_rs")
+	authorizeURL.RawQuery = query.Encode()
+	return authorizeURL.String(), nil
 }
 
-func createStateHex(nBytes int) (string, error) {
-	if nBytes <= 0 {
+func createStateHex(byteCount int) (string, error) {
+	if byteCount <= 0 {
 		return "", errors.New("invalid state bytes length")
 	}
-	b := make([]byte, nBytes)
-	if _, err := rand.Read(b); err != nil {
+	buffer := make([]byte, byteCount)
+	if _, err := rand.Read(buffer); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%x", b), nil
+	return fmt.Sprintf("%x", buffer), nil
 }
 
 func generatePKCEPair() (verifier string, challenge string, err error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
+	buffer := make([]byte, 32)
+	if _, err := rand.Read(buffer); err != nil {
 		return "", "", err
 	}
-	verifier = base64.RawURLEncoding.EncodeToString(b)
-	sum := sha256.Sum256([]byte(verifier))
-	challenge = base64.RawURLEncoding.EncodeToString(sum[:])
+	verifier = base64.RawURLEncoding.EncodeToString(buffer)
+	hash := sha256.Sum256([]byte(verifier))
+	challenge = base64.RawURLEncoding.EncodeToString(hash[:])
 	return verifier, challenge, nil
 }
 
@@ -310,7 +309,7 @@ func decodeJWTClaims(token string) (map[string]any, bool) {
 		return nil, false
 	}
 	var claims map[string]any
-	if err := json.Unmarshal(payloadRaw, &claims); err != nil {
+	if err := common.Unmarshal(payloadRaw, &claims); err != nil {
 		return nil, false
 	}
 	return claims, true

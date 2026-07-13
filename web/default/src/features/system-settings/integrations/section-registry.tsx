@@ -1,5 +1,28 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { EmailSettingsSection } from './email-settings-section'
+import { IoNetDeploymentSettingsSection } from './ionet-deployment-settings-section'
+import { MonitoringSettingsSection } from './monitoring-settings-section'
+import { PaymentSettingsSection } from './payment-settings-section'
+import { WorkerSettingsSection } from './worker-settings-section'
 
 // Integration settings type with fields needed by the integrations/settings page
 export type IntegrationSettings = Pick<
@@ -10,17 +33,17 @@ export type IntegrationSettings = Pick<
   | 'SMTPFrom'
   | 'SMTPToken'
   | 'SMTPSSLEnabled'
+  | 'SMTPStartTLSEnabled'
+  | 'SMTPInsecureSkipVerify'
   | 'SMTPForceAuthLogin'
   | 'WorkerUrl'
   | 'WorkerValidKey'
   | 'WorkerAllowHttpImageRequestEnabled'
-  | 'ChannelDisableThreshold'
   | 'QuotaRemindThreshold'
-  | 'AutomaticDisableChannelEnabled'
-  | 'AutomaticEnableChannelEnabled'
-  | 'AutomaticDisableKeywords'
-  | 'AutomaticDisableStatusCodes'
-  | 'AutomaticRetryStatusCodes'
+  | 'perf_metrics_setting.enabled'
+  | 'perf_metrics_setting.flush_interval'
+  | 'perf_metrics_setting.bucket_time'
+  | 'perf_metrics_setting.retention_days'
   | 'EmailProvider'
   | 'CFEmailAccountID'
   | 'CFEmailAPIToken'
@@ -81,14 +104,7 @@ export type IntegrationSettings = Pick<
   WaffoPancakeMinTopUp: number
   'model_deployment.ionet.api_key': string
   'model_deployment.ionet.enabled': boolean
-  'monitor_setting.auto_test_channel_enabled': boolean
-  'monitor_setting.auto_test_channel_minutes': number
 }
-import { EmailSettingsSection } from './email-settings-section'
-import { IoNetDeploymentSettingsSection } from './ionet-deployment-settings-section'
-import { MonitoringSettingsSection } from './monitoring-settings-section'
-import { PaymentSettingsSection } from './payment-settings-section'
-import { WorkerSettingsSection } from './worker-settings-section'
 
 const INTEGRATIONS_SECTIONS = [
   {
@@ -174,6 +190,8 @@ const INTEGRATIONS_SECTIONS = [
           SMTPFrom: settings.SMTPFrom,
           SMTPToken: settings.SMTPToken,
           SMTPSSLEnabled: settings.SMTPSSLEnabled,
+          SMTPStartTLSEnabled: settings.SMTPStartTLSEnabled,
+          SMTPInsecureSkipVerify: settings.SMTPInsecureSkipVerify,
           SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
           CFEmailAccountID: settings.CFEmailAccountID,
           CFEmailAPIToken: settings.CFEmailAPIToken,
@@ -220,18 +238,15 @@ const INTEGRATIONS_SECTIONS = [
     build: (settings: IntegrationSettings) => (
       <MonitoringSettingsSection
         defaultValues={{
-          ChannelDisableThreshold: settings.ChannelDisableThreshold,
           QuotaRemindThreshold: settings.QuotaRemindThreshold,
-          AutomaticDisableChannelEnabled:
-            settings.AutomaticDisableChannelEnabled,
-          AutomaticEnableChannelEnabled: settings.AutomaticEnableChannelEnabled,
-          AutomaticDisableKeywords: settings.AutomaticDisableKeywords,
-          AutomaticDisableStatusCodes: settings.AutomaticDisableStatusCodes,
-          AutomaticRetryStatusCodes: settings.AutomaticRetryStatusCodes,
-          'monitor_setting.auto_test_channel_enabled':
-            settings['monitor_setting.auto_test_channel_enabled'],
-          'monitor_setting.auto_test_channel_minutes':
-            settings['monitor_setting.auto_test_channel_minutes'],
+          'perf_metrics_setting.enabled':
+            settings['perf_metrics_setting.enabled'],
+          'perf_metrics_setting.flush_interval':
+            settings['perf_metrics_setting.flush_interval'],
+          'perf_metrics_setting.bucket_time':
+            settings['perf_metrics_setting.bucket_time'],
+          'perf_metrics_setting.retention_days':
+            settings['perf_metrics_setting.retention_days'],
         }}
       />
     ),
@@ -256,3 +271,4 @@ export const getIntegrationsSectionNavItems =
   integrationsRegistry.getSectionNavItems
 export const getIntegrationsSectionContent =
   integrationsRegistry.getSectionContent
+export const getIntegrationsSectionMeta = integrationsRegistry.getSectionMeta

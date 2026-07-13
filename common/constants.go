@@ -90,8 +90,10 @@ var (
 // Any options with "Secret", "Token" in its key won't be return by GetOptions
 
 var (
-	SessionSecret = uuid.New().String()
-	CryptoSecret  = uuid.New().String()
+	SessionSecret            = uuid.New().String()
+	CryptoSecret             = uuid.New().String()
+	SessionCookieSecure      = false
+	SessionCookieTrustedURLs []string
 )
 
 var (
@@ -219,13 +221,15 @@ var (
 )
 
 var (
-	SMTPServer         = ""
-	SMTPPort           = 587
-	SMTPSSLEnabled     = false
-	SMTPForceAuthLogin = false
-	SMTPAccount        = ""
-	SMTPFrom           = ""
-	SMTPToken          = ""
+	SMTPServer             = ""
+	SMTPPort               = 587
+	SMTPSSLEnabled         = false
+	SMTPStartTLSEnabled    = false
+	SMTPInsecureSkipVerify = false
+	SMTPForceAuthLogin     = false
+	SMTPAccount            = ""
+	SMTPFrom               = ""
+	SMTPToken              = ""
 )
 
 var (
@@ -282,9 +286,19 @@ var RetryTimes = 0
 // var RootUserEmail = ""
 var IsMasterNode bool
 
-// NodeName 节点名称，从 NODE_NAME 环境变量读取；
-// 用于审计日志中标识节点身份，在容器/K8s 部署时比自动探测到的容器内网 IP 更具可读性。
+const (
+	NodeNameSourceManual   = "manual"
+	NodeNameSourceHostname = "hostname"
+)
+
+// NodeName 节点名称，优先从 NODE_NAME 环境变量读取，未配置时回退主机名。
+// 用于审计日志和后台任务中标识节点身份；多实例部署时建议显式配置稳定 NODE_NAME。
 var NodeName = ""
+
+// NodeNameSource 记录节点名称来源，便于实例管理识别手动配置与自动回退。
+var NodeNameSource = NodeNameSourceHostname
+
+var NodeNameManuallyConfigured bool
 
 var (
 	requestInterval int
@@ -301,6 +315,7 @@ var (
 var RelayTimeout int // unit is second
 
 var (
+	RelayIdleConnTimeout     int // unit is second
 	RelayMaxIdleConns        int
 	RelayMaxIdleConnsPerHost int
 )

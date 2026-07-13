@@ -16,13 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowDown, ArrowUp, Edit, Plus, Save, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import * as z from 'zod'
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -61,6 +62,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -316,8 +318,7 @@ export function FriendLinksSection({ enabled, data }: FriendLinksSectionProps) {
   const handleSaveAll = async () => {
     try {
       // 保留 id，便于编辑回填与稳定排序
-      const payload = list
-        .slice()
+      const payload = [...list]
         .sort((a, b) => a.order - b.order)
         .map(({ id, ...rest }) => ({ id, ...rest }))
       const result = await updateOption.mutateAsync({
@@ -347,10 +348,7 @@ export function FriendLinksSection({ enabled, data }: FriendLinksSectionProps) {
   }
 
   return (
-    <SettingsSection
-      title={t('Friend Links')}
-      description={t('Configure floating ball friend links')}
-    >
+    <SettingsSection title={t('Friend Links')}>
       <div className='space-y-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex items-center gap-2'>

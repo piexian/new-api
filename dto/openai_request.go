@@ -213,12 +213,22 @@ func (r *GeneralOpenAIRequest) ToMap() map[string]any {
 	return result
 }
 
+func IsOpenAIReasoningOModel(modelName string) bool {
+	return strings.HasPrefix(modelName, "o1") ||
+		strings.HasPrefix(modelName, "o3") ||
+		strings.HasPrefix(modelName, "o4")
+}
+
+func IsOpenAIGPT5Model(modelName string) bool {
+	return strings.HasPrefix(modelName, "gpt-5")
+}
+
 func (r *GeneralOpenAIRequest) GetSystemRoleName() string {
-	if strings.HasPrefix(r.Model, "o") {
+	if IsOpenAIReasoningOModel(r.Model) {
 		if !strings.HasPrefix(r.Model, "o1-mini") && !strings.HasPrefix(r.Model, "o1-preview") {
 			return "developer"
 		}
-	} else if strings.HasPrefix(r.Model, "gpt-5") {
+	} else if IsOpenAIGPT5Model(r.Model) {
 		return "developer"
 	}
 	return "system"
@@ -840,6 +850,7 @@ type OpenAIResponsesRequest struct {
 	MaxOutputTokens    *uint           `json:"max_output_tokens,omitempty"`
 	TopLogProbs        *int            `json:"top_logprobs,omitempty"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
+	Moderation         json.RawMessage `json:"moderation,omitempty"`
 	ParallelToolCalls  json.RawMessage `json:"parallel_tool_calls,omitempty"`
 	PreviousResponseID string          `json:"previous_response_id,omitempty"`
 	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
@@ -850,6 +861,7 @@ type OpenAIResponsesRequest struct {
 	// This field is allowed by default and can be disabled via channel setting disable_store.
 	Store                json.RawMessage `json:"store,omitempty"`
 	PromptCacheKey       json.RawMessage `json:"prompt_cache_key,omitempty"`
+	PromptCacheOptions   json.RawMessage `json:"prompt_cache_options,omitempty"`
 	PromptCacheRetention json.RawMessage `json:"prompt_cache_retention,omitempty"`
 	// Volcengine Ark Responses extensions.
 	Caching  json.RawMessage `json:"caching,omitempty"`
@@ -970,8 +982,10 @@ func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
 }
 
 type Reasoning struct {
-	Effort  string `json:"effort,omitempty"`
-	Summary string `json:"summary,omitempty"`
+	Effort  string          `json:"effort,omitempty"`
+	Summary string          `json:"summary,omitempty"`
+	Mode    json.RawMessage `json:"mode,omitempty"`
+	Context json.RawMessage `json:"context,omitempty"`
 }
 
 type Input struct {

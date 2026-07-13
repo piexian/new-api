@@ -33,12 +33,12 @@ export const CHANNEL_OPTIONS = [
   {
     value: 2,
     color: 'light-blue',
-    label: 'Midjourney Proxy',
+    label: 'MjProxy',
   },
   {
     value: 5,
     color: 'blue',
-    label: 'Midjourney Proxy Plus',
+    label: 'MjProxyPlus',
   },
   {
     value: 36,
@@ -206,7 +206,7 @@ export const CHANNEL_OPTIONS = [
   {
     value: CHANNEL_TYPE_CODEX,
     color: 'blue',
-    label: 'Codex (OpenAI OAuth)',
+    label: 'ChatGPT Subscription (Codex)',
   },
   {
     value: 60,

@@ -67,15 +67,30 @@ export default function SettingsChats(props) {
   const modalFormRef = useRef();
 
   const BUILTIN_TEMPLATES = [
-    { name: 'Cherry Studio', url: 'cherrystudio://providers/api-keys?v=1&data={cherryConfig}' },
+    {
+      name: 'Cherry Studio',
+      url: 'cherrystudio://providers/api-keys?v=1&data={cherryConfig}',
+    },
     { name: 'AionUI', url: 'aionui://provider/add?v=1&data={aionuiConfig}' },
     { name: '流畅阅读', url: 'fluentread' },
     { name: 'CC Switch', url: 'ccswitch' },
-    { name: 'DeepChat', url: 'deepchat://provider/install?v=1&data={deepchatConfig}' },
-    { name: 'Lobe Chat', url: 'https://chat-preview.lobehub.com/?settings={"keyVaults":{"openai":{"apiKey":"{key}","baseURL":"{address}/v1"}}}' },
-    { name: 'AI as Workspace', url: 'https://aiaw.app/set-provider?provider={"type":"openai","settings":{"apiKey":"{key}","baseURL":"{address}/v1","compatibility":"strict"}}' },
+    {
+      name: 'DeepChat',
+      url: 'deepchat://provider/install?v=1&data={deepchatConfig}',
+    },
+    {
+      name: 'Lobe Chat',
+      url: 'https://chat-preview.lobehub.com/?settings={"keyVaults":{"openai":{"apiKey":"{key}","baseURL":"{address}/v1"}}}',
+    },
+    {
+      name: 'AI as Workspace',
+      url: 'https://aiaw.app/set-provider?provider={"type":"openai","settings":{"apiKey":"{key}","baseURL":"{address}/v1","compatibility":"strict"}}',
+    },
     { name: 'AMA 问天', url: 'ama://set-api-key?server={address}&key={key}' },
-    { name: 'OpenCat', url: 'opencat://team/join?domain={address}&token={key}' },
+    {
+      name: 'OpenCat',
+      url: 'opencat://team/join?domain={address}&token={key}',
+    },
   ];
 
   const addTemplates = (templates) => {
@@ -85,9 +100,8 @@ export default function SettingsChats(props) {
       showWarning(t('所选模板已存在'));
       return;
     }
-    let maxId = chatConfigs.length > 0
-      ? Math.max(...chatConfigs.map((c) => c.id))
-      : -1;
+    let maxId =
+      chatConfigs.length > 0 ? Math.max(...chatConfigs.map((c) => c.id)) : -1;
     const newItems = toAdd.map((tpl) => ({
       id: ++maxId,
       name: tpl.name,
@@ -151,8 +165,7 @@ export default function SettingsChats(props) {
       }
 
       const updateArray = compareObjects(inputs, inputsRow);
-      if (!updateArray.length)
-        return showWarning(t('你似乎并没有修改什么'));
+      if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
       const requestQueue = updateArray.map((item) => {
         let value = '';
         if (typeof inputs[item.key] === 'boolean') {
@@ -442,9 +455,7 @@ export default function SettingsChats(props) {
                     },
                   ]}
                 >
-                  <Button icon={<IconBolt />}>
-                    {t('填入模板')}
-                  </Button>
+                  <Button icon={<IconBolt />}>{t('填入模板')}</Button>
                 </Dropdown>
                 <Button
                   type='primary'

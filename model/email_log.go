@@ -33,8 +33,16 @@ type EmailLogQueryParams struct {
 	Provider       string
 }
 
+func emailLogDB() *gorm.DB {
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		return DB
+	}
+	return LOG_DB
+}
+
 func RecordEmailLog(provider, receiver, subject, status string, durationMs int64, err error) {
-	if LOG_DB == nil {
+	db := emailLogDB()
+	if db == nil {
 		return
 	}
 	log := &EmailLog{
@@ -49,13 +57,13 @@ func RecordEmailLog(provider, receiver, subject, status string, durationMs int64
 	if err != nil {
 		log.ErrorMessage = truncateString(err.Error(), 500)
 	}
-	if createErr := LOG_DB.Create(log).Error; createErr != nil {
+	if createErr := db.Create(log).Error; createErr != nil {
 		common.SysLog("failed to record email log: " + createErr.Error())
 	}
 }
 
 func GetAllEmailLogs(startIdx int, num int, params EmailLogQueryParams) (logs []*EmailLog, total int64, err error) {
-	tx := LOG_DB.Model(&EmailLog{})
+	tx := emailLogDB().Model(&EmailLog{})
 	tx = applyEmailLogFilters(tx, params)
 	if err = tx.Count(&total).Error; err != nil {
 		return nil, 0, err

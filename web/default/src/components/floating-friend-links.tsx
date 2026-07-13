@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useRef, useState } from 'react'
 import { ExternalLink, Link2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { useStatus } from '@/hooks/use-status'
+import { cn } from '@/lib/utils'
 
 const STORAGE_KEY = 'newapi.floating_ball_position'
 const DRAG_THRESHOLD = 6

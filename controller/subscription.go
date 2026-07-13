@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -21,6 +22,10 @@ type SubscriptionPlanDTO struct {
 
 type BillingPreferenceRequest struct {
 	BillingPreference string `json:"billing_preference"`
+}
+
+type SubscriptionBalancePayRequest struct {
+	PlanId int `json:"plan_id"`
 }
 
 func buildSubscriptionPlanDTOs(plans []model.SubscriptionPlan) ([]SubscriptionPlanDTO, error) {
@@ -99,12 +104,30 @@ func UpdateSubscriptionPreference(c *gin.Context) {
 	}
 	current := user.GetSetting()
 	current.BillingPreference = pref
-	user.SetSetting(current)
-	if err := user.Update(false); err != nil {
+	if err := model.UpdateUserSetting(user.Id, current); err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	common.ApiSuccess(c, gin.H{"billing_preference": pref})
+}
+
+func SubscriptionRequestBalancePay(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+
+	userId := c.GetInt("id")
+	var req SubscriptionBalancePayRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+
+	if err := model.PurchaseSubscriptionWithBalance(userId, req.PlanId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, nil)
 }
 
 // ---- Admin APIs ----
@@ -154,6 +177,12 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		req.Plan.Currency = "USD"
 	}
 	req.Plan.Currency = "USD"
+	if req.Plan.AllowBalancePay == nil {
+		req.Plan.AllowBalancePay = common.GetPointer(true)
+	}
+	if req.Plan.AllowWalletOverflow == nil {
+		req.Plan.AllowWalletOverflow = common.GetPointer(true)
+	}
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}
@@ -314,9 +343,16 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"weekly_quota_limit":         req.Plan.WeeklyQuotaLimit,
 			"monthly_quota_limit":        req.Plan.MonthlyQuotaLimit,
 			"upgrade_group":              req.Plan.UpgradeGroup,
+			"downgrade_group":            req.Plan.DowngradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"updated_at":                 common.GetTimestamp(),
+		}
+		if req.Plan.AllowBalancePay != nil {
+			updateMap["allow_balance_pay"] = *req.Plan.AllowBalancePay
+		}
+		if req.Plan.AllowWalletOverflow != nil {
+			updateMap["allow_wallet_overflow"] = *req.Plan.AllowWalletOverflow
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
 			return err
@@ -407,6 +443,28 @@ type AdminCreateUserSubscriptionRequest struct {
 	PurchaseMode string `json:"purchase_mode"`
 }
 
+type AdminResetSubscriptionRequest struct {
+	PlanId           int   `json:"plan_id"`
+	AdvanceResetTime *bool `json:"advance_reset_time"`
+}
+
+func resolveAdvanceResetTime(value *bool) bool {
+	if value == nil {
+		return true
+	}
+	return *value
+}
+
+func recordSubscriptionResetUserLogs(result *model.SubscriptionResetResult, adminInfo map[string]interface{}) {
+	if result == nil || result.ResetCount == 0 {
+		return
+	}
+	content := fmt.Sprintf("管理员重置订阅套餐 %s（ID: %d）额度", result.PlanTitle, result.PlanId)
+	for _, userId := range result.AffectedUserIds {
+		model.RecordLogWithAdminInfo(userId, model.LogTypeManage, content, adminInfo)
+	}
+}
+
 // AdminCreateUserSubscription creates a new user subscription from a plan (no payment).
 func AdminCreateUserSubscription(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
@@ -433,6 +491,69 @@ func AdminCreateUserSubscription(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, nil)
+}
+
+func AdminResetUserSubscriptionsByPlan(c *gin.Context) {
+	userId, _ := strconv.Atoi(c.Param("id"))
+	if userId <= 0 {
+		common.ApiErrorMsg(c, "无效的用户ID")
+		return
+	}
+	var req AdminResetSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if req.PlanId <= 0 {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	advanceResetTime := resolveAdvanceResetTime(req.AdvanceResetTime)
+	result, err := model.AdminResetUserSubscriptionsByPlan(userId, req.PlanId, advanceResetTime)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordSubscriptionResetUserLogs(result, auditOperatorInfo(c))
+	recordManageAuditFor(c, userId, "subscription.user_plan_reset", map[string]interface{}{
+		"target_user_id":     userId,
+		"plan_id":            result.PlanId,
+		"plan_title":         result.PlanTitle,
+		"reset_count":        result.ResetCount,
+		"user_count":         result.UserCount,
+		"advance_reset_time": result.AdvanceResetTime,
+	})
+	common.ApiSuccess(c, result)
+}
+
+func AdminResetPlanSubscriptions(c *gin.Context) {
+	planId, _ := strconv.Atoi(c.Param("id"))
+	if planId <= 0 {
+		common.ApiErrorMsg(c, "无效的ID")
+		return
+	}
+	var req AdminResetSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	advanceResetTime := resolveAdvanceResetTime(req.AdvanceResetTime)
+	result, err := model.AdminResetPlanSubscriptions(planId, advanceResetTime)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordSubscriptionResetUserLogs(result, auditOperatorInfo(c))
+	common.SysLog(fmt.Sprintf("admin reset subscription plan %d quota: reset_count=%d user_count=%d advance_reset_time=%t",
+		result.PlanId, result.ResetCount, result.UserCount, result.AdvanceResetTime))
+	recordManageAudit(c, "subscription.plan_reset", map[string]interface{}{
+		"plan_id":            result.PlanId,
+		"plan_title":         result.PlanTitle,
+		"reset_count":        result.ResetCount,
+		"user_count":         result.UserCount,
+		"advance_reset_time": result.AdvanceResetTime,
+	})
+	common.ApiSuccess(c, result)
 }
 
 // AdminInvalidateUserSubscription cancels a user subscription immediately.

@@ -112,17 +112,6 @@ export interface ChannelOtherSettings {
   advanced_custom?: AdvancedCustomConfig
 }
 
-export type AdvancedCustomConverter =
-  | 'none'
-  | 'anthropic_messages_to_openai_chat_completions'
-  | 'openai_chat_completions_to_anthropic_messages'
-  | 'openai_chat_completions_to_openai_responses'
-  | 'openai_responses_to_openai_chat_completions'
-  | 'gemini_generate_content_to_openai_chat_completions'
-  | 'openai_chat_completions_to_gemini_generate_content'
-
-export type AdvancedCustomAuthType = 'none' | 'header' | 'query'
-
 export interface AdvancedCustomConfig {
   advanced_routes?: AdvancedCustomRoute[]
 }
@@ -131,6 +120,7 @@ export interface AdvancedCustomRoute {
   incoming_path?: string
   upstream_path?: string
   converter?: AdvancedCustomConverter
+  models?: string[]
   auth?: AdvancedCustomRouteAuth
 }
 
@@ -139,6 +129,18 @@ export interface AdvancedCustomRouteAuth {
   name?: string
   value?: string
 }
+
+export type AdvancedCustomConverter =
+  | 'none'
+  | 'anthropic_messages_to_openai_chat_completions'
+  | 'openai_chat_completions_to_anthropic_messages'
+  | 'openai_chat_completions_to_openai_responses'
+  | 'openai_responses_to_openai_chat_completions'
+  | 'openai_responses_to_gemini_generate_content'
+  | 'gemini_generate_content_to_openai_chat_completions'
+  | 'openai_chat_completions_to_gemini_generate_content'
+
+export type AdvancedCustomAuthType = 'none' | 'header' | 'query'
 
 // ============================================================================
 // API Response Types
@@ -172,10 +174,19 @@ export interface GetChannelResponse {
   data?: Channel
 }
 
+export interface ChannelOpsResponse {
+  success: boolean
+  message?: string
+  data?: {
+    retry_times: number
+  }
+}
+
 export interface ChannelTestResponse {
   success: boolean
   message?: string
   error_code?: string
+  time?: number
   data?: {
     response_time?: number
     error?: string

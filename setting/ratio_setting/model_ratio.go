@@ -124,8 +124,6 @@ var defaultModelRatio = map[string]float64{
 	"tts-1-hd-1106":                             15,  // 1k characters -> $0.03
 	"davinci":                                   10,
 	"curie":                                     10,
-	"babbage":                                   10,
-	"ada":                                       10,
 	"text-embedding-3-small":                    0.01,
 	"text-embedding-3-large":                    0.065,
 	"text-embedding-ada-002":                    0.05,
@@ -154,6 +152,12 @@ var defaultModelRatio = map[string]float64{
 	"claude-opus-4-7-high":                      2.5,
 	"claude-opus-4-7-medium":                    2.5,
 	"claude-opus-4-7-low":                       2.5,
+	"claude-opus-4-8":                           2.5,
+	"claude-opus-4-8-max":                       2.5,
+	"claude-opus-4-8-xhigh":                     2.5,
+	"claude-opus-4-8-high":                      2.5,
+	"claude-opus-4-8-medium":                    2.5,
+	"claude-opus-4-8-low":                       2.5,
 	"claude-3-opus-20240229":                    7.5, // $15 / 1M tokens
 	"claude-opus-4-20250514":                    7.5,
 	"claude-opus-4-1-20250805":                  7.5,
@@ -221,15 +225,7 @@ var defaultModelRatio = map[string]float64{
 	"SparkDesk-v3.1":                            1.2858, // ￥0.018 / 1k tokens
 	"SparkDesk-v3.5":                            1.2858, // ￥0.018 / 1k tokens
 	"SparkDesk-v4.0":                            1.2858,
-	"360GPT_S2_V9":                              0.8572, // ¥0.012 / 1k tokens
-	"360gpt-turbo":                              0.0858, // ¥0.0012 / 1k tokens
-	"360gpt-turbo-responsibility-8k":            0.8572, // ¥0.012 / 1k tokens
-	"360gpt-pro":                                0.8572, // ¥0.012 / 1k tokens
-	"360gpt2-pro":                               0.8572, // ¥0.012 / 1k tokens
-	"embedding-bert-512-v1":                     0.0715, // ¥0.001 / 1k tokens
-	"embedding_s1_v1":                           0.0715, // ¥0.001 / 1k tokens
-	"semantic_similarity_s1_v1":                 0.0715, // ¥0.001 / 1k tokens
-	"hunyuan":                                   7.143,  // ¥0.1 / 1k tokens  // https://cloud.tencent.com/document/product/1729/97731#e0e6be58-60c8-469f-bdeb-6c264ce3b4d0
+	"hunyuan":                                   7.143, // ¥0.1 / 1k tokens  // https://cloud.tencent.com/document/product/1729/97731#e0e6be58-60c8-469f-bdeb-6c264ce3b4d0
 	// https://platform.lingyiwanwu.com/docs#-计费单元
 	// 已经按照 7.2 来换算美元价格
 	"yi-34b-chat-0205":       0.18,
@@ -626,8 +622,8 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		}
 		// gpt-5 匹配
 		if strings.HasPrefix(name, "gpt-5") {
-			if strings.HasPrefix(name, "gpt-5.5") {
-				return 6, true
+			if !strings.Contains(name, ".") {
+				return 8, true
 			}
 			if strings.HasPrefix(name, "gpt-5.4") {
 				if strings.HasPrefix(name, "gpt-5.4-nano") {
@@ -635,7 +631,8 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				}
 				return 6, true
 			}
-			return 8, true
+			// gpt-5.5 and later models are unlocked
+			return 6, false
 		}
 		// gpt-4.5-preview匹配
 		if strings.HasPrefix(name, "gpt-4.5-preview") {

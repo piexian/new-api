@@ -97,7 +97,9 @@ const formatLimitLabel = (item, detail, win, index, t) => {
     const v = item?.[key] ?? detail?.[key];
     if (v != null && String(v).trim() !== '') return String(v);
   }
-  const duration = toNumber(win?.duration ?? item?.duration ?? detail?.duration);
+  const duration = toNumber(
+    win?.duration ?? item?.duration ?? detail?.duration,
+  );
   const timeUnit = String(
     win?.timeUnit ?? item?.timeUnit ?? detail?.timeUnit ?? '',
   ).toUpperCase();
@@ -143,14 +145,21 @@ const normalizeRows = (payload, t) => {
     return { summary: null, limits: [] };
   }
   const summary = source.usage
-    ? buildRow(source.usage, t('总额度'), 'summary', formatResetHint(source.usage, t))
+    ? buildRow(
+        source.usage,
+        t('总额度'),
+        'summary',
+        formatResetHint(source.usage, t),
+      )
     : null;
   const rawLimits = Array.isArray(source.limits) ? source.limits : [];
   const limits = [];
   rawLimits.forEach((item, index) => {
     if (!item || typeof item !== 'object') return;
-    const detail = item.detail && typeof item.detail === 'object' ? item.detail : item;
-    const win = item.window && typeof item.window === 'object' ? item.window : {};
+    const detail =
+      item.detail && typeof item.detail === 'object' ? item.detail : item;
+    const win =
+      item.window && typeof item.window === 'object' ? item.window : {};
     const label = formatLimitLabel(item, detail, win, index, t);
     const resetHint = formatResetHint(detail, t);
     const row = buildRow(detail, label, `limit-${index}`, resetHint);
@@ -245,7 +254,12 @@ const KeyPager = ({
             }
           }}
         />
-        <Button size='small' theme='outline' onClick={onJump} disabled={loading}>
+        <Button
+          size='small'
+          theme='outline'
+          onClick={onJump}
+          disabled={loading}
+        >
           {t('跳转')}
         </Button>
         <Button
@@ -278,9 +292,15 @@ const KimiUsageRowCard = ({ t, row }) => {
         style={{ marginTop: 8 }}
       />
       <div className='mt-2 grid grid-cols-2 gap-1 text-xs text-semi-color-text-2'>
-        <div>{t('已用')}: {row.used.toLocaleString()}</div>
-        <div>{t('剩余')}: {row.remaining.toLocaleString()}</div>
-        <div>{t('总量')}: {row.limit.toLocaleString()}</div>
+        <div>
+          {t('已用')}: {row.used.toLocaleString()}
+        </div>
+        <div>
+          {t('剩余')}: {row.remaining.toLocaleString()}
+        </div>
+        <div>
+          {t('总量')}: {row.limit.toLocaleString()}
+        </div>
         {row.resetHint && <div>{row.resetHint}</div>}
       </div>
     </div>
@@ -288,7 +308,10 @@ const KimiUsageRowCard = ({ t, row }) => {
 };
 
 const KimiCodingPlanUsageView = ({ t, payload, onRefresh }) => {
-  const { summary, limits } = useMemo(() => normalizeRows(payload, t), [payload, t]);
+  const { summary, limits } = useMemo(
+    () => normalizeRows(payload, t),
+    [payload, t],
+  );
   const rawJSON = useMemo(() => {
     const rawData = payload?.data;
     if (rawData && typeof rawData === 'object') {
@@ -304,7 +327,12 @@ const KimiCodingPlanUsageView = ({ t, payload, onRefresh }) => {
           {payload?.message || t('获取 Kimi Coding Plan 额度失败')}
         </Text>
         <div className='flex justify-end'>
-          <Button size='small' type='primary' theme='outline' onClick={onRefresh}>
+          <Button
+            size='small'
+            type='primary'
+            theme='outline'
+            onClick={onRefresh}
+          >
             {t('刷新')}
           </Button>
         </div>
@@ -317,10 +345,19 @@ const KimiCodingPlanUsageView = ({ t, payload, onRefresh }) => {
       <div className='rounded-lg border border-semi-color-border bg-semi-color-fill-0 p-4'>
         <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
           <div className='flex flex-wrap items-center gap-2'>
-            <div className='text-base font-semibold'>{t('Kimi Coding Plan 额度')}</div>
-            <Tag color='cyan' type='light'>{t('Kimi')}</Tag>
+            <div className='text-base font-semibold'>
+              {t('Kimi Coding Plan 额度')}
+            </div>
+            <Tag color='cyan' type='light'>
+              {t('Kimi')}
+            </Tag>
           </div>
-          <Button size='small' type='primary' theme='outline' onClick={onRefresh}>
+          <Button
+            size='small'
+            type='primary'
+            theme='outline'
+            onClick={onRefresh}
+          >
             {t('刷新')}
           </Button>
         </div>
@@ -334,14 +371,18 @@ const KimiCodingPlanUsageView = ({ t, payload, onRefresh }) => {
 
       {summary || limits.length > 0 ? (
         <div className='grid grid-cols-1 gap-3 lg:grid-cols-3'>
-          {summary && <KimiUsageRowCard key={summary.key} t={t} row={summary} />}
+          {summary && (
+            <KimiUsageRowCard key={summary.key} t={t} row={summary} />
+          )}
           {limits.map((row) => (
             <KimiUsageRowCard key={row.key} t={t} row={row} />
           ))}
         </div>
       ) : (
         <div className='rounded-lg border border-dashed border-semi-color-border bg-semi-color-fill-0 p-4 text-sm text-semi-color-text-2'>
-          {t('当前未解析到可用额度窗口，可能不是 Coding Plan Key，或上游接口字段已变化。')}
+          {t(
+            '当前未解析到可用额度窗口，可能不是 Coding Plan Key，或上游接口字段已变化。',
+          )}
         </div>
       )}
 

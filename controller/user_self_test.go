@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	newapii18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -55,9 +56,9 @@ func setupUserSelfControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
-	common.UsingSQLite = true
-	common.UsingMySQL = false
-	common.UsingPostgreSQL = false
+	oldMainDatabaseType := common.MainDatabaseType()
+	oldLogDatabaseType := common.LogDatabaseType()
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	common.TurnstileCheckEnabled = false
 	common.TurnstileLoginEnabled = false
@@ -77,11 +78,15 @@ func setupUserSelfControllerTestDB(t *testing.T) *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	if err := db.AutoMigrate(&model.User{}, &model.Log{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Log{}, &model.CasbinRule{}, &model.AuthzRole{}); err != nil {
 		t.Fatalf("failed to migrate test tables: %v", err)
+	}
+	if err := authz.Init(db); err != nil {
+		t.Fatalf("failed to initialize authz: %v", err)
 	}
 
 	t.Cleanup(func() {
+		common.SetDatabaseTypes(oldMainDatabaseType, oldLogDatabaseType)
 		sqlDB, err := db.DB()
 		if err == nil {
 			_ = sqlDB.Close()

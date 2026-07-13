@@ -16,12 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useAuthStore } from '@/stores/auth-store'
-import { ROLE } from '@/lib/roles'
+import z from 'zod'
+
 import { IPBans } from '@/features/ip-bans'
 import { IP_BAN_TYPE_VALUES } from '@/features/ip-bans/constants'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 const ipBansSearchSchema = z.object({
   page: z.number().optional().catch(1),

@@ -18,7 +18,15 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useRef, useState } from 'react';
-import { Button, Form, Modal, Space, Spin, TextArea, Typography } from '@douyinfe/semi-ui';
+import {
+  Button,
+  Form,
+  Modal,
+  Space,
+  Spin,
+  TextArea,
+  Typography,
+} from '@douyinfe/semi-ui';
 import { API, showError, showSuccess } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -75,7 +83,9 @@ const BatchIPBanModal = ({ visible, handleClose, refresh }) => {
           title: t('确认封禁当前IP？'),
           content: (
             <div>
-              <Text>{message || t('该规则会封禁你当前的IP，请确认后再提交')}</Text>
+              <Text>
+                {message || t('该规则会封禁你当前的IP，请确认后再提交')}
+              </Text>
               <br />
               <Text type='secondary'>
                 {t('目标')}: {res.data.data.target}

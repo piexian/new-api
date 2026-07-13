@@ -1,7 +1,27 @@
-import { useEffect, useMemo, useState } from 'react'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { Loader2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -13,7 +33,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Turnstile } from '@/components/turnstile'
+
 import { updateUserProfile } from '../../api'
 import type { UserProfile } from '../../types'
 
@@ -121,7 +141,7 @@ export function ChangeUsernameDialog({
           setTurnstileWidgetKey((value) => value + 1)
         }
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to update username'))
       if (turnstileEnabled) {
         setTurnstileToken('')
@@ -158,9 +178,12 @@ export function ChangeUsernameDialog({
                         limit: usernameQuota.limit,
                       }
                     )
-                  : t('You can change your username up to {{limit}} times per year.', {
-                      limit: usernameQuota.limit,
-                    })}
+                  : t(
+                      'You can change your username up to {{limit}} times per year.',
+                      {
+                        limit: usernameQuota.limit,
+                      }
+                    )}
               </div>
               {usernameQuota.windowStarted && (
                 <div className='text-muted-foreground mt-1'>
@@ -205,10 +228,7 @@ export function ChangeUsernameDialog({
             >
               {t('Cancel')}
             </Button>
-            <Button
-              type='submit'
-              disabled={loading || usernameQuota.exhausted}
-            >
+            <Button type='submit' disabled={loading || usernameQuota.exhausted}>
               {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
               {loading ? t('Saving...') : t('Save')}
             </Button>

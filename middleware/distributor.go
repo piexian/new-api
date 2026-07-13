@@ -103,6 +103,7 @@ func Distribute() func(c *gin.Context) {
 				}
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					if err == nil && preferred != nil {
 						if preferred.Status != common.ChannelStatusEnabled {
@@ -120,6 +121,7 @@ func Distribute() func(c *gin.Context) {
 									selectGroup = g
 									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
 									channel = preferred
+									affinityUsable = true
 									service.MarkChannelAffinityUsed(c, g, preferred.Id)
 									break
 								}
@@ -127,8 +129,12 @@ func Distribute() func(c *gin.Context) {
 						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
 							channel = preferred
 							selectGroup = usingGroup
+							affinityUsable = true
 							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
+					}
+					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
+						service.ClearCurrentChannelAffinityCache(c)
 					}
 				}
 
@@ -326,6 +332,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		} else if c.Request.Method == http.MethodGet {
 			relayMode = relayconstant.RelayModeVideoFetchByID
 			shouldSelectChannel = false
+			modelRequest.Model = getTaskOriginModelName(c)
 		}
 		c.Set("relay_mode", relayMode)
 	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
@@ -340,6 +347,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		} else if c.Request.Method == http.MethodGet {
 			relayMode = relayconstant.RelayModeVideoFetchByID
 			shouldSelectChannel = false
+			modelRequest.Model = getTaskOriginModelName(c)
 		}
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
@@ -498,6 +506,27 @@ func moarkNativeRouteModel(c *gin.Context, req *ModelRequest) string {
 		return ""
 	}
 	return constant.MoarkTaskModel
+}
+
+// getTaskOriginModelName 从已有任务中回填模型，避免模型限制校验误判。
+func getTaskOriginModelName(c *gin.Context) string {
+	if !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
+		return ""
+	}
+
+	taskId := c.Param("task_id")
+	if taskId == "" {
+		taskId = c.GetString("task_id")
+	}
+	if taskId == "" {
+		return ""
+	}
+
+	userId := c.GetInt("id")
+	if task, exists, err := model.GetByTaskId(userId, taskId); err == nil && exists && task != nil {
+		return task.Properties.OriginModelName
+	}
+	return ""
 }
 
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {

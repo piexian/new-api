@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import type { LogOtherData, TaskLog } from '../types'
 
 export type GenerationParams = Record<string, unknown>
@@ -102,13 +120,14 @@ export function taskGenerationParams(log: TaskLog): GenerationParams | null {
 }
 
 function paramLabel(key: string): string {
-  return PARAM_LABELS[key] ?? key.replace(/_/g, ' ')
+  return PARAM_LABELS[key] ?? key.replaceAll('_', ' ')
 }
 
 function formatScalar(value: unknown, t: (key: string) => string): string {
   if (typeof value === 'boolean') return value ? t('Yes') : t('No')
-  if (typeof value === 'number')
+  if (typeof value === 'number') {
     return Number.isInteger(value) ? String(value) : String(value)
+  }
   if (typeof value === 'string') return value
   return String(value)
 }
@@ -158,9 +177,7 @@ export function buildGenerationParamRows(
   if (!params) return []
 
   const keys = [
-    ...PARAM_ORDER.filter((key) =>
-      Object.prototype.hasOwnProperty.call(params, key)
-    ),
+    ...PARAM_ORDER.filter((key) => Object.hasOwn(params, key)),
     ...Object.keys(params)
       .filter(
         (key) =>

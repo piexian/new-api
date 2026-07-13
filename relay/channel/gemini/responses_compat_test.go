@@ -215,17 +215,18 @@ func TestGeminiResponsesHandlerWrapsGeminiResponse(t *testing.T) {
 	require.Equal(t, 3, got.Usage.OutputTokens)
 }
 
-func TestConvertOpenAIResponsesRequestRejectsStream(t *testing.T) {
+func TestConvertOpenAIResponsesRequestSupportsStream(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
 	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
 	stream := true
 
-	_, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, &relaycommon.RelayInfo{}, dto.OpenAIResponsesRequest{
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, &relaycommon.RelayInfo{}, dto.OpenAIResponsesRequest{
 		Model:  "gemini-2.5-flash",
 		Input:  []byte(`"hello"`),
 		Stream: &stream,
 	})
-	require.Error(t, err)
+	require.NoError(t, err)
+	require.IsType(t, &dto.GeminiChatRequest{}, converted)
 }

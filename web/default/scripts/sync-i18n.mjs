@@ -28,9 +28,111 @@ const OBFUSCATED_KEYS = [
     serialized: 'footer.new\\u0061pi.projectAttributionSuffix',
   },
 ]
-const REPORT_EQUALITY_KEYS_BY_LOCALE = {
-  vi: new Set(['Cerebras', 'OpenCode Go', 'OpenCode Zen', 'User Agent']),
-}
+const BRAND_AND_LITERAL_KEYS = new Set([
+  '@visactor/vchart',
+  'AI Proxy',
+  'AIGC2D',
+  'Alipay',
+  'Anthropic',
+  'ApiInfo',
+  'API URL',
+  'API2GPT',
+  'AccessKey / SecretAccessKey',
+  'AZURE_OPENAI_ENDPOINT *',
+  'Baidu V2',
+  'CC Switch',
+  'ChatGPT',
+  'ChatGPT Subscription (Codex)',
+  'Claude',
+  'Cloudflare Email Service',
+  'Client ID',
+  'Client Secret',
+  'Cloudflare',
+  'Cohere',
+  'Cerebras',
+  'DeepSeek',
+  'Discord',
+  'DoubaoVideo',
+  'FastGPT',
+  'Gemini',
+  'Gemini Image 4K',
+  'GitHub',
+  'Jimeng',
+  'JustSong',
+  'Kilo Gateway',
+  'Kimi Coding Plan',
+  'LingYiWanWu',
+  'LinuxDO',
+  'MjProxy',
+  'MjProxyPlus',
+  'MiniMax',
+  'Mistral',
+  'MokaAI',
+  'Moonshot',
+  'Midjourney',
+  'Midjourney-Proxy',
+  'MidjourneyPlus',
+  'New API',
+  'New API <noreply@example.com>',
+  'New API &lt;noreply@example.com&gt;',
+  'NewAPI',
+  'neko-api-key-tool',
+  'OAuth Client Secret',
+  'OhMyGPT',
+  'Ollama',
+  'One API',
+  'OpenAI',
+  'OpenAIMax',
+  'OpenCode Go',
+  'OpenCode Zen',
+  'OpenRouter',
+  'Pancake',
+  'Passkey',
+  'Perplexity',
+  'QuantumNous',
+  'Quota:',
+  'Replicate',
+  'SiliconFlow',
+  'Stripe',
+  'Submodel',
+  'SunoAPI',
+  'Telegram',
+  'Tencent',
+  'TTFT P50',
+  'TTFT P95',
+  'TTFT P99',
+  'Uptime Kuma',
+  'Uptime Kuma URL',
+  'UptimeKumaSlug',
+  'UptimeKumaUrl',
+  'Vertex AI',
+  'VolcEngine',
+  'Waffo Pancake Dashboard',
+  'Waffo Pancake MoR',
+  'Waffo Aggregator Gateway',
+  'WeChat',
+  'WeChat Pay',
+  'Webhook URL',
+  'Webhook URL:',
+  'Well-Known URL',
+  'Worker URL',
+  'Xinference',
+  'Xunfei',
+  'Xunfei MaaS',
+  'XiaomiMiMo',
+  'YYYY-MM-DD HH:mm',
+  'YYYY-MM-DD HH:mm:ss',
+  'YYYY-MM-DDTHH:mm',
+  'Zhipu V4',
+  '"default": "us-central1", "claude-3-5-sonnet-20240620": "europe-west1"',
+  'edit_this',
+  'footer.columns.related.links.midjourney',
+  'footer.columns.related.links.newApiKeyTool',
+  'my-status',
+  'new-api-key-tool',
+  'price_xxx',
+  'whsec_xxx',
+])
 
 function isPlainObject(v) {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -64,7 +166,14 @@ async function removeFileIfExists(file) {
   }
 }
 
-function reorderLikeBase(base, target, fill, extras, missing, currentPath = []) {
+function reorderLikeBase(
+  base,
+  target,
+  fill,
+  extras,
+  missing,
+  currentPath = []
+) {
   // If base is an object, we keep base's key order and recurse.
   if (isPlainObject(base)) {
     const out = {}
@@ -74,10 +183,24 @@ function reorderLikeBase(base, target, fill, extras, missing, currentPath = []) 
     for (const key of Object.keys(base)) {
       const nextPath = [...currentPath, key]
       if (Object.prototype.hasOwnProperty.call(t, key)) {
-        out[key] = reorderLikeBase(base[key], t[key], f[key], extras, missing, nextPath)
+        out[key] = reorderLikeBase(
+          base[key],
+          t[key],
+          f[key],
+          extras,
+          missing,
+          nextPath
+        )
       } else {
         missing.push(nextPath.join('.'))
-        out[key] = reorderLikeBase(base[key], undefined, f[key], extras, missing, nextPath)
+        out[key] = reorderLikeBase(
+          base[key],
+          undefined,
+          f[key],
+          extras,
+          missing,
+          nextPath
+        )
       }
     }
 
@@ -105,19 +228,36 @@ function reorderLikeBase(base, target, fill, extras, missing, currentPath = []) 
 function isLikelyUntranslated({ locale, key, baseValue, value }) {
   if (typeof value !== 'string' || typeof baseValue !== 'string') return false
   if (value !== baseValue) return false
-  if (REPORT_EQUALITY_KEYS_BY_LOCALE[locale]?.has(key)) return true
-
   // Skip short tokens / acronyms / ids
   const s = baseValue.trim()
+  if (BRAND_AND_LITERAL_KEYS.has(s)) return false
+  if (
+    /^https?:\/\//.test(s) ||
+    /^\/[\w/-]+/.test(s) ||
+    /^[\w.-]+@[\w.-]+$/.test(s) ||
+    /^smtp\./i.test(s) ||
+    /^socks5:/i.test(s) ||
+    /^org-/.test(s) ||
+    /^gpt-/i.test(s) ||
+    /^checkout\./.test(s) ||
+    /^footer\./.test(s) ||
+    /^[A-Z0-9_ *./:-]+$/.test(s) ||
+    s.startsWith('{') ||
+    s.startsWith('[') ||
+    s.includes('&#10;')
+  ) {
+    return false
+  }
   if (s.length < 6) return false
   if (!/[A-Za-z]{3,}/.test(s)) return false
 
   // For locales with non-latin scripts, equality with EN is a strong signal.
-  if (locale === 'ja' || locale === 'zh') return true
+  if (locale === 'ja' || locale === 'zh' || locale === 'zh-TW') return true
   if (locale === 'ru') return true
 
   // For fr/vi: still useful but noisier; keep it conservative.
-  if (locale === 'fr' || locale === 'vi') return /\b(the|and|or|to|with|please)\b/i.test(s)
+  if (locale === 'fr' || locale === 'vi')
+    return /\b(the|and|or|to|with|please)\b/i.test(s)
 
   return false
 }
@@ -143,7 +283,9 @@ async function main() {
       const trans = json?.translation ?? {}
       return { locale, score: countLeafKeys(trans) }
     })
-    .sort((a, b) => b.score - a.score || a.locale.localeCompare(b.locale))[0]?.locale
+    .sort(
+      (a, b) => b.score - a.score || a.locale.localeCompare(b.locale)
+    )[0]?.locale
 
   if (!baseLocale) throw new Error('No locale files found.')
 
@@ -198,14 +340,25 @@ async function main() {
     }
 
     if (Object.keys(extras).length > 0) {
-      await fs.writeFile(path.join(extrasDir, `${locale}.extras.json`), stableStringify(extras), 'utf8')
+      await fs.writeFile(
+        path.join(extrasDir, `${locale}.extras.json`),
+        stableStringify(extras),
+        'utf8'
+      )
+    } else {
+      await fs.rm(path.join(extrasDir, `${locale}.extras.json`), {
+        force: true,
+      })
     }
-    const untranslatedPath = path.join(reportsDir, `${locale}.untranslated.json`)
+    const untranslatedPath = path.join(
+      reportsDir,
+      `${locale}.untranslated.json`
+    )
     if (Object.keys(untranslated).length > 0) {
       await fs.writeFile(
         untranslatedPath,
         stableStringify(untranslated),
-        'utf8',
+        'utf8'
       )
     } else {
       await removeFileIfExists(untranslatedPath)
@@ -215,13 +368,18 @@ async function main() {
     await fs.writeFile(full, stableStringify(fixed), 'utf8')
   }
 
-  await fs.writeFile(path.join(reportsDir, '_sync-report.json'), stableStringify(report), 'utf8')
+  await fs.writeFile(
+    path.join(reportsDir, '_sync-report.json'),
+    stableStringify(report),
+    'utf8'
+  )
 
-  console.log(`i18n sync done. Report: ${path.join(reportsDir, '_sync-report.json')}`)
+  console.log(
+    `i18n sync done. Report: ${path.join(reportsDir, '_sync-report.json')}`
+  )
 }
 
 main().catch((err) => {
-
   console.error(err)
   process.exitCode = 1
 })

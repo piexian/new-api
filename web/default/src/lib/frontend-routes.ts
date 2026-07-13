@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 /**
  * Logical app routes for the default frontend.
  * Keep CTA / floating-ball links free of classic paths (e.g. never hardcode `/console`).

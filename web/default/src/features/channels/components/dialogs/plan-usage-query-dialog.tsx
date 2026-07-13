@@ -1,6 +1,25 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useCallback, useEffect, useState } from 'react'
-import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+
 import {
   getKimiCodingPlanUsage,
   getMiniMaxTokenPlanUsage,
@@ -31,12 +50,12 @@ export function PlanUsageQueryDialog({
   )
   const [currentKeyIndex, setCurrentKeyIndex] = useState(0)
 
-  const kind: ChannelPlanUsageKind =
-    currentRow?.type === 35
-      ? 'minimax'
-      : currentRow && isKimiCodingPlanChannel(currentRow)
-        ? 'kimi'
-        : 'zhipu'
+  let kind: ChannelPlanUsageKind = 'zhipu'
+  if (currentRow?.type === 35) {
+    kind = 'minimax'
+  } else if (currentRow && isKimiCodingPlanChannel(currentRow)) {
+    kind = 'kimi'
+  }
 
   const fetchUsage = useCallback(
     async (keyIndex: number) => {
@@ -45,12 +64,14 @@ export function PlanUsageQueryDialog({
 
       setIsQuerying(true)
       try {
-        const res =
-          kind === 'minimax'
-            ? await getMiniMaxTokenPlanUsage(row.id, keyIndex)
-            : kind === 'kimi'
-              ? await getKimiCodingPlanUsage(row.id, keyIndex)
-              : await getZhipuCodingPlanUsage(row.id, keyIndex)
+        let res: ChannelPlanUsageResponse
+        if (kind === 'minimax') {
+          res = await getMiniMaxTokenPlanUsage(row.id, keyIndex)
+        } else if (kind === 'kimi') {
+          res = await getKimiCodingPlanUsage(row.id, keyIndex)
+        } else {
+          res = await getZhipuCodingPlanUsage(row.id, keyIndex)
+        }
         const resolvedKeyIndex = Number(res.key_index ?? keyIndex)
         setCurrentKeyIndex(
           Number.isFinite(resolvedKeyIndex) ? resolvedKeyIndex : 0

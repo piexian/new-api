@@ -57,7 +57,9 @@ const renderTimestamp = (timestamp, t) => {
       </Tag>
     );
   }
-  return <span className='font-mono text-xs'>{timestamp2string(timestamp)}</span>;
+  return (
+    <span className='font-mono text-xs'>{timestamp2string(timestamp)}</span>
+  );
 };
 
 export const getIPBansColumns = ({
@@ -90,7 +92,9 @@ export const getIPBansColumns = ({
     dataIndex: 'reason',
     render: (text) => (
       <Tooltip content={text || '-'} position='top'>
-        <span className='inline-block max-w-[360px] truncate'>{text || '-'}</span>
+        <span className='inline-block max-w-[360px] truncate'>
+          {text || '-'}
+        </span>
       </Tooltip>
     ),
   },
@@ -103,7 +107,11 @@ export const getIPBansColumns = ({
     title: t('创建时间'),
     dataIndex: 'created_at',
     render: (text) =>
-      text ? <span className='font-mono text-xs'>{timestamp2string(text)}</span> : '-',
+      text ? (
+        <span className='font-mono text-xs'>{timestamp2string(text)}</span>
+      ) : (
+        '-'
+      ),
   },
   {
     title: '',

@@ -1,3 +1,8 @@
+import { Modal } from '@douyinfe/semi-ui';
+
+import { API } from './api';
+import { showError, showSuccess } from './utils';
+
 export const FRONTEND_THEME_COOKIE = 'new-api-frontend';
 export const FRONTEND_THEME_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 export const FRONTEND_RETURN_TIP_PENDING =
@@ -57,4 +62,34 @@ export function switchFrontendTheme(theme, confirmMessage) {
     }
   }
   window.location.assign(getSwitchTargetPath(theme, window.location.pathname));
+}
+
+export function confirmSwitchToDefaultFrontend(t, { onLoadingChange } = {}) {
+  Modal.confirm({
+    title: t('切换到新版前端'),
+    content: t('切换后页面会自动刷新，并进入新版前端。是否继续？'),
+    okText: t('确认切换'),
+    cancelText: t('取消'),
+    onOk: async () => {
+      onLoadingChange?.(true);
+      try {
+        const res = await API.put('/api/option/', {
+          key: 'theme.frontend',
+          value: 'default',
+        });
+        const { success, message } = res.data;
+        if (!success) {
+          showError(message);
+          return;
+        }
+        showSuccess(t('已切换到新版前端，正在刷新页面'));
+        setTimeout(() => switchFrontendTheme('default'), 600);
+      } catch (error) {
+        console.error('切换新版前端失败', error);
+        showError(t('切换失败，请稍后重试'));
+      } finally {
+        onLoadingChange?.(false);
+      }
+    },
+  });
 }

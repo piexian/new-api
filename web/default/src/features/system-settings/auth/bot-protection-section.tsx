@@ -16,12 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect } from 'react'
-import * as z from 'zod'
-import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
+import * as z from 'zod'
+
 import {
   Form,
   FormControl,
@@ -33,6 +33,13 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
+
+import {
+  SettingsForm,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
+import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
@@ -147,18 +154,13 @@ export function BotProtectionSection({
   }
 
   return (
-    <SettingsSection
-      title={t('Bot Protection')}
-      description={t(
-        'Configure Cloudflare Turnstile keys and enable checks per action'
-      )}
-    >
+    <SettingsSection title={t('Bot Protection')}>
       <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className='space-y-6'
-          autoComplete='off'
-        >
+        <SettingsForm onSubmit={form.handleSubmit(onSubmit)} autoComplete='off'>
+          <SettingsPageFormActions
+            onSave={form.handleSubmit(onSubmit)}
+            isSaving={updateOption.isPending}
+          />
           <div className='space-y-3'>
             {turnstileScopes.map((scope) => (
               <FormField
@@ -166,20 +168,18 @@ export function BotProtectionSection({
                 control={form.control}
                 name={scope.key}
                 render={({ field }) => (
-                  <FormItem className='flex flex-row items-center justify-between rounded-lg border p-4'>
-                    <div className='space-y-0.5'>
-                      <FormLabel className='text-base'>
-                        {t(scope.label)}
-                      </FormLabel>
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t(scope.label)}</FormLabel>
                       <FormDescription>{t(scope.description)}</FormDescription>
-                    </div>
+                    </SettingsSwitchContent>
                     <FormControl>
                       <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                  </FormItem>
+                  </SettingsSwitchItem>
                 )}
               />
             ))}
@@ -221,11 +221,7 @@ export function BotProtectionSection({
               </FormItem>
             )}
           />
-
-          <Button type='submit' disabled={updateOption.isPending}>
-            {updateOption.isPending ? t('Saving...') : t('Save Changes')}
-          </Button>
-        </form>
+        </SettingsForm>
       </Form>
     </SettingsSection>
   )

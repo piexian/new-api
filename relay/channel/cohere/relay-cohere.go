@@ -356,6 +356,9 @@ func cohereStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		for scanner.Scan() {
 			dataChan <- scanner.Text()
 		}
+		if err := scanner.Err(); err != nil {
+			common.SysLog("error reading stream: " + err.Error())
+		}
 		stopChan <- true
 	}()
 

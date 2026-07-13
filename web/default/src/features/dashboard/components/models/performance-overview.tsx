@@ -16,12 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, Gauge, HeartPulse, Timer } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { formatNumber } from '@/lib/format'
-import { cn } from '@/lib/utils'
+
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -38,6 +37,8 @@ import {
   formatUptimePct,
 } from '@/features/performance-metrics/lib/format'
 import type { PerfModelSummary } from '@/features/performance-metrics/types'
+import { formatNumber } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 const PERFORMANCE_WINDOW_HOURS = 24
 const TOP_MODEL_LIMIT = 8
@@ -260,8 +261,8 @@ export function PerformanceOverview() {
               </TableHeader>
               <TableBody>
                 {loading
-                  ? Array.from({ length: 4 }).map((_, index) => (
-                      <TableRow key={index}>
+                  ? ['first', 'second', 'third', 'fourth'].map((slot) => (
+                      <TableRow key={slot}>
                         <TableCell>
                           <Skeleton className='h-4 w-40' />
                         </TableCell>

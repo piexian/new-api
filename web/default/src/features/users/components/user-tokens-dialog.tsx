@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
+
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+
 import type { User } from '../types'
 import { UserTokensPanel } from './user-tokens-panel'
 

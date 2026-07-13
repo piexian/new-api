@@ -18,9 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { formatTimestampToDate } from '@/lib/format'
+
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
+import { formatTimestampToDate } from '@/lib/format'
+
 import { EMAIL_STATUS_MAPPINGS } from '../../constants'
 import type { EmailLog } from '../../types'
 import { createFailReasonColumn } from './column-helpers'

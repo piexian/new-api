@@ -16,9 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { z } from 'zod'
 import type { TFunction } from 'i18next'
+import * as z from 'zod'
+
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
+
 import type { SubscriptionPlan, PlanPayload } from '../types'
 
 const modelRestrictModes = ['', 'group', 'custom'] as const
@@ -64,6 +66,8 @@ export function getPlanFormSchema(t: TFunction) {
     quota_reset_custom_seconds: z.coerce.number().min(0).optional(),
     enabled: z.boolean(),
     sort_order: z.coerce.number(),
+    allow_balance_pay: z.boolean(),
+    allow_wallet_overflow: z.boolean(),
     max_purchase_per_user: z.coerce.number().min(0),
     total_amount: z.coerce.number().min(0),
     model_restrict_mode: z.enum(modelRestrictModes),
@@ -73,6 +77,7 @@ export function getPlanFormSchema(t: TFunction) {
     weekly_quota_limit: z.coerce.number().min(0),
     monthly_quota_limit: z.coerce.number().min(0),
     upgrade_group: z.string().optional(),
+    downgrade_group: z.string().optional(),
     stripe_price_id: z.string().optional(),
     creem_product_id: z.string().optional(),
     waffo_pancake_product_id: z.string().optional(),
@@ -92,6 +97,8 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   quota_reset_custom_seconds: 0,
   enabled: true,
   sort_order: 0,
+  allow_balance_pay: true,
+  allow_wallet_overflow: true,
   max_purchase_per_user: 0,
   total_amount: 0,
   model_restrict_mode: '',
@@ -101,6 +108,7 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   weekly_quota_limit: 0,
   monthly_quota_limit: 0,
   upgrade_group: '',
+  downgrade_group: '',
   stripe_price_id: '',
   creem_product_id: '',
   waffo_pancake_product_id: '',
@@ -118,8 +126,12 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     quota_reset_custom_seconds: Number(plan.quota_reset_custom_seconds || 0),
     enabled: plan.enabled !== false,
     sort_order: Number(plan.sort_order || 0),
+    allow_balance_pay: plan.allow_balance_pay !== false,
+    allow_wallet_overflow: plan.allow_wallet_overflow !== false,
     max_purchase_per_user: Number(plan.max_purchase_per_user || 0),
-    total_amount: Number(quotaUnitsToDollars(Number(plan.total_amount || 0)).toFixed(6)),
+    total_amount: Number(
+      quotaUnitsToDollars(Number(plan.total_amount || 0)).toFixed(6)
+    ),
     model_restrict_mode: plan.model_restrict_mode || '',
     model_restrict_group: plan.model_restrict_group || '',
     allowed_models: parseAllowedModels(plan.allowed_models),
@@ -133,6 +145,7 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
       quotaUnitsToDollars(Number(plan.monthly_quota_limit || 0)).toFixed(6)
     ),
     upgrade_group: plan.upgrade_group || '',
+    downgrade_group: plan.downgrade_group || '',
     stripe_price_id: plan.stripe_price_id || '',
     creem_product_id: plan.creem_product_id || '',
     waffo_pancake_product_id: plan.waffo_pancake_product_id || '',
@@ -173,6 +186,7 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
         Number(values.monthly_quota_limit || 0)
       ),
       upgrade_group: values.upgrade_group || '',
+      downgrade_group: values.downgrade_group || '',
     },
   }
 }

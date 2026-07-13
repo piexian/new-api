@@ -14,18 +14,15 @@ func setupUserAffCodeTestDB(t *testing.T) *gorm.DB {
 
 	oldDB := DB
 	oldLogDB := LOG_DB
-	oldUsingSQLite := common.UsingSQLite
-	oldUsingMySQL := common.UsingMySQL
-	oldUsingPostgreSQL := common.UsingPostgreSQL
+	oldMainDatabaseType := common.MainDatabaseType()
+	oldLogDatabaseType := common.LogDatabaseType()
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
 	DB = db
 	LOG_DB = db
-	common.UsingSQLite = true
-	common.UsingMySQL = false
-	common.UsingPostgreSQL = false
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	initCol()
 
 	require.NoError(t, db.AutoMigrate(&User{}, &Option{}))
@@ -33,9 +30,7 @@ func setupUserAffCodeTestDB(t *testing.T) *gorm.DB {
 	t.Cleanup(func() {
 		DB = oldDB
 		LOG_DB = oldLogDB
-		common.UsingSQLite = oldUsingSQLite
-		common.UsingMySQL = oldUsingMySQL
-		common.UsingPostgreSQL = oldUsingPostgreSQL
+		common.SetDatabaseTypes(oldMainDatabaseType, oldLogDatabaseType)
 		initCol()
 	})
 

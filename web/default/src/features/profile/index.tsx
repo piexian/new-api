@@ -16,8 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useAuthStore } from '@/stores/auth-store'
-import { useStatus } from '@/hooks/use-status'
 import { Main } from '@/components/layout'
 import {
   CardStaggerContainer,
@@ -27,6 +25,9 @@ import {
   getTurnstileSiteKey,
   isTurnstileScopeEnabled,
 } from '@/features/auth/hooks/use-turnstile'
+import { useStatus } from '@/hooks/use-status'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { CheckinCalendarCard } from './components/checkin-calendar-card'
 import { LanguagePreferencesCard } from './components/language-preferences-card'
 import { PasskeyCard } from './components/passkey-card'

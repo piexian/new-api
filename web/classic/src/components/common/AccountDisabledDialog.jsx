@@ -49,11 +49,7 @@ export default function AccountDisabledDialog() {
   }, []);
 
   const content = useMemo(() => {
-    return (
-      payload?.reason ||
-      payload?.message ||
-      t('此账号已被封禁。')
-    );
+    return payload?.reason || payload?.message || t('此账号已被封禁。');
   }, [payload, t]);
 
   const accountMeta = useMemo(() => {

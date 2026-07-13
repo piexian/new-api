@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useRef } from 'react'
+
 import { cn } from '@/lib/utils'
 
 type Star = {
@@ -85,11 +86,12 @@ export function StarfieldBackground() {
         '(prefers-reduced-motion: reduce)'
       ).matches
       for (const s of stars) {
-        const tw = reduce
-          ? 1
-          : dark
+        let tw = 1
+        if (!reduce) {
+          tw = dark
             ? 0.55 + 0.45 * Math.sin(t * s.sp + s.tw)
             : 0.94 + 0.06 * Math.sin(t * s.sp + s.tw)
+        }
         const alpha = s.a * tw
         ctx.beginPath()
         // 浅色用冷蓝星点，贴合浅蓝白背景；深色用近白星

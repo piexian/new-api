@@ -16,11 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useCallback } from 'react'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { DataTableToolbar } from '@/components/data-table'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -30,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { DataTableToolbar } from '@/components/data-table'
+
 import { EMAIL_STATUS, EMAIL_STATUS_MAPPINGS } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
@@ -85,23 +87,33 @@ export function EmailLogsFilterBar<TData>(
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const searchParams = route.useSearch()
+  const { startTime, endTime, receiver, subject, status, provider } =
+    route.useSearch()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
   const [filters, setFilters] = useState<EmailLogFilters>(() =>
-    getInitialFilters(searchParams)
+    getInitialFilters({
+      startTime,
+      endTime,
+      receiver,
+      subject,
+      status,
+      provider,
+    })
   )
 
   useEffect(() => {
-    setFilters(getInitialFilters(searchParams))
-  }, [
-    searchParams.startTime,
-    searchParams.endTime,
-    searchParams.receiver,
-    searchParams.subject,
-    searchParams.status,
-    searchParams.provider,
-  ])
+    setFilters(
+      getInitialFilters({
+        startTime,
+        endTime,
+        receiver,
+        subject,
+        status,
+        provider,
+      })
+    )
+  }, [startTime, endTime, receiver, subject, status, provider])
 
   const handleChange = useCallback(
     (field: keyof EmailLogFilters, value: Date | string | undefined) => {

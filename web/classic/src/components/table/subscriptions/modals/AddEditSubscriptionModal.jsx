@@ -79,9 +79,7 @@ const parseAllowedModels = (value) => {
     if (!Array.isArray(parsed)) {
       return [];
     }
-    return parsed
-      .map((item) => String(item || '').trim())
-      .filter(Boolean);
+    return parsed.map((item) => String(item || '').trim()).filter(Boolean);
   } catch (error) {
     return [];
   }
@@ -464,7 +462,10 @@ const AddEditSubscriptionModal = ({
                         }
                       >
                         {modelRestrictModeOptions.map((option) => (
-                          <Select.Option key={option.value} value={option.value}>
+                          <Select.Option
+                            key={option.value}
+                            value={option.value}
+                          >
                             {t(option.label)}
                           </Select.Option>
                         ))}
@@ -532,7 +533,10 @@ const AddEditSubscriptionModal = ({
                               ),
                             ),
                           ];
-                          formApiRef.current.setValue('allowed_models', normalized);
+                          formApiRef.current.setValue(
+                            'allowed_models',
+                            normalized,
+                          );
                         }}
                       />
                     </Col>

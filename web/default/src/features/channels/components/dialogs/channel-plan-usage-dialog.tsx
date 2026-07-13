@@ -1,4 +1,21 @@
-import { useEffect, useMemo, useState } from 'react'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import {
   Check,
   ChevronDown,
@@ -9,9 +26,10 @@ import {
   Loader2,
   RefreshCw,
 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import dayjs from '@/lib/dayjs'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+
+import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -24,7 +42,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import dayjs from '@/lib/dayjs'
+
 import type { ChannelPlanUsageResponse } from '../../api'
 import type { Channel } from '../../types'
 
@@ -301,18 +321,20 @@ function buildWindow(input: {
     (input.total != null && input.total > 0 && remaining != null
       ? Math.floor(clampPercent((remaining / input.total) * 100))
       : null)
-  const percent =
-    input.total != null && input.total > 0 && input.used != null
-      ? Math.floor(clampPercent((input.used / input.total) * 100))
-      : remainingPercent != null
-        ? Math.floor(clampPercent(100 - remainingPercent))
-        : 0
+  let percent = 0
+  if (input.total != null && input.total > 0 && input.used != null) {
+    percent = Math.floor(clampPercent((input.used / input.total) * 100))
+  } else if (remainingPercent != null) {
+    percent = Math.floor(clampPercent(100 - remainingPercent))
+  }
+  const total = input.isUnlimited || !hasQuota ? null : input.total
+  const normalizedRemaining = input.isUnlimited || !hasQuota ? null : remaining
 
   return {
     ...input,
-    total: input.isUnlimited ? null : hasQuota ? input.total : null,
+    total,
     used: hasQuota ? input.used : null,
-    remaining: input.isUnlimited ? null : hasQuota ? remaining : null,
+    remaining: normalizedRemaining,
     isUnlimited: Boolean(input.isUnlimited),
     remainingPercent,
     percent,
@@ -656,20 +678,17 @@ function MiniMaxUsageView({
 }) {
   const { t } = useTranslation()
   const upstreamData = toRecord(response?.data)
-  const modelRemains = Array.isArray(upstreamData?.model_remains)
-    ? upstreamData.model_remains
-    : []
-  const parsedModels = useMemo(
-    () =>
-      modelRemains
-        .map((item) => toRecord(item))
-        .filter(isRecordResult)
-        .map((item) => ({
-          item,
-          windows: resolveModelWindows(item, t),
-        })),
-    [modelRemains, t]
-  )
+  const rawModelRemains = upstreamData?.model_remains
+  const parsedModels = useMemo(() => {
+    const modelRemains = Array.isArray(rawModelRemains) ? rawModelRemains : []
+    return modelRemains
+      .map((item) => toRecord(item))
+      .filter(isRecordResult)
+      .map((item) => ({
+        item,
+        windows: resolveModelWindows(item, t),
+      }))
+  }, [rawModelRemains, t])
   const activeModels = parsedModels.filter((entry) => entry.windows.length > 0)
   const unavailableModels = parsedModels
     .filter((entry) => entry.windows.length === 0)
@@ -680,6 +699,16 @@ function MiniMaxUsageView({
   )
   const baseResp = toRecord(upstreamData?.base_resp)
   const shouldShowEmptyState = response != null && response.success !== false
+  let businessStatus = t('Unknown')
+  if (baseResp?.status_code === 0) {
+    businessStatus = t('Normal')
+  } else if (baseResp?.status_code != null) {
+    businessStatus = String(baseResp.status_code)
+  }
+  let planLabel = '-'
+  if (parsedModels.length > 0) {
+    planLabel = hasUnlimitedWeeklyLimit ? t('Old Plan') : t('New Plan')
+  }
 
   return (
     <div className='space-y-4'>
@@ -695,48 +724,32 @@ function MiniMaxUsageView({
           value={response?.upstream_status ?? '-'}
         />
         <MetaBlock label={t('Request URL')} value={response?.request_url} />
-        <MetaBlock
-          label={t('Business Status')}
-          value={
-            baseResp?.status_code === 0
-              ? t('Normal')
-              : baseResp?.status_code != null
-                ? String(baseResp.status_code)
-                : t('Unknown')
-          }
-        />
+        <MetaBlock label={t('Business Status')} value={businessStatus} />
         <MetaBlock
           label={t('Business Message')}
           value={String(baseResp?.status_msg || response?.message || '-')}
         />
-        <MetaBlock
-          label={t('Plan')}
-          value={
-            parsedModels.length > 0
-              ? hasUnlimitedWeeklyLimit
-                ? t('Old Plan')
-                : t('New Plan')
-              : '-'
-          }
-        />
+        <MetaBlock label={t('Plan')} value={planLabel} />
       </div>
 
       <div className='space-y-3'>
-        {activeModels.length > 0 ? (
-          activeModels.map(({ item, windows }, index) => (
+        {activeModels.length > 0 &&
+          activeModels.map(({ item, windows }) => (
             <MiniMaxModelCard
-              key={`${String(item.model_name || item.model || 'model')}-${index}`}
+              key={String(
+                item.model_name || item.model || JSON.stringify(item)
+              )}
               item={item}
               windows={windows}
             />
-          ))
-        ) : shouldShowEmptyState ? (
+          ))}
+        {activeModels.length === 0 && shouldShowEmptyState && (
           <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
             {t(
               'No parsed quota windows were found. The key may not be a plan key, or the upstream response format changed.'
             )}
           </div>
-        ) : null}
+        )}
         {unavailableModels.length > 0 && (
           <div className='rounded-lg border border-dashed p-4'>
             <div className='mb-2 text-sm font-medium'>
@@ -883,19 +896,20 @@ function ZhipuUsageView({
         </div>
       </div>
 
-      {cards.length > 0 ? (
+      {cards.length > 0 && (
         <div className='grid grid-cols-1 gap-3 lg:grid-cols-3'>
           {cards.map((card) => (
             <ZhipuLimitCard key={card.key} card={card} />
           ))}
         </div>
-      ) : shouldShowEmptyState ? (
+      )}
+      {cards.length === 0 && shouldShowEmptyState && (
         <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
           {t(
             'No parsed quota windows were found. The key may not be a plan key, or the upstream response format changed.'
           )}
         </div>
-      ) : null}
+      )}
     </div>
   )
 }
@@ -1144,20 +1158,21 @@ function KimiUsageView({
         </div>
       </div>
 
-      {summary || limits.length > 0 ? (
+      {(summary || limits.length > 0) && (
         <div className='grid grid-cols-1 gap-3 lg:grid-cols-3'>
           {summary && <KimiUsageRowCard key={summary.key} row={summary} />}
           {limits.map((row) => (
             <KimiUsageRowCard key={row.key} row={row} />
           ))}
         </div>
-      ) : shouldShowEmptyState ? (
+      )}
+      {!summary && limits.length === 0 && shouldShowEmptyState && (
         <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
           {t(
             'No parsed quota windows were found. The key may not be a plan key, or the upstream response format changed.'
           )}
         </div>
-      ) : null}
+      )}
     </div>
   )
 }
@@ -1288,12 +1303,12 @@ export function ChannelPlanUsageDialog({
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const [showRawJson, setShowRawJson] = useState(false)
 
-  const title =
-    kind === 'minimax'
-      ? t('MiniMax Token Plan Usage')
-      : kind === 'kimi'
-        ? t('Kimi Coding Plan Usage')
-        : t('Zhipu Coding Plan Usage')
+  let title = t('Zhipu Coding Plan Usage')
+  if (kind === 'minimax') {
+    title = t('MiniMax Token Plan Usage')
+  } else if (kind === 'kimi') {
+    title = t('Kimi Coding Plan Usage')
+  }
 
   const rawJsonText = useMemo(() => {
     if (!response) return ''
@@ -1303,6 +1318,32 @@ export function ChannelPlanUsageDialog({
       return String(response?.data ?? '')
     }
   }, [response])
+  const refreshCurrentKey = () => onRefresh(currentKeyIndex)
+  let usageView = (
+    <ZhipuUsageView
+      channel={channel}
+      response={response}
+      onRefresh={refreshCurrentKey}
+      isRefreshing={isRefreshing}
+    />
+  )
+  if (kind === 'minimax') {
+    usageView = (
+      <MiniMaxUsageView
+        response={response}
+        onRefresh={refreshCurrentKey}
+        isRefreshing={isRefreshing}
+      />
+    )
+  } else if (kind === 'kimi') {
+    usageView = (
+      <KimiUsageView
+        response={response}
+        onRefresh={refreshCurrentKey}
+        isRefreshing={isRefreshing}
+      />
+    )
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1330,26 +1371,7 @@ export function ChannelPlanUsageDialog({
                 isRefreshing={isRefreshing}
               />
 
-              {kind === 'minimax' ? (
-                <MiniMaxUsageView
-                  response={response}
-                  onRefresh={() => onRefresh(currentKeyIndex)}
-                  isRefreshing={isRefreshing}
-                />
-              ) : kind === 'kimi' ? (
-                <KimiUsageView
-                  response={response}
-                  onRefresh={() => onRefresh(currentKeyIndex)}
-                  isRefreshing={isRefreshing}
-                />
-              ) : (
-                <ZhipuUsageView
-                  channel={channel}
-                  response={response}
-                  onRefresh={() => onRefresh(currentKeyIndex)}
-                  isRefreshing={isRefreshing}
-                />
-              )}
+              {usageView}
 
               <div className='rounded-lg border'>
                 <button

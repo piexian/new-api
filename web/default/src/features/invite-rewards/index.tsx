@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Gift, Link2, RotateCcw, Share2, Users } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getSelf } from '@/lib/api'
-import { formatQuota, formatTimestampToDate } from '@/lib/format'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { CopyButton } from '@/components/copy-button'
+import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -32,10 +34,10 @@ import {
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { CopyButton } from '@/components/copy-button'
-import { SectionPageLayout } from '@/components/layout'
 import { TransferDialog } from '@/features/wallet/components/dialogs/transfer-dialog'
+import { getSelf } from '@/lib/api'
+import { formatQuota, formatTimestampToDate } from '@/lib/format'
+
 import {
   getAffiliateCode,
   getInvitedUsers,
@@ -92,6 +94,51 @@ function InvitedUsersList({
   loading: boolean
 }) {
   const { t } = useTranslation()
+  const content = (() => {
+    if (loading) {
+      return (
+        <div className='space-y-2'>
+          {['first', 'second', 'third'].map((slot) => (
+            <Skeleton key={slot} className='h-16 rounded-lg' />
+          ))}
+        </div>
+      )
+    }
+
+    if (users.length === 0) {
+      return (
+        <div className='text-muted-foreground flex min-h-32 items-center justify-center rounded-lg border border-dashed text-sm'>
+          {t('No invited users yet')}
+        </div>
+      )
+    }
+
+    return (
+      <div className='space-y-2'>
+        {users.map((user) => (
+          <div
+            key={user.id}
+            className='grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_minmax(150px,max-content)] sm:items-center'
+          >
+            <div className='min-w-0'>
+              <p className='truncate text-sm font-medium'>
+                {user.display_name || user.username}
+              </p>
+              <p className='text-muted-foreground mt-0.5 truncate text-xs'>
+                @{user.username} · {t('User ID')} #{user.id}
+              </p>
+            </div>
+            <div className='text-muted-foreground text-xs sm:text-right'>
+              <span className='font-medium'>{t('Joined')}</span>
+              <span className='ml-2'>
+                {user.created_at ? formatTimestampToDate(user.created_at) : '-'}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  })()
 
   return (
     <Card className='py-0'>
@@ -108,45 +155,7 @@ function InvitedUsersList({
           </div>
         </div>
       </CardHeader>
-      <CardContent className='p-3 sm:p-4'>
-        {loading ? (
-          <div className='space-y-2'>
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={index} className='h-16 rounded-lg' />
-            ))}
-          </div>
-        ) : users.length === 0 ? (
-          <div className='text-muted-foreground flex min-h-32 items-center justify-center rounded-lg border border-dashed text-sm'>
-            {t('No invited users yet')}
-          </div>
-        ) : (
-          <div className='space-y-2'>
-            {users.map((user) => (
-              <div
-                key={user.id}
-                className='grid gap-2 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_minmax(150px,max-content)] sm:items-center'
-              >
-                <div className='min-w-0'>
-                  <p className='truncate text-sm font-medium'>
-                    {user.display_name || user.username}
-                  </p>
-                  <p className='text-muted-foreground mt-0.5 truncate text-xs'>
-                    @{user.username} · {t('User ID')} #{user.id}
-                  </p>
-                </div>
-                <div className='text-muted-foreground text-xs sm:text-right'>
-                  <span className='font-medium'>{t('Joined')}</span>
-                  <span className='ml-2'>
-                    {user.created_at
-                      ? formatTimestampToDate(user.created_at)
-                      : '-'}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
+      <CardContent className='p-3 sm:p-4'>{content}</CardContent>
     </Card>
   )
 }
@@ -249,9 +258,6 @@ export function InviteRewards() {
     <>
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('Invite Rewards')}</SectionPageLayout.Title>
-        <SectionPageLayout.Description>
-          {t('Manage referral links, rewards, and invited users')}
-        </SectionPageLayout.Description>
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-5'>
             <div className='grid gap-3 sm:grid-cols-3'>

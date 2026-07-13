@@ -16,11 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { DateTimePicker } from '@/components/datetime-picker'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -42,8 +45,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { DateTimePicker } from '@/components/datetime-picker'
+
 import { createIPBan, getIPBan, updateIPBan } from '../api'
 import { SUCCESS_MESSAGES } from '../constants'
 import {
@@ -102,15 +104,17 @@ export function IPBansMutateDrawer({
 
   useEffect(() => {
     if (open && isUpdate && currentRow) {
-      getIPBan(currentRow.id).then((result) => {
-        if (result.success && result.data) {
-          form.reset(transformIPBanToFormDefaults(result.data))
-        }
-      })
+      getIPBan(currentRow.id)
+        .then((result) => {
+          if (result.success && result.data) {
+            form.reset(transformIPBanToFormDefaults(result.data))
+          }
+        })
+        .catch(() => toast.error(t('Failed to load IP ban rules')))
     } else if (open && !isUpdate) {
       form.reset(IP_BAN_FORM_DEFAULT_VALUES)
     }
-  }, [open, isUpdate, currentRow, form])
+  }, [open, isUpdate, currentRow, form, t])
 
   const submitValues = async (values: IPBanFormValues, confirmed = false) => {
     setIsSubmitting(true)

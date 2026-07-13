@@ -54,6 +54,7 @@ func seedSubscriptionWithPlan(t *testing.T, sub *model.UserSubscription) {
 	if sub.EndTime == 0 {
 		sub.EndTime = now.Add(30 * 24 * time.Hour).Unix()
 	}
+	sub.AllowWalletOverflow = true
 	require.NoError(t, model.DB.Create(sub).Error)
 }
 

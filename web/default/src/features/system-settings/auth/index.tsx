@@ -21,6 +21,7 @@ import type { AuthSettings } from '../types'
 import {
   AUTH_DEFAULT_SECTION,
   getAuthSectionContent,
+  getAuthSectionMeta,
 } from './section-registry.tsx'
 
 const defaultAuthSettings: AuthSettings = {
@@ -35,6 +36,7 @@ const defaultAuthSettings: AuthSettings = {
   EmailDomainRestrictionForBindingEnabled: false,
   EmailAliasRestrictionEnabled: false,
   EmailDomainWhitelist: '',
+  ServerAddress: '',
   GitHubOAuthEnabled: false,
   GitHubClientId: '',
   GitHubClientSecret: '',
@@ -92,6 +94,7 @@ export function AuthSettings() {
       defaultSettings={defaultAuthSettings}
       defaultSection={AUTH_DEFAULT_SECTION}
       getSectionContent={getAuthSectionContent}
+      getSectionMeta={getAuthSectionMeta}
     />
   )
 }

@@ -16,22 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
+
+import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+
 import { updateUserProfile } from '../../api'
 
 // ============================================================================
@@ -144,7 +139,7 @@ export function ChangePasswordDialog({
           setTurnstileWidgetKey((value) => value + 1)
         }
       }
-    } catch (_error) {
+    } catch {
       toast.error(
         hasPassword
           ? t('Failed to change password')
@@ -159,105 +154,99 @@ export function ChangePasswordDialog({
     }
   }
 
+  const formId = 'change-password-form'
+  let submitLabel = hasPassword ? t('Change Password') : t('Set Password')
+  if (loading) {
+    submitLabel = hasPassword ? t('Changing...') : t('Saving...')
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-md'>
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>
-              {hasPassword ? t('Change Password') : t('Set Password')}
-            </DialogTitle>
-            <DialogDescription>
-              {hasPassword
-                ? t('Update your password for account:')
-                : t('Set a password for account:')}{' '}
-              <strong>{username}</strong>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className='my-6 space-y-4'>
-            {hasPassword && (
-              <div className='space-y-2'>
-                <Label htmlFor='currentPassword'>{t('Current Password')}</Label>
-                <PasswordInput
-                  id='currentPassword'
-                  value={formData.originalPassword}
-                  onChange={(e) =>
-                    handleChange('originalPassword', e.target.value)
-                  }
-                  disabled={loading}
-                  required
-                  autoComplete='current-password'
-                />
-              </div>
-            )}
-
-            <div className='space-y-2'>
-              <Label htmlFor='newPassword'>{t('New Password')}</Label>
-              <PasswordInput
-                id='newPassword'
-                value={formData.newPassword}
-                onChange={(e) => handleChange('newPassword', e.target.value)}
-                disabled={loading}
-                required
-                minLength={8}
-                autoComplete='new-password'
-              />
-              <p className='text-muted-foreground text-xs'>
-                {t('Must be at least 8 characters')}
-              </p>
-            </div>
-
-            <div className='space-y-2'>
-              <Label htmlFor='confirmPassword'>
-                {t('Confirm New Password')}
-              </Label>
-              <PasswordInput
-                id='confirmPassword'
-                value={formData.confirmPassword}
-                onChange={(e) =>
-                  handleChange('confirmPassword', e.target.value)
-                }
-                disabled={loading}
-                required
-                autoComplete='new-password'
-              />
-            </div>
-
-            {turnstileEnabled && (
-              <div className='flex justify-center pt-2'>
-                <Turnstile
-                  key={turnstileWidgetKey}
-                  siteKey={turnstileSiteKey}
-                  onVerify={setTurnstileToken}
-                  onExpire={() => setTurnstileToken('')}
-                />
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              type='button'
-              variant='outline'
-              onClick={() => onOpenChange(false)}
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={hasPassword ? t('Change Password') : t('Set Password')}
+      description={
+        <>
+          {hasPassword
+            ? t('Update your password for account:')
+            : t('Set a password for account:')}{' '}
+          <strong>{username}</strong>
+        </>
+      }
+      contentClassName='sm:max-w-md'
+      contentHeight='auto'
+      bodyClassName='space-y-4'
+      footer={
+        <>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
+            {t('Cancel')}
+          </Button>
+          <Button type='submit' form={formId} disabled={loading}>
+            {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+            {submitLabel}
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={handleSubmit} className='space-y-4'>
+        {hasPassword && (
+          <div className='space-y-2'>
+            <Label htmlFor='currentPassword'>{t('Current Password')}</Label>
+            <PasswordInput
+              id='currentPassword'
+              value={formData.originalPassword}
+              onChange={(e) => handleChange('originalPassword', e.target.value)}
               disabled={loading}
-            >
-              {t('Cancel')}
-            </Button>
-            <Button type='submit' disabled={loading}>
-              {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-              {loading
-                ? hasPassword
-                  ? t('Changing...')
-                  : t('Saving...')
-                : hasPassword
-                  ? t('Change Password')
-                  : t('Set Password')}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
+              required
+              autoComplete='current-password'
+            />
+          </div>
+        )}
+
+        <div className='space-y-2'>
+          <Label htmlFor='newPassword'>{t('New Password')}</Label>
+          <PasswordInput
+            id='newPassword'
+            value={formData.newPassword}
+            onChange={(e) => handleChange('newPassword', e.target.value)}
+            disabled={loading}
+            required
+            minLength={8}
+            autoComplete='new-password'
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Must be at least 8 characters')}
+          </p>
+        </div>
+
+        <div className='space-y-2'>
+          <Label htmlFor='confirmPassword'>{t('Confirm New Password')}</Label>
+          <PasswordInput
+            id='confirmPassword'
+            value={formData.confirmPassword}
+            onChange={(e) => handleChange('confirmPassword', e.target.value)}
+            disabled={loading}
+            required
+            autoComplete='new-password'
+          />
+        </div>
+
+        {turnstileEnabled && (
+          <div className='flex justify-center pt-2'>
+            <Turnstile
+              key={turnstileWidgetKey}
+              siteKey={turnstileSiteKey}
+              onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken('')}
+            />
+          </div>
+        )}
+      </form>
     </Dialog>
   )
 }

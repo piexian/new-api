@@ -16,8 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useState, type ReactNode } from 'react'
-import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -34,12 +32,14 @@ import {
   WalletCards,
   type LucideIcon,
 } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { useForm, type SubmitErrorHandler } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { formatQuota, formatTimestampToDate } from '@/lib/format'
-import { cn } from '@/lib/utils'
-import { useStatus } from '@/hooks/use-status'
+
+import { DateTimePicker } from '@/components/datetime-picker'
+import { MultiSelect } from '@/components/multi-select'
+import { StatusBadge } from '@/components/status-badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -90,9 +90,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DateTimePicker } from '@/components/datetime-picker'
-import { MultiSelect } from '@/components/multi-select'
-import { StatusBadge } from '@/components/status-badge'
 import {
   ApiKeyGroupCombobox,
   type ApiKeyGroupOption,
@@ -105,6 +102,11 @@ import {
   transformFormDataToPayload,
   type ApiKeyFormValues,
 } from '@/features/keys/lib'
+import { useStatus } from '@/hooks/use-status'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { formatQuota, formatTimestampToDate } from '@/lib/format'
+import { cn } from '@/lib/utils'
+
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../../keys/constants'
 import {
   createUserToken,
@@ -199,11 +201,13 @@ function UserTokenDialog(props: UserTokenDialogProps) {
 
   useEffect(() => {
     if (props.open && isUpdate && props.currentToken) {
-      getUserToken(props.userId, props.currentToken.id).then((result) => {
-        if (result.success && result.data) {
-          form.reset(transformApiKeyToFormDefaults(result.data))
-        }
-      })
+      getUserToken(props.userId, props.currentToken.id)
+        .then((result) => {
+          if (result.success && result.data) {
+            form.reset(transformApiKeyToFormDefaults(result.data))
+          }
+        })
+        .catch(() => toast.error(t(ERROR_MESSAGES.LOAD_FAILED)))
     } else if (props.open && !isUpdate) {
       form.reset(
         getApiKeyFormDefaultValues(defaultUseAutoGroup && backendHasAuto)
@@ -215,6 +219,7 @@ function UserTokenDialog(props: UserTokenDialogProps) {
     props.currentToken,
     isUpdate,
     form,
+    t,
     defaultUseAutoGroup,
     backendHasAuto,
   ])
@@ -469,7 +474,9 @@ function UserTokenDialog(props: UserTokenDialogProps) {
                             min='1'
                             placeholder={t('Number of keys to create')}
                             onChange={(e) =>
-                              field.onChange(parseInt(e.target.value, 10) || 1)
+                              field.onChange(
+                                Number.parseInt(e.target.value, 10) || 1
+                              )
                             }
                           />
                         </FormControl>
@@ -498,7 +505,9 @@ function UserTokenDialog(props: UserTokenDialogProps) {
                             step={tokensOnly ? 1 : 0.01}
                             placeholder={quotaPlaceholder}
                             onChange={(e) =>
-                              field.onChange(parseFloat(e.target.value) || 0)
+                              field.onChange(
+                                Number.parseFloat(e.target.value) || 0
+                              )
                             }
                           />
                         </FormControl>
@@ -788,12 +797,13 @@ export function UserTokensPanel({ user }: UserTokensPanelProps) {
         </div>
 
         <div className='flex flex-col gap-2 p-3'>
-          {isLoading ? (
+          {isLoading && (
             <>
               <Skeleton className='h-24 w-full' />
               <Skeleton className='h-24 w-full' />
             </>
-          ) : tokens.length === 0 ? (
+          )}
+          {!isLoading && tokens.length === 0 && (
             <Empty className='min-h-32'>
               <EmptyHeader>
                 <EmptyMedia variant='icon'>
@@ -813,10 +823,18 @@ export function UserTokensPanel({ user }: UserTokensPanelProps) {
                 </Button>
               </EmptyContent>
             </Empty>
-          ) : (
+          )}
+          {!isLoading &&
+            tokens.length > 0 &&
             tokens.map((token) => {
               const enabled = token.status === API_KEY_STATUS.ENABLED
               const statusConfig = API_KEY_STATUSES[token.status]
+              let toggleIcon = <Power />
+              if (togglingId === token.id) {
+                toggleIcon = <Loader2 className='animate-spin' />
+              } else if (enabled) {
+                toggleIcon = <PowerOff />
+              }
               return (
                 <div key={token.id} className='rounded-lg border p-3'>
                   <div className='flex items-start justify-between gap-3'>
@@ -829,7 +847,6 @@ export function UserTokensPanel({ user }: UserTokensPanelProps) {
                           <StatusBadge
                             label={t(statusConfig.label)}
                             variant={statusConfig.variant}
-                            showDot={statusConfig.showDot}
                             copyable={false}
                           />
                         )}
@@ -852,13 +869,7 @@ export function UserTokensPanel({ user }: UserTokensPanelProps) {
                             />
                           }
                         >
-                          {togglingId === token.id ? (
-                            <Loader2 className='animate-spin' />
-                          ) : enabled ? (
-                            <PowerOff />
-                          ) : (
-                            <Power />
-                          )}
+                          {toggleIcon}
                         </TooltipTrigger>
                         <TooltipContent>
                           {enabled ? t('Disable') : t('Enable')}
@@ -919,8 +930,7 @@ export function UserTokensPanel({ user }: UserTokensPanelProps) {
                   </div>
                 </div>
               )
-            })
-          )}
+            })}
         </div>
 
         {totalPages > 1 && (

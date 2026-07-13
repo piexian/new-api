@@ -118,7 +118,7 @@ func applyRedemptionTypeFilter(query *gorm.DB, redemptionType string) *gorm.DB {
 	}
 	redemptionType = NormalizeRedemptionType(redemptionType)
 	typeCol := "`type`"
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		typeCol = `"type"`
 	}
 	if redemptionType == RedemptionTypeQuota {
@@ -208,7 +208,7 @@ func SearchRedemptions(keyword string, startIdx int, num int, redemptionType str
 	// Build query based on keyword type
 	query := applyRedemptionTypeFilter(tx.Model(&Redemption{}), redemptionType)
 	keyCol := "`key`"
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		keyCol = `"key"`
 	}
 
@@ -269,7 +269,7 @@ func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result
 	redemption := &Redemption{}
 
 	keyCol := "`key`"
-	if common.UsingPostgreSQL {
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		keyCol = `"key"`
 	}
 	common.RandomSleep()

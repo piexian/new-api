@@ -1,9 +1,24 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import {
-  ACCOUNT_DISABLED_DIALOG_EVENT,
-  type AccountDisabledDialogPayload,
-} from '@/lib/account-disabled-dialog'
+
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -14,6 +29,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Markdown } from '@/components/ui/markdown'
+import {
+  ACCOUNT_DISABLED_DIALOG_EVENT,
+  type AccountDisabledDialogPayload,
+} from '@/lib/account-disabled-dialog'
 
 function hasContent(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
@@ -70,14 +89,14 @@ export function AccountDisabledDialog() {
         <DialogHeader className='pr-8 text-start'>
           <div className='flex flex-wrap items-center gap-2'>
             {accountMeta && (
-              <span className='inline-flex max-w-full items-center rounded-md border bg-muted px-2 py-1 text-xs font-medium text-muted-foreground'>
+              <span className='bg-muted text-muted-foreground inline-flex max-w-full items-center rounded-md border px-2 py-1 text-xs font-medium'>
                 <span className='truncate'>{accountMeta}</span>
               </span>
             )}
             <DialogTitle>{payload?.title || t('Account disabled')}</DialogTitle>
           </div>
         </DialogHeader>
-        <div className='max-h-[min(70dvh,42rem)] overflow-y-auto rounded-lg border bg-muted/20 p-4'>
+        <div className='bg-muted/20 max-h-[min(70dvh,42rem)] overflow-y-auto rounded-lg border p-4'>
           <Markdown className='prose-neutral dark:prose-invert'>
             {content}
           </Markdown>

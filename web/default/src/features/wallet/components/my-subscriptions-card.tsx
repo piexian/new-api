@@ -16,12 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CreditCard, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { formatQuota } from '@/lib/format'
-import { cn } from '@/lib/utils'
+
+import {
+  StatusBadge,
+  dotColorMap,
+  textColorMap,
+} from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -41,11 +45,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import {
-  StatusBadge,
-  dotColorMap,
-  textColorMap,
-} from '@/components/status-badge'
-import {
   getPublicPlans,
   getSelfSubscriptionFull,
   updateBillingPreference,
@@ -54,6 +53,8 @@ import type {
   PlanRecord,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
+import { formatQuota } from '@/lib/format'
+import { cn } from '@/lib/utils'
 
 interface MySubscriptionsCardProps {
   refreshKey?: number
@@ -357,6 +358,23 @@ export function MySubscriptionsCard({
                 (subscription?.start_time || 0) > now
               const isActive =
                 subscription?.status === 'active' && !isPending && !isExpired
+              let statusLabel = t('Expired')
+              let statusVariant: 'success' | 'neutral' = 'neutral'
+              if (isActive) {
+                statusLabel = t('Active')
+                statusVariant = 'success'
+              } else if (isPending) {
+                statusLabel = t('Pending')
+              } else if (isCancelled) {
+                statusLabel = t('Cancelled')
+              }
+              let endLabel = t('Expired at')
+              if (isActive) {
+                endLabel = t('Until')
+              } else if (isCancelled) {
+                endLabel = t('Cancelled at')
+              }
+              const nextResetTime = subscription?.next_reset_time ?? 0
 
               return (
                 <div
@@ -370,31 +388,11 @@ export function MySubscriptionsCard({
                           ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
                           : `${t('Subscription')} #${subscription?.id}`}
                       </span>
-                      {isActive ? (
-                        <StatusBadge
-                          label={t('Active')}
-                          variant='success'
-                          copyable={false}
-                        />
-                      ) : isPending ? (
-                        <StatusBadge
-                          label={t('Pending')}
-                          variant='neutral'
-                          copyable={false}
-                        />
-                      ) : isCancelled ? (
-                        <StatusBadge
-                          label={t('Cancelled')}
-                          variant='neutral'
-                          copyable={false}
-                        />
-                      ) : (
-                        <StatusBadge
-                          label={t('Expired')}
-                          variant='neutral'
-                          copyable={false}
-                        />
-                      )}
+                      <StatusBadge
+                        label={statusLabel}
+                        variant={statusVariant}
+                        copyable={false}
+                      />
                     </div>
                     {isActive && (
                       <span className='text-muted-foreground shrink-0'>
@@ -404,21 +402,15 @@ export function MySubscriptionsCard({
                   </div>
 
                   <div className='text-muted-foreground mt-1.5'>
-                    {isActive
-                      ? t('Until')
-                      : isCancelled
-                        ? t('Cancelled at')
-                        : t('Expired at')}{' '}
+                    {endLabel}{' '}
                     {new Date(
                       (subscription?.end_time || 0) * 1000
                     ).toLocaleString()}
                   </div>
-                  {isActive && (subscription?.next_reset_time ?? 0) > 0 && (
+                  {isActive && nextResetTime > 0 && (
                     <div className='text-muted-foreground mt-1'>
                       {t('Next reset')}:{' '}
-                      {new Date(
-                        subscription!.next_reset_time! * 1000
-                      ).toLocaleString()}
+                      {new Date(nextResetTime * 1000).toLocaleString()}
                     </div>
                   )}
                   <div className='text-muted-foreground mt-1'>

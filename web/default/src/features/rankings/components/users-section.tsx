@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { UserMultipleIcon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -28,6 +28,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
+
 import { formatShare, formatTokens } from '../lib/format'
 import type { RankingPeriod, UserRanking, UserRankingSelf } from '../types'
 import { GrowthText } from './growth-text'
@@ -37,7 +39,6 @@ const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
   week: 'Top users by token usage this week',
   month: 'Top users by token usage this month',
   year: 'Top users by token usage this year',
-  all: 'Top users by token usage since launch',
 }
 
 type UsersSectionProps = {

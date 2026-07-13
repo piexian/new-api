@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { VChart } from '@visactor/react-vchart'
 import { PieChart } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
@@ -31,6 +32,7 @@ import {
 } from '@/components/ui/card'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
+
 import { formatShare, formatTokens } from '../lib/format'
 import type { RankingPeriod, VendorRanking, VendorShareSeries } from '../types'
 import { VendorLink } from './entity-links'
@@ -40,7 +42,6 @@ const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
   week: 'Token share by model author across the past few weeks',
   month: 'Token share by model author across the past month',
   year: 'Token share by model author across the past year',
-  all: 'Token share by model author since launch',
 }
 
 /** Stable colour palette for vendors, used in both the share chart and the
@@ -110,6 +111,14 @@ type MarketShareSectionProps = {
 export function MarketShareSection(props: MarketShareSectionProps) {
   const { t } = useTranslation()
   const { resolvedTheme, themeReady } = useChartTheme()
+  const chartTextColor =
+    resolvedTheme === 'dark'
+      ? 'rgba(255, 255, 255, 0.68)'
+      : 'rgba(15, 23, 42, 0.58)'
+  const chartGridColor =
+    resolvedTheme === 'dark'
+      ? 'rgba(255, 255, 255, 0.12)'
+      : 'rgba(15, 23, 42, 0.12)'
 
   const colourMap = useMemo(
     () => buildVendorColourMap(props.history.vendors.map((v) => v.name)),
@@ -146,7 +155,7 @@ export function MarketShareSection(props: MarketShareSectionProps) {
         {
           orient: 'bottom',
           label: {
-            style: { fill: 'currentColor', fontSize: 10 },
+            style: { fill: chartTextColor, fontSize: 10 },
             autoHide: true,
             autoLimit: true,
           },
@@ -159,9 +168,12 @@ export function MarketShareSection(props: MarketShareSectionProps) {
           label: {
             formatMethod: (val: number | string) =>
               `${Math.round(Number(val) * 100)}%`,
-            style: { fill: 'currentColor', fontSize: 10 },
+            style: { fill: chartTextColor, fontSize: 10 },
           },
-          grid: { visible: true, style: { lineDash: [3, 3] } },
+          grid: {
+            visible: true,
+            style: { lineDash: [3, 3], stroke: chartGridColor },
+          },
         },
       ],
       tooltip: {
@@ -203,7 +215,7 @@ export function MarketShareSection(props: MarketShareSectionProps) {
       },
       animationAppear: { duration: 500 },
     }
-  }, [colourMap, orderedPoints])
+  }, [chartGridColor, chartTextColor, colourMap, orderedPoints])
 
   const visible = props.rows.slice(0, MAX_VENDORS_IN_LIST)
   const leadingVendor = visible[0]
@@ -334,8 +346,7 @@ function VendorList(props: {
                 className='h-full'
                 style={{
                   width: `${Math.max(2, Math.min(100, vendor.share * 100))}%`,
-                  backgroundColor:
-                    props.colourMap[vendor.vendor] ?? '#94a3b8',
+                  backgroundColor: props.colourMap[vendor.vendor] ?? '#94a3b8',
                 }}
               />
             </div>

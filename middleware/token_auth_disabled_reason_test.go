@@ -31,9 +31,8 @@ func setupTokenAuthDisabledReasonTestDB(t *testing.T) *gorm.DB {
 
 	originalIsMasterNode := common.IsMasterNode
 	originalSQLitePath := common.SQLitePath
-	originalUsingSQLite := common.UsingSQLite
-	originalUsingMySQL := common.UsingMySQL
-	originalUsingPostgreSQL := common.UsingPostgreSQL
+	originalMainDatabaseType := common.MainDatabaseType()
+	originalLogDatabaseType := common.LogDatabaseType()
 	originalSQLDSN, hadSQLDSN := os.LookupEnv("SQL_DSN")
 	originalDB := model.DB
 	originalLOGDB := model.LOG_DB
@@ -41,9 +40,6 @@ func setupTokenAuthDisabledReasonTestDB(t *testing.T) *gorm.DB {
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	common.IsMasterNode = false
 	common.SQLitePath = dsn
-	common.UsingSQLite = false
-	common.UsingMySQL = false
-	common.UsingPostgreSQL = false
 	if err := os.Setenv("SQL_DSN", "local"); err != nil {
 		t.Fatalf("failed to set SQL_DSN: %v", err)
 	}
@@ -64,9 +60,7 @@ func setupTokenAuthDisabledReasonTestDB(t *testing.T) *gorm.DB {
 		}
 		common.IsMasterNode = originalIsMasterNode
 		common.SQLitePath = originalSQLitePath
-		common.UsingSQLite = originalUsingSQLite
-		common.UsingMySQL = originalUsingMySQL
-		common.UsingPostgreSQL = originalUsingPostgreSQL
+		common.SetDatabaseTypes(originalMainDatabaseType, originalLogDatabaseType)
 		if hadSQLDSN {
 			_ = os.Setenv("SQL_DSN", originalSQLDSN)
 		} else {

@@ -91,6 +91,17 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	return request, nil
 }
 
+func getUpstreamModelName(info *relaycommon.RelayInfo, fallback string) string {
+	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
+		return info.UpstreamModelName
+	}
+	return fallback
+}
+
+func isTemperatureOneOnlyModel(model string) bool {
+	return strings.EqualFold(model, "kimi-k2.6")
+}
+
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
 	if err != nil {

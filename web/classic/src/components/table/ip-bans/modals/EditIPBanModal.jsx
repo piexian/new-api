@@ -126,7 +126,9 @@ const EditIPBanModal = ({ visible, editingIPBan, handleClose, refresh }) => {
           title: t('确认封禁当前IP？'),
           content: (
             <div className='space-y-2'>
-              <Text>{message || t('该规则会封禁你当前的IP，请确认后再提交')}</Text>
+              <Text>
+                {message || t('该规则会封禁你当前的IP，请确认后再提交')}
+              </Text>
               <br />
               <Text type='secondary'>
                 {t('目标')}: {res.data.data.target}

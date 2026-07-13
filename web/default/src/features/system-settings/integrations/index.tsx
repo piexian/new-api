@@ -1,8 +1,27 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { SettingsPage } from '../components/settings-page'
-import type { IntegrationSettings } from './section-registry.tsx'
 import {
   INTEGRATIONS_DEFAULT_SECTION,
   getIntegrationsSectionContent,
+  getIntegrationsSectionMeta,
+  type IntegrationSettings,
 } from './section-registry.tsx'
 
 const defaultIntegrationSettings: IntegrationSettings = {
@@ -12,6 +31,8 @@ const defaultIntegrationSettings: IntegrationSettings = {
   SMTPFrom: '',
   SMTPToken: '',
   SMTPSSLEnabled: false,
+  SMTPStartTLSEnabled: false,
+  SMTPInsecureSkipVerify: false,
   SMTPForceAuthLogin: false,
   EmailProvider: 'smtp',
   CFEmailAccountID: '',
@@ -22,16 +43,11 @@ const defaultIntegrationSettings: IntegrationSettings = {
   WorkerUrl: '',
   WorkerValidKey: '',
   WorkerAllowHttpImageRequestEnabled: false,
-  ChannelDisableThreshold: '',
   QuotaRemindThreshold: '',
-  AutomaticDisableChannelEnabled: false,
-  AutomaticEnableChannelEnabled: false,
-  AutomaticDisableKeywords: '',
-  AutomaticDisableStatusCodes: '401',
-  AutomaticRetryStatusCodes:
-    '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
-  'monitor_setting.auto_test_channel_enabled': false,
-  'monitor_setting.auto_test_channel_minutes': 10,
+  'perf_metrics_setting.enabled': true,
+  'perf_metrics_setting.flush_interval': 5,
+  'perf_metrics_setting.bucket_time': 'hour',
+  'perf_metrics_setting.retention_days': 0,
   'model_deployment.ionet.api_key': '',
   'model_deployment.ionet.enabled': false,
   PayAddress: '',
@@ -94,6 +110,7 @@ export function IntegrationSettings() {
       defaultSettings={defaultIntegrationSettings}
       defaultSection={INTEGRATIONS_DEFAULT_SECTION}
       getSectionContent={getIntegrationsSectionContent}
+      getSectionMeta={getIntegrationsSectionMeta}
     />
   )
 }

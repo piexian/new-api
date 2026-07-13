@@ -87,6 +87,11 @@ func fillUserCacheIfVersion(user User, version int64) (bool, error) {
 	)
 }
 
+// updateUserCache 失效全量快照，避免并发回填用旧用户数据覆盖新字段。
+func updateUserCache(user User) error {
+	return invalidateUserCache(user.Id)
+}
+
 // GetUserCache gets complete user cache from hash
 func GetUserCache(userId int) (*UserBase, error) {
 	// Try getting from Redis first
@@ -214,6 +219,13 @@ func updateUserQuotaCache(userId int, quota int) error {
 // UpdateUserGroupCache 通过失效全量快照刷新分组，避免旧回填覆盖新分组。
 func UpdateUserGroupCache(userId int, _ string) error {
 	return invalidateUserCache(userId)
+}
+
+func updateUserEmailCache(userId int, email string) error {
+	if !common.RedisEnabled {
+		return nil
+	}
+	return common.RedisHSetField(getUserCacheKey(userId), "Email", email)
 }
 
 func updateUserNameCache(userId int, username string) error {

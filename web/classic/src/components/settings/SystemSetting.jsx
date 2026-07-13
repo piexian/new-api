@@ -106,6 +106,7 @@ const SystemSetting = () => {
     EmailDomainRestrictionForBindingEnabled: '',
     EmailAliasRestrictionEnabled: '',
     SMTPSSLEnabled: '',
+    SMTPStartTLSEnabled: '',
     SMTPForceAuthLogin: '',
     EmailProvider: 'smtp',
     CFEmailAccountID: '',
@@ -219,6 +220,7 @@ const SystemSetting = () => {
           case 'EmailDomainRestrictionForBindingEnabled':
           case 'EmailAliasRestrictionEnabled':
           case 'SMTPSSLEnabled':
+          case 'SMTPStartTLSEnabled':
           case 'SMTPForceAuthLogin':
           case 'LinuxDOOAuthEnabled':
           case 'QQOAuthEnabled':
@@ -368,6 +370,13 @@ const SystemSetting = () => {
 
   const submitEmail = async () => {
     const options = [];
+    const smtpSecurityMode = inputs.SMTPSSLEnabled
+      ? 'ssl_tls'
+      : inputs.SMTPStartTLSEnabled
+        ? 'starttls'
+        : 'none';
+    const nextSMTPSSLEnabled = smtpSecurityMode === 'ssl_tls';
+    const nextSMTPStartTLSEnabled = smtpSecurityMode === 'starttls';
 
     if (originInputs['EmailProvider'] !== inputs.EmailProvider) {
       options.push({ key: 'EmailProvider', value: inputs.EmailProvider });
@@ -393,6 +402,15 @@ const SystemSetting = () => {
       inputs.SMTPToken !== ''
     ) {
       options.push({ key: 'SMTPToken', value: inputs.SMTPToken });
+    }
+    if (originInputs['SMTPSSLEnabled'] !== nextSMTPSSLEnabled) {
+      options.push({ key: 'SMTPSSLEnabled', value: nextSMTPSSLEnabled });
+    }
+    if (originInputs['SMTPStartTLSEnabled'] !== nextSMTPStartTLSEnabled) {
+      options.push({
+        key: 'SMTPStartTLSEnabled',
+        value: nextSMTPStartTLSEnabled,
+      });
     }
 
     if (originInputs['CFEmailAccountID'] !== inputs.CFEmailAccountID) {
@@ -827,6 +845,23 @@ const SystemSetting = () => {
     if (optionKey === 'LinuxDOOAuthEnabled') {
       setLinuxDOOAuthEnabled(value);
     }
+  };
+
+  const handleSMTPSecurityModeChange = async (event) => {
+    const mode = event && event.target ? event.target.value : event;
+    const nextSMTPSSLEnabled = mode === 'ssl_tls';
+    const nextSMTPStartTLSEnabled = mode === 'starttls';
+
+    formApiRef.current?.setValue('SMTPSSLEnabled', nextSMTPSSLEnabled);
+    formApiRef.current?.setValue(
+      'SMTPStartTLSEnabled',
+      nextSMTPStartTLSEnabled,
+    );
+
+    await updateOptions([
+      { key: 'SMTPSSLEnabled', value: nextSMTPSSLEnabled },
+      { key: 'SMTPStartTLSEnabled', value: nextSMTPStartTLSEnabled },
+    ]);
   };
 
   const handlePasswordLoginConfirm = async () => {
@@ -1548,15 +1583,30 @@ const SystemSetting = () => {
                       />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Checkbox
-                        field='SMTPSSLEnabled'
-                        noLabel
-                        onChange={(e) =>
-                          handleCheckboxChange('SMTPSSLEnabled', e)
+                      <Text strong>{t('SMTP 加密方式')}</Text>
+                      <Radio.Group
+                        type='button'
+                        value={
+                          inputs.SMTPSSLEnabled
+                            ? 'ssl_tls'
+                            : inputs.SMTPStartTLSEnabled
+                              ? 'starttls'
+                              : 'none'
                         }
+                        onChange={handleSMTPSecurityModeChange}
+                        style={{ marginTop: 8, marginBottom: 8 }}
                       >
-                        {t('启用SMTP SSL')}
-                      </Form.Checkbox>
+                        <Radio value='none'>{t('无加密')}</Radio>
+                        <Radio value='ssl_tls'>{t('SSL/TLS')}</Radio>
+                        <Radio value='starttls'>{t('STARTTLS')}</Radio>
+                      </Radio.Group>
+                      <Text
+                        type='secondary'
+                        size='small'
+                        style={{ display: 'block', marginBottom: 8 }}
+                      >
+                        {t('请选择一种 SMTP 传输加密方式')}
+                      </Text>
                       <Form.Checkbox
                         field='SMTPForceAuthLogin'
                         noLabel

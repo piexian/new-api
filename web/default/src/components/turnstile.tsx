@@ -45,10 +45,16 @@ function loadTurnstileScript(): Promise<void> {
   if (scriptLoadPromise) return scriptLoadPromise
   scriptLoadPromise = new Promise<void>((resolve, reject) => {
     const id = 'cf-turnstile'
-    const existingScript = document.getElementById(id) as HTMLScriptElement | null
+    const existingScript = document.getElementById(
+      id
+    ) as HTMLScriptElement | null
     if (existingScript) {
       existingScript.addEventListener('load', () => resolve(), { once: true })
-      existingScript.addEventListener('error', () => reject(new Error('Failed to load Turnstile script')), { once: true })
+      existingScript.addEventListener(
+        'error',
+        () => reject(new Error('Failed to load Turnstile script')),
+        { once: true }
+      )
       return
     }
     const s = document.createElement('script')
@@ -88,29 +94,31 @@ export function Turnstile({
   useEffect(() => {
     let cancelled = false
 
-    loadTurnstileScript().then(() => {
-      if (cancelled || !containerRef.current || !window.turnstile) return
+    loadTurnstileScript()
+      .then(() => {
+        if (cancelled || !containerRef.current || !window.turnstile) return
 
-      // Remove existing widget if already rendered
-      if (widgetIdRef.current) {
-        window.turnstile.remove(widgetIdRef.current)
-        widgetIdRef.current = undefined
-      }
+        // Remove existing widget if already rendered
+        if (widgetIdRef.current) {
+          window.turnstile.remove(widgetIdRef.current)
+          widgetIdRef.current = undefined
+        }
 
-      try {
-        widgetIdRef.current = window.turnstile.render(containerRef.current, {
-          sitekey: siteKey,
-          callback: (token: string) => onVerifyRef.current(token),
-          'error-callback': handleExpired,
-          'expired-callback': handleExpired,
-        })
-      } catch (e) {
-        console.warn('Turnstile render error:', e)
-      }
-    }).catch((error) => {
-      console.warn('Turnstile script load error:', error)
-      onExpireRef.current?.()
-    })
+        try {
+          widgetIdRef.current = window.turnstile.render(containerRef.current, {
+            sitekey: siteKey,
+            callback: (token: string) => onVerifyRef.current(token),
+            'error-callback': handleExpired,
+            'expired-callback': handleExpired,
+          })
+        } catch (e) {
+          console.warn('Turnstile render error:', e)
+        }
+      })
+      .catch((error) => {
+        console.warn('Turnstile script load error:', error)
+        onExpireRef.current?.()
+      })
 
     return () => {
       cancelled = true

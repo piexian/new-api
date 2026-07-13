@@ -137,9 +137,7 @@ export const useUsersData = () => {
     if (searchQuotaOrder) params.append('quota_order', searchQuotaOrder);
     params.append('p', String(startIdx));
     params.append('page_size', String(pageSize));
-    const res = await API.get(
-      `/api/user/search?${params.toString()}`,
-    );
+    const res = await API.get(`/api/user/search?${params.toString()}`);
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
@@ -229,8 +227,13 @@ export const useUsersData = () => {
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
-    const { searchKeyword, searchGroup, searchStatus, searchRole, searchQuotaOrder } =
-      getFormValues();
+    const {
+      searchKeyword,
+      searchGroup,
+      searchStatus,
+      searchRole,
+      searchQuotaOrder,
+    } = getFormValues();
     if (
       searchKeyword === '' &&
       searchGroup === '' &&
@@ -257,8 +260,13 @@ export const useUsersData = () => {
     localStorage.setItem('page-size', size + '');
     setPageSize(size);
     setActivePage(1);
-    const { searchKeyword, searchGroup, searchStatus, searchRole, searchQuotaOrder } =
-      getFormValues();
+    const {
+      searchKeyword,
+      searchGroup,
+      searchStatus,
+      searchRole,
+      searchQuotaOrder,
+    } = getFormValues();
     try {
       if (
         searchKeyword === '' &&
@@ -299,8 +307,13 @@ export const useUsersData = () => {
 
   // Refresh data
   const refresh = async (page = activePage) => {
-    const { searchKeyword, searchGroup, searchStatus, searchRole, searchQuotaOrder } =
-      getFormValues();
+    const {
+      searchKeyword,
+      searchGroup,
+      searchStatus,
+      searchRole,
+      searchQuotaOrder,
+    } = getFormValues();
     if (
       searchKeyword === '' &&
       searchGroup === '' &&

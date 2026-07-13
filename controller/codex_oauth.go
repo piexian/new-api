@@ -29,34 +29,33 @@ func codexOAuthSessionKey(channelID int, field string) string {
 }
 
 func parseCodexAuthorizationInput(input string) (code string, state string, err error) {
-	v := strings.TrimSpace(input)
-	if v == "" {
+	value := strings.TrimSpace(input)
+	if value == "" {
 		return "", "", errors.New("empty input")
 	}
-	if strings.Contains(v, "#") {
-		parts := strings.SplitN(v, "#", 2)
+	if strings.Contains(value, "#") {
+		parts := strings.SplitN(value, "#", 2)
 		code = strings.TrimSpace(parts[0])
 		state = strings.TrimSpace(parts[1])
 		return code, state, nil
 	}
-	if strings.Contains(v, "code=") {
-		u, parseErr := url.Parse(v)
+	if strings.Contains(value, "code=") {
+		parsedURL, parseErr := url.Parse(value)
 		if parseErr == nil {
-			q := u.Query()
-			code = strings.TrimSpace(q.Get("code"))
-			state = strings.TrimSpace(q.Get("state"))
+			query := parsedURL.Query()
+			code = strings.TrimSpace(query.Get("code"))
+			state = strings.TrimSpace(query.Get("state"))
 			return code, state, nil
 		}
-		q, parseErr := url.ParseQuery(v)
+		query, parseErr := url.ParseQuery(value)
 		if parseErr == nil {
-			code = strings.TrimSpace(q.Get("code"))
-			state = strings.TrimSpace(q.Get("state"))
+			code = strings.TrimSpace(query.Get("code"))
+			state = strings.TrimSpace(query.Get("state"))
 			return code, state, nil
 		}
 	}
 
-	code = v
-	return code, "", nil
+	return value, "", nil
 }
 
 func StartCodexOAuth(c *gin.Context) {
@@ -74,16 +73,16 @@ func StartCodexOAuthForChannel(c *gin.Context) {
 
 func startCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	if channelID > 0 {
-		ch, err := model.GetChannelById(channelID, false)
+		channel, err := model.GetChannelById(channelID, false)
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-		if ch == nil {
+		if channel == nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
 			return
 		}
-		if ch.Type != constant.ChannelTypeCodex {
+		if channel.Type != constant.ChannelTypeCodex {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
 			return
 		}
@@ -124,13 +123,13 @@ func CompleteCodexOAuthForChannel(c *gin.Context) {
 }
 
 func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
-	req := codexOAuthCompleteRequest{}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	request := codexOAuthCompleteRequest{}
+	if err := c.ShouldBindJSON(&request); err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	code, state, err := parseCodexAuthorizationInput(req.Input)
+	code, state, err := parseCodexAuthorizationInput(request.Input)
 	if err != nil {
 		common.SysError("failed to parse codex authorization input: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "解析授权信息失败，请检查输入格式"})
@@ -147,20 +146,20 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 
 	channelProxy := ""
 	if channelID > 0 {
-		ch, err := model.GetChannelById(channelID, false)
+		channel, err := model.GetChannelById(channelID, false)
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-		if ch == nil {
+		if channel == nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
 			return
 		}
-		if ch.Type != constant.ChannelTypeCodex {
+		if channel.Type != constant.ChannelTypeCodex {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Codex"})
 			return
 		}
-		channelProxy = ch.GetSetting().Proxy
+		channelProxy = channel.GetSetting().Proxy
 	}
 
 	session := sessions.Default(c)
@@ -178,26 +177,26 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
-	tokenRes, err := service.ExchangeCodexAuthorizationCodeWithProxy(ctx, code, verifier, channelProxy)
+	tokenResponse, err := service.ExchangeCodexAuthorizationCodeWithProxy(ctx, code, verifier, channelProxy)
 	if err != nil {
 		common.SysError("failed to exchange codex authorization code: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "授权码交换失败，请重试"})
 		return
 	}
 
-	accountID, ok := service.ExtractCodexAccountIDFromJWT(tokenRes.AccessToken)
+	accountID, ok := service.ExtractCodexAccountIDFromJWT(tokenResponse.AccessToken)
 	if !ok {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "failed to extract account_id from access_token"})
 		return
 	}
-	email, _ := service.ExtractEmailFromJWT(tokenRes.AccessToken)
+	email, _ := service.ExtractEmailFromJWT(tokenResponse.AccessToken)
 
 	key := codex.OAuthKey{
-		AccessToken:  tokenRes.AccessToken,
-		RefreshToken: tokenRes.RefreshToken,
+		AccessToken:  tokenResponse.AccessToken,
+		RefreshToken: tokenResponse.RefreshToken,
 		AccountID:    accountID,
 		LastRefresh:  time.Now().Format(time.RFC3339),
-		Expired:      tokenRes.ExpiresAt.Format(time.RFC3339),
+		Expired:      tokenResponse.ExpiresAt.Format(time.RFC3339),
 		Email:        email,
 		Type:         "codex",
 	}

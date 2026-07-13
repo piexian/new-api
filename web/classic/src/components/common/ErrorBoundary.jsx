@@ -26,9 +26,7 @@ class ErrorBoundary extends React.Component {
       return (
         <div className='flex flex-col justify-center items-center h-screen p-8'>
           <Empty
-            image={
-              <IllustrationFailure style={{ width: 250, height: 250 }} />
-            }
+            image={<IllustrationFailure style={{ width: 250, height: 250 }} />}
             darkModeImage={
               <IllustrationFailureDark style={{ width: 250, height: 250 }} />
             }
