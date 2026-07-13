@@ -439,6 +439,15 @@ export function ChannelAffinitySection(props: Props) {
               >
                 Claude CLI
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditingRule(null)
+                  setRuleTemplateKey('grokBuild')
+                  setRuleEditorOpen(true)
+                }}
+              >
+                Grok Build
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <Button variant='outline' size='sm' onClick={handleFillTemplates}>

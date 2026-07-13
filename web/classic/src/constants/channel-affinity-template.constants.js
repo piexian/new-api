@@ -35,6 +35,17 @@ export const CODEX_CLI_HEADER_PASSTHROUGH_HEADERS = [
   'X-Codex-Turn-Metadata',
 ];
 
+// Grok Build / xAI: sticky routing via x-grok-conv-id (+ Session_id for Codex-compat).
+export const GROK_BUILD_HEADER_PASSTHROUGH_HEADERS = [
+  'X-Grok-Conv-Id',
+  'Session_id',
+  'Originator',
+  'User-Agent',
+  'X-Codex-Beta-Features',
+  'X-Codex-Turn-Metadata',
+  'X-Grok-Client-Version',
+];
+
 export const CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS = [
   'X-Stainless-Arch',
   'X-Stainless-Lang',
@@ -57,6 +68,10 @@ export const CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE = buildPassHeadersTemplate(
 
 export const CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE = buildPassHeadersTemplate(
   CLAUDE_CLI_HEADER_PASSTHROUGH_HEADERS,
+);
+
+export const GROK_BUILD_HEADER_PASSTHROUGH_TEMPLATE = buildPassHeadersTemplate(
+  GROK_BUILD_HEADER_PASSTHROUGH_HEADERS,
 );
 
 export const CHANNEL_AFFINITY_RULE_TEMPLATES = {
@@ -82,6 +97,23 @@ export const CHANNEL_AFFINITY_RULE_TEMPLATES = {
     ttl_seconds: 0,
     skip_retry_on_failure: true,
     include_using_group: true,
+    include_rule_name: true,
+  },
+  grokBuild: {
+    name: 'grok build trace',
+    model_regex: ['^grok-.*$'],
+    path_regex: ['/v1/responses', '/v1/chat/completions'],
+    key_sources: [
+      { type: 'gjson', path: 'prompt_cache_key' },
+      { type: 'request_header', key: 'X-Grok-Conv-Id' },
+      { type: 'request_header', key: 'Session_id' },
+    ],
+    param_override_template: GROK_BUILD_HEADER_PASSTHROUGH_TEMPLATE,
+    value_regex: '',
+    ttl_seconds: 0,
+    skip_retry_on_failure: true,
+    include_using_group: true,
+    include_model_name: false,
     include_rule_name: true,
   },
 };

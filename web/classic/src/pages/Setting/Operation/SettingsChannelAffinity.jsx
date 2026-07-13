@@ -487,6 +487,7 @@ export default function SettingsChannelAffinity(props) {
       const templates = [
         CHANNEL_AFFINITY_RULE_TEMPLATES.codexCli,
         CHANNEL_AFFINITY_RULE_TEMPLATES.claudeCli,
+        CHANNEL_AFFINITY_RULE_TEMPLATES.grokBuild,
       ].map((tpl) => {
         const baseTemplate = cloneChannelAffinityTemplate(tpl);
         const name = makeUniqueName(existingNames, tpl.name);
@@ -508,10 +509,10 @@ export default function SettingsChannelAffinity(props) {
     }
 
     Modal.confirm({
-      title: t('填充 Codex CLI / Claude CLI 模版'),
+      title: t('填充 Codex CLI / Claude CLI / Grok Build 模版'),
       content: (
         <div style={{ lineHeight: '1.6' }}>
-          <Text type='tertiary'>{t('将追加 2 条规则到现有规则列表。')}</Text>
+          <Text type='tertiary'>{t('将追加 3 条规则到现有规则列表。')}</Text>
         </div>
       ),
       onOk: doAppend,
@@ -1021,7 +1022,7 @@ export default function SettingsChannelAffinity(props) {
                 {t('JSON 模式')}
               </Button>
               <Button onClick={appendCodexAndClaudeCodeTemplates}>
-                {t('填充 Codex CLI / Claude CLI 模版')}
+                {t('填充 Codex CLI / Claude CLI / Grok Build 模版')}
               </Button>
               <Button icon={<IconPlus />} onClick={openAddModal}>
                 {t('新增规则')}

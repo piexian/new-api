@@ -43,6 +43,17 @@ var codexCliPassThroughHeaders = []string{
 	"X-Codex-Turn-Metadata",
 }
 
+// Grok Build / xAI 会话粘滞：上游用 x-grok-conv-id（及兼容 Session_id）做 prompt cache 路由。
+var grokBuildPassThroughHeaders = []string{
+	"X-Grok-Conv-Id",
+	"Session_id",
+	"Originator",
+	"User-Agent",
+	"X-Codex-Beta-Features",
+	"X-Codex-Turn-Metadata",
+	"X-Grok-Client-Version",
+}
+
 var claudeCliPassThroughHeaders = []string{
 	"X-Stainless-Arch",
 	"X-Stainless-Lang",
@@ -106,6 +117,27 @@ var channelAffinitySetting = ChannelAffinitySetting{
 			ParamOverrideTemplate: buildPassHeaderTemplate(claudeCliPassThroughHeaders),
 			SkipRetryOnFailure:    true,
 			IncludeUsingGroup:     true,
+			IncludeRuleName:       true,
+			UserAgentInclude:      nil,
+		},
+		{
+			Name:       "grok build trace",
+			ModelRegex: []string{"^grok-.*$"},
+			PathRegex:  []string{"/v1/responses", "/v1/chat/completions"},
+			KeySources: []ChannelAffinityKeySource{
+				// Grok Build / Responses：body.prompt_cache_key 与会话一致
+				{Type: "gjson", Path: "prompt_cache_key"},
+				// 官方/第三方客户端：x-grok-conv-id 直接决定上游 cache 路由
+				{Type: "request_header", Key: "X-Grok-Conv-Id"},
+				// Codex 兼容路径：Session_id 会被映射为 X-Grok-Conv-Id
+				{Type: "request_header", Key: "Session_id"},
+			},
+			ValueRegex:            "",
+			TTLSeconds:            0,
+			ParamOverrideTemplate: buildPassHeaderTemplate(grokBuildPassThroughHeaders),
+			SkipRetryOnFailure:    true,
+			IncludeUsingGroup:     true,
+			IncludeModelName:      false,
 			IncludeRuleName:       true,
 			UserAgentInclude:      nil,
 		},
