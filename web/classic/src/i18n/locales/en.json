@@ -4287,6 +4287,9 @@
     "，另可点击 Token Plan 查看订阅窗口": ", or click Token Plan to view subscription window",
     "，当前无生效订阅，将自动使用钱包": ", no active subscription. Wallet will be used automatically.",
     "，时间：": ",time:",
-    "，点击更新": ", click Update"
+    "，点击更新": ", click Update",
+    "已打开授权页面": "Authorization page opened",
+    "已生成授权凭据": "Authorization credentials generated",
+    "打开授权页面": "Open authorization page"
   }
 }

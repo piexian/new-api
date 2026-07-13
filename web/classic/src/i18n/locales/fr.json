@@ -4186,6 +4186,9 @@
     "，另可点击 Token Plan 查看订阅窗口": ", ou cliquez sur Token Plan pour voir la fenêtre d'abonnement",
     "，当前无生效订阅，将自动使用钱包": ", aucun abonnement actif, le portefeuille sera utilisé automatiquement.",
     "，时间：": ", time:",
-    "，点击更新": ", cliquez sur Mettre à jour"
+    "，点击更新": ", cliquez sur Mettre à jour",
+    "已打开授权页面": "Page d'autorisation ouverte",
+    "已生成授权凭据": "Identifiants d'autorisation générés",
+    "打开授权页面": "Ouvrir la page d'autorisation"
   }
 }

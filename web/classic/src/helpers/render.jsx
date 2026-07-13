@@ -1109,22 +1109,8 @@ export function renderQuotaWithAmount(amount) {
     return renderNumber(renderUnitWithQuota(amount));
   }
   const numericAmount = Number(amount);
-  const formattedAmount = Number.isFinite(numericAmount)
-    ? numericAmount.toFixed(2)
-    : amount;
-
-  if (quotaDisplayType === 'CNY') {
-    return '¥' + formattedAmount;
-  } else if (quotaDisplayType === 'CUSTOM') {
-    const statusStr = localStorage.getItem('status');
-    let symbol = '¤';
-    try {
-      if (statusStr) {
-        const s = JSON.parse(statusStr);
-        symbol = s?.custom_currency_symbol || symbol;
-      }
-    } catch (e) {}
-    return symbol + formattedAmount;
+  if (!Number.isFinite(numericAmount)) {
+    return symbol + amount;
   }
   return symbol + (numericAmount * rate).toFixed(2);
 }

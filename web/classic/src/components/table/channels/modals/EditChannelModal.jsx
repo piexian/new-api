@@ -65,6 +65,7 @@ import {
 import ModelSelectModal from './ModelSelectModal';
 import SingleModelSelectModal from './SingleModelSelectModal';
 import OllamaModelModal from './OllamaModelModal';
+import CodexOAuthModal from './CodexOAuthModal';
 import ParamOverrideEditorModal from './ParamOverrideEditorModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
@@ -408,6 +409,7 @@ const EditChannelModal = (props) => {
   }, [inputs.param_override, t]);
   const [isIonetChannel, setIsIonetChannel] = useState(false);
   const [ionetMetadata, setIonetMetadata] = useState(null);
+  const [codexOAuthModalVisible, setCodexOAuthModalVisible] = useState(false);
   const [codexCredentialRefreshing, setCodexCredentialRefreshing] =
     useState(false);
   const [paramOverrideEditorVisible, setParamOverrideEditorVisible] =
@@ -480,10 +482,6 @@ const EditChannelModal = (props) => {
     </Tooltip>
   );
 
-  // 2FA状态更新辅助函数
-  const updateTwoFAState = (updates) => {
-    setTwoFAState((prev) => ({ ...prev, ...updates }));
-  };
   // 使用通用安全验证 Hook
   const {
     isModalVisible,
@@ -1331,6 +1329,11 @@ const EditChannelModal = (props) => {
       console.error('Failed to view channel key:', error);
       showError(error.message || t('获取密钥失败'));
     }
+  };
+
+  const handleCodexOAuthGenerated = (key) => {
+    handleInputChange('key', key);
+    formatJsonField('key');
   };
 
   const handleRefreshCodexCredential = async () => {

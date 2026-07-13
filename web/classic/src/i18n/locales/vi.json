@@ -4710,6 +4710,9 @@
     "，另可点击 Token Plan 查看订阅窗口": ", hoặc nhấp Token Plan để xem cửa sổ đăng ký",
     "，当前无生效订阅，将自动使用钱包": ", hiện không có gói đăng ký hiệu lực, sẽ tự động dùng ví.",
     "，时间：": ", thời gian:",
-    "，点击更新": ", nhấn để cập nhật"
+    "，点击更新": ", nhấn để cập nhật",
+    "已打开授权页面": "Đã mở trang xác thực",
+    "已生成授权凭据": "Đã tạo thông tin xác thực",
+    "打开授权页面": "Mở trang xác thực"
   }
 }
