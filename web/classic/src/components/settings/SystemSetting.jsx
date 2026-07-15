@@ -43,6 +43,7 @@ import {
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import CustomOAuthSetting from './CustomOAuthSetting';
+import EmailTemplateSetting from './EmailTemplateSetting';
 
 const SystemSetting = () => {
   const { t } = useTranslation();
@@ -114,6 +115,9 @@ const SystemSetting = () => {
     CFEmailFrom: '',
     EmailDailyLimit: '',
     EmailVerificationDailyLimitPerUser: '',
+    BalanceLowNotifyEnabled: true,
+    QuotaRemindThreshold: '',
+    EmailTestReceiver: '',
     EmailDomainWhitelist: [],
     TelegramOAuthEnabled: '',
     TelegramBotToken: '',
@@ -139,6 +143,7 @@ const SystemSetting = () => {
 
   const [originInputs, setOriginInputs] = useState({});
   const [loading, setLoading] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const formApiRef = useRef(null);
   const [emailDomainWhitelist, setEmailDomainWhitelist] = useState([]);
@@ -229,6 +234,7 @@ const SystemSetting = () => {
           case 'passkey.enabled':
           case 'passkey.allow_insecure_origin':
           case 'WorkerAllowHttpImageRequestEnabled':
+          case 'BalanceLowNotifyEnabled':
             item.value = toBoolean(item.value);
             break;
           case 'passkey.origins':
@@ -382,48 +388,55 @@ const SystemSetting = () => {
       options.push({ key: 'EmailProvider', value: inputs.EmailProvider });
     }
 
-    if (originInputs['SMTPServer'] !== inputs.SMTPServer) {
-      options.push({ key: 'SMTPServer', value: inputs.SMTPServer });
-    }
-    if (originInputs['SMTPAccount'] !== inputs.SMTPAccount) {
-      options.push({ key: 'SMTPAccount', value: inputs.SMTPAccount });
-    }
-    if (originInputs['SMTPFrom'] !== inputs.SMTPFrom) {
-      options.push({ key: 'SMTPFrom', value: inputs.SMTPFrom });
-    }
-    if (
-      originInputs['SMTPPort'] !== inputs.SMTPPort &&
-      inputs.SMTPPort !== ''
-    ) {
-      options.push({ key: 'SMTPPort', value: inputs.SMTPPort });
-    }
-    if (
-      originInputs['SMTPToken'] !== inputs.SMTPToken &&
-      inputs.SMTPToken !== ''
-    ) {
-      options.push({ key: 'SMTPToken', value: inputs.SMTPToken });
-    }
-    if (originInputs['SMTPSSLEnabled'] !== nextSMTPSSLEnabled) {
-      options.push({ key: 'SMTPSSLEnabled', value: nextSMTPSSLEnabled });
-    }
-    if (originInputs['SMTPStartTLSEnabled'] !== nextSMTPStartTLSEnabled) {
-      options.push({
-        key: 'SMTPStartTLSEnabled',
-        value: nextSMTPStartTLSEnabled,
-      });
+    if (inputs.EmailProvider === 'smtp') {
+      if (originInputs['SMTPServer'] !== inputs.SMTPServer) {
+        options.push({ key: 'SMTPServer', value: inputs.SMTPServer });
+      }
+      if (originInputs['SMTPAccount'] !== inputs.SMTPAccount) {
+        options.push({ key: 'SMTPAccount', value: inputs.SMTPAccount });
+      }
+      if (originInputs['SMTPFrom'] !== inputs.SMTPFrom) {
+        options.push({ key: 'SMTPFrom', value: inputs.SMTPFrom });
+      }
+      if (
+        originInputs['SMTPPort'] !== inputs.SMTPPort &&
+        inputs.SMTPPort !== ''
+      ) {
+        options.push({ key: 'SMTPPort', value: inputs.SMTPPort });
+      }
+      if (
+        originInputs['SMTPToken'] !== inputs.SMTPToken &&
+        inputs.SMTPToken !== ''
+      ) {
+        options.push({ key: 'SMTPToken', value: inputs.SMTPToken });
+      }
+      if (originInputs['SMTPSSLEnabled'] !== nextSMTPSSLEnabled) {
+        options.push({ key: 'SMTPSSLEnabled', value: nextSMTPSSLEnabled });
+      }
+      if (originInputs['SMTPStartTLSEnabled'] !== nextSMTPStartTLSEnabled) {
+        options.push({
+          key: 'SMTPStartTLSEnabled',
+          value: nextSMTPStartTLSEnabled,
+        });
+      }
     }
 
-    if (originInputs['CFEmailAccountID'] !== inputs.CFEmailAccountID) {
-      options.push({ key: 'CFEmailAccountID', value: inputs.CFEmailAccountID });
-    }
-    if (
-      originInputs['CFEmailAPIToken'] !== inputs.CFEmailAPIToken &&
-      inputs.CFEmailAPIToken !== ''
-    ) {
-      options.push({ key: 'CFEmailAPIToken', value: inputs.CFEmailAPIToken });
-    }
-    if (originInputs['CFEmailFrom'] !== inputs.CFEmailFrom) {
-      options.push({ key: 'CFEmailFrom', value: inputs.CFEmailFrom });
+    if (inputs.EmailProvider === 'cloudflare') {
+      if (originInputs['CFEmailAccountID'] !== inputs.CFEmailAccountID) {
+        options.push({
+          key: 'CFEmailAccountID',
+          value: inputs.CFEmailAccountID,
+        });
+      }
+      if (
+        originInputs['CFEmailAPIToken'] !== inputs.CFEmailAPIToken &&
+        inputs.CFEmailAPIToken !== ''
+      ) {
+        options.push({ key: 'CFEmailAPIToken', value: inputs.CFEmailAPIToken });
+      }
+      if (originInputs['CFEmailFrom'] !== inputs.CFEmailFrom) {
+        options.push({ key: 'CFEmailFrom', value: inputs.CFEmailFrom });
+      }
     }
     if (originInputs['EmailDailyLimit'] !== inputs.EmailDailyLimit) {
       options.push({ key: 'EmailDailyLimit', value: inputs.EmailDailyLimit });
@@ -437,9 +450,46 @@ const SystemSetting = () => {
         value: inputs.EmailVerificationDailyLimitPerUser,
       });
     }
-
+    if (
+      originInputs['BalanceLowNotifyEnabled'] !== inputs.BalanceLowNotifyEnabled
+    ) {
+      options.push({
+        key: 'BalanceLowNotifyEnabled',
+        value: inputs.BalanceLowNotifyEnabled,
+      });
+    }
+    if (originInputs['QuotaRemindThreshold'] !== inputs.QuotaRemindThreshold) {
+      const threshold = String(inputs.QuotaRemindThreshold || '').trim();
+      if (!/^\d+$/.test(threshold)) {
+        showError(t('余额不足提醒阈值必须是非负整数'));
+        return;
+      }
+      options.push({ key: 'QuotaRemindThreshold', value: threshold });
+    }
     if (options.length > 0) {
       await updateOptions(options);
+    }
+  };
+
+  const testEmailDelivery = async () => {
+    const receiver = (inputs.EmailTestReceiver || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(receiver)) {
+      showError(t('Please enter a valid email address'));
+      return;
+    }
+
+    setTestingEmail(true);
+    try {
+      const res = await API.post('/api/option/test_email', { receiver });
+      if (res.data.success) {
+        showSuccess(t('Test email sent successfully'));
+      } else {
+        showError(res.data.message || t('Failed to send test email'));
+      }
+    } catch (error) {
+      showError(error.message || t('Failed to send test email'));
+    } finally {
+      setTestingEmail(false);
     }
   };
 
@@ -1294,7 +1344,7 @@ const SystemSetting = () => {
                     </Col>
                   </Row>
                   <Row>
-                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
                       <Form.Select
                         field='DefaultUserGroup'
                         label={t('新用户默认分组')}
@@ -1533,7 +1583,7 @@ const SystemSetting = () => {
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Select
                         field='EmailProvider'
                         label={t('邮件服务提供商')}
@@ -1547,75 +1597,158 @@ const SystemSetting = () => {
                       </Form.Select>
                     </Col>
                   </Row>
+                  {inputs.EmailProvider === 'smtp' ? (
+                    <>
+                      <Row
+                        gutter={{
+                          xs: 8,
+                          sm: 16,
+                          md: 24,
+                          lg: 24,
+                          xl: 24,
+                          xxl: 24,
+                        }}
+                        style={{ marginTop: 16 }}
+                      >
+                        <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                          <Form.Input
+                            field='SMTPServer'
+                            label={t('SMTP 服务器地址')}
+                          />
+                        </Col>
+                        <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                          <Form.Input field='SMTPPort' label={t('SMTP 端口')} />
+                        </Col>
+                        <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                          <Form.Input
+                            field='SMTPAccount'
+                            label={t('SMTP 账户')}
+                          />
+                        </Col>
+                      </Row>
+                      <Row
+                        gutter={{
+                          xs: 8,
+                          sm: 16,
+                          md: 24,
+                          lg: 24,
+                          xl: 24,
+                          xxl: 24,
+                        }}
+                        style={{ marginTop: 16 }}
+                      >
+                        <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                          <Form.Input
+                            field='SMTPFrom'
+                            label={t('SMTP 发送者邮箱')}
+                          />
+                        </Col>
+                        <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                          <Form.Input
+                            field='SMTPToken'
+                            label={t('SMTP 访问凭证')}
+                            type='password'
+                            placeholder='敏感信息不会发送到前端显示'
+                          />
+                        </Col>
+                        <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                          <Text strong>{t('SMTP 加密方式')}</Text>
+                          <Radio.Group
+                            type='button'
+                            value={
+                              inputs.SMTPSSLEnabled
+                                ? 'ssl_tls'
+                                : inputs.SMTPStartTLSEnabled
+                                  ? 'starttls'
+                                  : 'none'
+                            }
+                            onChange={handleSMTPSecurityModeChange}
+                            style={{ marginTop: 8, marginBottom: 8 }}
+                          >
+                            <Radio value='none'>{t('无加密')}</Radio>
+                            <Radio value='ssl_tls'>{t('SSL/TLS')}</Radio>
+                            <Radio value='starttls'>{t('STARTTLS')}</Radio>
+                          </Radio.Group>
+                          <Text
+                            type='secondary'
+                            size='small'
+                            style={{ display: 'block', marginBottom: 8 }}
+                          >
+                            {t('请选择一种 SMTP 传输加密方式')}
+                          </Text>
+                          <Form.Checkbox
+                            field='SMTPForceAuthLogin'
+                            noLabel
+                            onChange={(e) =>
+                              handleCheckboxChange('SMTPForceAuthLogin', e)
+                            }
+                          >
+                            {t('强制使用 AUTH LOGIN')}
+                          </Form.Checkbox>
+                        </Col>
+                      </Row>
+                    </>
+                  ) : null}
+                  {inputs.EmailProvider === 'cloudflare' ? (
+                    <Row
+                      gutter={{
+                        xs: 8,
+                        sm: 16,
+                        md: 24,
+                        lg: 24,
+                        xl: 24,
+                        xxl: 24,
+                      }}
+                      style={{ marginTop: 16 }}
+                    >
+                      <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                        <Form.Input
+                          field='CFEmailAccountID'
+                          label={t('Account ID')}
+                          placeholder={t('Cloudflare Account ID')}
+                        />
+                      </Col>
+                      <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                        <Form.Input
+                          field='CFEmailAPIToken'
+                          label={t('API Token')}
+                          type='password'
+                          placeholder={t('留空表示不更新')}
+                        />
+                      </Col>
+                      <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                        <Form.Input
+                          field='CFEmailFrom'
+                          label={t('发送者邮箱')}
+                          placeholder='noreply@mail.example.com'
+                        />
+                      </Col>
+                    </Row>
+                  ) : null}
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                     style={{ marginTop: 16 }}
                   >
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                    <Col xs={24} sm={24} md={16} lg={16} xl={16}>
                       <Form.Input
-                        field='SMTPServer'
-                        label={t('SMTP 服务器地址')}
+                        field='EmailTestReceiver'
+                        label={t('Test email delivery')}
+                        type='email'
+                        placeholder={t('Enter the test recipient email')}
+                        extraText={t(
+                          'Uses the currently saved email provider settings. Save changes before testing.',
+                        )}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='SMTPPort' label={t('SMTP 端口')} />
-                    </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='SMTPAccount' label={t('SMTP 账户')} />
-                    </Col>
-                  </Row>
-                  <Row
-                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-                    style={{ marginTop: 16 }}
-                  >
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='SMTPFrom'
-                        label={t('SMTP 发送者邮箱')}
-                      />
-                    </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='SMTPToken'
-                        label={t('SMTP 访问凭证')}
-                        type='password'
-                        placeholder='敏感信息不会发送到前端显示'
-                      />
-                    </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Text strong>{t('SMTP 加密方式')}</Text>
-                      <Radio.Group
-                        type='button'
-                        value={
-                          inputs.SMTPSSLEnabled
-                            ? 'ssl_tls'
-                            : inputs.SMTPStartTLSEnabled
-                              ? 'starttls'
-                              : 'none'
-                        }
-                        onChange={handleSMTPSecurityModeChange}
-                        style={{ marginTop: 8, marginBottom: 8 }}
+                      <Button
+                        onClick={testEmailDelivery}
+                        loading={testingEmail}
+                        disabled={loading}
+                        style={{ marginTop: 28 }}
                       >
-                        <Radio value='none'>{t('无加密')}</Radio>
-                        <Radio value='ssl_tls'>{t('SSL/TLS')}</Radio>
-                        <Radio value='starttls'>{t('STARTTLS')}</Radio>
-                      </Radio.Group>
-                      <Text
-                        type='secondary'
-                        size='small'
-                        style={{ display: 'block', marginBottom: 8 }}
-                      >
-                        {t('请选择一种 SMTP 传输加密方式')}
-                      </Text>
-                      <Form.Checkbox
-                        field='SMTPForceAuthLogin'
-                        noLabel
-                        onChange={(e) =>
-                          handleCheckboxChange('SMTPForceAuthLogin', e)
-                        }
-                      >
-                        {t('强制使用 AUTH LOGIN')}
-                      </Form.Checkbox>
+                        {t('Send test email')}
+                      </Button>
                     </Col>
                   </Row>
                   <Row
@@ -1629,36 +1762,47 @@ const SystemSetting = () => {
                         paddingLeft: 12,
                       }}
                     >
-                      {t('Cloudflare Email Service')}
+                      {t('余额不足提醒')}
                     </Text>
                   </Row>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-                    style={{ marginTop: 16 }}
+                    style={{ marginTop: 12 }}
                   >
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='CFEmailAccountID'
-                        label={t('Account ID')}
-                        placeholder={t('Cloudflare Account ID')}
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Switch
+                        field='BalanceLowNotifyEnabled'
+                        label={t('启用余额不足提醒')}
+                        extraText={t('当用户余额低于阈值时发送邮件提醒')}
+                        checkedText='｜'
+                        uncheckedText='〇'
                       />
                     </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='CFEmailAPIToken'
-                        label={t('API Token')}
-                        type='password'
-                        placeholder={t('留空表示不更新')}
-                      />
-                    </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='CFEmailFrom'
-                        label={t('发送者邮箱')}
-                        placeholder='noreply@mail.example.com'
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.InputNumber
+                        field='QuotaRemindThreshold'
+                        label={t('默认提醒阈值')}
+                        min={0}
+                        step={1}
+                        suffix='Token'
+                        disabled={!inputs.BalanceLowNotifyEnabled}
+                        extraText={t('用户未自定义时使用此值')}
+                        onChange={(value) =>
+                          setInputs({
+                            ...inputs,
+                            QuotaRemindThreshold: String(value),
+                          })
+                        }
                       />
                     </Col>
                   </Row>
+                  <Banner
+                    type='info'
+                    description={t(
+                      'Recharge buttons use the server address from General Settings and are omitted when it is empty.',
+                    )}
+                    style={{ marginTop: 12 }}
+                  />
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                     style={{ marginTop: 16 }}
@@ -1695,6 +1839,7 @@ const SystemSetting = () => {
                   <Button onClick={submitEmail}>{t('保存邮件设置')}</Button>
                 </Form.Section>
               </Card>
+              <EmailTemplateSetting />
               <Card>
                 <Form.Section text={t('配置 OIDC')}>
                   <Text>

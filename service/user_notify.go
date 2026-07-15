@@ -14,14 +14,27 @@ import (
 )
 
 func NotifyRootUser(t string, subject string, content string) {
+	notifyRootUser(dto.NewNotify(t, subject, content, nil))
+}
+
+func NotifyRootUserWithEmailTemplate(t string, subject string, content string, event string, variables map[string]string) {
 	user := model.GetRootUser().ToBaseUser()
-	err := NotifyUser(user.Id, user.Email, user.GetSetting(), dto.NewNotify(t, subject, content, nil))
+	userSetting := user.GetSetting()
+	notification := dto.NewNotify(t, subject, content, nil).WithEmailTemplate(event, userSetting.Language, variables)
+	if err := NotifyUser(user.Id, user.Email, userSetting, notification); err != nil {
+		common.SysLog(fmt.Sprintf("failed to notify root user: %s", err.Error()))
+	}
+}
+
+func notifyRootUser(notification dto.Notify) {
+	user := model.GetRootUser().ToBaseUser()
+	err := NotifyUser(user.Id, user.Email, user.GetSetting(), notification)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("failed to notify root user: %s", err.Error()))
 	}
 }
 
-func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
+func NotifyUpstreamModelUpdateWatchers(subject string, content string, templateVariables map[string]string) {
 	var users []model.User
 	if err := model.DB.
 		Select("id", "email", "role", "status", "setting").
@@ -38,7 +51,12 @@ func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
 		if !userSetting.UpstreamModelUpdateNotifyEnabled {
 			continue
 		}
-		if err := NotifyUser(user.Id, user.Email, userSetting, notification); err != nil {
+		emailNotification := notification.WithEmailTemplate(
+			EmailTemplateEventChannelModelUpdates,
+			userSetting.Language,
+			templateVariables,
+		)
+		if err := NotifyUser(user.Id, user.Email, userSetting, emailNotification); err != nil {
 			common.SysLog(fmt.Sprintf("failed to notify user %d for upstream model update: %s", user.Id, err.Error()))
 			continue
 		}
@@ -74,7 +92,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 			common.SysLog(fmt.Sprintf("user %d has no email, skip sending email", userId))
 			return nil
 		}
-		return sendEmailNotify(emailToUse, data)
+		return sendEmailNotify(emailToUse, userSetting.Language, data)
 	case dto.NotifyTypeWebhook:
 		webhookURLStr := userSetting.WebhookUrl
 		if webhookURLStr == "" {
@@ -104,14 +122,33 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 	return nil
 }
 
-func sendEmailNotify(userEmail string, data dto.Notify) error {
-	// make email content
+func sendEmailNotify(userEmail string, locale string, data dto.Notify) error {
+	if data.EmailTemplate != nil {
+		return SendTemplatedEmail(
+			data.EmailTemplate.Event,
+			data.EmailTemplate.Locale,
+			userEmail,
+			data.EmailTemplate.Variables,
+		)
+	}
+	return SendTemplatedEmail(
+		EmailTemplateEventGeneralNotification,
+		locale,
+		userEmail,
+		map[string]string{
+			"notification_type":    data.Type,
+			"notification_title":   data.Title,
+			"notification_content": renderNotifyContent(data),
+		},
+	)
+}
+
+func renderNotifyContent(data dto.Notify) string {
 	content := data.Content
-	// 处理占位符
 	for _, value := range data.Values {
 		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
 	}
-	return common.SendEmail(data.Title, userEmail, content)
+	return content
 }
 
 func sendBarkNotify(barkURL string, data dto.Notify) error {

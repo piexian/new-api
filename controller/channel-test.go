@@ -1172,7 +1172,7 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 
 		// enable channel
 		if result.localErr == nil && !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
-			service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
+			service.EnableChannel(channel.Id, channel.Type, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
 			summary.Enabled++
 		}
 
@@ -1219,7 +1219,20 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 	allowDisable := mode != operation_setting.ChannelTestModePassiveRecovery
 	summary := performChannelTests(ctx, selected, testUserID, allowDisable, report)
 	if notify && (ctx == nil || ctx.Err() == nil) {
-		service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
+		service.NotifyRootUserWithEmailTemplate(
+			dto.NotifyTypeChannelTest,
+			"通道测试完成",
+			"所有通道测试已完成",
+			service.EmailTemplateEventChannelTestResult,
+			map[string]string{
+				"test_mode":          mode,
+				"tested_channels":    strconv.Itoa(summary.Tested),
+				"succeeded_channels": strconv.Itoa(summary.Succeeded),
+				"failed_channels":    strconv.Itoa(summary.Failed),
+				"disabled_channels":  strconv.Itoa(summary.Disabled),
+				"enabled_channels":   strconv.Itoa(summary.Enabled),
+			},
+		)
 	}
 	return summary, nil
 }

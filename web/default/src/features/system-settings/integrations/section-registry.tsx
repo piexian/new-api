@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 import { EmailSettingsSection } from './email-settings-section'
+import { EmailTemplateSettingsSection } from './email-template-settings-section'
 import { IoNetDeploymentSettingsSection } from './ionet-deployment-settings-section'
 import { MonitoringSettingsSection } from './monitoring-settings-section'
 import { PaymentSettingsSection } from './payment-settings-section'
@@ -40,6 +41,7 @@ export type IntegrationSettings = Pick<
   | 'WorkerValidKey'
   | 'WorkerAllowHttpImageRequestEnabled'
   | 'QuotaRemindThreshold'
+  | 'BalanceLowNotifyEnabled'
   | 'perf_metrics_setting.enabled'
   | 'perf_metrics_setting.flush_interval'
   | 'perf_metrics_setting.bucket_time'
@@ -199,9 +201,17 @@ const INTEGRATIONS_SECTIONS = [
           EmailDailyLimit: settings.EmailDailyLimit,
           EmailVerificationDailyLimitPerUser:
             settings.EmailVerificationDailyLimitPerUser,
+          BalanceLowNotifyEnabled: settings.BalanceLowNotifyEnabled,
+          QuotaRemindThreshold: settings.QuotaRemindThreshold,
         }}
       />
     ),
+  },
+  {
+    id: 'email-templates',
+    titleKey: 'Email Templates',
+    descriptionKey: 'Customize notification emails by event and language',
+    build: (_settings: IntegrationSettings) => <EmailTemplateSettingsSection />,
   },
   {
     id: 'worker',
@@ -238,7 +248,6 @@ const INTEGRATIONS_SECTIONS = [
     build: (settings: IntegrationSettings) => (
       <MonitoringSettingsSection
         defaultValues={{
-          QuotaRemindThreshold: settings.QuotaRemindThreshold,
           'perf_metrics_setting.enabled':
             settings['perf_metrics_setting.enabled'],
           'perf_metrics_setting.flush_interval':

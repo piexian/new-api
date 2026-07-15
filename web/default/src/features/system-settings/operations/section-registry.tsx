@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemBehaviorSection } from '../general/system-behavior-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
+import { EmailTemplateSettingsSection } from '../integrations/email-template-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
 import { WorkerSettingsSection } from '../integrations/worker-settings-section'
 import { LogSettingsSection } from '../maintenance/log-settings-section'
@@ -46,7 +47,6 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <MonitoringSettingsSection
         defaultValues={{
-          QuotaRemindThreshold: settings.QuotaRemindThreshold,
           'perf_metrics_setting.enabled':
             settings['perf_metrics_setting.enabled'] ?? true,
           'perf_metrics_setting.flush_interval':
@@ -82,9 +82,17 @@ const OPERATIONS_SECTIONS = [
           EmailDailyLimit: settings.EmailDailyLimit,
           EmailVerificationDailyLimitPerUser:
             settings.EmailVerificationDailyLimitPerUser,
+          BalanceLowNotifyEnabled: settings.BalanceLowNotifyEnabled,
+          QuotaRemindThreshold: settings.QuotaRemindThreshold,
         }}
       />
     ),
+  },
+  {
+    id: 'email-templates',
+    titleKey: 'Email Templates',
+    descriptionKey: 'Customize notification emails by event and language',
+    build: (_settings: OperationsSettings) => <EmailTemplateSettingsSection />,
   },
   {
     id: 'worker',

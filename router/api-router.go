@@ -195,6 +195,12 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			optionRoute.GET("/", controller.GetOptions)
 			optionRoute.PUT("/", controller.UpdateOption)
+			optionRoute.POST("/test_email", middleware.CriticalRateLimit(), controller.TestEmailDelivery)
+			optionRoute.GET("/email_templates", controller.GetEmailTemplateCatalog)
+			optionRoute.GET("/email_templates/:event/:locale", controller.GetEmailTemplate)
+			optionRoute.PUT("/email_templates/:event/:locale", controller.UpdateEmailTemplate)
+			optionRoute.DELETE("/email_templates/:event/:locale", controller.RestoreEmailTemplate)
+			optionRoute.POST("/email_templates/preview", controller.PreviewEmailTemplate)
 			optionRoute.POST("/payment_compliance", controller.ConfirmPaymentCompliance)
 			optionRoute.GET("/channel_affinity_cache", controller.GetChannelAffinityCacheStats)
 			optionRoute.DELETE("/channel_affinity_cache", controller.ClearChannelAffinityCache)

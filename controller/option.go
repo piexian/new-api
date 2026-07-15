@@ -98,6 +98,9 @@ func GetOptions(c *gin.Context) {
 	optionValues := make(map[string]string)
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
+		if strings.HasPrefix(k, common.EmailNotificationTemplateOptionPrefix) {
+			continue
+		}
 		value := common.Interface2String(v)
 		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
@@ -174,6 +177,16 @@ func UpdateOption(c *gin.Context) {
 				"success": false,
 				"message": "无法启用 GitHub OAuth，请先填入 GitHub Client Id 以及 GitHub Client Secret！",
 			})
+			return
+		}
+	case common.BalanceLowNotifyEnabledOptionKey:
+		if option.Value != "true" && option.Value != "false" {
+			common.ApiErrorMsg(c, "余额不足提醒开关必须是布尔值")
+			return
+		}
+	case "QuotaRemindThreshold":
+		if !isNonNegativeIntegerOptionValue(option.Value.(string)) {
+			common.ApiErrorMsg(c, "余额不足提醒阈值必须是非负整数")
 			return
 		}
 	case "GitHubMinimumAccountAge":

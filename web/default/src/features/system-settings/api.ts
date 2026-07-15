@@ -20,11 +20,19 @@ import { api } from '@/lib/api'
 
 import type {
   ConfirmPaymentComplianceResponse,
+  EmailTemplate,
+  EmailTemplateCatalog,
+  EmailTemplatePreviewRequest,
+  EmailTemplateResponse,
+  EmailTemplateUpdateRequest,
   FetchUpstreamRatiosRequest,
   LogCleanupTask,
   SystemOptionsResponse,
   SystemTaskListResponse,
   SystemTaskResponse,
+  TestEmailRequest,
+  TestEmailResponse,
+  RenderedEmailTemplate,
   UpdateOptionRequest,
   UpdateOptionResponse,
   UpstreamChannelsResponse,
@@ -38,6 +46,57 @@ export async function getSystemOptions() {
 
 export async function updateSystemOption(request: UpdateOptionRequest) {
   const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+  return res.data
+}
+
+export async function sendTestEmail(request: TestEmailRequest) {
+  const res = await api.post<TestEmailResponse>(
+    '/api/option/test_email',
+    request
+  )
+  return res.data
+}
+
+export async function getEmailTemplateCatalog() {
+  const res = await api.get<EmailTemplateResponse<EmailTemplateCatalog>>(
+    '/api/option/email_templates'
+  )
+  return res.data
+}
+
+export async function getEmailTemplate(event: string, locale: string) {
+  const res = await api.get<EmailTemplateResponse<EmailTemplate>>(
+    `/api/option/email_templates/${encodeURIComponent(event)}/${encodeURIComponent(locale)}`
+  )
+  return res.data
+}
+
+export async function updateEmailTemplate(
+  event: string,
+  locale: string,
+  request: EmailTemplateUpdateRequest
+) {
+  const res = await api.put<EmailTemplateResponse<EmailTemplate>>(
+    `/api/option/email_templates/${encodeURIComponent(event)}/${encodeURIComponent(locale)}`,
+    request
+  )
+  return res.data
+}
+
+export async function restoreEmailTemplate(event: string, locale: string) {
+  const res = await api.delete<EmailTemplateResponse<EmailTemplate>>(
+    `/api/option/email_templates/${encodeURIComponent(event)}/${encodeURIComponent(locale)}`
+  )
+  return res.data
+}
+
+export async function previewEmailTemplate(
+  request: EmailTemplatePreviewRequest
+) {
+  const res = await api.post<EmailTemplateResponse<RenderedEmailTemplate>>(
+    '/api/option/email_templates/preview',
+    request
+  )
   return res.data
 }
 

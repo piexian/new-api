@@ -44,6 +44,7 @@ const defaultIntegrationSettings: IntegrationSettings = {
   WorkerValidKey: '',
   WorkerAllowHttpImageRequestEnabled: false,
   QuotaRemindThreshold: '',
+  BalanceLowNotifyEnabled: true,
   'perf_metrics_setting.enabled': true,
   'perf_metrics_setting.flush_interval': 5,
   'perf_metrics_setting.bucket_time': 'hour',

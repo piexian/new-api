@@ -55,6 +55,12 @@ func TestSetApiRouterRegistersPermissionRoutes(t *testing.T) {
 
 	requiredRoutes := []string{
 		http.MethodGet + " /api/authz/catalog",
+		http.MethodPost + " /api/option/test_email",
+		http.MethodGet + " /api/option/email_templates",
+		http.MethodGet + " /api/option/email_templates/:event/:locale",
+		http.MethodPut + " /api/option/email_templates/:event/:locale",
+		http.MethodDelete + " /api/option/email_templates/:event/:locale",
+		http.MethodPost + " /api/option/email_templates/preview",
 		http.MethodPost + " /api/channel/:id/key",
 		http.MethodGet + " /api/channel/ops",
 		http.MethodPost + " /api/channel/:id/status",

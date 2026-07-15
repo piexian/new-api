@@ -213,6 +213,11 @@ var LogConsumeEnabled = true
 
 const ForceRecordIpLogOptionKey = "ForceRecordIpLogEnabled"
 
+const (
+	EmailNotificationTemplateOptionPrefix = "EmailNotificationTemplate."
+	BalanceLowNotifyEnabledOptionKey      = "BalanceLowNotifyEnabled"
+)
+
 var ForceRecordIpLogEnabled = false
 
 var (

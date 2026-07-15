@@ -87,6 +87,8 @@ func InitOptionMap() {
 	common.OptionMap["CFEmailFrom"] = common.CFEmailFrom
 	common.OptionMap["EmailDailyLimit"] = strconv.Itoa(common.EmailDailyLimit)
 	common.OptionMap["EmailVerificationDailyLimitPerUser"] = strconv.Itoa(common.EmailVerificationDailyLimitPerUser)
+	// 余额提醒历史上默认启用，升级后继续保持原有行为。
+	common.OptionMap[common.BalanceLowNotifyEnabledOptionKey] = "true"
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -209,7 +211,17 @@ func InitOptionMap() {
 	}
 
 	common.OptionMapRWMutex.Unlock()
+	removeDeprecatedBalanceLowRechargeURL()
 	loadOptionsFromDatabase()
+}
+
+func removeDeprecatedBalanceLowRechargeURL() {
+	if !common.IsMasterNode || DB == nil {
+		return
+	}
+	if err := DB.Where("key = ?", "BalanceLowNotifyRechargeURL").Delete(&Option{}).Error; err != nil {
+		common.SysLog("failed to remove deprecated balance recharge URL option: " + err.Error())
+	}
 }
 
 func loadOptionsFromDatabase() {

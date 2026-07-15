@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -14,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -325,11 +327,16 @@ func SendEmailVerification(c *gin.Context) {
 	}
 	code := common.GenerateVerificationCode(6)
 	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
-	subject := fmt.Sprintf("%s邮箱验证邮件", common.SystemName)
-	content := fmt.Sprintf("<p>您好，你正在进行%s邮箱验证。</p>"+
-		"<p>您的验证码为: <strong>%s</strong></p>"+
-		"<p>验证码 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, code, common.VerificationValidMinutes)
-	err := common.SendEmail(subject, email, content)
+	err := service.SendTemplatedEmail(
+		service.EmailTemplateEventVerification,
+		i18n.GetLangFromContext(c),
+		email,
+		map[string]string{
+			"code":                 code,
+			"valid_minutes":        fmt.Sprintf("%d", common.VerificationValidMinutes),
+			"verification_purpose": purpose,
+		},
+	)
 	if err != nil {
 		if errors.Is(err, common.ErrDuplicateEmailSuppressed) {
 			c.JSON(http.StatusOK, gin.H{
@@ -399,13 +406,16 @@ func SendPasswordResetEmail(c *gin.Context) {
 	if _, err := model.GetUniqueUserByEmail(email); err == nil {
 		code := common.GenerateVerificationCode(0)
 		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
-		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
-		subject := fmt.Sprintf("%s密码重置", common.SystemName)
-		content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
-			"<p>点击 <a href='%s'>此处</a> 进行密码重置。</p>"+
-			"<p>如果链接无法点击，请尝试点击下面的链接或将其复制到浏览器中打开：<br> %s </p>"+
-			"<p>重置链接 %d 分钟内有效，如果不是本人操作，请忽略。</p>", common.SystemName, link, link, common.VerificationValidMinutes)
-		if err := common.SendEmail(subject, email, content); err != nil {
+		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", strings.TrimRight(system_setting.ServerAddress, "/"), url.QueryEscape(email), url.QueryEscape(code))
+		if err := service.SendTemplatedEmail(
+			service.EmailTemplateEventPasswordReset,
+			i18n.GetLangFromContext(c),
+			email,
+			map[string]string{
+				"reset_url":     link,
+				"valid_minutes": fmt.Sprintf("%d", common.VerificationValidMinutes),
+			},
+		); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
 		}
 	} else if err != nil && !errors.Is(err, model.ErrEmailNotFound) {

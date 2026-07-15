@@ -211,6 +211,31 @@ func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *
 	require.Contains(t, content, "其余 2 个已省略")
 }
 
+func TestBuildUpstreamModelUpdateTemplateVariables(t *testing.T) {
+	variables := buildUpstreamModelUpdateTemplateVariables(
+		24,
+		2,
+		5,
+		1,
+		3,
+		[]int{7, 11},
+		[]upstreamModelUpdateChannelSummary{
+			{ChannelName: "primary", AddCount: 3, RemoveCount: 1},
+			{ChannelName: "backup", AddCount: 2, RemoveCount: 0},
+		},
+		[]string{"gpt-5", "gpt-5-mini"},
+		[]string{"gpt-4-0314"},
+	)
+
+	require.Equal(t, "24", variables["checked_channels"])
+	require.Equal(t, "2", variables["changed_channels"])
+	require.Equal(t, "2", variables["failed_channels"])
+	require.Equal(t, "primary (+3 / -1)\nbackup (+2 / -0)", variables["changed_channel_details"])
+	require.Equal(t, "gpt-5, gpt-5-mini", variables["added_model_samples"])
+	require.Equal(t, "gpt-4-0314", variables["removed_model_samples"])
+	require.Equal(t, "7, 11", variables["failed_channel_ids"])
+}
+
 func TestShouldSendUpstreamModelUpdateNotification(t *testing.T) {
 	channelUpstreamModelUpdateNotifyState.Lock()
 	channelUpstreamModelUpdateNotifyState.lastNotifiedAt = 0

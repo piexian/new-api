@@ -74,13 +74,14 @@ export function getFooterHTML() {
 }
 
 export async function copy(text) {
-  let okay = true;
   try {
     await navigator.clipboard.writeText(text);
+    return true;
   } catch (e) {
+    let textarea;
     try {
       // 构建 textarea 执行复制命令，保留多行文本格式
-      const textarea = window.document.createElement('textarea');
+      textarea = window.document.createElement('textarea');
       textarea.value = text;
       textarea.setAttribute('readonly', '');
       textarea.style.position = 'fixed';
@@ -88,14 +89,16 @@ export async function copy(text) {
       textarea.style.top = '-9999px';
       window.document.body.appendChild(textarea);
       textarea.select();
-      window.document.execCommand('copy');
-      window.document.body.removeChild(textarea);
+      return window.document.execCommand('copy');
     } catch (e) {
-      okay = false;
       console.error(e);
+      return false;
+    } finally {
+      if (textarea?.parentNode) {
+        textarea.parentNode.removeChild(textarea);
+      }
     }
   }
-  return okay;
 }
 
 // isMobile 函数已移除，请改用 useIsMobile Hook

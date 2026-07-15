@@ -107,7 +107,19 @@ func DisableChannelUntil(channelError types.ChannelError, reason string, until i
 			disabledUntilText,
 			reason,
 		)
-		NotifyRootUser(formatNotifyType(channelError.ChannelId, common.ChannelStatusRateLimited), subject, content)
+		NotifyRootUserWithEmailTemplate(
+			formatNotifyType(channelError.ChannelId, common.ChannelStatusRateLimited),
+			subject,
+			content,
+			EmailTemplateEventChannelQuotaCooldown,
+			map[string]string{
+				"channel_id":     fmt.Sprintf("%d", channelError.ChannelId),
+				"channel_name":   channelError.ChannelName,
+				"channel_type":   fmt.Sprintf("%d", channelError.ChannelType),
+				"reason":         reason,
+				"cooldown_until": disabledUntilText,
+			},
+		)
 		return
 	}
 	if isPlanQuotaCooldownAlreadyActive(channelError, until) {

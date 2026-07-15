@@ -39,6 +39,56 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type TestEmailRequest = {
+  receiver: string
+}
+
+export type TestEmailResponse = {
+  success: boolean
+  message: string
+}
+
+export type EmailTemplateEventInfo = {
+  event: string
+  placeholders: string[]
+}
+
+export type EmailTemplateCatalog = {
+  events: EmailTemplateEventInfo[]
+  locales: string[]
+}
+
+export type EmailTemplate = {
+  event: string
+  locale: string
+  subject: string
+  html: string
+  is_custom: boolean
+  updated_at?: number
+  placeholders: string[]
+}
+
+export type RenderedEmailTemplate = {
+  subject: string
+  html: string
+}
+
+export type EmailTemplateResponse<T> = {
+  success: boolean
+  message: string
+  data: T
+}
+
+export type EmailTemplateUpdateRequest = {
+  subject: string
+  html: string
+}
+
+export type EmailTemplatePreviewRequest = EmailTemplateUpdateRequest & {
+  event: string
+  locale: string
+}
+
 export type ConfirmPaymentComplianceResponse = {
   success: boolean
   message: string
@@ -355,6 +405,7 @@ export type OperationsSettings = {
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
   QuotaRemindThreshold: string
+  BalanceLowNotifyEnabled: boolean
   EmailProvider: string
   SMTPServer: string
   SMTPPort: string

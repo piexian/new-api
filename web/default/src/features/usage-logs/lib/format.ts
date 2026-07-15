@@ -330,6 +330,9 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'option.payment_compliance': 'Confirmed payment compliance',
   'option.reset_ratio': 'Reset model ratios',
   'option.clear_affinity_cache': 'Cleared channel affinity cache',
+  'email.test': 'Sent a test email using {{provider}}',
+  'email.template_update': 'Updated email template {{event}} ({{locale}})',
+  'email.template_restore': 'Restored email template {{event}} ({{locale}})',
   // Custom OAuth
   'custom_oauth.create': 'Created a custom OAuth provider',
   'custom_oauth.update': 'Updated a custom OAuth provider',

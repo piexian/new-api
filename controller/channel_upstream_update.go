@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -603,6 +604,46 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 	return builder.String()
 }
 
+func buildUpstreamModelUpdateTemplateVariables(
+	checkedChannels int,
+	changedChannels int,
+	detectedAddModels int,
+	detectedRemoveModels int,
+	autoAddedModels int,
+	failedChannelIDs []int,
+	channelSummaries []upstreamModelUpdateChannelSummary,
+	addModelSamples []string,
+	removeModelSamples []string,
+) map[string]string {
+	channelDetailCount := min(len(channelSummaries), channelUpstreamModelUpdateNotifyMaxChannelDetails)
+	channelDetails := make([]string, 0, channelDetailCount)
+	for _, summary := range channelSummaries[:channelDetailCount] {
+		channelDetails = append(channelDetails, fmt.Sprintf("%s (+%d / -%d)", summary.ChannelName, summary.AddCount, summary.RemoveCount))
+	}
+
+	normalizedAddModels := normalizeModelNames(addModelSamples)
+	addModelCount := min(len(normalizedAddModels), channelUpstreamModelUpdateNotifyMaxModelDetails)
+	normalizedRemoveModels := normalizeModelNames(removeModelSamples)
+	removeModelCount := min(len(normalizedRemoveModels), channelUpstreamModelUpdateNotifyMaxModelDetails)
+	failedIDCount := min(len(failedChannelIDs), channelUpstreamModelUpdateNotifyMaxFailedChannelIDs)
+	failedIDs := lo.Map(failedChannelIDs[:failedIDCount], func(channelID int, _ int) string {
+		return strconv.Itoa(channelID)
+	})
+
+	return map[string]string{
+		"checked_channels":        strconv.Itoa(checkedChannels),
+		"changed_channels":        strconv.Itoa(changedChannels),
+		"detected_add_models":     strconv.Itoa(detectedAddModels),
+		"detected_remove_models":  strconv.Itoa(detectedRemoveModels),
+		"auto_added_models":       strconv.Itoa(autoAddedModels),
+		"failed_channels":         strconv.Itoa(len(failedChannelIDs)),
+		"changed_channel_details": strings.Join(channelDetails, "\n"),
+		"added_model_samples":     strings.Join(normalizedAddModels[:addModelCount], ", "),
+		"removed_model_samples":   strings.Join(normalizedRemoveModels[:removeModelCount], ", "),
+		"failed_channel_ids":      strings.Join(failedIDs, ", "),
+	}
+}
+
 type upstreamModelUpdateSummary struct {
 	CheckedChannels      int `json:"checked_channels"`
 	ChangedChannels      int `json:"changed_channels"`
@@ -769,9 +810,21 @@ scanLoop:
 			))
 			return summary
 		}
+		notificationContent := buildUpstreamModelUpdateTaskNotificationContent(
+			checkedChannels,
+			changedChannels,
+			detectedAddModels,
+			detectedRemoveModels,
+			autoAddedModels,
+			failedChannelIDs,
+			channelSummaries,
+			addModelSamples,
+			removeModelSamples,
+		)
 		service.NotifyUpstreamModelUpdateWatchers(
 			"上游模型巡检通知",
-			buildUpstreamModelUpdateTaskNotificationContent(
+			notificationContent,
+			buildUpstreamModelUpdateTemplateVariables(
 				checkedChannels,
 				changedChannels,
 				detectedAddModels,
