@@ -25,6 +25,7 @@ import { z } from 'zod'
 export const REDEMPTION_TYPE = {
   QUOTA: 'quota',
   SUBSCRIPTION: 'subscription',
+  REGISTRATION: 'registration',
 } as const
 
 export type RedemptionType =
@@ -38,7 +39,11 @@ export const redemptionSchema = z.object({
   status: z.number(), // 1: enabled, 2: disabled, 3: used
   type: z.preprocess(
     (value) => value || REDEMPTION_TYPE.QUOTA,
-    z.enum([REDEMPTION_TYPE.QUOTA, REDEMPTION_TYPE.SUBSCRIPTION])
+    z.enum([
+      REDEMPTION_TYPE.QUOTA,
+      REDEMPTION_TYPE.SUBSCRIPTION,
+      REDEMPTION_TYPE.REGISTRATION,
+    ])
   ),
   quota: z.number(),
   subscription_plan_id: z.preprocess((value) => value || 0, z.number()),

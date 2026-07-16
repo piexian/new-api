@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Coupon01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { Gift, Link2, RotateCcw, Share2, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,6 +34,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TransferDialog } from '@/features/wallet/components/dialogs/transfer-dialog'
@@ -40,6 +50,7 @@ import { formatQuota, formatTimestampToDate } from '@/lib/format'
 
 import {
   getAffiliateCode,
+  generateOneTimeInviteCode,
   getInvitedUsers,
   getInviteTopupInfo,
   resetAffiliateCode,
@@ -170,6 +181,9 @@ export function InviteRewards() {
   const [transferring, setTransferring] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [oneTimeCodeDialogOpen, setOneTimeCodeDialogOpen] = useState(false)
+  const [oneTimeCode, setOneTimeCode] = useState('')
+  const [generatingOneTimeCode, setGeneratingOneTimeCode] = useState(false)
   const [complianceConfirmed, setComplianceConfirmed] = useState(true)
 
   const affiliateLink = useMemo(
@@ -249,6 +263,25 @@ export function InviteRewards() {
       return false
     } finally {
       setTransferring(false)
+    }
+  }
+
+  const handleGenerateOneTimeCode = async () => {
+    setGeneratingOneTimeCode(true)
+    try {
+      const response = await generateOneTimeInviteCode()
+      if (response.success && response.data) {
+        setOneTimeCode(response.data)
+        setOneTimeCodeDialogOpen(true)
+        return
+      }
+      toast.error(
+        response.message || t('Failed to generate one-time invite code')
+      )
+    } catch {
+      toast.error(t('Failed to generate one-time invite code'))
+    } finally {
+      setGeneratingOneTimeCode(false)
     }
   }
 
@@ -345,6 +378,20 @@ export function InviteRewards() {
                   <div className='flex flex-wrap gap-2 lg:justify-end'>
                     <Button
                       variant='outline'
+                      onClick={handleGenerateOneTimeCode}
+                      disabled={loading || generatingOneTimeCode}
+                    >
+                      <HugeiconsIcon
+                        icon={Coupon01Icon}
+                        strokeWidth={2}
+                        data-icon='inline-start'
+                      />
+                      {generatingOneTimeCode
+                        ? t('Generating...')
+                        : t('Generate One-Time Invite Code')}
+                    </Button>
+                    <Button
+                      variant='outline'
                       onClick={() => setResetDialogOpen(true)}
                       disabled={loading || resetting}
                     >
@@ -397,6 +444,45 @@ export function InviteRewards() {
         handleConfirm={handleResetCode}
         isLoading={resetting}
       />
+
+      <Dialog
+        open={oneTimeCodeDialogOpen}
+        onOpenChange={setOneTimeCodeDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('One-Time Invite Code')}</DialogTitle>
+            <DialogDescription>
+              {t(
+                'This code can be used for one registration. Generate a new code after it is used.'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='flex min-w-0 items-center gap-2'>
+            <Input
+              value={oneTimeCode}
+              readOnly
+              className='min-w-0 flex-1 font-mono text-sm'
+            />
+            <CopyButton
+              value={oneTimeCode}
+              variant='outline'
+              className='size-9 shrink-0'
+              iconClassName='size-4'
+              tooltip={t('Copy one-time invite code')}
+              aria-label={t('Copy one-time invite code')}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => setOneTimeCodeDialogOpen(false)}
+            >
+              {t('Close')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

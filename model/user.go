@@ -28,41 +28,43 @@ const (
 // User if you add sensitive fields, don't forget to clean them in setupLogin function.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
 type User struct {
-	Id               int                        `json:"id"`
-	Username         string                     `json:"username" gorm:"unique;index" validate:"max=20"`
-	Password         string                     `json:"password" gorm:"not null;" validate:"min=8,max=20"`
-	OriginalPassword string                     `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
-	DisplayName      string                     `json:"display_name" gorm:"index" validate:"max=20"`
-	Role             int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
-	Status           int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
-	DisableReason    string                     `json:"disable_reason,omitempty" gorm:"type:text;column:disable_reason" validate:"max=5000"`
-	Email            string                     `json:"email" gorm:"index" validate:"max=50"`
-	GitHubId         string                     `json:"github_id" gorm:"column:github_id;index"`
-	DiscordId        string                     `json:"discord_id" gorm:"column:discord_id;index"`
-	OidcId           string                     `json:"oidc_id" gorm:"column:oidc_id;index"`
-	WeChatId         string                     `json:"wechat_id" gorm:"column:wechat_id;index"`
-	TelegramId       string                     `json:"telegram_id" gorm:"column:telegram_id;index"`
-	QQId             string                     `json:"qq_id" gorm:"column:qq_id;index"`
-	SteamId          string                     `json:"steam_id" gorm:"column:steam_id;index"`
-	VerificationCode string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
-	AccessToken      *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
-	Quota            int                        `json:"quota" gorm:"type:int;default:0"`
-	UsedQuota        int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
-	RequestCount     int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
-	Group            string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
-	AffCode          string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
-	AffCount         int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
-	AffQuota         int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
-	AffHistoryQuota  int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
-	InviterId        int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
-	DeletedAt        gorm.DeletedAt             `gorm:"index"`
-	LinuxDOId        string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
-	Setting          string                     `json:"setting" gorm:"type:text;column:setting"`
-	Remark           string                     `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
-	StripeCustomer   string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
-	CreatedAt        int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
-	LastLoginAt      int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
-	AdminPermissions map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
+	Id                 int                        `json:"id"`
+	Username           string                     `json:"username" gorm:"unique;index" validate:"max=20"`
+	Password           string                     `json:"password" gorm:"not null;" validate:"min=8,max=20"`
+	OriginalPassword   string                     `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
+	DisplayName        string                     `json:"display_name" gorm:"index" validate:"max=20"`
+	Role               int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
+	Status             int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
+	DisableReason      string                     `json:"disable_reason,omitempty" gorm:"type:text;column:disable_reason" validate:"max=5000"`
+	Email              string                     `json:"email" gorm:"index" validate:"max=50"`
+	GitHubId           string                     `json:"github_id" gorm:"column:github_id;index"`
+	DiscordId          string                     `json:"discord_id" gorm:"column:discord_id;index"`
+	OidcId             string                     `json:"oidc_id" gorm:"column:oidc_id;index"`
+	WeChatId           string                     `json:"wechat_id" gorm:"column:wechat_id;index"`
+	TelegramId         string                     `json:"telegram_id" gorm:"column:telegram_id;index"`
+	QQId               string                     `json:"qq_id" gorm:"column:qq_id;index"`
+	SteamId            string                     `json:"steam_id" gorm:"column:steam_id;index"`
+	VerificationCode   string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
+	AccessToken        *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
+	Quota              int                        `json:"quota" gorm:"type:int;default:0"`
+	UsedQuota          int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
+	RequestCount       int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	Group              string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
+	AffCode            string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
+	AffCount           int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
+	AffQuota           int                        `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
+	AffHistoryQuota    int                        `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
+	InviterId          int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	RegistrationCodeId int                        `json:"registration_code_id,omitempty" gorm:"type:int;column:registration_code_id;index"`
+	RegistrationSource string                     `json:"registration_source,omitempty" gorm:"type:varchar(64);column:registration_source"`
+	DeletedAt          gorm.DeletedAt             `gorm:"index"`
+	LinuxDOId          string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
+	Setting            string                     `json:"setting" gorm:"type:text;column:setting"`
+	Remark             string                     `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
+	StripeCustomer     string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
+	CreatedAt          int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`
+	LastLoginAt        int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	AdminPermissions   map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
 }
 
 func (user User) MarshalJSON() ([]byte, error) {
@@ -734,30 +736,7 @@ func ensureEmailAvailableWithTx(tx *gorm.DB, email string, excludeUserID int) er
 
 func (user *User) Insert(inviterId int) error {
 	if err := DB.Transaction(func(tx *gorm.DB) error {
-		return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
-			if err := user.prepareForInsert(tx); err != nil {
-				return err
-			}
-			user.Quota = common.QuotaForNewUser
-			if user.Group == "" {
-				user.Group = common.DefaultUserGroup
-			}
-			var err error
-			user.AffCode, err = GenerateUniqueAffCode(tx, 0)
-			if err != nil {
-				return err
-			}
-			user.InviterId = inviterId
-
-			// 这里暂时不设置 SidebarModules，创建后再按角色初始化。
-			if user.Setting == "" {
-				user.SetSetting(dto.UserSetting{
-					SetupCompleted:  "pending",
-					FeatureUpdateV1: "dismissed",
-				})
-			}
-			return tx.Create(user).Error
-		})
+		return user.InsertWithTx(tx, inviterId)
 	}); err != nil {
 		return err
 	}
@@ -770,28 +749,65 @@ func (user *User) Insert(inviterId int) error {
 // Post-creation tasks (sidebar config, logs, inviter rewards) are handled after the transaction commits.
 func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
-		if err := user.prepareForInsert(tx); err != nil {
-			return err
-		}
-		user.Quota = common.QuotaForNewUser
-		if user.Group == "" {
-			user.Group = common.DefaultUserGroup
-		}
+		return user.insertPreparedWithTx(tx, inviterId)
+	})
+}
+
+func (user *User) insertPreparedWithTx(tx *gorm.DB, inviterId int) error {
+	if err := user.prepareForInsert(tx); err != nil {
+		return err
+	}
+	user.Quota = common.QuotaForNewUser
+	if user.Group == "" {
+		user.Group = common.DefaultUserGroup
+	}
+	var err error
+	user.AffCode, err = GenerateUniqueAffCode(tx, 0)
+	if err != nil {
+		return err
+	}
+	user.InviterId = inviterId
+
+	// 这里暂时不设置 SidebarModules，创建后再按角色初始化。
+	if user.Setting == "" {
+		user.SetSetting(dto.UserSetting{
+			SetupCompleted:  "pending",
+			FeatureUpdateV1: "dismissed",
+		})
+	}
+	return tx.Create(user).Error
+}
+
+func (user *User) InsertWithRegistrationCredential(code string, required bool) error {
+	var inviterId int
+	if err := DB.Transaction(func(tx *gorm.DB) error {
 		var err error
-		user.AffCode, err = GenerateUniqueAffCode(tx, 0)
+		inviterId, err = user.InsertWithRegistrationCredentialTx(tx, code, required)
+		return err
+	}); err != nil {
+		return err
+	}
+	user.finalizeNewUserCreation(inviterId)
+	return nil
+}
+
+// InsertWithRegistrationCredentialTx 在同一事务内创建用户并占用注册凭证。
+func (user *User) InsertWithRegistrationCredentialTx(tx *gorm.DB, code string, required bool) (int, error) {
+	var credential RegistrationCredential
+	err := withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
+		var err error
+		credential, err = resolveRegistrationCredentialWithTx(tx, code, required)
 		if err != nil {
 			return err
 		}
-		user.InviterId = inviterId
-
-		if user.Setting == "" {
-			user.SetSetting(dto.UserSetting{
-				SetupCompleted:  "pending",
-				FeatureUpdateV1: "dismissed",
-			})
+		user.RegistrationCodeId = credential.RedemptionId
+		user.RegistrationSource = credential.SourceName
+		if err := user.insertPreparedWithTx(tx, credential.InviterId); err != nil {
+			return err
 		}
-		return tx.Create(user).Error
+		return credential.consumeWithTx(tx, user.Id)
 	})
+	return credential.InviterId, err
 }
 
 func (user *User) FinishInsert(inviterId int) {

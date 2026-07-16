@@ -42,10 +42,10 @@ func GenerateOAuthCode(c *gin.Context) {
 	})
 }
 
-func getOAuthRegisterInviterId(c *gin.Context) (int, error) {
+func getOAuthRegistrationCredential(c *gin.Context) string {
 	session := sessions.Default(c)
-	affCode, _ := session.Get("aff").(string)
-	return getRegisterInviterId(c, affCode)
+	credential, _ := session.Get("aff").(string)
+	return credential
 }
 
 func isOAuthRegistrationEnabled() bool {
@@ -388,20 +388,23 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Role = common.RoleCommonUser
 	user.Status = common.UserStatusEnabled
 
-	// Handle affiliate code
-	inviterId, err := getOAuthRegisterInviterId(c)
-	if err != nil {
-		return nil, err
-	}
+	registrationCredential := getOAuthRegistrationCredential(c)
+	var inviterId int
 
 	// Use transaction to ensure user creation and OAuth binding are atomic
 	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
 		// Custom provider: create user and binding in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
 			// Create user
-			if err := user.InsertWithTx(tx, inviterId); err != nil {
+			resolvedInviterId, err := user.InsertWithRegistrationCredentialTx(
+				tx,
+				registrationCredential,
+				common.RegisterInviteCodeRequired,
+			)
+			if err != nil {
 				return err
 			}
+			inviterId = resolvedInviterId
 
 			// Create OAuth binding
 			binding := &model.UserOAuthBinding{
@@ -425,9 +428,15 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		// Built-in provider: create user and update provider ID in a transaction
 		err := model.DB.Transaction(func(tx *gorm.DB) error {
 			// Create user
-			if err := user.InsertWithTx(tx, inviterId); err != nil {
+			resolvedInviterId, err := user.InsertWithRegistrationCredentialTx(
+				tx,
+				registrationCredential,
+				common.RegisterInviteCodeRequired,
+			)
+			if err != nil {
 				return err
 			}
+			inviterId = resolvedInviterId
 
 			// Set the provider user ID on the user model and update
 			provider.SetProviderUserID(user, oauthUser.ProviderUserID)
@@ -478,6 +487,9 @@ func (e *OAuthEmailAlreadyTakenError) Error() string {
 
 // handleOAuthError handles OAuth errors and returns translated message
 func handleOAuthError(c *gin.Context, err error) {
+	if handleRegistrationCredentialError(c, err) {
+		return
+	}
 	switch e := err.(type) {
 	case *oauth.OAuthError:
 		if e.Params != nil {

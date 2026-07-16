@@ -92,14 +92,36 @@ const renderStatus = (status, record, t) => {
 
 const renderType = (record, t) => {
   const type = record.type || 'quota';
+  const label =
+    type === 'subscription'
+      ? t('套餐')
+      : type === 'registration'
+        ? t('注册码')
+        : t('额度');
   return (
-    <Tag color={type === 'subscription' ? 'blue' : 'grey'} shape='circle'>
-      {type === 'subscription' ? t('套餐') : t('额度')}
+    <Tag
+      color={
+        type === 'registration'
+          ? 'green'
+          : type === 'subscription'
+            ? 'blue'
+            : 'grey'
+      }
+      shape='circle'
+    >
+      {label}
     </Tag>
   );
 };
 
 const renderContent = (record, t) => {
+  if (record.type === 'registration') {
+    return (
+      <Tag color='green' shape='circle'>
+        {t('账户注册')}
+      </Tag>
+    );
+  }
   if ((record.type || 'quota') === 'subscription') {
     return (
       <Tag color='blue' shape='circle'>

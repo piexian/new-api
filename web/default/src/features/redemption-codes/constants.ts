@@ -90,12 +90,14 @@ export function getRedemptionStatusOptions(t: TFunction) {
 export const REDEMPTION_TYPES = {
   QUOTA: 'quota',
   SUBSCRIPTION: 'subscription',
+  REGISTRATION: 'registration',
 } as const
 
 export function getRedemptionTypeOptions(t: TFunction) {
   return [
     { label: t('Quota'), value: REDEMPTION_TYPES.QUOTA },
     { label: t('Subscription'), value: REDEMPTION_TYPES.SUBSCRIPTION },
+    { label: t('Registration Code'), value: REDEMPTION_TYPES.REGISTRATION },
   ]
 }
 

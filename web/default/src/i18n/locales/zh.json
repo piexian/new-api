@@ -5721,6 +5721,22 @@
     "Zhipu Coding Plan Usage": "智谱 Coding Plan 用量",
     "Zhipu V4": "智谱 V4",
     "Zoom": "缩放",
-    "模力方舟": "模力方舟"
+    "模力方舟": "模力方舟",
+    "Failed to generate one-time invite code": "生成一次性邀请码失败",
+    "Generate One-Time Invite Code": "生成一次性邀请码",
+    "One-Time Invite Code": "一次性邀请码",
+    "This code can be used for one registration. Generate a new code after it is used.": "此邀请码仅可用于注册一次，使用后请重新生成。",
+    "Copy one-time invite code": "复制一次性邀请码",
+    "Invitation or Registration Code": "邀请码或注册码",
+    "Enter invitation or registration code": "请输入邀请码或注册码",
+    "Please enter the invitation or registration code": "请输入邀请码或注册码",
+    "Registration code ID": "注册码 ID",
+    "Registration Code": "注册码",
+    "Registration limit must be at least 1": "注册人数必须至少为 1",
+    "Account registration": "账户注册",
+    "The code name will be recorded as the source for accounts registered with it.": "注册码名称会记录为使用该码注册账户的来源。",
+    "Registration Limit": "注册人数",
+    "Number of accounts that can register": "可注册账户数",
+    "Number of accounts that can register with this code.": "可使用此注册码完成注册的账户数量。"
   }
 }

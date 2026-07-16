@@ -19,8 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Space, Table, Typography } from '@douyinfe/semi-ui';
-import { RotateCcw, Users } from 'lucide-react';
+import {
+  Button,
+  Card,
+  Input,
+  Modal,
+  Space,
+  Table,
+  Typography,
+} from '@douyinfe/semi-ui';
+import { KeyRound, RotateCcw, Users } from 'lucide-react';
 import {
   API,
   copy,
@@ -44,6 +52,9 @@ const InviteRewards = () => {
   const [openTransfer, setOpenTransfer] = useState(false);
   const [transferAmount, setTransferAmount] = useState(getQuotaPerUnit());
   const [complianceConfirmed, setComplianceConfirmed] = useState(true);
+  const [oneTimeCode, setOneTimeCode] = useState('');
+  const [oneTimeCodeOpen, setOneTimeCodeOpen] = useState(false);
+  const [generatingOneTimeCode, setGeneratingOneTimeCode] = useState(false);
 
   const columns = useMemo(
     () => [
@@ -158,6 +169,32 @@ const InviteRewards = () => {
     showSuccess(t('邀请链接已复制到剪切板'));
   };
 
+  const generateOneTimeInviteCode = async () => {
+    setGeneratingOneTimeCode(true);
+    try {
+      const res = await API.post('/api/user/aff/one-time');
+      const { success, message, data } = res.data;
+      if (success && data) {
+        setOneTimeCode(data);
+        setOneTimeCodeOpen(true);
+      } else {
+        showError(message || t('生成一次性邀请码失败'));
+      }
+    } catch {
+      showError(t('生成一次性邀请码失败'));
+    } finally {
+      setGeneratingOneTimeCode(false);
+    }
+  };
+
+  const copyOneTimeInviteCode = async () => {
+    if (await copy(oneTimeCode)) {
+      showSuccess(t('一次性邀请码已复制'));
+      return;
+    }
+    showError(t('复制失败'));
+  };
+
   useEffect(() => {
     refreshData().then();
   }, []);
@@ -176,6 +213,29 @@ const InviteRewards = () => {
         setTransferAmount={setTransferAmount}
       />
 
+      <Modal
+        title={t('一次性邀请码')}
+        visible={oneTimeCodeOpen}
+        onCancel={() => setOneTimeCodeOpen(false)}
+        footer={
+          <Space>
+            <Button theme='outline' onClick={() => setOneTimeCodeOpen(false)}>
+              {t('关闭')}
+            </Button>
+            <Button theme='solid' onClick={copyOneTimeInviteCode}>
+              {t('复制邀请码')}
+            </Button>
+          </Space>
+        }
+      >
+        <Space vertical style={{ width: '100%' }}>
+          <Text type='secondary'>
+            {t('此邀请码仅可用于注册一次，使用后请重新生成。')}
+          </Text>
+          <Input value={oneTimeCode} readOnly className='font-mono' />
+        </Space>
+      </Modal>
+
       <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div>
           <Title heading={3} className='!mb-1'>
@@ -185,13 +245,23 @@ const InviteRewards = () => {
             {t('管理邀请链接、奖励额度和已邀请用户')}
           </Text>
         </div>
-        <Button
-          icon={<RotateCcw size={14} />}
-          theme='outline'
-          onClick={resetAffCode}
-        >
-          {t('重置邀请码')}
-        </Button>
+        <Space wrap>
+          <Button
+            icon={<KeyRound size={14} />}
+            theme='outline'
+            onClick={generateOneTimeInviteCode}
+            loading={generatingOneTimeCode}
+          >
+            {t('生成一次性邀请码')}
+          </Button>
+          <Button
+            icon={<RotateCcw size={14} />}
+            theme='outline'
+            onClick={resetAffCode}
+          >
+            {t('重置邀请码')}
+          </Button>
+        </Space>
       </div>
 
       <div className='grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]'>

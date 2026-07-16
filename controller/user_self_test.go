@@ -78,7 +78,14 @@ func setupUserSelfControllerTestDB(t *testing.T) *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	if err := db.AutoMigrate(&model.User{}, &model.Log{}, &model.CasbinRule{}, &model.AuthzRole{}); err != nil {
+	if err := db.AutoMigrate(
+		&model.User{},
+		&model.Log{},
+		&model.Redemption{},
+		&model.OneTimeInviteCode{},
+		&model.CasbinRule{},
+		&model.AuthzRole{},
+	); err != nil {
 		t.Fatalf("failed to migrate test tables: %v", err)
 	}
 	if err := authz.Init(db); err != nil {

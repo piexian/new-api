@@ -166,6 +166,25 @@ func TestRedeemCodeAllowsUnlimitedRedemptions(t *testing.T) {
 	require.Equal(t, 9108, redemption.UsedUserId)
 }
 
+func TestRegistrationCodeCannotBeUsedForTopUp(t *testing.T) {
+	truncateTables(t)
+	insertUserForPaymentGuardTest(t, 9110, 0)
+	insertRedemptionForTest(t, &Redemption{
+		Key:            "registration-only-code",
+		Type:           RedemptionTypeRegistration,
+		MaxRedemptions: 2,
+	})
+
+	result, err := Redeem("registration-only-code", 9110)
+	require.Nil(t, result)
+	require.ErrorIs(t, err, ErrRedemptionInvalid)
+
+	var redemption Redemption
+	require.NoError(t, DB.First(&redemption, "`key` = ?", "registration-only-code").Error)
+	require.Equal(t, common.RedemptionCodeStatusEnabled, redemption.Status)
+	require.Zero(t, redemption.RedeemedCount)
+}
+
 func TestRedeemSubscriptionCodeWithInvalidPlanDoesNotConsumeCode(t *testing.T) {
 	truncateTables(t)
 	insertUserForPaymentGuardTest(t, 9103, 0)

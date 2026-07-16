@@ -97,12 +97,10 @@ func WeChatAuth(c *gin.Context) {
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
 
-			inviterId, err := getRegisterInviterId(c, c.Query("aff"))
-			if err != nil {
-				return
-			}
-
-			if err := user.Insert(inviterId); err != nil {
+			if err := user.InsertWithRegistrationCredential(c.Query("aff"), common.RegisterInviteCodeRequired); err != nil {
+				if handleRegistrationCredentialError(c, err) {
+					return
+				}
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
 					"message": err.Error(),

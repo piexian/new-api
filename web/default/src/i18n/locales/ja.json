@@ -5721,6 +5721,22 @@
     "Zhipu Coding Plan Usage": "Zhipu Coding Plan 使用量",
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム",
-    "模力方舟": "模力方舟"
+    "模力方舟": "模力方舟",
+    "Failed to generate one-time invite code": "ワンタイム招待コードの生成に失敗しました",
+    "Generate One-Time Invite Code": "ワンタイム招待コードを生成",
+    "One-Time Invite Code": "ワンタイム招待コード",
+    "This code can be used for one registration. Generate a new code after it is used.": "このコードは1回の登録にのみ使用できます。使用後は新しいコードを生成してください。",
+    "Copy one-time invite code": "ワンタイム招待コードをコピー",
+    "Invitation or Registration Code": "招待コードまたは登録コード",
+    "Enter invitation or registration code": "招待コードまたは登録コードを入力",
+    "Please enter the invitation or registration code": "招待コードまたは登録コードを入力してください",
+    "Registration code ID": "登録コードID",
+    "Registration Code": "登録コード",
+    "Registration limit must be at least 1": "登録上限は1以上にしてください",
+    "Account registration": "アカウント登録",
+    "The code name will be recorded as the source for accounts registered with it.": "コード名は、そのコードで登録したアカウントの登録元として記録されます。",
+    "Registration Limit": "登録上限",
+    "Number of accounts that can register": "登録できるアカウント数",
+    "Number of accounts that can register with this code.": "このコードで登録できるアカウント数。"
   }
 }

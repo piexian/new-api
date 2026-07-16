@@ -44,7 +44,11 @@ export function getRedemptionFormSchema(t: TFunction) {
         .string()
         .min(REDEMPTION_VALIDATION.NAME_MIN_LENGTH, msg.NAME_LENGTH_INVALID)
         .max(REDEMPTION_VALIDATION.NAME_MAX_LENGTH, msg.NAME_LENGTH_INVALID),
-      type: z.enum([REDEMPTION_TYPE.QUOTA, REDEMPTION_TYPE.SUBSCRIPTION]),
+      type: z.enum([
+        REDEMPTION_TYPE.QUOTA,
+        REDEMPTION_TYPE.SUBSCRIPTION,
+        REDEMPTION_TYPE.REGISTRATION,
+      ]),
       quota_dollars: z.number().min(0),
       subscription_plan_id: z.number().optional(),
       expired_time: z.date().optional(),
@@ -76,6 +80,16 @@ export function getRedemptionFormSchema(t: TFunction) {
           code: z.ZodIssueCode.custom,
           path: ['subscription_plan_id'],
           message: t('Please select a subscription plan'),
+        })
+      }
+      if (
+        data.type === REDEMPTION_TYPE.REGISTRATION &&
+        data.max_redemptions < 1
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['max_redemptions'],
+          message: t('Registration limit must be at least 1'),
         })
       }
     })

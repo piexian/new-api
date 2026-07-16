@@ -71,6 +71,7 @@ const RedemptionsFilters = ({
             <Select.Option value=''>{t('全部')}</Select.Option>
             <Select.Option value='quota'>{t('额度')}</Select.Option>
             <Select.Option value='subscription'>{t('套餐')}</Select.Option>
+            <Select.Option value='registration'>{t('注册码')}</Select.Option>
           </Form.Select>
         </div>
         <div className='flex gap-2 w-full md:w-auto'>

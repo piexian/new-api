@@ -184,7 +184,7 @@ export function SignUpForm({
 
     const affCode = data.affCode?.trim() || getAffiliateCode()
     if (inviteCodeRequired && !affCode) {
-      toast.error(t('Please enter the invitation code'))
+      toast.error(t('Please enter the invitation or registration code'))
       return
     }
     if (affCode) {
@@ -209,7 +209,7 @@ export function SignUpForm({
       } else {
         toast.error(res?.message || t('Failed to create account'))
       }
-    } catch (_error) {
+    } catch {
       // Errors are handled by global interceptor
     } finally {
       registerTurnstile.resetTurnstile()
@@ -227,7 +227,7 @@ export function SignUpForm({
       return
     }
     if (inviteCodeRequired && !form.getValues('affCode')?.trim()) {
-      toast.error(t('Please enter the invitation code'))
+      toast.error(t('Please enter the invitation or registration code'))
       form.setFocus('affCode')
       return
     }
@@ -263,7 +263,7 @@ export function SignUpForm({
       } else {
         toast.error(res?.message || t('Login failed'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Login failed'))
     } finally {
       setIsWeChatSubmitting(false)
@@ -371,13 +371,12 @@ export function SignUpForm({
                     }
                     onClick={handleSendVerificationCode}
                   >
-                    {isActive ? (
-                      t('Resend ({{seconds}}s)', { seconds: secondsLeft })
-                    ) : isSendingCode ? (
+                    {isActive &&
+                      t('Resend ({{seconds}}s)', { seconds: secondsLeft })}
+                    {!isActive && isSendingCode && (
                       <Loader2 className='h-4 w-4 animate-spin' />
-                    ) : (
-                      t('Send code')
                     )}
+                    {!isActive && !isSendingCode && t('Send code')}
                   </Button>
                 </div>
 
@@ -405,10 +404,10 @@ export function SignUpForm({
             name='affCode'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Invitation Code')}</FormLabel>
+                <FormLabel>{t('Invitation or Registration Code')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder={t('Enter invitation code')}
+                    placeholder={t('Enter invitation or registration code')}
                     autoComplete='off'
                     {...field}
                   />
@@ -463,7 +462,7 @@ export function SignUpForm({
             requireInvitationCode={inviteCodeRequired}
             hasInvitationCode={Boolean(form.watch('affCode')?.trim())}
             onMissingInvitationCode={() => {
-              toast.error(t('Please enter the invitation code'))
+              toast.error(t('Please enter the invitation or registration code'))
               form.setFocus('affCode')
             }}
             onWeChatLogin={hasWeChatLogin ? handleOpenWeChatDialog : undefined}

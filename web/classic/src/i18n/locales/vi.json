@@ -4773,6 +4773,20 @@
     "启用余额不足提醒": "Bật nhắc số dư thấp",
     "当用户余额低于阈值时发送邮件提醒": "Gửi email khi số dư thấp hơn ngưỡng",
     "用户未自定义时使用此值": "Dùng khi người dùng chưa đặt ngưỡng riêng",
-    "默认提醒阈值": "Ngưỡng nhắc mặc định"
+    "默认提醒阈值": "Ngưỡng nhắc mặc định",
+    "生成一次性邀请码失败": "Không thể tạo mã mời dùng một lần",
+    "一次性邀请码已复制": "Đã sao chép mã mời dùng một lần",
+    "一次性邀请码": "Mã mời dùng một lần",
+    "此邀请码仅可用于注册一次，使用后请重新生成。": "Mã này chỉ dùng được cho một lần đăng ký. Hãy tạo mã mới sau khi mã đã được sử dụng.",
+    "生成一次性邀请码": "Tạo mã mời dùng một lần",
+    "请填写邀请码或注册码！": "Vui lòng nhập mã mời hoặc mã đăng ký!",
+    "邀请码或注册码": "Mã mời hoặc mã đăng ký",
+    "请输入邀请码或注册码": "Nhập mã mời hoặc mã đăng ký",
+    "注册码可注册次数必须大于0": "Giới hạn đăng ký phải lớn hơn 0",
+    "注册码": "Mã đăng ký",
+    "账户注册": "Đăng ký tài khoản",
+    "注册码名称会记录为新用户的注册来源": "Tên mã đăng ký sẽ được lưu làm nguồn đăng ký của người dùng mới",
+    "单码可注册人数": "Số lượt đăng ký mỗi mã",
+    "可使用此注册码完成注册的账户数量": "Số tài khoản có thể đăng ký bằng mã này"
   }
 }

@@ -268,24 +268,17 @@ func Logout(c *gin.Context) {
 	})
 }
 
-func getRegisterInviterId(c *gin.Context, affCode string) (int, error) {
-	affCode = strings.TrimSpace(affCode)
-	if affCode == "" {
-		if common.RegisterInviteCodeRequired {
-			common.ApiErrorI18n(c, i18n.MsgUserAffCodeEmpty)
-			return 0, fmt.Errorf("aff code required")
-		}
-		return 0, nil
+func handleRegistrationCredentialError(c *gin.Context, err error) bool {
+	switch {
+	case errors.Is(err, model.ErrRegistrationCredentialRequired):
+		common.ApiErrorI18n(c, i18n.MsgUserAffCodeEmpty)
+		return true
+	case errors.Is(err, model.ErrRegistrationCredentialInvalid):
+		common.ApiErrorI18n(c, i18n.MsgUserAffCodeInvalid)
+		return true
+	default:
+		return false
 	}
-	inviterId, err := model.GetUserIdByAffCode(affCode)
-	if err != nil {
-		if common.RegisterInviteCodeRequired {
-			common.ApiErrorI18n(c, i18n.MsgUserAffCodeInvalid)
-			return 0, err
-		}
-		return 0, nil
-	}
-	return inviterId, nil
 }
 
 func Register(c *gin.Context) {
@@ -349,22 +342,20 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserExists)
 		return
 	}
-	affCode := user.AffCode // this code is the inviter's code, not the user's own code
-	inviterId, err := getRegisterInviterId(c, affCode)
-	if err != nil {
-		return
-	}
+	registrationCredential := user.AffCode
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.Username,
-		InviterId:   inviterId,
 		Role:        common.RoleCommonUser, // 明确设置角色为普通用户
 	}
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
-	if err := cleanUser.Insert(inviterId); err != nil {
+	if err := cleanUser.InsertWithRegistrationCredential(registrationCredential, common.RegisterInviteCodeRequired); err != nil {
+		if handleRegistrationCredentialError(c, err) {
+			return
+		}
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
 			return
@@ -573,6 +564,16 @@ func ResetAffCode(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, affCode)
+}
+
+func GenerateOneTimeInviteCode(c *gin.Context) {
+	id := c.GetInt("id")
+	inviteCode, err := model.GenerateOneTimeInviteCode(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, inviteCode)
 }
 
 func GetInvitedUsers(c *gin.Context) {

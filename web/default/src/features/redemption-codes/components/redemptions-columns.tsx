@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
@@ -116,7 +116,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
             <StatusBadge
               label={t('Used')}
               variant='neutral'
-              showDot={true}
+              showDot
               copyable={false}
             />
           )
@@ -161,17 +161,13 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       ),
       cell: ({ row }) => {
         const type = row.getValue('type') || REDEMPTION_TYPE.QUOTA
-        return (
-          <StatusBadge
-            label={
-              type === REDEMPTION_TYPE.SUBSCRIPTION
-                ? t('Subscription')
-                : t('Quota')
-            }
-            variant='neutral'
-            copyable={false}
-          />
-        )
+        let label = t('Quota')
+        if (type === REDEMPTION_TYPE.SUBSCRIPTION) {
+          label = t('Subscription')
+        } else if (type === REDEMPTION_TYPE.REGISTRATION) {
+          label = t('Registration Code')
+        }
+        return <StatusBadge label={label} variant='neutral' copyable={false} />
       },
       filterFn: (row, id, value) => {
         const type = row.getValue(id) || REDEMPTION_TYPE.QUOTA
@@ -208,6 +204,15 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       ),
       cell: ({ row }) => {
         const redemption = row.original
+        if (redemption.type === REDEMPTION_TYPE.REGISTRATION) {
+          return (
+            <StatusBadge
+              label={t('Account registration')}
+              variant='neutral'
+              copyable={false}
+            />
+          )
+        }
         if (
           (redemption.type || REDEMPTION_TYPE.QUOTA) ===
           REDEMPTION_TYPE.SUBSCRIPTION
@@ -319,7 +324,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
                   className='cursor-help'
                 />
               }
-            ></TooltipTrigger>
+            />
             <TooltipContent>
               <div className='space-y-1 text-xs'>
                 <div>

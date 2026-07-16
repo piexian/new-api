@@ -222,7 +222,7 @@ const RegisterForm = () => {
       ''
     ).trim();
     if (inviteCodeRequired && !inviteCode) {
-      showInfo('请填写邀请码！');
+      showInfo(t('请填写邀请码或注册码！'));
       return;
     }
     if (inviteCode) {
@@ -290,7 +290,7 @@ const RegisterForm = () => {
         ''
       ).trim();
       if (inviteCodeRequired && !inviteCode) {
-        showInfo('请填写邀请码！');
+        showInfo(t('请填写邀请码或注册码！'));
         return;
       }
       if (inviteCode) {
@@ -356,7 +356,7 @@ const RegisterForm = () => {
       ''
     ).trim();
     if (inviteCodeRequired && !inviteCode) {
-      showInfo('请填写邀请码！');
+      showInfo(t('请填写邀请码或注册码！'));
       return;
     }
     if (inviteCode) {
@@ -390,7 +390,7 @@ const RegisterForm = () => {
       ''
     ).trim();
     if (inviteCodeRequired && !inviteCode) {
-      showInfo('请填写邀请码！');
+      showInfo(t('请填写邀请码或注册码！'));
       return;
     }
     if (inviteCode) {
@@ -411,7 +411,7 @@ const RegisterForm = () => {
       ''
     ).trim();
     if (inviteCodeRequired && !inviteCode) {
-      showInfo('请填写邀请码！');
+      showInfo(t('请填写邀请码或注册码！'));
       return;
     }
     if (inviteCode) {
@@ -432,7 +432,7 @@ const RegisterForm = () => {
       ''
     ).trim();
     if (inviteCodeRequired && !inviteCode) {
-      showInfo('请填写邀请码！');
+      showInfo(t('请填写邀请码或注册码！'));
       return;
     }
     if (inviteCode) {
@@ -458,7 +458,7 @@ const RegisterForm = () => {
       ''
     ).trim();
     if (inviteCodeRequired && !inviteCode) {
-      showInfo('请填写邀请码！');
+      showInfo(t('请填写邀请码或注册码！'));
       return;
     }
     if (inviteCode) {
@@ -479,7 +479,7 @@ const RegisterForm = () => {
       ''
     ).trim();
     if (inviteCodeRequired && !inviteCode) {
-      showInfo('请填写邀请码！');
+      showInfo(t('请填写邀请码或注册码！'));
       return;
     }
     if (inviteCode) {
@@ -500,7 +500,7 @@ const RegisterForm = () => {
       ''
     ).trim();
     if (inviteCodeRequired && !inviteCode) {
-      showInfo('请填写邀请码！');
+      showInfo(t('请填写邀请码或注册码！'));
       return;
     }
     if (inviteCode) {
@@ -588,8 +588,8 @@ const RegisterForm = () => {
                 <Form className='mb-4'>
                   <Form.Input
                     field='aff_code'
-                    label={t('邀请码')}
-                    placeholder={t('请输入邀请码')}
+                    label={t('邀请码或注册码')}
+                    placeholder={t('请输入邀请码或注册码')}
                     name='aff_code'
                     value={inputs.aff_code}
                     onChange={(value) => handleChange('aff_code', value)}
@@ -840,8 +840,8 @@ const RegisterForm = () => {
                 {showInviteCodeInput && (
                   <Form.Input
                     field='aff_code'
-                    label={t('邀请码')}
-                    placeholder={t('请输入邀请码')}
+                    label={t('邀请码或注册码')}
+                    placeholder={t('请输入邀请码或注册码')}
                     name='aff_code'
                     onChange={(value) => handleChange('aff_code', value)}
                     prefix={<IconKey />}

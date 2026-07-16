@@ -15,6 +15,7 @@ import (
 const (
 	RedemptionTypeQuota        = "quota"
 	RedemptionTypeSubscription = "subscription"
+	RedemptionTypeRegistration = "registration"
 )
 
 type Redemption struct {
@@ -56,7 +57,7 @@ func NormalizeRedemptionType(redemptionType string) string {
 
 func IsValidRedemptionType(redemptionType string) bool {
 	switch NormalizeRedemptionType(redemptionType) {
-	case RedemptionTypeQuota, RedemptionTypeSubscription:
+	case RedemptionTypeQuota, RedemptionTypeSubscription, RedemptionTypeRegistration:
 		return true
 	default:
 		return false
@@ -325,6 +326,8 @@ func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result
 			}
 			result.SubscriptionPlan = plan
 			result.Subscription = subscription
+		case RedemptionTypeRegistration:
+			return ErrRedemptionInvalid
 		default:
 			return errors.New("无效的兑换码类型")
 		}
@@ -374,9 +377,23 @@ func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result
 }
 
 func (redemption *Redemption) Insert() error {
-	var err error
-	err = DB.Create(redemption).Error
-	return err
+	if NormalizeRedemptionType(redemption.Type) != RedemptionTypeRegistration {
+		return DB.Create(redemption).Error
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(redemption).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(redemption).Updates(map[string]interface{}{
+			"quota":                0,
+			"subscription_plan_id": 0,
+		}).Error; err != nil {
+			return err
+		}
+		redemption.Quota = 0
+		redemption.SubscriptionPlanId = 0
+		return nil
+	})
 }
 
 func (redemption *Redemption) SelectUpdate() error {

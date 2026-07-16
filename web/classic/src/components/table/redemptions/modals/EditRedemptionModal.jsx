@@ -146,8 +146,16 @@ const EditRedemptionModal = (props) => {
     const redemptionType = values.type || 'quota';
     if (!isEdit && (!name || name === '') && redemptionType === 'quota') {
       name = renderQuota(values.quota);
-    } else if (!isEdit && (!name || name === '')) {
+    } else if (
+      !isEdit &&
+      (!name || name === '') &&
+      redemptionType === 'subscription'
+    ) {
       name = getPlanTitle(values.subscription_plan_id);
+    }
+    if (redemptionType === 'registration' && !name?.trim()) {
+      showError(t('请输入名称'));
+      return;
     }
     setLoading(true);
     let localInputs = { ...values };
@@ -161,6 +169,11 @@ const EditRedemptionModal = (props) => {
       setLoading(false);
       return;
     }
+    if (redemptionType === 'registration' && localInputs.max_redemptions < 1) {
+      showError(t('注册码可注册次数必须大于0'));
+      setLoading(false);
+      return;
+    }
     localInputs.type = redemptionType;
     if (redemptionType === 'subscription') {
       localInputs.quota = 0;
@@ -169,7 +182,7 @@ const EditRedemptionModal = (props) => {
         setLoading(false);
         return;
       }
-    } else {
+    } else if (redemptionType === 'quota') {
       localInputs.quota = displayAmountToQuota(localInputs.amount);
       localInputs.subscription_plan_id = 0;
       if (localInputs.quota <= 0) {
@@ -177,6 +190,9 @@ const EditRedemptionModal = (props) => {
         setLoading(false);
         return;
       }
+    } else {
+      localInputs.quota = 0;
+      localInputs.subscription_plan_id = 0;
     }
     localInputs.name = name;
     if (!localInputs.expired_time) {
@@ -335,15 +351,31 @@ const EditRedemptionModal = (props) => {
                               'subscription_plan_id',
                               undefined,
                             );
-                          } else {
+                          } else if (value === 'subscription') {
                             formApiRef.current?.setValue('quota', 0);
                             formApiRef.current?.setValue('amount', 0);
+                          } else {
+                            formApiRef.current?.setValue(
+                              'subscription_plan_id',
+                              undefined,
+                            );
+                            formApiRef.current?.setValue('quota', 0);
+                            formApiRef.current?.setValue('amount', 0);
+                            if (Number(values.max_redemptions) < 1) {
+                              formApiRef.current?.setValue(
+                                'max_redemptions',
+                                1,
+                              );
+                            }
                           }
                         }}
                       >
                         <Select.Option value='quota'>{t('额度')}</Select.Option>
                         <Select.Option value='subscription'>
                           {t('套餐')}
+                        </Select.Option>
+                        <Select.Option value='registration'>
+                          {t('注册码')}
                         </Select.Option>
                       </Form.Select>
                     </Col>
@@ -412,7 +444,7 @@ const EditRedemptionModal = (props) => {
                           ))}
                         </Form.Select>
                       </Col>
-                    ) : (
+                    ) : values.type === 'quota' ? (
                       <Col span={24}>
                         <Form.InputNumber
                           field='amount'
@@ -474,6 +506,15 @@ const EditRedemptionModal = (props) => {
                           />
                         </div>
                       </Col>
+                    ) : (
+                      <Col span={24}>
+                        <div className='rounded border border-solid border-[var(--semi-color-border)] bg-[var(--semi-color-fill-0)] px-3 py-2'>
+                          <Text strong>{t('账户注册')}</Text>
+                          <div className='mt-1 text-xs text-[var(--semi-color-text-2)]'>
+                            {t('注册码名称会记录为新用户的注册来源')}
+                          </div>
+                        </div>
+                      </Col>
                     )}
                     {!isEdit && (
                       <Col span={12}>
@@ -500,8 +541,12 @@ const EditRedemptionModal = (props) => {
                     <Col span={isEdit ? 24 : 12}>
                       <Form.InputNumber
                         field='max_redemptions'
-                        label={t('单码兑换次数')}
-                        min={0}
+                        label={
+                          values.type === 'registration'
+                            ? t('单码可注册人数')
+                            : t('单码兑换次数')
+                        }
+                        min={values.type === 'registration' ? 1 : 0}
                         step={1}
                         precision={0}
                         rules={[
@@ -509,13 +554,24 @@ const EditRedemptionModal = (props) => {
                           {
                             validator: (rule, v) => {
                               const num = parseInt(v, 10);
+                              if (values.type === 'registration') {
+                                return num > 0
+                                  ? Promise.resolve()
+                                  : Promise.reject(
+                                      t('注册码可注册次数必须大于0'),
+                                    );
+                              }
                               return num >= 0
                                 ? Promise.resolve()
                                 : Promise.reject(t('兑换次数不能小于0'));
                             },
                           },
                         ]}
-                        extraText={t('填 0 表示不限次数，仍会受过期时间限制')}
+                        extraText={
+                          values.type === 'registration'
+                            ? t('可使用此注册码完成注册的账户数量')
+                            : t('填 0 表示不限次数，仍会受过期时间限制')
+                        }
                         style={{ width: '100%' }}
                         showClear
                       />

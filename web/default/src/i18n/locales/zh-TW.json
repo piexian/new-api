@@ -2308,7 +2308,7 @@
     "Generate tokens from the Tokens page; you can scope them to specific models, groups, IPs, and rate-limits.": "在「令牌」頁面生成 API Key，可以按模型、分組、IP、速率等維度精細化授權。",
     "Generated image": "生成的圖像",
     "Generating new codes will invalidate all existing backup codes.": "生成新代碼將使所有現有備份代碼失效。",
-    "Generating...": "生成中...",
+    "Generating...": "產生中...",
     "Generation Parameters": "生成參數",
     "Generation quality preset": "生成品質預設",
     "Generation was interrupted": "生成已中斷",
@@ -5721,6 +5721,22 @@
     "Zhipu Coding Plan Usage": "智譜 Coding Plan 用量",
     "Zhipu V4": "智譜 V4",
     "Zoom": "縮放",
-    "模力方舟": "模力方舟"
+    "模力方舟": "模力方舟",
+    "Failed to generate one-time invite code": "產生一次性邀請碼失敗",
+    "Generate One-Time Invite Code": "產生一次性邀請碼",
+    "One-Time Invite Code": "一次性邀請碼",
+    "This code can be used for one registration. Generate a new code after it is used.": "此邀請碼僅可用於註冊一次，使用後請重新產生。",
+    "Copy one-time invite code": "複製一次性邀請碼",
+    "Invitation or Registration Code": "邀請碼或註冊碼",
+    "Enter invitation or registration code": "請輸入邀請碼或註冊碼",
+    "Please enter the invitation or registration code": "請輸入邀請碼或註冊碼",
+    "Registration code ID": "註冊碼 ID",
+    "Registration Code": "註冊碼",
+    "Registration limit must be at least 1": "註冊人數必須至少為 1",
+    "Account registration": "帳戶註冊",
+    "The code name will be recorded as the source for accounts registered with it.": "註冊碼名稱會記錄為使用該碼註冊帳戶的來源。",
+    "Registration Limit": "註冊人數",
+    "Number of accounts that can register": "可註冊帳戶數",
+    "Number of accounts that can register with this code.": "可使用此註冊碼完成註冊的帳戶數量。"
   }
 }

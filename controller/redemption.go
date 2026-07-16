@@ -62,14 +62,14 @@ func GetRedemption(c *gin.Context) {
 }
 
 func AddRedemption(c *gin.Context) {
-	if !operation_setting.IsPaymentComplianceConfirmed() {
-		common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
-		return
-	}
-
 	redemption, maxRedemptionsProvided, err := bindRedemptionPayload(c)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	redemption.Type = model.NormalizeRedemptionType(redemption.Type)
+	if redemption.Type != model.RedemptionTypeRegistration && !operation_setting.IsPaymentComplianceConfirmed() {
+		common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
 		return
 	}
 	if !maxRedemptionsProvided {
@@ -83,6 +83,9 @@ func AddRedemption(c *gin.Context) {
 		return
 	}
 	if !validateRedemptionMaxRedemptions(c, redemption.MaxRedemptions) {
+		return
+	}
+	if !validateRegistrationRedemptionLimit(c, redemption.Type, redemption.MaxRedemptions) {
 		return
 	}
 	if redemption.Count <= 0 {
@@ -125,9 +128,11 @@ func AddRedemption(c *gin.Context) {
 		keys = append(keys, key)
 	}
 	recordManageAudit(c, "redemption.create", map[string]interface{}{
-		"name":  redemption.Name,
-		"count": redemption.Count,
-		"quota": logger.LogQuota(redemption.Quota),
+		"name":            redemption.Name,
+		"type":            redemption.Type,
+		"count":           redemption.Count,
+		"max_redemptions": redemption.MaxRedemptions,
+		"quota":           logger.LogQuota(redemption.Quota),
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -186,6 +191,9 @@ func UpdateRedemption(c *gin.Context) {
 		cleanRedemption.ExpiredTime = redemption.ExpiredTime
 		if maxRedemptionsProvided {
 			cleanRedemption.MaxRedemptions = redemption.MaxRedemptions
+		}
+		if !validateRegistrationRedemptionLimit(c, cleanRedemption.Type, cleanRedemption.MaxRedemptions) {
+			return
 		}
 	}
 	if statusOnly != "" {
@@ -250,6 +258,14 @@ func validateRedemptionMaxRedemptions(c *gin.Context, maxRedemptions int) bool {
 	return true
 }
 
+func validateRegistrationRedemptionLimit(c *gin.Context, redemptionType string, maxRedemptions int) bool {
+	if redemptionType == model.RedemptionTypeRegistration && maxRedemptions <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgRedemptionRegistrationLimitPositive)
+		return false
+	}
+	return true
+}
+
 func validateRedemptionTypePayload(c *gin.Context, redemption *model.Redemption) bool {
 	if redemption == nil {
 		common.ApiError(c, errors.New("无效的兑换码"))
@@ -282,6 +298,9 @@ func validateRedemptionTypePayload(c *gin.Context, redemption *model.Redemption)
 			return false
 		}
 		redemption.Quota = 0
+	case model.RedemptionTypeRegistration:
+		redemption.Quota = 0
+		redemption.SubscriptionPlanId = 0
 	}
 	return true
 }

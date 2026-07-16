@@ -42,3 +42,5 @@ new-api.prev
 new-api.prev-*
 new-api.bad-*
 .codegraph/
+exports/
+docs/specs/.workflow-confirmations.json

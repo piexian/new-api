@@ -4249,6 +4249,20 @@
     "启用余额不足提醒": "Activer le rappel de solde faible",
     "当用户余额低于阈值时发送邮件提醒": "Envoyer un e-mail lorsque le solde passe sous le seuil",
     "用户未自定义时使用此值": "Utilisé si l’utilisateur n’a pas défini de seuil personnalisé",
-    "默认提醒阈值": "Seuil de rappel par défaut"
+    "默认提醒阈值": "Seuil de rappel par défaut",
+    "生成一次性邀请码失败": "Échec de la génération du code d'invitation à usage unique",
+    "一次性邀请码已复制": "Code d'invitation à usage unique copié",
+    "一次性邀请码": "Code d'invitation à usage unique",
+    "此邀请码仅可用于注册一次，使用后请重新生成。": "Ce code ne peut servir qu'à une inscription. Générez-en un nouveau après son utilisation.",
+    "生成一次性邀请码": "Générer un code d'invitation à usage unique",
+    "请填写邀请码或注册码！": "Veuillez saisir un code d'invitation ou d'inscription !",
+    "邀请码或注册码": "Code d'invitation ou d'inscription",
+    "请输入邀请码或注册码": "Saisissez un code d'invitation ou d'inscription",
+    "注册码可注册次数必须大于0": "La limite d'inscriptions doit être supérieure à 0",
+    "注册码": "Code d'inscription",
+    "账户注册": "Inscription d'un compte",
+    "注册码名称会记录为新用户的注册来源": "Le nom du code d'inscription sera enregistré comme source du nouvel utilisateur",
+    "单码可注册人数": "Inscriptions par code",
+    "可使用此注册码完成注册的账户数量": "Nombre de comptes pouvant s’inscrire avec ce code"
   }
 }

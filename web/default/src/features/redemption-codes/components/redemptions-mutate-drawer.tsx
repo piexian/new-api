@@ -116,17 +116,24 @@ export function RedemptionsMutateDrawer({
         }
       })
       .finally(() => setPlansLoading(false))
+      .catch(() => {
+        setPlans([])
+      })
   }, [open])
 
   // Load existing data when updating
   useEffect(() => {
     if (open && isUpdate && currentRow) {
       // For update, fetch fresh data
-      getRedemption(currentRow.id).then((result) => {
-        if (result.success && result.data) {
-          form.reset(transformRedemptionToFormDefaults(result.data))
-        }
-      })
+      getRedemption(currentRow.id)
+        .then((result) => {
+          if (result.success && result.data) {
+            form.reset(transformRedemptionToFormDefaults(result.data))
+          }
+        })
+        .catch(() => {
+          form.reset(REDEMPTION_FORM_DEFAULT_VALUES)
+        })
     } else if (open && !isUpdate) {
       // For create, reset to defaults
       form.reset(REDEMPTION_FORM_DEFAULT_VALUES)
@@ -173,8 +180,17 @@ export function RedemptionsMutateDrawer({
     if (!isUpdate) {
       const name = form.getValues('name')
       if (!name?.trim()) {
-        const quota = parseQuotaFromDollars(form.getValues('quota_dollars'))
-        form.setValue('name', formatQuota(quota), { shouldValidate: true })
+        const type = form.getValues('type')
+        if (type === REDEMPTION_TYPE.QUOTA) {
+          const quota = parseQuotaFromDollars(form.getValues('quota_dollars'))
+          form.setValue('name', formatQuota(quota), { shouldValidate: true })
+        } else if (type === REDEMPTION_TYPE.SUBSCRIPTION) {
+          const planId = form.getValues('subscription_plan_id')
+          const plan = plans.find((record) => record.plan.id === planId)
+          if (plan) {
+            form.setValue('name', plan.plan.title, { shouldValidate: true })
+          }
+        }
       }
     }
 
@@ -257,8 +273,14 @@ export function RedemptionsMutateDrawer({
                         field.onChange(value)
                         if (value === REDEMPTION_TYPE.QUOTA) {
                           form.setValue('subscription_plan_id', undefined)
-                        } else {
+                        } else if (value === REDEMPTION_TYPE.SUBSCRIPTION) {
                           form.setValue('quota_dollars', 0)
+                        } else {
+                          form.setValue('subscription_plan_id', undefined)
+                          form.setValue('quota_dollars', 0)
+                          if (form.getValues('max_redemptions') < 1) {
+                            form.setValue('max_redemptions', 1)
+                          }
                         }
                       }}
                     >
@@ -285,7 +307,7 @@ export function RedemptionsMutateDrawer({
                 )}
               />
 
-              {redemptionType === REDEMPTION_TYPE.SUBSCRIPTION ? (
+              {redemptionType === REDEMPTION_TYPE.SUBSCRIPTION && (
                 <FormField
                   control={form.control}
                   name='subscription_plan_id'
@@ -334,7 +356,9 @@ export function RedemptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
-              ) : (
+              )}
+
+              {redemptionType === REDEMPTION_TYPE.QUOTA && (
                 <FormField
                   control={form.control}
                   name='quota_dollars'
@@ -348,7 +372,9 @@ export function RedemptionsMutateDrawer({
                           step={tokensOnly ? 1 : 0.01}
                           placeholder={quotaPlaceholder}
                           onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
+                            field.onChange(
+                              Number.parseFloat(e.target.value) || 0
+                            )
                           }
                         />
                       </FormControl>
@@ -363,6 +389,17 @@ export function RedemptionsMutateDrawer({
                     </FormItem>
                   )}
                 />
+              )}
+
+              {redemptionType === REDEMPTION_TYPE.REGISTRATION && (
+                <div className='border-border bg-muted/40 rounded-md border px-3 py-2 text-sm'>
+                  <p className='font-medium'>{t('Account registration')}</p>
+                  <p className='text-muted-foreground mt-1 text-xs'>
+                    {t(
+                      'The code name will be recorded as the source for accounts registered with it.'
+                    )}
+                  </p>
+                </div>
               )}
 
               <FormField
@@ -427,23 +464,41 @@ export function RedemptionsMutateDrawer({
                 name='max_redemptions'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Redeem Limit')}</FormLabel>
+                    <FormLabel>
+                      {redemptionType === REDEMPTION_TYPE.REGISTRATION
+                        ? t('Registration Limit')
+                        : t('Redeem Limit')}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         type='number'
-                        min='0'
+                        min={
+                          redemptionType === REDEMPTION_TYPE.REGISTRATION
+                            ? 1
+                            : 0
+                        }
                         step='1'
-                        placeholder={t('Times this code can be redeemed')}
+                        placeholder={
+                          redemptionType === REDEMPTION_TYPE.REGISTRATION
+                            ? t('Number of accounts that can register')
+                            : t('Times this code can be redeemed')
+                        }
                         onChange={(e) =>
-                          field.onChange(parseInt(e.target.value, 10) || 0)
+                          field.onChange(
+                            Number.parseInt(e.target.value, 10) || 0
+                          )
                         }
                       />
                     </FormControl>
                     <FormDescription>
-                      {t(
-                        'Use 0 for unlimited redemptions. Expiration time still applies.'
-                      )}
+                      {redemptionType === REDEMPTION_TYPE.REGISTRATION
+                        ? t(
+                            'Number of accounts that can register with this code.'
+                          )
+                        : t(
+                            'Use 0 for unlimited redemptions. Expiration time still applies.'
+                          )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -465,7 +520,9 @@ export function RedemptionsMutateDrawer({
                           max='100'
                           placeholder={t('Number of codes to create')}
                           onChange={(e) =>
-                            field.onChange(parseInt(e.target.value, 10) || 1)
+                            field.onChange(
+                              Number.parseInt(e.target.value, 10) || 1
+                            )
                           }
                         />
                       </FormControl>

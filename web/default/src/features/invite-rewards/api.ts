@@ -35,6 +35,13 @@ export async function resetAffiliateCode(): Promise<ApiResponse<string>> {
   return res.data
 }
 
+export async function generateOneTimeInviteCode(): Promise<
+  ApiResponse<string>
+> {
+  const res = await api.post('/api/user/aff/one-time')
+  return res.data
+}
+
 export async function getInvitedUsers(): Promise<ApiResponse<InvitedUser[]>> {
   const res = await api.get('/api/user/aff/invited')
   return res.data

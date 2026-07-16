@@ -44,8 +44,12 @@ import type { User } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 function getQuotaProgressColor(percentage: number): string {
-  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
-  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
+  if (percentage <= 10) {
+    return '[&_[data-slot=progress-indicator]]:bg-rose-500'
+  }
+  if (percentage <= 30) {
+    return '[&_[data-slot=progress-indicator]]:bg-amber-500'
+  }
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
@@ -283,6 +287,8 @@ export function useUsersColumns(): ColumnDef<User>[] {
         const affCount = user.aff_count || 0
         const affHistoryQuota = user.aff_history_quota || 0
         const inviterId = user.inviter_id || 0
+        const registrationCodeId = user.registration_code_id || 0
+        const registrationSource = user.registration_source?.trim() || ''
 
         return (
           <div className='flex max-w-full min-w-0 flex-wrap items-center gap-1 overflow-hidden'>
@@ -316,7 +322,26 @@ export function useUsersColumns(): ColumnDef<User>[] {
                 <p className='text-xs'>{t('Total invitation revenue')}</p>
               </TooltipContent>
             </Tooltip>
-            {inviterId > 0 && (
+            {registrationSource && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <StatusBadge
+                      label={`${t('Source')}: ${registrationSource}`}
+                      variant='neutral'
+                      copyable={false}
+                      className='cursor-help'
+                    />
+                  }
+                />
+                <TooltipContent>
+                  <p className='text-xs'>
+                    {t('Registration code ID')}: {registrationCodeId}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {!registrationSource && inviterId > 0 && (
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -335,7 +360,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
                 </TooltipContent>
               </Tooltip>
             )}
-            {inviterId === 0 && (
+            {!registrationSource && inviterId === 0 && (
               <StatusBadge
                 label={t('No Inviter')}
                 variant='neutral'
