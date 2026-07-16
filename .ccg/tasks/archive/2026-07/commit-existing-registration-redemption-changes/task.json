@@ -1,0 +1,12 @@
+{
+  "id": "commit-existing-registration-redemption-changes",
+  "title": "审查并提交现有注册凭证与兑换码改动",
+  "status": "completed",
+  "complexity": "L+",
+  "risk": "high",
+  "domain": "fullstack",
+  "currentPhase": "completed",
+  "nextAction": "已提交并归档",
+  "createdAt": "2026-07-16T23:34:45Z",
+  "branch": "main"
+}
