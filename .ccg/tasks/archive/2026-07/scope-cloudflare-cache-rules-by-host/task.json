@@ -1,0 +1,12 @@
+{
+  "id": "scope-cloudflare-cache-rules-by-host",
+  "title": "限定 Cloudflare 缓存规则的主机范围",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "infrastructure",
+  "currentPhase": "completed",
+  "nextAction": "归档并提交说明",
+  "createdAt": "2026-07-17T00:48:25Z",
+  "branch": "main"
+}
