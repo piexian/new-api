@@ -4349,6 +4349,11 @@
     "账户注册": "账户注册",
     "注册码名称会记录为新用户的注册来源": "注册码名称会记录为新用户的注册来源",
     "单码可注册人数": "单码可注册人数",
-    "可使用此注册码完成注册的账户数量": "可使用此注册码完成注册的账户数量"
+    "可使用此注册码完成注册的账户数量": "可使用此注册码完成注册的账户数量",
+    "Cancel": "取消",
+    "Open": "打开",
+    "Open external link?": "打开外部链接？",
+    "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",
+    "This link cannot be opened from the preview.": "无法从预览中打开此链接。"
   }
 }

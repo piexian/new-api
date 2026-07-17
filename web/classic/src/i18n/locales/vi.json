@@ -4787,6 +4787,11 @@
     "账户注册": "Đăng ký tài khoản",
     "注册码名称会记录为新用户的注册来源": "Tên mã đăng ký sẽ được lưu làm nguồn đăng ký của người dùng mới",
     "单码可注册人数": "Số lượt đăng ký mỗi mã",
-    "可使用此注册码完成注册的账户数量": "Số tài khoản có thể đăng ký bằng mã này"
+    "可使用此注册码完成注册的账户数量": "Số tài khoản có thể đăng ký bằng mã này",
+    "Cancel": "Hủy",
+    "Open": "Mở",
+    "Open external link?": "Mở liên kết bên ngoài?",
+    "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",
+    "This link cannot be opened from the preview.": "Không thể mở liên kết này từ bản xem trước."
   }
 }

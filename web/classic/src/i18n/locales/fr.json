@@ -4263,6 +4263,11 @@
     "账户注册": "Inscription d'un compte",
     "注册码名称会记录为新用户的注册来源": "Le nom du code d'inscription sera enregistré comme source du nouvel utilisateur",
     "单码可注册人数": "Inscriptions par code",
-    "可使用此注册码完成注册的账户数量": "Nombre de comptes pouvant s’inscrire avec ce code"
+    "可使用此注册码完成注册的账户数量": "Nombre de comptes pouvant s’inscrire avec ce code",
+    "Cancel": "Annuler",
+    "Open": "Ouvrir",
+    "Open external link?": "Ouvrir le lien externe ?",
+    "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",
+    "This link cannot be opened from the preview.": "Ce lien ne peut pas être ouvert depuis l’aperçu."
   }
 }

@@ -5738,5 +5738,8 @@
     "Registration Limit": "登録上限",
     "Number of accounts that can register": "登録できるアカウント数",
     "Number of accounts that can register with this code.": "このコードで登録できるアカウント数。"
-  }
+  },
+  "Open external link?": "外部リンクを開きますか？",
+  "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",
+  "This link cannot be opened from the preview.": "このリンクはプレビューから開けません。"
 }

@@ -5738,5 +5738,8 @@
     "Registration Limit": "Giới hạn đăng ký",
     "Number of accounts that can register": "Số tài khoản có thể đăng ký",
     "Number of accounts that can register with this code.": "Số tài khoản có thể đăng ký bằng mã này."
-  }
+  },
+  "Open external link?": "Mở liên kết bên ngoài?",
+  "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",
+  "This link cannot be opened from the preview.": "Không thể mở liên kết này từ bản xem trước."
 }

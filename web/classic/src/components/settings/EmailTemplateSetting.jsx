@@ -17,12 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Card,
   Col,
   Input,
+  Modal,
   Row,
   Select,
   Space,
@@ -66,21 +67,30 @@ const buildAITemplatePrompt = (event, locale, placeholders) => {
     .join(', ');
   return `You are a senior transactional-email designer. Help me create a polished email template for the event "${event}" in locale "${locale}".
 
-Before generating the template, ask me one concise question about the desired brand style, tone, colors, and call to action. After I answer, return only one valid JSON object with this exact shape:
-{"subject":"...","html":"..."}
+Before generating the template, ask me one concise question about the desired brand style, tone, colors, and call to action. After I answer, return only the complete HTML document that I can paste directly into an HTML field.
 
 Requirements:
-- The subject must be no longer than 200 characters and must not contain line breaks.
+- Output HTML only. Do not return JSON, a subject line, explanations, or Markdown code fences.
+- The response must start with <!doctype html> or <html and end with </html>.
 - The HTML must be a complete responsive email document using table-based layout and inline CSS.
 - Use a restrained, professional visual style with accessible contrast and mobile-friendly spacing.
 - Do not use JavaScript, forms, external fonts, external stylesheets, embedded images, or remote tracking assets.
-- Use {{ logo_url }} as the only remote image and keep the layout usable when it is unavailable.
+- If {{ logo_url }} is available in the placeholder list, use it as the only remote image and keep the layout usable when it is unavailable. Otherwise, do not use remote images.
 - Only use these placeholders, preserving their exact syntax: ${tokens}.
 - Do not invent any other placeholders.
 - Escape normal HTML text correctly, but keep placeholders unchanged.
 - When a *_url placeholder is available, use it as the href of a clear action button.
-- Keep the HTML under 50,000 characters.
-- Do not wrap the JSON in Markdown code fences.`;
+- Keep the HTML under 50,000 characters.`;
+};
+
+const resolveEmailPreviewLink = (rawHref, baseHref) => {
+  try {
+    const url = new URL(rawHref.trim(), baseHref);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.href;
+  } catch {
+    return null;
+  }
 };
 
 const EmailTemplateSetting = () => {
@@ -97,6 +107,14 @@ const EmailTemplateSetting = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const previewLinkCleanupRef = useRef(null);
+
+  useEffect(
+    () => () => {
+      previewLinkCleanupRef.current?.();
+    },
+    [],
+  );
 
   useEffect(() => {
     const loadCatalog = async () => {
@@ -259,6 +277,61 @@ const EmailTemplateSetting = () => {
     } else {
       showError(t('Failed to copy AI template prompt'));
     }
+  };
+
+  const handlePreviewFrameLoad = (loadEvent) => {
+    previewLinkCleanupRef.current?.();
+    previewLinkCleanupRef.current = null;
+
+    const frameDocument = loadEvent.currentTarget.contentDocument;
+    if (!frameDocument) return;
+
+    const handlePreviewClick = (clickEvent) => {
+      const targetNode = clickEvent.target;
+      const targetElement =
+        targetNode?.nodeType === 1 ? targetNode : targetNode?.parentElement;
+      const anchor = targetElement?.closest?.('a[href]');
+      const rawHref = anchor?.getAttribute('href')?.trim();
+      if (!rawHref || rawHref.startsWith('#')) return;
+
+      clickEvent.preventDefault();
+      clickEvent.stopPropagation();
+
+      const resolvedLink = resolveEmailPreviewLink(
+        rawHref,
+        frameDocument.baseURI,
+      );
+      if (!resolvedLink) {
+        showError(t('This link cannot be opened from the preview.'));
+        return;
+      }
+
+      Modal.confirm({
+        title: t('Open external link?'),
+        content: (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Text>
+              {t(
+                'This link will open in a new window. Do you want to continue?',
+              )}
+            </Text>
+            <Text type='secondary' style={{ wordBreak: 'break-all' }}>
+              {resolvedLink}
+            </Text>
+          </div>
+        ),
+        okText: t('Open'),
+        cancelText: t('Cancel'),
+        onOk: () => {
+          window.open(resolvedLink, '_blank', 'noopener,noreferrer');
+        },
+      });
+    };
+
+    frameDocument.addEventListener('click', handlePreviewClick);
+    previewLinkCleanupRef.current = () => {
+      frameDocument.removeEventListener('click', handlePreviewClick);
+    };
   };
 
   return (
@@ -469,8 +542,9 @@ const EmailTemplateSetting = () => {
                       {previewHtml ? (
                         <iframe
                           title={t('Email template preview')}
-                          sandbox=''
+                          sandbox='allow-same-origin'
                           srcDoc={previewHtml}
+                          onLoad={handlePreviewFrameLoad}
                           style={{
                             width: '100%',
                             height: 576,

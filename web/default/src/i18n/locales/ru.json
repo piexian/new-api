@@ -5738,5 +5738,8 @@
     "Registration Limit": "Лимит регистраций",
     "Number of accounts that can register": "Количество аккаунтов, доступных для регистрации",
     "Number of accounts that can register with this code.": "Количество аккаунтов, которые можно зарегистрировать с этим кодом."
-  }
+  },
+  "Open external link?": "Открыть внешнюю ссылку?",
+  "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",
+  "This link cannot be opened from the preview.": "Эту ссылку нельзя открыть из предварительного просмотра."
 }

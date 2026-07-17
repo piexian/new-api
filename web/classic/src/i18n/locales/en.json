@@ -4364,6 +4364,11 @@
     "账户注册": "Account Registration",
     "注册码名称会记录为新用户的注册来源": "The registration code name will be recorded as the new user's registration source",
     "单码可注册人数": "Registrations per Code",
-    "可使用此注册码完成注册的账户数量": "Number of accounts that can register with this code"
+    "可使用此注册码完成注册的账户数量": "Number of accounts that can register with this code",
+    "Cancel": "Cancel",
+    "Open": "Open",
+    "Open external link?": "Open external link?",
+    "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",
+    "This link cannot be opened from the preview.": "This link cannot be opened from the preview."
   }
 }

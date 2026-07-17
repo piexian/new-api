@@ -5738,5 +5738,8 @@
     "Registration Limit": "註冊人數",
     "Number of accounts that can register": "可註冊帳戶數",
     "Number of accounts that can register with this code.": "可使用此註冊碼完成註冊的帳戶數量。"
-  }
+  },
+  "Open external link?": "開啟外部連結？",
+  "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",
+  "This link cannot be opened from the preview.": "無法從預覽中開啟此連結。"
 }

@@ -5738,5 +5738,8 @@
     "Registration Limit": "Limite d'inscriptions",
     "Number of accounts that can register": "Nombre de comptes autorisés à s’inscrire",
     "Number of accounts that can register with this code.": "Nombre de comptes pouvant s’inscrire avec ce code."
-  }
+  },
+  "Open external link?": "Ouvrir le lien externe ?",
+  "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",
+  "This link cannot be opened from the preview.": "Ce lien ne peut pas être ouvert depuis l’aperçu."
 }

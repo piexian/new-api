@@ -16,33 +16,40 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { AiMagicIcon, Copy01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { AiMagicIcon, Copy01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  type SyntheticEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
+} from '@/components/ui/select'
+import { Spinner } from '@/components/ui/spinner'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useDebounce } from "@/hooks";
-import { copyToClipboard } from "@/lib/copy-to-clipboard";
+} from '@/components/ui/tooltip'
+import { useDebounce } from '@/hooks'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 
 import {
   getEmailTemplate,
@@ -50,107 +57,95 @@ import {
   previewEmailTemplate,
   restoreEmailTemplate,
   updateEmailTemplate,
-} from "../api";
-import { SettingsPageFormActions } from "../components/settings-page-context";
-import { SettingsSection } from "../components/settings-section";
-import type { EmailTemplatePreviewRequest } from "../types";
+} from '../api'
+import { SettingsPageFormActions } from '../components/settings-page-context'
+import { SettingsSection } from '../components/settings-section'
+import type { EmailTemplatePreviewRequest } from '../types'
+import {
+  buildAITemplatePrompt,
+  resolveEmailPreviewLink,
+} from './email-template-utils'
 
-const DEFAULT_EVENT = "auth.verify_code";
-const DEFAULT_LOCALE = "zh-CN";
+const DEFAULT_EVENT = 'auth.verify_code'
+const DEFAULT_LOCALE = 'zh-CN'
 
 const EVENT_LABELS: Record<string, string> = {
-  "auth.verify_code": "Email verification code",
-  "auth.password_reset": "Password reset",
-  "balance.low": "Low balance reminder",
-  "subscription.balance_low": "Low subscription balance reminder",
-  "channel.auto_disabled": "Channel automatically disabled",
-  "channel.auto_enabled": "Channel automatically restored",
-  "channel.quota_cooldown": "Channel quota cooldown",
-  "channel.test_result": "Channel test completed",
-  "channel.model_updates": "Upstream model inspection",
-  "notification.general": "General notification",
-  "system.test": "Test email",
-};
+  'auth.verify_code': 'Email verification code',
+  'auth.password_reset': 'Password reset',
+  'balance.low': 'Low balance reminder',
+  'subscription.balance_low': 'Low subscription balance reminder',
+  'channel.auto_disabled': 'Channel automatically disabled',
+  'channel.auto_enabled': 'Channel automatically restored',
+  'channel.quota_cooldown': 'Channel quota cooldown',
+  'channel.test_result': 'Channel test completed',
+  'channel.model_updates': 'Upstream model inspection',
+  'notification.general': 'General notification',
+  'system.test': 'Test email',
+}
 
 const LOCALE_LABELS: Record<string, string> = {
-  "zh-CN": "简体中文",
-  "zh-TW": "繁體中文",
-  en: "English",
-};
-
-function buildAITemplatePrompt(
-  event: string,
-  locale: string,
-  placeholders: string[],
-) {
-  const tokens = placeholders
-    .map((placeholder) => `{{ ${placeholder} }}`)
-    .join(", ");
-  return `You are a senior transactional-email designer. Help me create a polished email template for the event "${event}" in locale "${locale}".
-
-Before generating the template, ask me one concise question about the desired brand style, tone, colors, and call to action. After I answer, return only one valid JSON object with this exact shape:
-{"subject":"...","html":"..."}
-
-Requirements:
-- The subject must be no longer than 200 characters and must not contain line breaks.
-- The HTML must be a complete responsive email document using table-based layout and inline CSS.
-- Use a restrained, professional visual style with accessible contrast and mobile-friendly spacing.
-- Do not use JavaScript, forms, external fonts, external stylesheets, embedded images, or remote tracking assets.
-- Use {{ logo_url }} as the only remote image and keep the layout usable when it is unavailable.
-- Only use these placeholders, preserving their exact syntax: ${tokens}.
-- Do not invent any other placeholders.
-- Escape normal HTML text correctly, but keep placeholders unchanged.
-- When a *_url placeholder is available, use it as the href of a clear action button.
-- Keep the HTML under 50,000 characters.
-- Do not wrap the JSON in Markdown code fences.`;
+  'zh-CN': '简体中文',
+  'zh-TW': '繁體中文',
+  en: 'English',
 }
 
 function ensureSuccess<T>(response: {
-  success: boolean;
-  message: string;
-  data: T;
+  success: boolean
+  message: string
+  data: T
 }): T {
   if (!response.success) {
-    throw new Error(response.message);
+    throw new Error(response.message)
   }
-  return response.data;
+  return response.data
 }
 
 export function EmailTemplateSettingsSection() {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const [event, setEvent] = useState(DEFAULT_EVENT);
-  const [locale, setLocale] = useState(DEFAULT_LOCALE);
-  const [subject, setSubject] = useState("");
-  const [html, setHTML] = useState("");
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [event, setEvent] = useState(DEFAULT_EVENT)
+  const [locale, setLocale] = useState(DEFAULT_LOCALE)
+  const [subject, setSubject] = useState('')
+  const [html, setHTML] = useState('')
+  const [pendingPreviewLink, setPendingPreviewLink] = useState<string | null>(
+    null
+  )
+  const previewLinkCleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(
+    () => () => {
+      previewLinkCleanupRef.current?.()
+    },
+    []
+  )
 
   const catalogQuery = useQuery({
-    queryKey: ["email-template-catalog"],
+    queryKey: ['email-template-catalog'],
     queryFn: async () => ensureSuccess(await getEmailTemplateCatalog()),
     staleTime: 5 * 60 * 1000,
-  });
+  })
 
   const templateQueryKey = useMemo(
-    () => ["email-template", event, locale] as const,
-    [event, locale],
-  );
+    () => ['email-template', event, locale] as const,
+    [event, locale]
+  )
   const templateQuery = useQuery({
     queryKey: templateQueryKey,
     queryFn: async () => ensureSuccess(await getEmailTemplate(event, locale)),
-  });
-  const template = templateQuery.data;
+  })
+  const template = templateQuery.data
 
   useEffect(() => {
-    if (!templateQuery.data) return;
-    setSubject(templateQuery.data.subject);
-    setHTML(templateQuery.data.html);
-  }, [templateQuery.data]);
+    if (!templateQuery.data) return
+    setSubject(templateQuery.data.subject)
+    setHTML(templateQuery.data.html)
+  }, [templateQuery.data])
 
   const previewRequest = useMemo<EmailTemplatePreviewRequest>(
     () => ({ event, locale, subject, html }),
-    [event, locale, subject, html],
-  );
-  const debouncedPreviewRequest = useDebounce(previewRequest, 450);
+    [event, locale, subject, html]
+  )
+  const debouncedPreviewRequest = useDebounce(previewRequest, 450)
   const canPreview = Boolean(
     template &&
     template.event === event &&
@@ -158,82 +153,128 @@ export function EmailTemplateSettingsSection() {
     debouncedPreviewRequest.event === event &&
     debouncedPreviewRequest.locale === locale &&
     debouncedPreviewRequest.subject.trim() &&
-    debouncedPreviewRequest.html.trim(),
-  );
+    debouncedPreviewRequest.html.trim()
+  )
   const previewQuery = useQuery({
-    queryKey: ["email-template-preview", debouncedPreviewRequest],
+    queryKey: ['email-template-preview', debouncedPreviewRequest],
     queryFn: async () =>
       ensureSuccess(await previewEmailTemplate(debouncedPreviewRequest)),
     enabled: canPreview,
     retry: false,
     staleTime: Infinity,
     gcTime: 30 * 1000,
-  });
+  })
 
   const saveMutation = useMutation({
     mutationFn: async () =>
       ensureSuccess(
-        await updateEmailTemplate(event, locale, { subject, html }),
+        await updateEmailTemplate(event, locale, { subject, html })
       ),
     onSuccess: (savedTemplate) => {
-      queryClient.setQueryData(templateQueryKey, savedTemplate);
-      setSubject(savedTemplate.subject);
-      setHTML(savedTemplate.html);
-      toast.success(t("Email template saved"));
+      queryClient.setQueryData(templateQueryKey, savedTemplate)
+      setSubject(savedTemplate.subject)
+      setHTML(savedTemplate.html)
+      toast.success(t('Email template saved'))
     },
     onError: (error: Error) => {
-      toast.error(error.message || t("Failed to save email template"));
+      toast.error(error.message || t('Failed to save email template'))
     },
-  });
+  })
 
   const restoreMutation = useMutation({
     mutationFn: async () =>
       ensureSuccess(await restoreEmailTemplate(event, locale)),
     onSuccess: (restoredTemplate) => {
-      queryClient.setQueryData(templateQueryKey, restoredTemplate);
-      setSubject(restoredTemplate.subject);
-      setHTML(restoredTemplate.html);
-      toast.success(t("Default email template restored"));
+      queryClient.setQueryData(templateQueryKey, restoredTemplate)
+      setSubject(restoredTemplate.subject)
+      setHTML(restoredTemplate.html)
+      toast.success(t('Default email template restored'))
     },
     onError: (error: Error) => {
-      toast.error(error.message || t("Failed to restore email template"));
+      toast.error(error.message || t('Failed to restore email template'))
     },
-  });
+  })
 
   const isDirty = Boolean(
-    template && (subject !== template.subject || html !== template.html),
-  );
-  const isMutating = saveMutation.isPending || restoreMutation.isPending;
-  const preview = canPreview ? previewQuery.data : undefined;
+    template && (subject !== template.subject || html !== template.html)
+  )
+  const isMutating = saveMutation.isPending || restoreMutation.isPending
+  const preview = canPreview ? previewQuery.data : undefined
   const isPreviewing =
     Boolean(subject.trim() && html.trim()) &&
     (!canPreview ||
       previewRequest !== debouncedPreviewRequest ||
-      previewQuery.isFetching);
+      previewQuery.isFetching)
 
   const copyPlaceholder = async (placeholder: string) => {
-    const token = `{{ ${placeholder} }}`;
+    const token = `{{ ${placeholder} }}`
     if (await copyToClipboard(token)) {
-      toast.success(t("Placeholder copied"));
+      toast.success(t('Placeholder copied'))
     } else {
-      toast.error(t("Failed to copy placeholder"));
+      toast.error(t('Failed to copy placeholder'))
     }
-  };
+  }
 
   const copyAITemplatePrompt = async () => {
-    if (!template) return;
-    const prompt = buildAITemplatePrompt(event, locale, template.placeholders);
+    if (!template) return
+    const prompt = buildAITemplatePrompt(event, locale, template.placeholders)
     if (await copyToClipboard(prompt)) {
-      toast.success(t("AI template prompt copied"));
+      toast.success(t('AI template prompt copied'))
     } else {
-      toast.error(t("Failed to copy AI template prompt"));
+      toast.error(t('Failed to copy AI template prompt'))
     }
-  };
+  }
+
+  const handlePreviewFrameLoad = (
+    loadEvent: SyntheticEvent<HTMLIFrameElement>
+  ) => {
+    previewLinkCleanupRef.current?.()
+    previewLinkCleanupRef.current = null
+
+    const frameDocument = loadEvent.currentTarget.contentDocument
+    if (!frameDocument) return
+
+    const handlePreviewClick = (clickEvent: MouseEvent) => {
+      const targetNode = clickEvent.target as Node | null
+      const targetElement =
+        targetNode?.nodeType === 1
+          ? (targetNode as Element)
+          : targetNode?.parentElement
+      const anchor = targetElement?.closest<HTMLAnchorElement>('a[href]')
+      const rawHref = anchor?.getAttribute('href')?.trim()
+      if (!rawHref || rawHref.startsWith('#')) return
+
+      clickEvent.preventDefault()
+      clickEvent.stopPropagation()
+
+      const resolvedLink = resolveEmailPreviewLink(
+        rawHref,
+        frameDocument.baseURI
+      )
+      if (!resolvedLink) {
+        toast.error(t('This link cannot be opened from the preview.'))
+        return
+      }
+
+      setPendingPreviewLink(resolvedLink)
+    }
+
+    frameDocument.addEventListener('click', handlePreviewClick)
+    previewLinkCleanupRef.current = () => {
+      frameDocument.removeEventListener('click', handlePreviewClick)
+    }
+  }
+
+  const openPendingPreviewLink = () => {
+    if (!pendingPreviewLink) return
+    window.open(pendingPreviewLink, '_blank', 'noopener,noreferrer')
+    setPendingPreviewLink(null)
+  }
 
   return (
     <SettingsSection
-      title={t("Email Templates")}
-      className="h-full min-h-0 w-full"
+      title={t('Email Templates')}
+      className='h-full min-h-0 w-full'
     >
       <SettingsPageFormActions
         onSave={() => saveMutation.mutate()}
@@ -243,14 +284,14 @@ export function EmailTemplateSettingsSection() {
         isSaving={isMutating}
         isSaveDisabled={!isDirty || !subject.trim() || !html.trim()}
         isResetDisabled={isDirty}
-        saveLabel="Save email template"
-        resetLabel="Restore default"
-        resetVariant="destructive"
+        saveLabel='Save email template'
+        resetLabel='Restore default'
+        resetVariant='destructive'
       />
 
-      <div className="grid gap-5 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label>{t("Notification event")}</Label>
+      <div className='grid gap-5 md:grid-cols-2'>
+        <div className='space-y-2'>
+          <Label>{t('Notification event')}</Label>
           <Select
             value={event}
             onValueChange={(value) => value && setEvent(value)}
@@ -268,8 +309,8 @@ export function EmailTemplateSettingsSection() {
           </Select>
         </div>
 
-        <div className="space-y-2">
-          <Label>{t("Template language")}</Label>
+        <div className='space-y-2'>
+          <Label>{t('Template language')}</Label>
           <Select
             value={locale}
             onValueChange={(value) => value && setLocale(value)}
@@ -289,37 +330,37 @@ export function EmailTemplateSettingsSection() {
       </div>
 
       {templateQuery.isLoading ? (
-        <div className="text-muted-foreground flex min-h-64 items-center justify-center gap-2 text-sm">
+        <div className='text-muted-foreground flex min-h-64 items-center justify-center gap-2 text-sm'>
           <Spinner />
-          {t("Loading email template...")}
+          {t('Loading email template...')}
         </div>
       ) : null}
       {!templateQuery.isLoading && templateQuery.isError ? (
-        <div className="border-destructive/40 text-destructive rounded-lg border px-4 py-3 text-sm">
+        <div className='border-destructive/40 text-destructive rounded-lg border px-4 py-3 text-sm'>
           {templateQuery.error.message}
         </div>
       ) : null}
       {!templateQuery.isLoading && !templateQuery.isError && template ? (
-        <div className="flex min-h-0 w-full flex-1 flex-col gap-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={template.is_custom ? "default" : "outline"}>
+        <div className='flex min-h-0 w-full flex-1 flex-col gap-5'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Badge variant={template.is_custom ? 'default' : 'outline'}>
               {template.is_custom
-                ? t("Custom template")
-                : t("Built-in template")}
+                ? t('Custom template')
+                : t('Built-in template')}
             </Badge>
             {isDirty ? (
-              <Badge variant="secondary">{t("Unsaved changes")}</Badge>
+              <Badge variant='secondary'>{t('Unsaved changes')}</Badge>
             ) : null}
           </div>
 
-          <div className="grid w-full min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-start">
-            <div className="min-w-0 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email-template-subject">
-                  {t("Email subject")}
+          <div className='grid w-full min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:items-start'>
+            <div className='min-w-0 space-y-4'>
+              <div className='space-y-2'>
+                <Label htmlFor='email-template-subject'>
+                  {t('Email subject')}
                 </Label>
                 <Input
-                  id="email-template-subject"
+                  id='email-template-subject'
                   value={subject}
                   maxLength={200}
                   onChange={(changeEvent) =>
@@ -328,17 +369,17 @@ export function EmailTemplateSettingsSection() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor="email-template-html">{t("HTML")}</Label>
-                  <span className="text-muted-foreground text-xs tabular-nums">
+              <div className='space-y-2'>
+                <div className='flex items-center justify-between gap-3'>
+                  <Label htmlFor='email-template-html'>{t('HTML')}</Label>
+                  <span className='text-muted-foreground text-xs tabular-nums'>
                     {html.length.toLocaleString()} / 50,000
                   </span>
                 </div>
                 <textarea
-                  id="email-template-html"
-                  aria-label={t("Email HTML content")}
-                  className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 min-h-[28rem] w-full resize-y overflow-auto rounded-lg border bg-transparent px-3 py-2 font-mono text-sm leading-6 transition-colors outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3"
+                  id='email-template-html'
+                  aria-label={t('Email HTML content')}
+                  className='border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:bg-input/30 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 min-h-[28rem] w-full resize-y overflow-auto rounded-lg border bg-transparent px-3 py-2 font-mono text-sm leading-6 transition-colors outline-none focus-visible:ring-3 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:ring-3'
                   value={html}
                   rows={18}
                   maxLength={50000}
@@ -347,33 +388,33 @@ export function EmailTemplateSettingsSection() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Label>{t("Available placeholders")}</Label>
+              <div className='space-y-2'>
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <Label>{t('Available placeholders')}</Label>
                   <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
+                    type='button'
+                    size='sm'
+                    variant='outline'
                     onClick={copyAITemplatePrompt}
                   >
                     <HugeiconsIcon
                       icon={AiMagicIcon}
                       strokeWidth={2}
-                      data-icon="inline-start"
+                      data-icon='inline-start'
                     />
-                    {t("Copy AI template prompt")}
+                    {t('Copy AI template prompt')}
                   </Button>
                 </div>
                 <TooltipProvider>
-                  <div className="flex flex-wrap gap-2">
+                  <div className='flex flex-wrap gap-2'>
                     {template.placeholders.map((placeholder) => (
                       <Tooltip key={placeholder}>
                         <TooltipTrigger
                           render={
                             <Button
-                              type="button"
-                              size="xs"
-                              variant="outline"
+                              type='button'
+                              size='xs'
+                              variant='outline'
                               onClick={() => copyPlaceholder(placeholder)}
                             />
                           }
@@ -381,11 +422,11 @@ export function EmailTemplateSettingsSection() {
                           <HugeiconsIcon
                             icon={Copy01Icon}
                             strokeWidth={2}
-                            data-icon="inline-start"
+                            data-icon='inline-start'
                           />
                           {`{{ ${placeholder} }}`}
                         </TooltipTrigger>
-                        <TooltipContent>{t("Copy placeholder")}</TooltipContent>
+                        <TooltipContent>{t('Copy placeholder')}</TooltipContent>
                       </Tooltip>
                     ))}
                   </div>
@@ -393,41 +434,42 @@ export function EmailTemplateSettingsSection() {
               </div>
             </div>
 
-            <div className="min-w-0 overflow-hidden rounded-lg border">
-              <div className="bg-muted/30 flex min-h-16 items-center justify-between gap-3 border-b px-4 py-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{t("Live preview")}</div>
+            <div className='min-w-0 overflow-hidden rounded-lg border'>
+              <div className='bg-muted/30 flex min-h-16 items-center justify-between gap-3 border-b px-4 py-3'>
+                <div className='min-w-0'>
+                  <div className='text-sm font-medium'>{t('Live preview')}</div>
                   <div
-                    className="text-muted-foreground truncate text-xs"
+                    className='text-muted-foreground truncate text-xs'
                     title={preview?.subject ?? subject}
                   >
                     {preview?.subject ?? subject}
                   </div>
                 </div>
-                {isPreviewing ? <Spinner className="shrink-0" /> : null}
+                {isPreviewing ? <Spinner className='shrink-0' /> : null}
               </div>
               <div
-                className="bg-muted/20 relative p-3"
+                className='bg-muted/20 relative p-3'
                 aria-busy={isPreviewing}
               >
                 {preview ? (
                   <iframe
-                    title={t("Email template preview")}
-                    className="h-[36rem] w-full rounded-md border bg-white"
-                    sandbox=""
+                    title={t('Email template preview')}
+                    className='h-[36rem] w-full rounded-md border bg-white'
+                    sandbox='allow-same-origin'
                     srcDoc={preview.html}
+                    onLoad={handlePreviewFrameLoad}
                   />
                 ) : null}
                 {!preview && isPreviewing ? (
-                  <div className="text-muted-foreground flex h-[36rem] items-center justify-center gap-2 text-sm">
+                  <div className='text-muted-foreground flex h-[36rem] items-center justify-center gap-2 text-sm'>
                     <Spinner />
-                    {t("Rendering preview...")}
+                    {t('Rendering preview...')}
                   </div>
                 ) : null}
                 {!preview && !isPreviewing && previewQuery.error ? (
-                  <div className="text-destructive flex h-[36rem] items-center justify-center px-6 text-center text-sm">
+                  <div className='text-destructive flex h-[36rem] items-center justify-center px-6 text-center text-sm'>
                     {previewQuery.error.message ||
-                      t("Failed to preview email template")}
+                      t('Failed to preview email template')}
                   </div>
                 ) : null}
               </div>
@@ -435,6 +477,23 @@ export function EmailTemplateSettingsSection() {
           </div>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={pendingPreviewLink !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingPreviewLink(null)
+        }}
+        title={t('Open external link?')}
+        desc={t(
+          'This link will open in a new window. Do you want to continue?'
+        )}
+        confirmText={t('Open')}
+        handleConfirm={openPendingPreviewLink}
+      >
+        <div className='bg-muted rounded-md px-3 py-2 text-sm break-all'>
+          {pendingPreviewLink}
+        </div>
+      </ConfirmDialog>
     </SettingsSection>
-  );
+  )
 }
