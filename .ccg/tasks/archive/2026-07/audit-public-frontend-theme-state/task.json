@@ -1,0 +1,12 @@
+{
+  "id": "audit-public-frontend-theme-state",
+  "title": "深度审查公网前端主题状态与旧前端 500",
+  "status": "completed",
+  "complexity": "L+",
+  "risk": "medium",
+  "domain": "fullstack",
+  "currentPhase": "completed",
+  "nextAction": "审查完成，待按优先级实施修复",
+  "createdAt": "2026-07-16T23:45:52Z",
+  "branch": "main"
+}
