@@ -1,0 +1,12 @@
+{
+  "id": "optimize-cloudflare-cache-rules",
+  "title": "对照仓库审查并优化 Cloudflare 缓存规则",
+  "status": "completed",
+  "complexity": "M",
+  "risk": "medium",
+  "domain": "infrastructure",
+  "currentPhase": "completed",
+  "nextAction": "归档任务并提交审查记录",
+  "createdAt": "2026-07-17T00:06:44Z",
+  "branch": "main"
+}
