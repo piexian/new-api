@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Link2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StatusContext } from '../../context/Status';
 
@@ -277,13 +278,15 @@ const FloatingFriendLinks = () => {
           border: 'none',
           cursor: 'grab',
           color: '#fff',
-          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           background: 'linear-gradient(135deg,#0ea5e9,#4f46e5)',
           boxShadow: '0 10px 24px rgba(37,99,235,.35)',
           touchAction: 'none',
         }}
       >
-        链
+        <Link2 size={20} aria-hidden />
       </button>
     </div>
   );

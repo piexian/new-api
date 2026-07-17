@@ -76,7 +76,7 @@ export function Hero(props: HeroProps) {
         <h1 className='text-[clamp(2rem,5.5vw,3.5rem)] leading-[1.15] font-bold tracking-tight'>
           {t('Unified')}
           <br />
-          <span className='bg-gradient-to-r from-blue-500 via-sky-500 to-violet-500 bg-clip-text text-transparent dark:from-blue-400 dark:via-violet-400 dark:to-purple-500'>
+          <span className='bg-gradient-to-r from-blue-600 via-sky-600 to-violet-600 bg-clip-text text-transparent dark:from-sky-300 dark:via-blue-400 dark:to-violet-400 dark:drop-shadow-[0_0_18px_rgba(96,165,250,0.35)]'>
             {t('AI API Gateway')}
           </span>
         </h1>

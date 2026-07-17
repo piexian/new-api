@@ -127,7 +127,7 @@ const Home = () => {
       {homePageContentLoaded && homePageContent === '' ? (
         <>
           <HomeStarfieldBackground />
-          <div className='relative z-[1] w-full px-4 pt-16 pb-10 md:pt-24 md:pb-14'>
+          <div className='home-starry relative z-[1] w-full px-4 pt-16 pb-10 md:pt-24 md:pb-14'>
             <div className='mx-auto flex max-w-3xl flex-col items-center text-center'>
               <p className='mb-3 text-xs font-semibold tracking-[0.18em] uppercase text-semi-color-text-2'>
                 ✦ Starfield Gateway
@@ -137,7 +137,9 @@ const Home = () => {
               >
                 {t('统一的')}
                 <br />
-                <span className='shine-text'>{t('大模型接口网关')}</span>
+                <span className='home-title-gradient'>
+                  {t('大模型接口网关')}
+                </span>
               </h1>
               <p className='text-base md:text-lg text-semi-color-text-1 mt-4 md:mt-6 max-w-xl'>
                 {t('多模型统一接入，只需将基址替换为：')}
@@ -202,12 +204,9 @@ const Home = () => {
               <HomeCapabilityTabs serverAddress={serverAddress} />
             </div>
 
-            <div className='mx-auto mt-10 grid w-full max-w-4xl grid-cols-1 gap-3 px-1 md:grid-cols-3'>
+            <div className='mx-auto mt-12 grid w-full max-w-3xl grid-cols-1 gap-6 px-1 text-center md:grid-cols-3 md:gap-0 md:divide-x md:divide-semi-color-border'>
               {SERVICE_ITEMS.map((item) => (
-                <div
-                  key={item.title}
-                  className='rounded-2xl border border-semi-color-border bg-semi-color-bg-1/80 px-4 py-5 text-center backdrop-blur'
-                >
+                <div key={item.title} className='px-4'>
                   <div className='text-sm font-bold text-semi-color-text-0'>
                     {t(item.title)}
                   </div>

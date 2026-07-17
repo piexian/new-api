@@ -134,12 +134,14 @@ export function Home() {
   return (
     <PublicLayout showMainContainer={false}>
       <StarfieldBackground />
-      <main className='relative z-10 overflow-x-hidden'>
-        <Hero isAuthenticated={isAuthenticated} />
-        <ServiceStrip />
-        <Footer />
-      </main>
-      <FloatingFriendLinks />
+      <div className='home-starry contents'>
+        <main className='relative z-10 overflow-x-hidden'>
+          <Hero isAuthenticated={isAuthenticated} />
+          <ServiceStrip />
+          <Footer />
+        </main>
+        <FloatingFriendLinks />
+      </div>
     </PublicLayout>
   )
 }

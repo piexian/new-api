@@ -33,6 +33,7 @@ import { installBuildMetadata } from '@/lib/build-metadata'
 import { applyFaviconToDom } from '@/lib/dom-utils'
 import '@/lib/dayjs'
 import { initializeFrontendCache } from '@/lib/frontend-cache'
+import { restoreFrontendThemePreference } from '@/lib/frontend-theme'
 import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -52,6 +53,8 @@ import './styles/index.css'
 // VChart theme is driven by our ThemeProvider (html.light/html.dark) via per-chart `theme` prop.
 initializeFrontendCache()
 installBuildMetadata()
+// 启动时按 localStorage 镜像恢复前端主题偏好（Cookie 丢失时兜底）
+restoreFrontendThemePreference()
 
 const queryClient = new QueryClient({
   defaultOptions: {

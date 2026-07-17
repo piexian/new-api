@@ -245,3 +245,40 @@ For commercial licensing, please contact support@quantumnous.com
     var(--background)
   );
 }
+
+/* 首页星空主题（亮暗双模式）：作用域覆盖主题变量。
+   仅用于首页内容与公共头部，与 classic 端的 .home-starry 语义一致。 */
+.home-starry {
+  color-scheme: light;
+  color: var(--foreground);
+  --background: #eef4ff;
+  --foreground: #0f172a;
+  --card: rgba(255, 255, 255, 0.65);
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --muted: rgba(15, 23, 42, 0.05);
+  --muted-foreground: #5b6b84;
+  --accent: rgba(15, 23, 42, 0.06);
+  --accent-foreground: #0f172a;
+  --border: rgba(15, 23, 42, 0.12);
+  --input: rgba(15, 23, 42, 0.14);
+  --ring: #2563eb;
+}
+
+.dark .home-starry {
+  color-scheme: dark;
+  --background: #050b1c;
+  --foreground: #e6edf7;
+  --card: rgba(13, 20, 40, 0.6);
+  --card-foreground: #e6edf7;
+  --popover: #0d1428;
+  --popover-foreground: #e6edf7;
+  --muted: rgba(255, 255, 255, 0.07);
+  --muted-foreground: #94a3b8;
+  --accent: rgba(255, 255, 255, 0.1);
+  --accent-foreground: #f1f5f9;
+  --border: rgba(255, 255, 255, 0.14);
+  --input: rgba(255, 255, 255, 0.16);
+  --ring: #38bdf8;
+}

@@ -157,6 +157,7 @@ const PageLayout = () => {
       }}
     >
       <Header
+        className={isHomeRoute ? 'home-starry' : undefined}
         style={{
           padding: 0,
           height: 'auto',
@@ -230,6 +231,7 @@ const PageLayout = () => {
           </Content>
           {!shouldHideFooter && (
             <Layout.Footer
+              className={isHomeRoute ? 'home-starry' : undefined}
               style={{
                 flex: '0 0 auto',
                 width: '100%',

@@ -21,7 +21,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Typography } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { copy, showError, showSuccess } from '../../helpers';
-import { useActualTheme } from '../../context/Theme';
+import { useDomDarkTheme } from '../../hooks/common/useDomDarkTheme';
 
 const { Text } = Typography;
 
@@ -64,16 +64,9 @@ function normalizeBase(url) {
   return String(url || '').replace(/\/+$/, '');
 }
 
-function isDarkTheme(theme) {
-  return (
-    theme === 'dark' || document.body.getAttribute('theme-mode') === 'dark'
-  );
-}
-
 export default function HomeCapabilityTabs({ serverAddress }) {
   const { t } = useTranslation();
-  const actualTheme = useActualTheme();
-  const dark = isDarkTheme(actualTheme);
+  const dark = useDomDarkTheme();
   const base = normalizeBase(serverAddress || window.location.origin);
   const openaiBase = `${base}/v1`;
   const [active, setActive] = useState('chat');

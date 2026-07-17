@@ -18,8 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
-import { cn } from '@/lib/utils'
-
 const ITEMS = [
   {
     title: 'Lightning fast?',
@@ -43,15 +41,9 @@ export function ServiceStrip() {
       aria-label={t('Service notes')}
       className='relative z-10 mx-auto w-full max-w-5xl px-6 pb-16'
     >
-      <div className='grid gap-3 md:grid-cols-3'>
+      <div className='md:divide-border/60 grid gap-6 text-center md:grid-cols-3 md:gap-0 md:divide-x'>
         {ITEMS.map((item) => (
-          <div
-            key={item.title}
-            className={cn(
-              'rounded-2xl border px-4 py-5 text-center backdrop-blur-md',
-              'border-border/50 bg-card/70 shadow-sm'
-            )}
-          >
+          <div key={item.title} className='px-4'>
             <div className='text-sm font-extrabold'>{t(item.title)}</div>
             <div className='text-muted-foreground mt-1.5 text-xs leading-relaxed'>
               {t(item.desc)}

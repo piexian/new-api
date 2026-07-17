@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { useHeaderBar } from '../../../hooks/common/useHeaderBar';
 import { useNotifications } from '../../../hooks/common/useNotifications';
 import { useNavigation } from '../../../hooks/common/useNavigation';
@@ -66,8 +67,16 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
   const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
 
+  // 首页为星空主题：头部随亮暗模式切换的玻璃样式（配色变量由 PageLayout 的 home-starry 作用域提供）
+  const location = useLocation();
+  const isHomeRoute = location.pathname === '/' || location.pathname === '';
+
   return (
-    <header className='text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 bg-white/75 dark:bg-zinc-900/75 backdrop-blur-lg'>
+    <header
+      className={`text-semi-color-text-0 sticky top-0 z-50 transition-colors duration-300 backdrop-blur-lg ${
+        isHomeRoute ? 'home-starry-header' : 'bg-white/75 dark:bg-zinc-900/75'
+      }`}
+    >
       <NoticeModal
         visible={noticeVisible}
         onClose={handleNoticeClose}

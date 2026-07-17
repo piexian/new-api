@@ -27,6 +27,7 @@ import { UserProvider } from './context/User';
 import 'react-toastify/dist/ReactToastify.css';
 import { StatusProvider } from './context/Status';
 import { ThemeProvider } from './context/Theme';
+import { restoreFrontendThemePreference } from './helpers/frontendTheme';
 import PageLayout from './components/layout/PageLayout';
 import AccountDisabledDialog from './components/common/AccountDisabledDialog';
 import './i18n/i18n';
@@ -56,6 +57,9 @@ function SemiLocaleWrapper({ children }) {
 }
 
 // initialization
+
+// 启动时按 localStorage 镜像恢复前端主题偏好（Cookie 丢失时兜底）
+restoreFrontendThemePreference();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

@@ -34,6 +34,8 @@ export const STORAGE_KEYS = {
 // Frontend Theme
 export const FRONTEND_THEME_COOKIE_NAME = 'new-api-frontend'
 export const FRONTEND_THEME_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
+// localStorage 镜像键：与 classic 前端共享（同源），用于 Cookie 丢失时恢复偏好
+export const FRONTEND_THEME_PREFERENCE_KEY = 'new-api-frontend-preference'
 export const FRONTEND_RETURN_TIP_PENDING_KEY =
   'new-api-default-frontend-return-tip-pending'
 export const FRONTEND_RETURN_TIP_DISMISSED_KEY =

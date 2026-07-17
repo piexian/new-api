@@ -808,6 +808,94 @@ html.dark .sbg-variant-green {
   -webkit-text-fill-color: transparent;
 }
 
+/* ==================== 首页星空主题（亮暗双模式） ==================== */
+/* 作用域覆盖 Semi 变量：亮色为浅蓝天玻璃，暗色为夜空玻璃。注意 classic 的
+   tailwind 配置无法对 var() 颜色应用 /85 透明度修饰符（会被静默丢弃），
+   透明度必须烧进变量值。 */
+.home-starry {
+  color-scheme: light;
+  color: var(--semi-color-text-0);
+  --semi-color-text-0: #0f172a;
+  --semi-color-text-1: #334155;
+  --semi-color-text-2: #5b6b84;
+  --semi-color-border: rgba(15, 23, 42, 0.12);
+  --semi-color-bg-1: rgba(255, 255, 255, 0.65);
+  --semi-color-default: rgba(15, 23, 42, 0.06);
+  --semi-color-default-hover: rgba(15, 23, 42, 0.1);
+  --semi-color-default-active: rgba(15, 23, 42, 0.14);
+}
+
+.dark .home-starry {
+  color-scheme: dark;
+  --semi-color-text-0: #f1f5f9;
+  --semi-color-text-1: #cbd5e1;
+  --semi-color-text-2: #8ea0bd;
+  --semi-color-border: rgba(255, 255, 255, 0.14);
+  --semi-color-bg-1: rgba(13, 20, 40, 0.55);
+  --semi-color-default: rgba(255, 255, 255, 0.08);
+  --semi-color-default-hover: rgba(255, 255, 255, 0.14);
+  --semi-color-default-active: rgba(255, 255, 255, 0.18);
+}
+
+/* 首页头部：随模式切换的玻璃栏 */
+.home-starry-header {
+  background: rgba(255, 255, 255, 0.65);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.dark .home-starry-header {
+  background: rgba(11, 16, 38, 0.7);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@keyframes home-title-sheen {
+  0%,
+  100% {
+    background-position: 0% 0;
+  }
+
+  50% {
+    background-position: 100% 0;
+  }
+}
+
+.home-title-gradient {
+  background: linear-gradient(
+    100deg,
+    #2563eb 0%,
+    #0284c7 35%,
+    #7c3aed 65%,
+    #2563eb 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: home-title-sheen 8s ease-in-out infinite;
+}
+
+.dark .home-title-gradient {
+  background: linear-gradient(
+    100deg,
+    #7dd3fc 0%,
+    #60a5fa 35%,
+    #a78bfa 65%,
+    #7dd3fc 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 18px rgba(96, 165, 250, 0.35));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-title-gradient {
+    animation: none;
+  }
+}
+
 /* ==================== ScrollList 定制样式 ==================== */
 .semi-scrolllist,
 .semi-scrolllist * {
