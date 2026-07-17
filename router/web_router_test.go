@@ -29,6 +29,8 @@ func TestServeIndexPageUsesMatchingCSPNonce(t *testing.T) {
 	require.Len(t, match, 2)
 	assert.Contains(t, recorder.Body.String(), `nonce="`+match[1]+`"`)
 	assert.NotContains(t, recorder.Body.String(), middleware.CSPNoncePlaceholder)
+	assertNoStoreResponseHeaders(t, recorder.Header())
+	assertHeaderContainsToken(t, recorder.Header(), "Vary", "Cookie")
 }
 
 func TestServeIndexPageHandlesHeadWithoutBody(t *testing.T) {
@@ -44,6 +46,8 @@ func TestServeIndexPageHandlesHeadWithoutBody(t *testing.T) {
 	assert.Empty(t, recorder.Body.String())
 	assert.Equal(t, strconv.Itoa(len(page)), recorder.Header().Get("Content-Length"))
 	assert.NotEmpty(t, recorder.Header().Get("Content-Security-Policy"))
+	assertNoStoreResponseHeaders(t, recorder.Header())
+	assertHeaderContainsToken(t, recorder.Header(), "Vary", "Cookie")
 }
 
 func TestCrawlerRoutesReturnDedicatedContent(t *testing.T) {
@@ -56,6 +60,7 @@ func TestCrawlerRoutesReturnDedicatedContent(t *testing.T) {
 	engine.ServeHTTP(robotsRecorder, robotsRequest)
 	require.Equal(t, http.StatusOK, robotsRecorder.Code)
 	assert.Contains(t, robotsRecorder.Header().Get("Content-Type"), "text/plain")
+	assert.Equal(t, "public, max-age=3600", robotsRecorder.Header().Get("CDN-Cache-Control"))
 	assert.Contains(t, robotsRecorder.Body.String(), "User-agent: *")
 	assert.NotContains(t, strings.ToLower(robotsRecorder.Body.String()), "<!doctype html>")
 
@@ -74,4 +79,25 @@ func TestCrawlerRoutesReturnDedicatedContent(t *testing.T) {
 	require.Equal(t, http.StatusOK, headRecorder.Code)
 	assert.Empty(t, headRecorder.Body.String())
 	assert.NotEmpty(t, headRecorder.Header().Get("Content-Length"))
+}
+
+func assertNoStoreResponseHeaders(t *testing.T, header http.Header) {
+	t.Helper()
+	assert.Contains(t, header.Get("Cache-Control"), "no-store")
+	assert.Equal(t, "no-store", header.Get("CDN-Cache-Control"))
+	assert.Equal(t, "no-store", header.Get("Cloudflare-CDN-Cache-Control"))
+	assert.Equal(t, "no-cache", header.Get("Pragma"))
+	assert.Equal(t, "0", header.Get("Expires"))
+}
+
+func assertHeaderContainsToken(t *testing.T, header http.Header, name, expected string) {
+	t.Helper()
+	for _, value := range header.Values(name) {
+		for _, token := range strings.Split(value, ",") {
+			if strings.EqualFold(strings.TrimSpace(token), expected) {
+				return
+			}
+		}
+	}
+	assert.Fail(t, "header token not found", "%s does not contain %s", name, expected)
 }

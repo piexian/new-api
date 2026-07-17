@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { setFrontendThemeCookie } from '@/lib/frontend-theme'
 
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
@@ -155,11 +156,14 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
           return
         }
         if (themeEntry && allSucceeded) {
+          const nextFrontendTheme =
+            themeEntry[1] === 'classic' ? 'classic' : 'default'
           const res = await updateOption.mutateAsync({
             key: themeEntry[0],
-            value: normalizeValue(themeEntry[1]),
+            value: nextFrontendTheme,
           })
           if (res.success) {
+            setFrontendThemeCookie(nextFrontendTheme)
             // 当前路由在另一套前端中并不存在，主题切换成功后重置到首页以避免 404。
             // 延时用于让表单脏状态先清除（移除 beforeunload 拦截）并展示成功提示后再刷新；
             // 使用 replace 让已失效的路由不进入历史，防止返回按钮再次触发 404。

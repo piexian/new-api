@@ -37,7 +37,7 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
 		if shouldReturnRelayNotFound(c.Request.URL.Path) {
-			c.Header("Cache-Control", "no-store")
+			middleware.SetNoStoreHeaders(c)
 			controller.RelayNotFound(c)
 			return
 		}
@@ -59,17 +59,37 @@ func serveThemeStatic(defaultFS, classicFS static.ServeFileSystem) gin.HandlerFu
 			return
 		}
 
-		fs, server := selectThemeStatic(c, defaultFS, classicFS, defaultServer, classicServer)
-		if !fs.Exists("/", c.Request.URL.Path) {
+		if getRequestFrontendTheme(c) == common.FrontendThemeClassic {
+			if !tryServeStatic(c, classicFS, classicServer) {
+				tryServeStatic(c, defaultFS, defaultServer)
+			}
 			return
 		}
-
-		server.ServeHTTP(c.Writer, c.Request)
-		c.Abort()
+		if !tryServeStatic(c, defaultFS, defaultServer) {
+			tryServeStatic(c, classicFS, classicServer)
+		}
 	}
 }
 
+func tryServeStatic(c *gin.Context, fs static.ServeFileSystem, server http.Handler) bool {
+	file, err := fs.Open(c.Request.URL.Path)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || info.IsDir() {
+		return false
+	}
+	middleware.SetStaticCacheHeaders(c, c.Request.URL.Path)
+	server.ServeHTTP(c.Writer, c.Request)
+	c.Abort()
+	return true
+}
+
 func serveIndexPage(c *gin.Context, indexPage []byte) {
+	middleware.SetNoStoreHeaders(c)
+	middleware.AppendVaryHeader(c, "Cookie")
 	nonce, err := generateCSPNonce()
 	if err != nil {
 		common.SysError("failed to generate CSP nonce: " + err.Error())
@@ -77,7 +97,6 @@ func serveIndexPage(c *gin.Context, indexPage []byte) {
 		return
 	}
 	body := bytes.ReplaceAll(indexPage, []byte(middleware.CSPNoncePlaceholder), []byte(nonce))
-	c.Header("Cache-Control", "no-cache")
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	middleware.SetContentSecurityPolicy(c, nonce)
 	if c.Request.Method == http.MethodHead {
@@ -115,7 +134,7 @@ func registerCrawlerRoutes(router *gin.Engine) {
 }
 
 func serveCrawlerContent(c *gin.Context, contentType string, body []byte) {
-	c.Header("Cache-Control", "public, max-age=3600")
+	middleware.SetCacheControlHeaders(c, "public, max-age=3600")
 	c.Header("Content-Type", contentType)
 	c.Header("Content-Length", strconv.Itoa(len(body)))
 	if c.Request.Method == http.MethodHead {
@@ -123,19 +142,6 @@ func serveCrawlerContent(c *gin.Context, contentType string, body []byte) {
 		return
 	}
 	c.Data(http.StatusOK, contentType, body)
-}
-
-func selectThemeStatic(
-	c *gin.Context,
-	defaultFS static.ServeFileSystem,
-	classicFS static.ServeFileSystem,
-	defaultServer http.Handler,
-	classicServer http.Handler,
-) (static.ServeFileSystem, http.Handler) {
-	if getRequestFrontendTheme(c) == common.FrontendThemeClassic {
-		return classicFS, classicServer
-	}
-	return defaultFS, defaultServer
 }
 
 func getRequestFrontendTheme(c *gin.Context) string {

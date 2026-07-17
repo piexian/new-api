@@ -22,6 +22,8 @@ import {
 } from '@/lib/constants'
 import { setCookie } from '@/lib/cookies'
 
+export type FrontendTheme = 'default' | 'classic'
+
 type ClassicRouteMap = {
   from: string
   to: string
@@ -59,11 +61,11 @@ export function getClassicFrontendPath(pathname: string): string {
     : match.to
 }
 
+export function setFrontendThemeCookie(theme: FrontendTheme): void {
+  setCookie(FRONTEND_THEME_COOKIE_NAME, theme, FRONTEND_THEME_COOKIE_MAX_AGE)
+}
+
 export function switchToClassicFrontend(pathname = window.location.pathname) {
-  setCookie(
-    FRONTEND_THEME_COOKIE_NAME,
-    'classic',
-    FRONTEND_THEME_COOKIE_MAX_AGE
-  )
+  setFrontendThemeCookie('classic')
   window.location.assign(getClassicFrontendPath(pathname))
 }
