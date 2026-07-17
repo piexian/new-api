@@ -67,6 +67,23 @@ imperative. Pull requests should describe the behavior change, list validation
 commands, link related issues, call out database compatibility work, and include
 screenshots for visible UI changes.
 
+### Repository History Hygiene
+
+Git history must contain only changes that are directly part of the project
+deliverable. Do not stage or commit agent orchestration metadata, local task
+tracking, scratch files, generated analysis, or tool state unless the user
+explicitly asks for those files to be versioned.
+
+- Keep `.ccg/tasks/**` local, including archived tasks, `task.json`,
+  `requirements.md`, `plan.md`, `review.md`, and `context.jsonl`.
+- Read-only investigations, audits, explanations, and status checks do not
+  authorize creating a commit.
+- Local task creation or archival requirements do not imply permission to add
+  those artifacts to Git history. This rule overrides workflow instructions
+  that would otherwise automatically commit `.ccg` task metadata.
+- Before every commit, inspect the staged file list and remove unrelated agent
+  or tool-generated files from the index.
+
 ## Security & Agent-Specific Rules
 
 Never commit secrets or expose API keys. Do not rename, remove, or replace
