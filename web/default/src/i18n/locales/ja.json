@@ -5737,7 +5737,10 @@
     "The code name will be recorded as the source for accounts registered with it.": "コード名は、そのコードで登録したアカウントの登録元として記録されます。",
     "Registration Limit": "登録上限",
     "Number of accounts that can register": "登録できるアカウント数",
-    "Number of accounts that can register with this code.": "このコードで登録できるアカウント数。"
+    "Number of accounts that can register with this code.": "このコードで登録できるアカウント数。",
+    "Extra Usage": "追加使用量",
+    "Monthly limit": "月間上限",
+    "Used this month": "今月の使用量"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

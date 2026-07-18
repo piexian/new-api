@@ -59,6 +59,15 @@ export type CodexResetCreditsResponse = CodexUsageResponse
 
 export type CodexUsageResetResponse = CodexUsageResponse
 
+export type KimiExtraUsage = {
+  balance_cents: number
+  total_cents: number
+  monthly_charge_limit_enabled: boolean
+  monthly_charge_limit_cents: number
+  monthly_used_cents: number
+  currency: string
+}
+
 export type ChannelPlanUsageResponse = {
   success: boolean
   message?: string
@@ -71,6 +80,7 @@ export type ChannelPlanUsageResponse = {
   disabled_time?: number
   upstream_status?: number
   request_url?: string
+  extra_usage?: KimiExtraUsage
   data?: unknown
 }
 

@@ -4268,6 +4268,11 @@
     "Open": "Ouvrir",
     "Open external link?": "Ouvrir le lien externe ?",
     "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",
-    "This link cannot be opened from the preview.": "Ce lien ne peut pas être ouvert depuis l’aperçu."
+    "This link cannot be opened from the preview.": "Ce lien ne peut pas être ouvert depuis l’aperçu.",
+    "Kimi Coding Plan": "Kimi Coding Plan",
+    "本月已用": "Utilisé ce mois-ci",
+    "每月限额": "Limite mensuelle",
+    "默认 Moonshot 地址": "Point de terminaison Moonshot par défaut",
+    "额外用量": "Utilisation supplémentaire"
   }
 }

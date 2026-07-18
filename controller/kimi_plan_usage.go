@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,6 +31,68 @@ type kimiCodingPlanErrorEnvelope struct {
 		Code    string `json:"code"`
 	} `json:"error"`
 	Message string `json:"message"`
+}
+
+type kimiCodingPlanExtraUsage struct {
+	BalanceCents              int64  `json:"balance_cents"`
+	TotalCents                int64  `json:"total_cents"`
+	MonthlyChargeLimitEnabled bool   `json:"monthly_charge_limit_enabled"`
+	MonthlyChargeLimitCents   int64  `json:"monthly_charge_limit_cents"`
+	MonthlyUsedCents          int64  `json:"monthly_used_cents"`
+	Currency                  string `json:"currency"`
+}
+
+type kimiCodingPlanUsagePayload struct {
+	BoosterWallet *kimiCodingPlanBoosterWallet `json:"boosterWallet"`
+}
+
+type kimiCodingPlanBoosterWallet struct {
+	Balance                   *kimiCodingPlanBoosterBalance `json:"balance"`
+	MonthlyChargeLimit        *kimiCodingPlanMoney          `json:"monthlyChargeLimit"`
+	MonthlyUsed               *kimiCodingPlanMoney          `json:"monthlyUsed"`
+	MonthlyChargeLimitEnabled bool                          `json:"monthlyChargeLimitEnabled"`
+}
+
+type kimiCodingPlanBoosterBalance struct {
+	Type       string                 `json:"type"`
+	Amount     *kimiCodingPlanInteger `json:"amount"`
+	AmountLeft *kimiCodingPlanInteger `json:"amountLeft"`
+}
+
+type kimiCodingPlanMoney struct {
+	PriceInCents *kimiCodingPlanInteger `json:"priceInCents"`
+	Currency     string                 `json:"currency"`
+}
+
+type kimiCodingPlanInteger int64
+
+func (value *kimiCodingPlanInteger) UnmarshalJSON(data []byte) error {
+	text := strings.TrimSpace(string(data))
+	if len(text) >= 2 && text[0] == '"' && text[len(text)-1] == '"' {
+		var decoded string
+		if err := common.Unmarshal(data, &decoded); err != nil {
+			return err
+		}
+		text = strings.TrimSpace(decoded)
+	}
+	if text == "" {
+		return fmt.Errorf("empty integer")
+	}
+
+	if parsed, err := strconv.ParseInt(text, 10, 64); err == nil {
+		*value = kimiCodingPlanInteger(parsed)
+		return nil
+	}
+
+	parsed, err := strconv.ParseFloat(text, 64)
+	if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+		return fmt.Errorf("invalid integer %q", text)
+	}
+	if parsed >= float64(math.MaxInt64) || parsed <= float64(math.MinInt64) {
+		return fmt.Errorf("integer %q is out of range", text)
+	}
+	*value = kimiCodingPlanInteger(math.Trunc(parsed))
+	return nil
 }
 
 // GetKimiCodingPlanUsage fetches the usage/quota information for a Moonshot
@@ -93,6 +156,7 @@ func GetKimiCodingPlanUsage(c *gin.Context) {
 	if common.Unmarshal(body, &payload) != nil {
 		payload = string(body)
 	}
+	extraUsage := parseKimiCodingPlanExtraUsage(body)
 
 	success := statusCode >= http.StatusOK && statusCode < http.StatusMultipleChoices
 	message := ""
@@ -107,7 +171,7 @@ func GetKimiCodingPlanUsage(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"success":         success,
 		"message":         message,
 		"multi_key":       ch.ChannelInfo.IsMultiKey,
@@ -120,7 +184,11 @@ func GetKimiCodingPlanUsage(c *gin.Context) {
 		"upstream_status": statusCode,
 		"request_url":     requestURL,
 		"data":            payload,
-	})
+	}
+	if extraUsage != nil {
+		response["extra_usage"] = extraUsage
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func fetchKimiCodingPlanUsage(ctx context.Context, client *http.Client, channel *model.Channel, apiKey string) (statusCode int, body []byte, requestURL string, err error) {
@@ -166,12 +234,10 @@ func kimiCodingPlanRequestURL(channel *model.Channel) (string, error) {
 }
 
 // kimiCodingPlanAPIBase resolves the OpenAI-compatible base URL for the Kimi
-// Coding Plan endpoint. It accepts:
-//   - the special placeholder "kimi-coding-plan" (mapped via ChannelSpecialBases);
-//   - any non-empty URL — the user fills the address up to "/coding" as
-//     instructed in the form description, and we append "/v1" ourselves.
+// Coding Plan endpoint. It accepts the special placeholder or a custom URL
+// ending in either /coding or /coding/v1.
 func kimiCodingPlanAPIBase(baseURL string) (string, bool) {
-	trimmed := strings.TrimSpace(baseURL)
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if trimmed == "" {
 		return "", false
 	}
@@ -181,5 +247,61 @@ func kimiCodingPlanAPIBase(baseURL string) (string, bool) {
 		}
 		return kimiCodingPlanFallback, true
 	}
-	return strings.TrimRight(trimmed, "/") + "/v1", true
+
+	normalized := strings.ToLower(trimmed)
+	if strings.HasSuffix(normalized, "/coding/v1") {
+		return trimmed, true
+	}
+	if strings.HasSuffix(normalized, "/coding") {
+		return trimmed + "/v1", true
+	}
+	return "", false
+}
+
+func parseKimiCodingPlanExtraUsage(body []byte) *kimiCodingPlanExtraUsage {
+	var payload kimiCodingPlanUsagePayload
+	if err := common.Unmarshal(body, &payload); err != nil {
+		return nil
+	}
+
+	wallet := payload.BoosterWallet
+	if wallet == nil || wallet.Balance == nil {
+		return nil
+	}
+	balance := wallet.Balance
+	if balance.Type != "BOOSTER" || balance.Amount == nil || int64(*balance.Amount) <= 0 {
+		return nil
+	}
+
+	monthlyLimitCents, monthlyLimitCurrency := kimiCodingPlanMoneyValue(wallet.MonthlyChargeLimit)
+	monthlyUsedCents, monthlyUsedCurrency := kimiCodingPlanMoneyValue(wallet.MonthlyUsed)
+	currency := firstNonEmptyString(monthlyLimitCurrency, monthlyUsedCurrency, "USD")
+	balanceCents := int64(0)
+	if balance.AmountLeft != nil {
+		balanceCents = kimiCodingPlanFixedPointToCents(int64(*balance.AmountLeft))
+	}
+
+	return &kimiCodingPlanExtraUsage{
+		BalanceCents:              balanceCents,
+		TotalCents:                kimiCodingPlanFixedPointToCents(int64(*balance.Amount)),
+		MonthlyChargeLimitEnabled: wallet.MonthlyChargeLimitEnabled,
+		MonthlyChargeLimitCents:   monthlyLimitCents,
+		MonthlyUsedCents:          monthlyUsedCents,
+		Currency:                  currency,
+	}
+}
+
+func kimiCodingPlanMoneyValue(money *kimiCodingPlanMoney) (int64, string) {
+	if money == nil || money.PriceInCents == nil {
+		return 0, ""
+	}
+	return int64(*money.PriceInCents), strings.TrimSpace(money.Currency)
+}
+
+func kimiCodingPlanFixedPointToCents(value int64) int64 {
+	cents := float64(value) / 1_000_000
+	if cents > 0 && cents < 1 {
+		return 1
+	}
+	return int64(math.Round(cents))
 }

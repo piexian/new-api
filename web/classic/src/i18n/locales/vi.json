@@ -4792,6 +4792,11 @@
     "Open": "Mở",
     "Open external link?": "Mở liên kết bên ngoài?",
     "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",
-    "This link cannot be opened from the preview.": "Không thể mở liên kết này từ bản xem trước."
+    "This link cannot be opened from the preview.": "Không thể mở liên kết này từ bản xem trước.",
+    "Kimi Coding Plan": "Kimi Coding Plan",
+    "本月已用": "Đã dùng trong tháng này",
+    "每月限额": "Giới hạn hàng tháng",
+    "默认 Moonshot 地址": "Điểm cuối Moonshot mặc định",
+    "额外用量": "Mức dùng bổ sung"
   }
 }

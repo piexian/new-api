@@ -198,9 +198,9 @@ const DOUBAO_AGENT_PLAN_BASE_URL = 'doubao-agent-plan'
 const DOUBAO_PLAN_DEFAULT_MODEL = 'ark-code-latest'
 const OPENCODE_ZEN_BASE_URL = 'opencode-zen'
 const OPENCODE_GO_BASE_URL = 'opencode-go'
-const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn/v1'
-const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai/v1'
-const CUSTOM_BASE_URL_UNLOCK_TYPES = [25, 26, 45, 65]
+const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn'
+const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai'
+const CUSTOM_BASE_URL_UNLOCK_TYPES = new Set([25, 26, 45, 65])
 
 type ChannelMutateDrawerProps = {
   open: boolean
@@ -794,8 +794,7 @@ export function ChannelMutateDrawer({
     reset: resetCustomBaseUrlUnlock,
   } = useHiddenClickUnlock({
     requiredClicks: 10,
-    disabled:
-      !CUSTOM_BASE_URL_UNLOCK_TYPES.includes(currentType) || sensitiveLocked,
+    disabled: !CUSTOM_BASE_URL_UNLOCK_TYPES.has(currentType) || sensitiveLocked,
     onUnlock: () => {
       toast.info(t('Custom API address editing unlocked'))
     },
@@ -1335,7 +1334,15 @@ export function ChannelMutateDrawer({
 
   // Validate base_url - warn if it ends with /v1
   useEffect(() => {
-    if (!currentBaseUrl || !currentBaseUrl.endsWith('/v1')) return
+    const isKimiCodingV1Base =
+      currentType === 25 && /\/coding\/v1\/?$/i.test(currentBaseUrl || '')
+    if (
+      !currentBaseUrl ||
+      !currentBaseUrl.endsWith('/v1') ||
+      isKimiCodingV1Base
+    ) {
+      return
+    }
 
     // Show warning toast
     const timer = setTimeout(() => {
@@ -1348,8 +1355,7 @@ export function ChannelMutateDrawer({
     }, 500)
 
     return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentBaseUrl])
+  }, [currentBaseUrl, currentType, t])
 
   // Handle key deduplication
   const handleDeduplicateKeys = () => {
@@ -2687,9 +2693,7 @@ export function ChannelMutateDrawer({
                                     <FormLabel>{t('API Base URL')}</FormLabel>
                                     <FormControl>
                                       <Input
-                                        placeholder={t(
-                                          'e.g., https://api.moonshot.cn/v1 or proxy URL'
-                                        )}
+                                        placeholder={MOONSHOT_DEFAULT_BASE_URL}
                                         {...field}
                                       />
                                     </FormControl>

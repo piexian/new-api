@@ -64,21 +64,33 @@ func TestGetRequestURLUsesMessagesForKimiCodingPlan(t *testing.T) {
 func TestGetRequestURLKeepsOpenAIEndpointForRegularMoonshot(t *testing.T) {
 	t.Parallel()
 
-	adaptor := &Adaptor{}
-	got, err := adaptor.GetRequestURL(&relaycommon.RelayInfo{
-		RelayMode:   relayconstant.RelayModeChatCompletions,
-		RelayFormat: types.RelayFormatOpenAI,
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelBaseUrl: "https://api.moonshot.cn",
-		},
-	})
-	if err != nil {
-		t.Fatalf("GetRequestURL returned error: %v", err)
+	testCases := []string{
+		"https://api.moonshot.cn",
+		"https://api.moonshot.cn/v1",
+		"https://api.moonshot.cn/v1/",
 	}
+	for _, baseURL := range testCases {
+		baseURL := baseURL
+		t.Run(baseURL, func(t *testing.T) {
+			t.Parallel()
 
-	want := "https://api.moonshot.cn/v1/chat/completions"
-	if got != want {
-		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
+			adaptor := &Adaptor{}
+			got, err := adaptor.GetRequestURL(&relaycommon.RelayInfo{
+				RelayMode:   relayconstant.RelayModeChatCompletions,
+				RelayFormat: types.RelayFormatOpenAI,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelBaseUrl: baseURL,
+				},
+			})
+			if err != nil {
+				t.Fatalf("GetRequestURL returned error: %v", err)
+			}
+
+			want := "https://api.moonshot.cn/v1/chat/completions"
+			if got != want {
+				t.Fatalf("GetRequestURL() = %q, want %q", got, want)
+			}
+		})
 	}
 }
 

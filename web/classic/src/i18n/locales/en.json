@@ -4369,6 +4369,11 @@
     "Open": "Open",
     "Open external link?": "Open external link?",
     "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",
-    "This link cannot be opened from the preview.": "This link cannot be opened from the preview."
+    "This link cannot be opened from the preview.": "This link cannot be opened from the preview.",
+    "Kimi Coding Plan": "Kimi Coding Plan",
+    "本月已用": "Used this month",
+    "每月限额": "Monthly limit",
+    "默认 Moonshot 地址": "Default Moonshot endpoint",
+    "额外用量": "Extra Usage"
   }
 }

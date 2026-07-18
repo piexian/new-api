@@ -4238,6 +4238,11 @@
     "Open": "開く",
     "Open external link?": "外部リンクを開きますか？",
     "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",
-    "This link cannot be opened from the preview.": "このリンクはプレビューから開けません。"
+    "This link cannot be opened from the preview.": "このリンクはプレビューから開けません。",
+    "Kimi Coding Plan": "Kimi Coding Plan",
+    "本月已用": "今月の使用量",
+    "每月限额": "月間上限",
+    "默认 Moonshot 地址": "デフォルトの Moonshot エンドポイント",
+    "额外用量": "追加使用量"
   }
 }

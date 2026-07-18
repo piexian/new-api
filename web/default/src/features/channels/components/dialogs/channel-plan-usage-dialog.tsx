@@ -45,7 +45,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import dayjs from '@/lib/dayjs'
 
-import type { ChannelPlanUsageResponse } from '../../api'
+import type { ChannelPlanUsageResponse, KimiExtraUsage } from '../../api'
 import type { Channel } from '../../types'
 
 export type ChannelPlanUsageKind = 'minimax' | 'zhipu' | 'kimi'
@@ -1102,6 +1102,72 @@ function KimiUsageRowCard({ row }: { row: KimiUsageRow }) {
   )
 }
 
+function formatKimiMoney(cents: number, currency: string): string {
+  const amount = Number.isFinite(cents) ? cents / 100 : 0
+  const normalizedCurrency = currency.trim().toUpperCase() || 'USD'
+  if (normalizedCurrency === 'CNY') return `¥${amount.toFixed(2)}`
+  if (normalizedCurrency === 'USD') return `$${amount.toFixed(2)}`
+  return `${amount.toFixed(2)} ${normalizedCurrency}`
+}
+
+function KimiExtraUsageCard({ usage }: { usage: KimiExtraUsage }) {
+  const { t } = useTranslation()
+  const hasMonthlyLimit =
+    usage.monthly_charge_limit_enabled && usage.monthly_charge_limit_cents > 0
+  const monthlyPercent = hasMonthlyLimit
+    ? Math.floor(
+        clampPercent(
+          (usage.monthly_used_cents / usage.monthly_charge_limit_cents) * 100
+        )
+      )
+    : 0
+
+  return (
+    <div className='rounded-lg border p-4'>
+      <div className='flex items-center justify-between gap-2'>
+        <div className='text-sm font-medium'>{t('Extra Usage')}</div>
+        {hasMonthlyLimit && (
+          <StatusBadge
+            label={`${monthlyPercent}%`}
+            variant={getProgressVariant(monthlyPercent)}
+            copyable={false}
+          />
+        )}
+      </div>
+      {hasMonthlyLimit && <Progress value={monthlyPercent} className='mt-3' />}
+      <div className='mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3'>
+        <div className='min-w-0'>
+          <div className='text-muted-foreground text-xs'>
+            {t('Used this month')}
+          </div>
+          <div className='mt-1 text-base font-semibold'>
+            {formatKimiMoney(usage.monthly_used_cents, usage.currency)}
+          </div>
+        </div>
+        <div className='min-w-0'>
+          <div className='text-muted-foreground text-xs'>
+            {t('Monthly limit')}
+          </div>
+          <div className='mt-1 text-base font-semibold'>
+            {hasMonthlyLimit
+              ? formatKimiMoney(
+                  usage.monthly_charge_limit_cents,
+                  usage.currency
+                )
+              : t('Unlimited')}
+          </div>
+        </div>
+        <div className='min-w-0'>
+          <div className='text-muted-foreground text-xs'>{t('Balance')}</div>
+          <div className='mt-1 text-base font-semibold'>
+            {formatKimiMoney(usage.balance_cents, usage.currency)}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function KimiUsageView({
   response,
   onRefresh,
@@ -1116,6 +1182,7 @@ function KimiUsageView({
     () => normalizeKimiUsageRows(response, t),
     [response, t]
   )
+  const extraUsage = response?.extra_usage
   const shouldShowEmptyState = response != null && response.success !== false
 
   return (
@@ -1166,13 +1233,17 @@ function KimiUsageView({
           ))}
         </div>
       )}
-      {!summary && limits.length === 0 && shouldShowEmptyState && (
-        <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
-          {t(
-            'No parsed quota windows were found. The key may not be a plan key, or the upstream response format changed.'
-          )}
-        </div>
-      )}
+      {extraUsage && <KimiExtraUsageCard usage={extraUsage} />}
+      {!summary &&
+        limits.length === 0 &&
+        !extraUsage &&
+        shouldShowEmptyState && (
+          <div className='text-muted-foreground rounded-lg border border-dashed p-4 text-sm'>
+            {t(
+              'No parsed quota windows were found. The key may not be a plan key, or the upstream response format changed.'
+            )}
+          </div>
+        )}
     </div>
   )
 }

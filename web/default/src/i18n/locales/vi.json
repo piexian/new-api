@@ -5737,7 +5737,10 @@
     "The code name will be recorded as the source for accounts registered with it.": "Tên mã sẽ được lưu làm nguồn của các tài khoản đăng ký bằng mã này.",
     "Registration Limit": "Giới hạn đăng ký",
     "Number of accounts that can register": "Số tài khoản có thể đăng ký",
-    "Number of accounts that can register with this code.": "Số tài khoản có thể đăng ký bằng mã này."
+    "Number of accounts that can register with this code.": "Số tài khoản có thể đăng ký bằng mã này.",
+    "Extra Usage": "Mức dùng bổ sung",
+    "Monthly limit": "Giới hạn hàng tháng",
+    "Used this month": "Đã dùng trong tháng này"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

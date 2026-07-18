@@ -5737,7 +5737,10 @@
     "The code name will be recorded as the source for accounts registered with it.": "註冊碼名稱會記錄為使用該碼註冊帳戶的來源。",
     "Registration Limit": "註冊人數",
     "Number of accounts that can register": "可註冊帳戶數",
-    "Number of accounts that can register with this code.": "可使用此註冊碼完成註冊的帳戶數量。"
+    "Number of accounts that can register with this code.": "可使用此註冊碼完成註冊的帳戶數量。",
+    "Extra Usage": "額外用量",
+    "Monthly limit": "每月限額",
+    "Used this month": "本月已用"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

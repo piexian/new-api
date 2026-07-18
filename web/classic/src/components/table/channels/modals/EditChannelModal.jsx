@@ -140,6 +140,9 @@ const OPENCODE_GO_BASE_URL = 'opencode-go';
 const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan';
 const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL =
   'glm-coding-plan-international';
+const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan';
+const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn';
+const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai';
 
 function type2secretPrompt(type) {
   // inputs.type === 15 ? '按照如下格式输入：APIKey|SecretKey' : (inputs.type === 18 ? '按照如下格式输入：APPID|APISecret|APIKey' : '请输入渠道对应的鉴权密钥')
@@ -186,6 +189,18 @@ const areModelListsEqual = (a, b) => {
 const isDoubaoPlanBaseUrl = (baseUrl) =>
   baseUrl === DOUBAO_CODING_PLAN_BASE_URL ||
   baseUrl === DOUBAO_AGENT_PLAN_BASE_URL;
+
+const isKimiCodingPlanBaseUrl = (baseUrl) => {
+  const normalized = String(baseUrl || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .toLowerCase();
+  return (
+    normalized === KIMI_CODING_PLAN_BASE_URL ||
+    normalized.endsWith('/coding') ||
+    normalized.endsWith('/coding/v1')
+  );
+};
 
 const EditChannelModal = (props) => {
   const { t } = useTranslation();
@@ -529,7 +544,7 @@ const EditChannelModal = (props) => {
   };
 
   const handleApiConfigSecretClick = () => {
-    if (![26, 45, CHANNEL_TYPE_OPENCODE].includes(inputs.type)) return;
+    if (![25, 26, 45, CHANNEL_TYPE_OPENCODE].includes(inputs.type)) return;
     const next = doubaoApiClickCountRef.current + 1;
     doubaoApiClickCountRef.current = next;
     if (next >= 10) {
@@ -650,7 +665,12 @@ const EditChannelModal = (props) => {
       value = Array.from(new Set(value.map((m) => (m || '').trim())));
     }
 
-    if (name === 'base_url' && value.endsWith('/v1')) {
+    if (
+      name === 'base_url' &&
+      typeof value === 'string' &&
+      value.endsWith('/v1') &&
+      !(inputs.type === 25 && isKimiCodingPlanBaseUrl(value))
+    ) {
       Modal.confirm({
         title: '警告',
         content:
@@ -727,6 +747,14 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://ark.cn-beijing.volces.com',
+          }));
+          break;
+        case 25:
+          localModels = getChannelModels(value);
+          formApiRef.current?.setValue('base_url', '');
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: '',
           }));
           break;
         case 64:
@@ -1358,7 +1386,7 @@ const EditChannelModal = (props) => {
   };
 
   useEffect(() => {
-    if (![26, 45].includes(inputs.type)) {
+    if (![25, 26, 45, CHANNEL_TYPE_OPENCODE].includes(inputs.type)) {
       doubaoApiClickCountRef.current = 0;
       setDoubaoApiEditUnlocked(false);
     }
@@ -3813,6 +3841,7 @@ const EditChannelModal = (props) => {
                             inputs.type !== 8 &&
                             inputs.type !== 22 &&
                             inputs.type !== 36 &&
+                            (inputs.type !== 25 || doubaoApiEditUnlocked) &&
                             (inputs.type !== CHANNEL_TYPE_OPENCODE ||
                               doubaoApiEditUnlocked) &&
                             (inputs.type !== 26 || doubaoApiEditUnlocked) &&
@@ -3841,6 +3870,48 @@ const EditChannelModal = (props) => {
                                 />
                               </div>
                             )}
+
+                          {inputs.type === 25 && !doubaoApiEditUnlocked && (
+                            <div>
+                              <Form.Select
+                                field='base_url'
+                                label={
+                                  <span
+                                    onClick={handleApiConfigSecretClick}
+                                    style={{
+                                      cursor: 'pointer',
+                                      userSelect: 'none',
+                                    }}
+                                  >
+                                    {t('API地址')}
+                                  </span>
+                                }
+                                placeholder={t('请选择API地址')}
+                                onChange={(value) =>
+                                  handleInputChange('base_url', value)
+                                }
+                                optionList={[
+                                  {
+                                    value: '',
+                                    label: t('默认 Moonshot 地址'),
+                                  },
+                                  {
+                                    value: MOONSHOT_DEFAULT_BASE_URL,
+                                    label: MOONSHOT_DEFAULT_BASE_URL,
+                                  },
+                                  {
+                                    value: MOONSHOT_INTL_BASE_URL,
+                                    label: MOONSHOT_INTL_BASE_URL,
+                                  },
+                                  {
+                                    value: KIMI_CODING_PLAN_BASE_URL,
+                                    label: t('Kimi Coding Plan'),
+                                  },
+                                ]}
+                                disabled={isIonetLocked}
+                              />
+                            </div>
+                          )}
 
                           {inputs.type === 22 && (
                             <div>

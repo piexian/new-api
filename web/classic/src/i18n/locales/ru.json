@@ -4288,6 +4288,11 @@
     "Open": "Открыть",
     "Open external link?": "Открыть внешнюю ссылку?",
     "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",
-    "This link cannot be opened from the preview.": "Эту ссылку нельзя открыть из предварительного просмотра."
+    "This link cannot be opened from the preview.": "Эту ссылку нельзя открыть из предварительного просмотра.",
+    "Kimi Coding Plan": "Kimi Coding Plan",
+    "本月已用": "Использовано в этом месяце",
+    "每月限额": "Месячный лимит",
+    "默认 Moonshot 地址": "Эндпоинт Moonshot по умолчанию",
+    "额外用量": "Дополнительное использование"
   }
 }

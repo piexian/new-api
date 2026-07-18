@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2025 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import React, {
   useCallback,
   useEffect,
@@ -188,6 +206,16 @@ const getStatusTagColor = (value) => {
   return 'green';
 };
 
+const formatMoney = (cents, currency) => {
+  const amount = Number.isFinite(Number(cents)) ? Number(cents) / 100 : 0;
+  const normalizedCurrency = String(currency || 'USD')
+    .trim()
+    .toUpperCase();
+  if (normalizedCurrency === 'CNY') return `¥${amount.toFixed(2)}`;
+  if (normalizedCurrency === 'USD') return `$${amount.toFixed(2)}`;
+  return `${amount.toFixed(2)} ${normalizedCurrency}`;
+};
+
 const resolveKeyStatusMeta = (payload, t) => {
   const status = Number(payload?.key_status);
   if (status === 2) return { color: 'red', label: t('已禁用') };
@@ -307,6 +335,60 @@ const KimiUsageRowCard = ({ t, row }) => {
   );
 };
 
+const KimiExtraUsageCard = ({ t, usage }) => {
+  const monthlyLimitCents = Number(usage?.monthly_charge_limit_cents || 0);
+  const monthlyUsedCents = Number(usage?.monthly_used_cents || 0);
+  const hasMonthlyLimit =
+    usage?.monthly_charge_limit_enabled === true && monthlyLimitCents > 0;
+  const monthlyPercent = hasMonthlyLimit
+    ? Math.floor(clampPercent((monthlyUsedCents / monthlyLimitCents) * 100))
+    : 0;
+
+  return (
+    <div className='rounded-lg border border-semi-color-border bg-semi-color-bg-0 p-4'>
+      <div className='flex items-center justify-between gap-2'>
+        <div className='font-medium'>{t('额外用量')}</div>
+        {hasMonthlyLimit && (
+          <Tag color={getStatusTagColor(monthlyPercent)} size='small'>
+            {`${monthlyPercent}%`}
+          </Tag>
+        )}
+      </div>
+      {hasMonthlyLimit && (
+        <Progress
+          percent={monthlyPercent}
+          showInfo={false}
+          stroke={getProgressStroke(monthlyPercent)}
+          size='small'
+          style={{ marginTop: 8 }}
+        />
+      )}
+      <div className='mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3'>
+        <div>
+          <div className='text-xs text-semi-color-text-2'>{t('本月已用')}</div>
+          <div className='mt-1 text-base font-semibold'>
+            {formatMoney(monthlyUsedCents, usage?.currency)}
+          </div>
+        </div>
+        <div>
+          <div className='text-xs text-semi-color-text-2'>{t('每月限额')}</div>
+          <div className='mt-1 text-base font-semibold'>
+            {hasMonthlyLimit
+              ? formatMoney(monthlyLimitCents, usage?.currency)
+              : t('不限')}
+          </div>
+        </div>
+        <div>
+          <div className='text-xs text-semi-color-text-2'>{t('余额')}</div>
+          <div className='mt-1 text-base font-semibold'>
+            {formatMoney(usage?.balance_cents, usage?.currency)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const KimiCodingPlanUsageView = ({ t, payload, onRefresh }) => {
   const { summary, limits } = useMemo(
     () => normalizeRows(payload, t),
@@ -319,6 +401,10 @@ const KimiCodingPlanUsageView = ({ t, payload, onRefresh }) => {
     }
     return rawData ? String(rawData) : '';
   }, [payload]);
+  const extraUsage =
+    payload?.extra_usage && typeof payload.extra_usage === 'object'
+      ? payload.extra_usage
+      : null;
 
   if (!payload?.success) {
     return (
@@ -378,13 +464,15 @@ const KimiCodingPlanUsageView = ({ t, payload, onRefresh }) => {
             <KimiUsageRowCard key={row.key} t={t} row={row} />
           ))}
         </div>
-      ) : (
+      ) : !extraUsage ? (
         <div className='rounded-lg border border-dashed border-semi-color-border bg-semi-color-fill-0 p-4 text-sm text-semi-color-text-2'>
           {t(
             '当前未解析到可用额度窗口，可能不是 Coding Plan Key，或上游接口字段已变化。',
           )}
         </div>
-      )}
+      ) : null}
+
+      {extraUsage && <KimiExtraUsageCard t={t} usage={extraUsage} />}
 
       <Collapse>
         <Collapse.Panel header={t('原始响应')} itemKey='raw'>

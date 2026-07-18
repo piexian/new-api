@@ -59,21 +59,22 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
 		}
 	}
+	baseURL = normalizeMoonshotBaseURL(baseURL)
 
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
-		return fmt.Sprintf("%s/anthropic/v1/messages", info.ChannelBaseUrl), nil
+		return fmt.Sprintf("%s/anthropic/v1/messages", baseURL), nil
 	default:
 		if info.RelayMode == constant.RelayModeRerank {
-			return fmt.Sprintf("%s/v1/rerank", info.ChannelBaseUrl), nil
+			return fmt.Sprintf("%s/v1/rerank", baseURL), nil
 		} else if info.RelayMode == constant.RelayModeEmbeddings {
-			return fmt.Sprintf("%s/v1/embeddings", info.ChannelBaseUrl), nil
+			return fmt.Sprintf("%s/v1/embeddings", baseURL), nil
 		} else if info.RelayMode == constant.RelayModeChatCompletions {
-			return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
+			return fmt.Sprintf("%s/v1/chat/completions", baseURL), nil
 		} else if info.RelayMode == constant.RelayModeCompletions {
-			return fmt.Sprintf("%s/v1/completions", info.ChannelBaseUrl), nil
+			return fmt.Sprintf("%s/v1/completions", baseURL), nil
 		}
-		return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
+		return fmt.Sprintf("%s/v1/chat/completions", baseURL), nil
 	}
 }
 
@@ -184,6 +185,14 @@ func kimiCodingClaudeBaseURL(baseURL string) string {
 	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if strings.HasSuffix(strings.ToLower(trimmed), "/v1") {
 		trimmed = strings.TrimRight(trimmed[:len(trimmed)-len("/v1")], "/")
+	}
+	return trimmed
+}
+
+func normalizeMoonshotBaseURL(baseURL string) string {
+	trimmed := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if strings.HasSuffix(strings.ToLower(trimmed), "/v1") {
+		return strings.TrimRight(trimmed[:len(trimmed)-len("/v1")], "/")
 	}
 	return trimmed
 }
