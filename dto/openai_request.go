@@ -286,9 +286,11 @@ func (r *GeneralOpenAIRequest) ParseInput() []string {
 
 type Message struct {
 	Role             string          `json:"role"`
-	Content          any             `json:"content"`
+	Content          any             `json:"content,omitempty"`
 	Name             *string         `json:"name,omitempty"`
 	Prefix           *bool           `json:"prefix,omitempty"`
+	Partial          *bool           `json:"partial,omitempty"`
+	Tools            json.RawMessage `json:"tools,omitempty"`
 	ReasoningContent *string         `json:"reasoning_content,omitempty"`
 	Reasoning        *string         `json:"reasoning,omitempty"`
 	Audio            json.RawMessage `json:"audio,omitempty"`

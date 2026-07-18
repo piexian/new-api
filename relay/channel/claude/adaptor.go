@@ -13,7 +13,6 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/service/responsescompat"
-	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -73,23 +72,9 @@ func shouldAppendClaudeBetaQuery(info *relaycommon.RelayInfo) bool {
 	return false
 }
 
-func CommonClaudeHeadersOperation(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
-	// common headers operation
-	anthropicBeta := c.Request.Header.Get("anthropic-beta")
-	if anthropicBeta != "" {
-		req.Set("anthropic-beta", anthropicBeta)
-	}
-	model_setting.GetClaudeSettings().WriteHeaders(info.OriginModelName, req)
-}
-
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
 	req.Set("x-api-key", info.ApiKey)
-	anthropicVersion := c.Request.Header.Get("anthropic-version")
-	if anthropicVersion == "" {
-		anthropicVersion = "2023-06-01"
-	}
-	req.Set("anthropic-version", anthropicVersion)
 	CommonClaudeHeadersOperation(c, req, info)
 	return nil
 }

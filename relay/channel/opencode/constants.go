@@ -1,6 +1,7 @@
 package opencode
 
 import (
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -28,6 +29,20 @@ func NormalizeRoot(baseURL string) string {
 	}
 
 	baseURL = strings.TrimRight(baseURL, "/")
+	if parsedURL, err := url.Parse(baseURL); err == nil && parsedURL.Scheme != "" && parsedURL.Host != "" {
+		parsedURL.Path = trimOpenCodeEndpointPath(parsedURL.Path)
+		parsedURL.RawPath = ""
+		parsedURL.RawQuery = ""
+		parsedURL.Fragment = ""
+		return strings.TrimRight(parsedURL.String(), "/")
+	}
+	return trimOpenCodeEndpointPath(baseURL)
+}
+
+func trimOpenCodeEndpointPath(value string) string {
+	if index := strings.Index(value, "/v1/models/"); index >= 0 {
+		return strings.TrimRight(value[:index], "/")
+	}
 	for _, suffix := range []string{
 		"/v1/chat/completions",
 		"/v1/messages/count_tokens",
@@ -37,11 +52,11 @@ func NormalizeRoot(baseURL string) string {
 		"/v1/models",
 		"/v1",
 	} {
-		if strings.HasSuffix(baseURL, suffix) {
-			return strings.TrimSuffix(baseURL, suffix)
+		if strings.HasSuffix(value, suffix) {
+			return strings.TrimSuffix(value, suffix)
 		}
 	}
-	return baseURL
+	return value
 }
 
 func IsGoBase(baseURL string) bool {
@@ -61,6 +76,45 @@ func StaticModelListForBase(baseURL string) []string {
 		return GoModels
 	}
 	return nil
+}
+
+func requestModeForModel(baseURL string, model string) (int, bool) {
+	model = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(model, "models/")))
+	if model == "" {
+		return 0, false
+	}
+	if IsGoBase(baseURL) {
+		switch {
+		case stringListContains(channelconstant.OpenCodeGoClaudeModels, model):
+			return requestModeClaude, true
+		case stringListContains(channelconstant.OpenCodeGoChatModels, model):
+			return requestModeOpenAI, true
+		default:
+			return 0, false
+		}
+	}
+
+	switch {
+	case stringListContains(channelconstant.OpenCodeZenResponsesModels, model):
+		return requestModeResponses, true
+	case stringListContains(channelconstant.OpenCodeZenClaudeModels, model):
+		return requestModeClaude, true
+	case stringListContains(channelconstant.OpenCodeZenGeminiModels, model):
+		return requestModeGemini, true
+	case stringListContains(channelconstant.OpenCodeZenChatModels, model):
+		return requestModeOpenAI, true
+	default:
+		return 0, false
+	}
+}
+
+func stringListContains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func ParseModelsResponse(body []byte) ([]string, error) {

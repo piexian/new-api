@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -28,11 +29,13 @@ const (
 )
 
 type Adaptor struct {
-	RequestMode int
+	RequestMode  int
+	RouteByModel bool
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.RequestMode = requestModeOpenAI
+	a.RouteByModel = false
 	if info == nil {
 		return
 	}
@@ -53,16 +56,20 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 		info.RelayFormat == types.RelayFormatOpenAIResponsesCompaction {
 		a.RequestMode = requestModeResponses
 	}
+	if shouldRouteOpenCodeByModel(info) {
+		if requestMode, ok := requestModeForModel(info.ChannelBaseUrl, info.UpstreamModelName); ok {
+			a.RequestMode = requestMode
+			a.RouteByModel = true
+		}
+	}
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	geminiAdaptor := gemini.Adaptor{}
-	return geminiAdaptor.ConvertGeminiRequest(c, info, request)
+	return a.convertRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
-	claudeAdaptor := claude.Adaptor{}
-	return claudeAdaptor.ConvertClaudeRequest(c, info, request)
+	return a.convertRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -91,6 +98,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	case requestModeGemini:
 		return openCodeGeminiURL(info)
 	default:
+		if a.RouteByModel {
+			return openCodeRoot(info) + "/v1/chat/completions", nil
+		}
 		return openCodeOpenAIURL(info), nil
 	}
 }
@@ -116,7 +126,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	return request, nil
+	return a.convertRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -128,10 +138,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	if info != nil {
-		info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
-	}
-	return request, nil
+	return a.convertRequest(c, info, &request)
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -140,25 +147,28 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch a.RequestMode {
+	case requestModeResponses:
+		if info.RelayMode == relayconstant.RelayModeChatCompletions {
+			if info.IsStream {
+				return openai.OaiResponsesToChatStreamHandler(c, info, resp)
+			}
+			return openai.OaiResponsesToChatHandler(c, info, resp)
+		}
+		openaiAdaptor := openai.Adaptor{}
+		return openaiAdaptor.DoResponse(c, resp, info)
 	case requestModeClaude:
 		claudeAdaptor := claude.Adaptor{}
 		return claudeAdaptor.DoResponse(c, resp, info)
 	case requestModeGemini:
-		if info.RelayMode == relayconstant.RelayModeGemini {
-			if strings.Contains(info.RequestURLPath, ":embedContent") ||
-				strings.Contains(info.RequestURLPath, ":batchEmbedContents") {
-				return gemini.NativeGeminiEmbeddingHandler(c, resp, info)
-			}
-			if info.IsStream {
-				return gemini.GeminiTextGenerationStreamHandler(c, info, resp)
-			}
-			return gemini.GeminiTextGenerationHandler(c, info, resp)
-		}
-		if info.IsStream {
-			return gemini.GeminiChatStreamHandler(c, info, resp)
-		}
-		return gemini.GeminiChatHandler(c, info, resp)
+		geminiAdaptor := gemini.Adaptor{}
+		return geminiAdaptor.DoResponse(c, resp, info)
 	default:
+		if info.RelayMode == relayconstant.RelayModeResponses {
+			if info.IsStream {
+				return openai.OaiChatToResponsesStreamHandler(c, info, resp)
+			}
+			return openai.OaiChatToResponsesHandler(c, info, resp)
+		}
 		openaiAdaptor := openai.Adaptor{}
 		return openaiAdaptor.DoResponse(c, resp, info)
 	}
@@ -170,6 +180,49 @@ func (a *Adaptor) GetModelList() []string {
 
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
+}
+
+func shouldRouteOpenCodeByModel(info *relaycommon.RelayInfo) bool {
+	if info == nil || relaycommon.IsRequestPassThroughEnabled(info) {
+		return false
+	}
+	if info.RelayMode != relayconstant.RelayModeChatCompletions && info.RelayMode != relayconstant.RelayModeResponses {
+		return false
+	}
+	return info.RelayFormat == types.RelayFormatOpenAI || info.RelayFormat == types.RelayFormatOpenAIResponses
+}
+
+func (a *Adaptor) convertRequest(c *gin.Context, info *relaycommon.RelayInfo, request any) (any, error) {
+	if relaycommon.IsRequestPassThroughEnabled(info) {
+		return request, nil
+	}
+	target, err := a.targetRelayFormat()
+	if err != nil {
+		return nil, err
+	}
+	result, err := service.ConvertRequest(c, info, target, request)
+	if err != nil {
+		return nil, err
+	}
+	if info != nil {
+		info.FinalRequestRelayFormat = target
+	}
+	return result.Value, nil
+}
+
+func (a *Adaptor) targetRelayFormat() (types.RelayFormat, error) {
+	switch a.RequestMode {
+	case requestModeOpenAI:
+		return types.RelayFormatOpenAI, nil
+	case requestModeResponses:
+		return types.RelayFormatOpenAIResponses, nil
+	case requestModeClaude:
+		return types.RelayFormatClaude, nil
+	case requestModeGemini:
+		return types.RelayFormatGemini, nil
+	default:
+		return "", fmt.Errorf("unsupported opencode request mode: %d", a.RequestMode)
+	}
 }
 
 func openCodeRoot(info *relaycommon.RelayInfo) string {

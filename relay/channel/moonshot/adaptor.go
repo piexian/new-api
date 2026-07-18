@@ -81,13 +81,36 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
 	req.Set("Authorization", fmt.Sprintf("Bearer %s", info.ApiKey))
+	if isKimiCodingBaseURL(info.ChannelBaseUrl) {
+		setupKimiCodingHeaders(c, req, info)
+	} else if info.RelayFormat == types.RelayFormatClaude {
+		claude.CommonClaudeHeadersOperation(c, req, info)
+	}
 	return nil
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	if request == nil {
+		return nil, errors.New("request is nil")
+	}
+	if relaycommon.IsRequestPassThroughEnabled(info) {
+		return request, nil
+	}
+	family := normalizeKimiOpenAIRequest(info, request)
 	if shouldUseKimiCodingClaudeEndpoint(info) {
 		adaptor := claude.Adaptor{}
-		return adaptor.ConvertOpenAIRequest(c, info, request)
+		converted, err := adaptor.ConvertOpenAIRequest(c, info, request)
+		if err != nil {
+			return nil, err
+		}
+		claudeRequest, ok := converted.(*dto.ClaudeRequest)
+		if !ok {
+			return converted, nil
+		}
+		if err := applyKimiCodingClaudeCompatibility(family, claudeRequest); err != nil {
+			return nil, err
+		}
+		return claudeRequest, nil
 	}
 	return request, nil
 }
@@ -99,15 +122,12 @@ func getUpstreamModelName(info *relaycommon.RelayInfo, fallback string) string {
 	return fallback
 }
 
-func isTemperatureOneOnlyModel(model string) bool {
-	return strings.EqualFold(model, "kimi-k2.6")
-}
-
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
 	if err != nil {
 		return nil, err
 	}
+	normalizeKimiOpenAIRequest(info, chatRequest)
 	if info != nil {
 		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
 	}
@@ -161,6 +181,9 @@ func shouldUseKimiCodingClaudeEndpoint(info *relaycommon.RelayInfo) bool {
 	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		return isKimiCodingBaseURL(info.ChannelBaseUrl)
+	}
+	if relaycommon.IsRequestPassThroughEnabled(info) {
+		return false
 	}
 	return info.RelayMode == constant.RelayModeChatCompletions &&
 		isKimiCodingBaseURL(info.ChannelBaseUrl)

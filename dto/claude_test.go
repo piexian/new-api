@@ -56,3 +56,16 @@ func TestClaudeRequestRemoveAnthropicBillingHeaderClearsOnlyHeaderSystem(t *test
 	require.True(t, req.RemoveAnthropicBillingHeaderSystemBlock())
 	require.Nil(t, req.System)
 }
+
+func TestThinkingKeepRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	data, err := json.Marshal(Thinking{Type: "enabled", Keep: "all"})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"type":"enabled","keep":"all"}`, string(data))
+
+	var thinking Thinking
+	require.NoError(t, json.Unmarshal(data, &thinking))
+	require.Equal(t, "enabled", thinking.Type)
+	require.Equal(t, "all", thinking.Keep)
+}

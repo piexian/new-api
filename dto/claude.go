@@ -523,6 +523,7 @@ func ProcessTools(tools []any) ([]*Tool, []*ClaudeWebSearchTool) {
 type Thinking struct {
 	Type         string `json:"type,omitempty"`
 	BudgetTokens *int   `json:"budget_tokens,omitempty"`
+	Keep         string `json:"keep,omitempty"`
 	// Display controls whether thinking content is returned in the response.
 	// Used with adaptive thinking on Claude Opus 4.7+: "summarized" restores
 	// the visible summary that was default on Opus 4.6; "omitted" (default on

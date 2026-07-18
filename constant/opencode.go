@@ -8,6 +8,9 @@ const (
 )
 
 var OpenCodeZenResponsesModels = []string{
+	"gpt-5.6-sol",
+	"gpt-5.6-terra",
+	"gpt-5.6-luna",
 	"gpt-5.5",
 	"gpt-5.5-pro",
 	"gpt-5.4",
@@ -33,12 +36,10 @@ var OpenCodeZenClaudeModels = []string{
 	"claude-opus-4-7",
 	"claude-opus-4-6",
 	"claude-opus-4-5",
-	"claude-opus-4-1",
+	"claude-sonnet-5",
 	"claude-sonnet-4-6",
 	"claude-sonnet-4-5",
-	"claude-sonnet-4",
 	"claude-haiku-4-5",
-	"claude-3-5-haiku",
 	"qwen3.7-max",
 	"qwen3.7-plus",
 	"qwen3.6-plus",
@@ -54,12 +55,16 @@ var OpenCodeZenGeminiModels = []string{
 var OpenCodeZenChatModels = []string{
 	"deepseek-v4-pro",
 	"deepseek-v4-flash",
+	"minimax-m3",
 	"minimax-m2.7",
 	"minimax-m2.5",
+	"glm-5.2",
 	"glm-5.1",
 	"glm-5",
 	"kimi-k2.5",
 	"kimi-k2.6",
+	"kimi-k2.7-code",
+	"grok-4.5",
 	"grok-build-0.1",
 	"big-pickle",
 	"mimo-v2.5-free",
@@ -69,9 +74,10 @@ var OpenCodeZenChatModels = []string{
 }
 
 var OpenCodeGoChatModels = []string{
+	"grok-4.5",
+	"glm-5.2",
 	"glm-5.1",
-	"glm-5",
-	"kimi-k2.7",
+	"kimi-k3",
 	"kimi-k2.7-code",
 	"kimi-k2.6",
 	"deepseek-v4-pro",
