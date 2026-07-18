@@ -3,7 +3,7 @@ name: i18n-translate
 description: >-
   Complete and maintain frontend i18n translations for this project. Covers
   finding missing translation keys, detecting untranslated entries, and adding
-  translations for all supported locales (en, zh, fr, ja, ru, vi). Use for any
+  translations for all supported locales in both frontend themes. Use for any
   task involving frontend locale files, missing translation keys, untranslated
   UI text, `t(...)` keys, `useTranslation()`, static i18n keys, button/label/
   toast/dialog/placeholder/validation copy, or adding/fixing even a single
@@ -22,15 +22,15 @@ description: >-
 - Use the user conversation only to understand the task target. Do not copy conversation text, review wording, or task descriptions directly into locale values.
 - Before translating each key, re-think the intended UI copy from the code and locale context instead of treating the surrounding chat as the translation source.
 
-### Hard Constraint: Locale Writes Go Through the Script
+### Hard Constraint: Locale Writes Go Through the Patch Tool
 
-- You MUST NOT edit `web/default/src/i18n/locales/*.json` directly with text-editing tools (StrReplace, Write, search-and-replace, manual JSON edits, etc.). This applies even to a single key.
-- ALL locale writes MUST go through the `add-missing-keys.mjs` script, followed by `bun run i18n:sync`. The script is the only sanctioned way to add or change locale values.
+- You MUST NOT edit either frontend's `src/i18n/locales/*.json` files directly with text-editing tools (StrReplace, Write, search-and-replace, manual JSON edits, etc.). This applies even to a single key.
+- ALL locale writes MUST go through `bun run i18n:apply -- <patch.json>` from the relevant frontend directory, followed by `bun run i18n:sync`.
 - Why this is mandatory, not optional:
-  - Hand-editing reliably drops one or more of the six locales (`en`, `zh`, `fr`, `ja`, `ru`, `vi`), leaving keys missing in some languages.
-  - Hand-editing breaks the required alphabetical key order and introduces JSON syntax errors (trailing commas, mismatched quotes).
-  - The script writes all six files atomically with consistent sorting, so the locale set stays in sync by construction.
-- The script does not do the translation for you. You still must reason out each locale's copy and populate the script's `newKeys` object; the script only handles insertion, sorting, and writing. Do not skip the script just because the thinking happens regardless.
+  - Hand-editing reliably drops one or more locales and introduces JSON syntax errors.
+  - One-off scripts that sort the entire `translation` object create thousands of unrelated moved lines because repository locale files intentionally preserve their existing order.
+  - The shared patch tool validates complete locale coverage and identical key sets while updating existing keys in place and appending new keys without global reordering.
+- The patch tool does not translate copy for you. You must still reason out every locale value and provide it in the patch JSON.
 
 ## Scope Checklist
 
@@ -45,10 +45,12 @@ Do not skip this workflow because the fix is "just one key".
 
 ## Overview
 
-- Locale files: `web/default/src/i18n/locales/{en,zh,fr,ja,ru,vi}.json`
+- Default locale files: `web/default/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
+- Classic locale files: `web/classic/src/i18n/locales/{zh,zh-CN,zh-TW,en,fr,ru,ja,vi}.json`
 - Format: flat JSON under `"translation"` key, keys are English source strings
 - Base locale: `en.json` (most keys), fallback: `zh` (Chinese)
-- Sync script: `bun run i18n:sync` (from `web/default/`)
+- Apply command: `bun run i18n:apply -- <patch.json>` from the frontend directory
+- Sync command: `bun run i18n:sync` from the frontend directory
 - All `t()` calls must have corresponding keys in every locale file
 
 ## Small Fix Path
@@ -56,8 +58,8 @@ Do not skip this workflow because the fix is "just one key".
 For a single known missing key (still script-only, no direct JSON edits):
 
 1. Confirm the exact key at the call site and verify it is absent from all locale files.
-2. Add the key via `add-missing-keys.mjs`, populating its `newKeys` object for every supported locale: `en`, `zh`, `fr`, `ja`, `ru`, `vi`. Even one key goes through the script; do not hand-edit the JSON.
-3. The script preserves the flat `"translation"` object and keeps keys alphabetically sorted automatically.
+2. Create a temporary patch JSON containing the key and translation for every locale supported by that frontend.
+3. Run `bun run i18n:apply -- <patch.json>`; the tool preserves existing key order and appends only new keys.
 4. Run a targeted search for the key in code and locale files.
 5. Run `bun run i18n:sync` to normalize file order. This step is mandatory, not optional.
 
@@ -196,74 +198,32 @@ for (const locale of locales) {
 
 ### Step 4: Add translations
 
-This script is the ONLY sanctioned way to write locale values. You MUST NOT bypass it by hand-filling the JSON files. Create `web/default/scripts/add-missing-keys.mjs` with this exact structure:
+The shared patch tool is the ONLY sanctioned way to write locale values. Create a temporary JSON patch. For the default frontend it must cover all seven locales:
 
-```javascript
-import fs from 'node:fs/promises'
-import path from 'node:path'
-
-const LOCALES_DIR = path.resolve('src/i18n/locales')
-
-function stableStringify(obj) {
-  return JSON.stringify(obj, null, 2) + '\n'
+```json
+{
+  "en": { "New key": "English value" },
+  "zh": { "New key": "中文翻译" },
+  "zh-TW": { "New key": "繁體中文翻譯" },
+  "fr": { "New key": "Traduction française" },
+  "ja": { "New key": "日本語翻訳" },
+  "ru": { "New key": "Русский перевод" },
+  "vi": { "New key": "Bản dịch tiếng Việt" }
 }
-
-const newKeys = {
-  en: { /* "key": "English value" */ },
-  zh: { /* "key": "中文翻译" */ },
-  fr: { /* "key": "Traduction française" */ },
-  ja: { /* "key": "日本語翻訳" */ },
-  ru: { /* "key": "Русский перевод" */ },
-  vi: { /* "key": "Bản dịch tiếng Việt" */ },
-}
-
-async function main() {
-  let totalAdded = 0
-
-  for (const [locale, trans] of Object.entries(newKeys)) {
-    const filePath = path.join(LOCALES_DIR, `${locale}.json`)
-    const json = JSON.parse(await fs.readFile(filePath, 'utf8'))
-
-    let count = 0
-    for (const [key, value] of Object.entries(trans)) {
-      if (!Object.prototype.hasOwnProperty.call(json.translation, key)) {
-        json.translation[key] = value
-        count++
-      } else if (json.translation[key] !== value) {
-        json.translation[key] = value
-        count++
-      }
-    }
-
-    if (count > 0) {
-      json.translation = Object.fromEntries(
-        Object.entries(json.translation).sort(([a], [b]) => a.localeCompare(b))
-      )
-      await fs.writeFile(filePath, stableStringify(json), 'utf8')
-    }
-
-    console.log(`${locale}: ${count} translations applied`)
-    totalAdded += count
-  }
-
-  console.log(`\nTotal: ${totalAdded} translations applied`)
-}
-
-main().catch((err) => { console.error(err); process.exitCode = 1 })
 ```
 
-Populate the `newKeys` object with actual translations for each locale.
+Classic patches use the same structure and must cover `zh`, `zh-CN`, `zh-TW`, `en`, `fr`, `ru`, `ja`, and `vi`. Every locale object must contain the same keys.
 
 ### Step 5: Verify and clean up
 
 ```bash
 cd web/default
-node scripts/add-missing-keys.mjs   # apply translations
+bun run i18n:apply -- /tmp/i18n-patch.json
 node scripts/find-missing-keys.mjs  # verify: should say "All t() keys found"
 bun run i18n:sync                   # normalize file order
 ```
 
-Delete temporary scripts after completion.
+Delete the temporary patch JSON after completion. Never create a locale writer that sorts the whole translation object.
 
 ## Translation Guidelines
 
@@ -303,10 +263,10 @@ Delete temporary scripts after completion.
 
 ## Key Rules
 
-1. All scripts run from `web/default/` directory
-2. Use `node scripts/xxx.mjs` (ESM format with top-level await)
-3. Sort keys alphabetically when writing locale files
-4. Always run `bun run i18n:sync` as the final step
-5. Delete temporary scripts after completion
+1. Run `i18n:apply` and `i18n:sync` from the frontend directory being changed.
+2. Use a temporary JSON patch with complete locale coverage and identical keys for every locale.
+3. Preserve existing locale key order; never globally sort locale objects.
+4. Always run `bun run i18n:sync` as the final step.
+5. Delete temporary patch files after completion.
 6. The `{{variable}}` placeholders in keys must be preserved in all translations
-7. NEVER edit `locales/*.json` directly. Any non-script write to a locale file (StrReplace, Write, manual JSON edit) is non-compliant, including single-key fixes.
+7. NEVER edit `locales/*.json` directly. Any write that bypasses `i18n:apply` is non-compliant, including single-key fixes.
