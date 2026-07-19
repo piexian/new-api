@@ -153,6 +153,43 @@ func TestInsertKeepsBlankPasswordForPasswordlessUser(t *testing.T) {
 	assert.Empty(t, stored.Password)
 }
 
+func TestInsertUsesConfiguredDefaultEmailLanguage(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	common.OptionMapRWMutex.Lock()
+	wasNil := common.OptionMap == nil
+	if wasNil {
+		common.OptionMap = make(map[string]string)
+	}
+	previous, existed := common.OptionMap[common.EmailDefaultLanguageOptionKey]
+	common.OptionMap[common.EmailDefaultLanguageOptionKey] = "zh-TW"
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		defer common.OptionMapRWMutex.Unlock()
+		if wasNil {
+			common.OptionMap = nil
+			return
+		}
+		if existed {
+			common.OptionMap[common.EmailDefaultLanguageOptionKey] = previous
+			return
+		}
+		delete(common.OptionMap, common.EmailDefaultLanguageOptionKey)
+	})
+
+	user := &User{
+		Username: "default-language-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, user.Insert(0))
+
+	var stored User
+	require.NoError(t, DB.Where("username = ?", user.Username).First(&stored).Error)
+	assert.Equal(t, "zh-TW", stored.GetSetting().Language)
+}
+
 func TestValidateAndFillRejectsPasswordlessUser(t *testing.T) {
 	setupUserUpdateTestState(t)
 

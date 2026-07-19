@@ -5740,7 +5740,9 @@
     "Number of accounts that can register with this code.": "可使用此注册码完成注册的账户数量。",
     "Extra Usage": "额外用量",
     "Monthly limit": "每月限额",
-    "Used this month": "本月已用"
+    "Used this month": "本月已用",
+    "Default email language": "默认邮件语言",
+    "Used for new users and when a personal language has no email template.": "用于新用户，以及个人语言没有对应邮件模板时。"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

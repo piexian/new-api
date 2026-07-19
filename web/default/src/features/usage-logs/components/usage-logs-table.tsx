@@ -75,7 +75,8 @@ interface UsageLogsTableProps {
 
 export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const { t } = useTranslation()
-  const { isAdminView: isAdmin } = useLogsViewScope()
+  const { canManageScope, isAdminView } = useLogsViewScope()
+  const isAdmin = logCategory === 'email' ? canManageScope : isAdminView
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
 

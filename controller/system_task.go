@@ -12,6 +12,7 @@ import (
 )
 
 func CreateLogCleanupSystemTask(c *gin.Context) {
+	language := resolveRequestLogLanguage(c)
 	targetTimestamp, _ := strconv.ParseInt(c.Query("target_timestamp"), 10, 64)
 	if targetTimestamp == 0 {
 		c.JSON(http.StatusOK, gin.H{
@@ -30,11 +31,12 @@ func CreateLogCleanupSystemTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    task.ToResponse(),
+		"data":    localizedSystemTaskResponse(task, language),
 	})
 }
 
 func GetCurrentSystemTask(c *gin.Context) {
+	language := resolveRequestLogLanguage(c)
 	taskType := c.Query("type")
 	if taskType == "" {
 		c.JSON(http.StatusOK, gin.H{
@@ -61,11 +63,12 @@ func GetCurrentSystemTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    task.ToResponse(),
+		"data":    localizedSystemTaskResponse(task, language),
 	})
 }
 
 func ListSystemTasks(c *gin.Context) {
+	language := resolveRequestLogLanguage(c)
 	limit, _ := strconv.Atoi(c.Query("limit"))
 
 	tasks, err := model.ListSystemTasks(limit)
@@ -76,7 +79,7 @@ func ListSystemTasks(c *gin.Context) {
 
 	responses := make([]model.SystemTaskResponse, 0, len(tasks))
 	for _, task := range tasks {
-		responses = append(responses, task.ToResponse())
+		responses = append(responses, localizedSystemTaskResponse(task, language))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -87,6 +90,7 @@ func ListSystemTasks(c *gin.Context) {
 }
 
 func GetSystemTask(c *gin.Context) {
+	language := resolveRequestLogLanguage(c)
 	taskID := c.Param("task_id")
 	if taskID == "" {
 		c.JSON(http.StatusOK, gin.H{
@@ -112,6 +116,6 @@ func GetSystemTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    task.ToResponse(),
+		"data":    localizedSystemTaskResponse(task, language),
 	})
 }

@@ -132,7 +132,9 @@ func UpdateUserSetting(userId int, setting dto.UserSetting) error {
 	if err = DB.Model(&User{}).Where("id = ?", userId).Update("setting", settingValue).Error; err != nil {
 		return err
 	}
-	return updateUserSettingCache(userId, settingValue)
+	cacheErr := updateUserSettingCache(userId, settingValue)
+	InvalidateRootLogLanguageCache()
+	return cacheErr
 }
 
 // 根据用户角色生成默认的边栏配置
@@ -773,6 +775,7 @@ func (user *User) insertPreparedWithTx(tx *gorm.DB, inviterId int) error {
 		user.SetSetting(dto.UserSetting{
 			SetupCompleted:  "pending",
 			FeatureUpdateV1: "dismissed",
+			Language:        common.GetDefaultEmailLanguage(),
 		})
 	}
 	return tx.Create(user).Error

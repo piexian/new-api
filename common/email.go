@@ -10,6 +10,25 @@ import (
 	"time"
 )
 
+func IsSupportedEmailLanguage(language string) bool {
+	switch strings.TrimSpace(language) {
+	case "zh-CN", "zh-TW", "en":
+		return true
+	default:
+		return false
+	}
+}
+
+func GetDefaultEmailLanguage() string {
+	OptionMapRWMutex.RLock()
+	language := strings.TrimSpace(OptionMap[EmailDefaultLanguageOptionKey])
+	OptionMapRWMutex.RUnlock()
+	if !IsSupportedEmailLanguage(language) {
+		return DefaultEmailLanguage
+	}
+	return language
+}
+
 func generateMessageID() (string, error) {
 	split := strings.Split(SMTPFrom, "@")
 	if len(split) < 2 {

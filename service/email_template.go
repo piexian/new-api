@@ -115,18 +115,27 @@ func GetEmailTemplateCatalog() EmailTemplateCatalog {
 
 func NormalizeEmailTemplateLocale(locale string) string {
 	normalized, err := resolveEmailTemplateLocale(locale)
-	if err != nil {
-		return i18n.DefaultLang
+	if err == nil {
+		return normalized
 	}
-	return normalized
+	normalized, err = resolveEmailTemplateLocale(common.GetDefaultEmailLanguage())
+	if err == nil {
+		return normalized
+	}
+	return i18n.DefaultLang
 }
 
 func resolveEmailTemplateLocale(locale string) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(locale))
+	normalized = strings.ReplaceAll(normalized, "_", "-")
+	compact := strings.ReplaceAll(normalized, "-", "")
 	switch {
-	case normalized == "", strings.HasPrefix(normalized, "en"):
+	case strings.HasPrefix(normalized, "en"):
 		return i18n.LangEn, nil
-	case strings.HasPrefix(normalized, "zh-tw"), strings.HasPrefix(normalized, "zh-hk"):
+	case strings.HasPrefix(compact, "zhtw"),
+		strings.HasPrefix(compact, "zhhk"),
+		strings.HasPrefix(compact, "zhmo"),
+		strings.HasPrefix(compact, "zhhant"):
 		return i18n.LangZhTW, nil
 	case strings.HasPrefix(normalized, "zh"):
 		return i18n.LangZhCN, nil
@@ -385,7 +394,7 @@ func sanitizeEmailTemplateNode(node *xhtml.Node, variables map[string]string) bo
 }
 
 func SendTemplatedEmail(event, locale, receiver string, variables map[string]string) error {
-	template, err := GetEmailTemplate(event, locale)
+	template, err := GetEmailTemplate(event, NormalizeEmailTemplateLocale(locale))
 	if err != nil {
 		return err
 	}

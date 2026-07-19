@@ -37,6 +37,70 @@ func TestDefaultEmailTemplatesCoverEveryEventAndLocale(t *testing.T) {
 	}
 }
 
+func TestNormalizeEmailTemplateLocaleUsesPreferenceAndConfiguredFallback(t *testing.T) {
+	common.OptionMapRWMutex.Lock()
+	wasNil := common.OptionMap == nil
+	if wasNil {
+		common.OptionMap = make(map[string]string)
+	}
+	previous, existed := common.OptionMap[common.EmailDefaultLanguageOptionKey]
+	common.OptionMap[common.EmailDefaultLanguageOptionKey] = i18n.LangZhTW
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		defer common.OptionMapRWMutex.Unlock()
+		if wasNil {
+			common.OptionMap = nil
+			return
+		}
+		if existed {
+			common.OptionMap[common.EmailDefaultLanguageOptionKey] = previous
+			return
+		}
+		delete(common.OptionMap, common.EmailDefaultLanguageOptionKey)
+	})
+
+	testCases := map[string]string{
+		"en-US":   i18n.LangEn,
+		"zhCN":    i18n.LangZhCN,
+		"zh-Hans": i18n.LangZhCN,
+		"zhTW":    i18n.LangZhTW,
+		"zh-Hant": i18n.LangZhTW,
+		"zh-HK":   i18n.LangZhTW,
+		"fr":      i18n.LangZhTW,
+		"":        i18n.LangZhTW,
+	}
+	for locale, expected := range testCases {
+		assert.Equal(t, expected, NormalizeEmailTemplateLocale(locale), locale)
+	}
+}
+
+func TestNormalizeEmailTemplateLocaleFallsBackToEnglishForInvalidDefault(t *testing.T) {
+	common.OptionMapRWMutex.Lock()
+	wasNil := common.OptionMap == nil
+	if wasNil {
+		common.OptionMap = make(map[string]string)
+	}
+	previous, existed := common.OptionMap[common.EmailDefaultLanguageOptionKey]
+	common.OptionMap[common.EmailDefaultLanguageOptionKey] = "invalid"
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		defer common.OptionMapRWMutex.Unlock()
+		if wasNil {
+			common.OptionMap = nil
+			return
+		}
+		if existed {
+			common.OptionMap[common.EmailDefaultLanguageOptionKey] = previous
+			return
+		}
+		delete(common.OptionMap, common.EmailDefaultLanguageOptionKey)
+	})
+
+	assert.Equal(t, i18n.LangEn, NormalizeEmailTemplateLocale("vi"))
+}
+
 func TestRenderEmailTemplateEscapesHTMLAndSanitizesSubject(t *testing.T) {
 	template := EmailTemplate{
 		Event:   EmailTemplateEventSystemTest,

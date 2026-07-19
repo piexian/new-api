@@ -4266,6 +4266,8 @@
     "本月已用": "本月已用",
     "每月限额": "每月限額",
     "默认 Moonshot 地址": "預設 Moonshot 位址",
-    "额外用量": "額外用量"
+    "额外用量": "額外用量",
+    "Default email language": "預設郵件語言",
+    "Used for new users and when a personal language has no email template.": "用於新使用者，以及個人語言沒有對應郵件範本時。"
   }
 }

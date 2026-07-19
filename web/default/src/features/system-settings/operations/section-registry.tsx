@@ -67,6 +67,7 @@ const OPERATIONS_SECTIONS = [
       <EmailSettingsSection
         defaultValues={{
           EmailProvider: settings.EmailProvider,
+          EmailDefaultLanguage: settings.EmailDefaultLanguage,
           SMTPServer: settings.SMTPServer,
           SMTPPort: settings.SMTPPort,
           SMTPAccount: settings.SMTPAccount,

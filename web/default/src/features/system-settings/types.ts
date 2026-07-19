@@ -407,6 +407,7 @@ export type OperationsSettings = {
   QuotaRemindThreshold: string
   BalanceLowNotifyEnabled: boolean
   EmailProvider: string
+  EmailDefaultLanguage: 'zh-CN' | 'zh-TW' | 'en'
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string

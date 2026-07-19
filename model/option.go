@@ -82,6 +82,7 @@ func InitOptionMap() {
 	common.OptionMap["SMTPInsecureSkipVerify"] = strconv.FormatBool(common.SMTPInsecureSkipVerify)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
 	common.OptionMap["EmailProvider"] = common.EmailProvider
+	common.OptionMap[common.EmailDefaultLanguageOptionKey] = common.DefaultEmailLanguage
 	common.OptionMap["CFEmailAccountID"] = common.CFEmailAccountID
 	common.OptionMap["CFEmailAPIToken"] = ""
 	common.OptionMap["CFEmailFrom"] = common.CFEmailFrom

@@ -35,6 +35,7 @@ const defaultIntegrationSettings: IntegrationSettings = {
   SMTPInsecureSkipVerify: false,
   SMTPForceAuthLogin: false,
   EmailProvider: 'smtp',
+  EmailDefaultLanguage: 'en',
   CFEmailAccountID: '',
   CFEmailAPIToken: '',
   CFEmailFrom: '',

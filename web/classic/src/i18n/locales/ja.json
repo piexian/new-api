@@ -4243,6 +4243,8 @@
     "本月已用": "今月の使用量",
     "每月限额": "月間上限",
     "默认 Moonshot 地址": "デフォルトの Moonshot エンドポイント",
-    "额外用量": "追加使用量"
+    "额外用量": "追加使用量",
+    "Default email language": "メールのデフォルト言語",
+    "Used for new users and when a personal language has no email template.": "新規ユーザー、および個人設定の言語に対応するメールテンプレートがない場合に使用されます。"
   }
 }

@@ -5740,7 +5740,9 @@
     "Number of accounts that can register with this code.": "Количество аккаунтов, которые можно зарегистрировать с этим кодом.",
     "Extra Usage": "Дополнительное использование",
     "Monthly limit": "Месячный лимит",
-    "Used this month": "Использовано в этом месяце"
+    "Used this month": "Использовано в этом месяце",
+    "Default email language": "Язык электронной почты по умолчанию",
+    "Used for new users and when a personal language has no email template.": "Используется для новых пользователей и когда для выбранного пользователем языка нет шаблона письма."
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

@@ -47,6 +47,7 @@ export type IntegrationSettings = Pick<
   | 'perf_metrics_setting.bucket_time'
   | 'perf_metrics_setting.retention_days'
   | 'EmailProvider'
+  | 'EmailDefaultLanguage'
   | 'CFEmailAccountID'
   | 'CFEmailAPIToken'
   | 'CFEmailFrom'
@@ -186,6 +187,7 @@ const INTEGRATIONS_SECTIONS = [
       <EmailSettingsSection
         defaultValues={{
           EmailProvider: settings.EmailProvider,
+          EmailDefaultLanguage: settings.EmailDefaultLanguage,
           SMTPServer: settings.SMTPServer,
           SMTPPort: settings.SMTPPort,
           SMTPAccount: settings.SMTPAccount,

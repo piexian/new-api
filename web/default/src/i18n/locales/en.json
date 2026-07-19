@@ -5740,7 +5740,9 @@
     "Number of accounts that can register with this code.": "Number of accounts that can register with this code.",
     "Extra Usage": "Extra Usage",
     "Monthly limit": "Monthly limit",
-    "Used this month": "Used this month"
+    "Used this month": "Used this month",
+    "Default email language": "Default email language",
+    "Used for new users and when a personal language has no email template.": "Used for new users and when a personal language has no email template."
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

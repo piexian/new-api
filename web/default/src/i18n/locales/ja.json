@@ -5740,7 +5740,9 @@
     "Number of accounts that can register with this code.": "このコードで登録できるアカウント数。",
     "Extra Usage": "追加使用量",
     "Monthly limit": "月間上限",
-    "Used this month": "今月の使用量"
+    "Used this month": "今月の使用量",
+    "Default email language": "メールのデフォルト言語",
+    "Used for new users and when a personal language has no email template.": "新規ユーザー、および個人設定の言語に対応するメールテンプレートがない場合に使用されます。"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

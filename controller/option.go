@@ -184,6 +184,13 @@ func UpdateOption(c *gin.Context) {
 			common.ApiErrorMsg(c, "余额不足提醒开关必须是布尔值")
 			return
 		}
+	case common.EmailDefaultLanguageOptionKey:
+		language := strings.TrimSpace(option.Value.(string))
+		if !common.IsSupportedEmailLanguage(language) {
+			common.ApiErrorMsg(c, "默认邮件语言无效，可选值：zh-CN、zh-TW、en")
+			return
+		}
+		option.Value = language
 	case "QuotaRemindThreshold":
 		if !isNonNegativeIntegerOptionValue(option.Value.(string)) {
 			common.ApiErrorMsg(c, "余额不足提醒阈值必须是非负整数")

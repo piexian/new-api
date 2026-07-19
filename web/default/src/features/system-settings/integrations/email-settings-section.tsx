@@ -71,6 +71,7 @@ const createEmailSchema = (t: (key: string) => string) =>
   z
     .object({
       EmailProvider: z.string(),
+      EmailDefaultLanguage: z.enum(['zh-CN', 'zh-TW', 'en']),
       SMTPServer: z.string(),
       SMTPPort: z.string(),
       SMTPAccount: z.string(),
@@ -207,6 +208,7 @@ export function EmailSettingsSection({
     const securityMode = getSmtpSecurityMode(values)
     const sanitized = {
       EmailProvider: values.EmailProvider.trim(),
+      EmailDefaultLanguage: values.EmailDefaultLanguage,
       SMTPServer: values.SMTPServer.trim(),
       SMTPPort: values.SMTPPort.trim(),
       SMTPAccount: values.SMTPAccount.trim(),
@@ -228,6 +230,7 @@ export function EmailSettingsSection({
 
     const sharedStringKeys = [
       'EmailProvider',
+      'EmailDefaultLanguage',
       'EmailDailyLimit',
       'EmailVerificationDailyLimitPerUser',
       'QuotaRemindThreshold',
@@ -267,7 +270,10 @@ export function EmailSettingsSection({
     }
 
     if (sanitized.EmailProvider === 'cloudflare' && sanitized.CFEmailAPIToken) {
-      updates.push({ key: 'CFEmailAPIToken', value: sanitized.CFEmailAPIToken })
+      updates.push({
+        key: 'CFEmailAPIToken',
+        value: sanitized.CFEmailAPIToken,
+      })
     }
 
     for (const key of boolKeys) {
@@ -290,32 +296,62 @@ export function EmailSettingsSection({
             isSaving={updateOption.isPending}
             saveLabel='Save email settings'
           />
-          <FormField
-            control={form.control}
-            name='EmailProvider'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Email Provider')}</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t('Select provider')} />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value='smtp'>{t('SMTP')}</SelectItem>
-                    <SelectItem value='cloudflare'>
-                      {t('Cloudflare Email Service')}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormDescription>
-                  {t('Choose which email service to use for sending')}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className='grid gap-6 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='EmailProvider'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Email Provider')}</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('Select provider')} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value='smtp'>{t('SMTP')}</SelectItem>
+                      <SelectItem value='cloudflare'>
+                        {t('Cloudflare Email Service')}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    {t('Choose which email service to use for sending')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='EmailDefaultLanguage'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Default email language')}</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value='zh-CN'>简体中文</SelectItem>
+                      <SelectItem value='zh-TW'>繁體中文</SelectItem>
+                      <SelectItem value='en'>English</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    {t(
+                      'Used for new users and when a personal language has no email template.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
           {emailProvider === 'smtp' ? (
             <>

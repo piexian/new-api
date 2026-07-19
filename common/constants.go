@@ -216,6 +216,8 @@ const ForceRecordIpLogOptionKey = "ForceRecordIpLogEnabled"
 const (
 	EmailNotificationTemplateOptionPrefix = "EmailNotificationTemplate."
 	BalanceLowNotifyEnabledOptionKey      = "BalanceLowNotifyEnabled"
+	EmailDefaultLanguageOptionKey         = "EmailDefaultLanguage"
+	DefaultEmailLanguage                  = "en"
 )
 
 var ForceRecordIpLogEnabled = false

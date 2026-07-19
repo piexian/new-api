@@ -187,7 +187,7 @@ func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo m
 	}
 }
 
-// buildOpField 构建语言无关的操作描述，供前端按 action 和 params 本地化渲染。
+// buildOpField 构建语言无关的操作描述，供日志 API 按 action 和 params 本地化渲染。
 func buildOpField(action string, params map[string]interface{}) map[string]interface{} {
 	op := map[string]interface{}{
 		"action": action,

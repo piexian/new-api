@@ -304,9 +304,9 @@ export function formatDuration(
  * Maps a language-independent audit/login operation `action` to an i18n
  * template string (the template itself is the i18n key, with {{placeholders}}).
  *
- * The backend stores only `action` + structured `params` in `other.op`; the UI
- * renders localized content at display time so audit/login logs are fully
- * translatable instead of being frozen to whatever language was written to DB.
+ * The backend stores `action` + structured `params` in `other.op` and normally
+ * returns localized `content`. These templates remain for legacy responses
+ * where localized API content is unavailable.
  */
 const AUDIT_TEMPLATES: Record<string, string> = {
   login: 'Logged in successfully via {{method}}',
@@ -394,9 +394,8 @@ const AUDIT_TEMPLATES: Record<string, string> = {
 }
 
 /**
- * Render the localized content of an audit/login log from its structured
- * `other.op` descriptor. Returns null when the log has no recognized action,
- * letting callers fall back to the raw `content` field.
+ * Render fallback content for an audit/login log from its structured `other.op`
+ * descriptor. Returns null when the log has no recognized action.
  */
 export function renderAuditContent(
   other: LogOtherData | null | undefined,

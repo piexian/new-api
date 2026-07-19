@@ -30,6 +30,7 @@ func GetAllEmailLogs(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	localizeEmailLogs(logs, resolveRequestLogLanguage(c))
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)

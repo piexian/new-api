@@ -578,9 +578,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
     return String(adminInfo.auth_method)
   })()
 
-  // Localized operation text rendered from the language-independent op
-  // descriptor (shared by audit type=3 and login type=7).
-  const operationText = renderAuditContent(other, t)
+  // The API content follows the user's log-language preference. Structured
+  // client rendering remains a compatibility fallback for older responses.
+  const operationText = details || renderAuditContent(other, t)
   const auditRoute = isManage && props.isAdmin ? other?.audit_info : undefined
   // Channel update records which fields changed (stable field tokens); render
   // them with their localized labels for admins.

@@ -4273,6 +4273,8 @@
     "本月已用": "Utilisé ce mois-ci",
     "每月限额": "Limite mensuelle",
     "默认 Moonshot 地址": "Point de terminaison Moonshot par défaut",
-    "额外用量": "Utilisation supplémentaire"
+    "额外用量": "Utilisation supplémentaire",
+    "Default email language": "Langue par défaut des e-mails",
+    "Used for new users and when a personal language has no email template.": "Utilisée pour les nouveaux utilisateurs et lorsqu'aucun modèle d'e-mail ne correspond à la langue personnelle."
   }
 }

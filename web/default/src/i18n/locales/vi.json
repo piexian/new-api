@@ -5740,7 +5740,9 @@
     "Number of accounts that can register with this code.": "Số tài khoản có thể đăng ký bằng mã này.",
     "Extra Usage": "Mức dùng bổ sung",
     "Monthly limit": "Giới hạn hàng tháng",
-    "Used this month": "Đã dùng trong tháng này"
+    "Used this month": "Đã dùng trong tháng này",
+    "Default email language": "Ngôn ngữ email mặc định",
+    "Used for new users and when a personal language has no email template.": "Được dùng cho người dùng mới và khi ngôn ngữ cá nhân không có mẫu email tương ứng."
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

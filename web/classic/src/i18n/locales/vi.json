@@ -4797,6 +4797,8 @@
     "本月已用": "Đã dùng trong tháng này",
     "每月限额": "Giới hạn hàng tháng",
     "默认 Moonshot 地址": "Điểm cuối Moonshot mặc định",
-    "额外用量": "Mức dùng bổ sung"
+    "额外用量": "Mức dùng bổ sung",
+    "Default email language": "Ngôn ngữ email mặc định",
+    "Used for new users and when a personal language has no email template.": "Được dùng cho người dùng mới và khi ngôn ngữ cá nhân không có mẫu email tương ứng."
   }
 }

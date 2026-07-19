@@ -42,6 +42,7 @@ const defaultOperationsSettings: OperationsSettings = {
   SMTPInsecureSkipVerify: false,
   SMTPForceAuthLogin: false,
   EmailProvider: 'smtp',
+  EmailDefaultLanguage: 'en',
   CFEmailAccountID: '',
   CFEmailAPIToken: '',
   CFEmailFrom: '',

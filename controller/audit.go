@@ -1,9 +1,6 @@
 package controller
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
@@ -11,61 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// auditContentTemplates 将稳定的操作标识 action 映射为英文兜底模板，渲染后写入
-// Log.Content（供导出 / 经典前端等非本地化消费者使用）。占位符为 ${name}，由该
-// action 的 params 填充。本地化展示文案在前端 i18n 模板中维护，本表是语言中立的
-// 英文基线——调用方因此无需在每个埋点处手写句子（避免与 params 重复书写同一份值）。
-var auditContentTemplates = map[string]string{
-	"user.create":            "Created user ${username} (role ${role})",
-	"user.update":            "Updated user ${username} (ID: ${id})",
-	"user.delete":            "Deleted user ${username} (ID: ${id})",
-	"user.manage":            "Performed ${action} on user ${username} (ID: ${id})",
-	"user.quota_add":         "Increased user quota by ${quota}",
-	"user.quota_subtract":    "Decreased user quota by ${quota}",
-	"user.quota_override":    "Overrode user quota from ${from} to ${to}",
-	"user.binding_clear":     "Cleared ${bindingType} binding for user ${username}",
-	"user.2fa_disable":       "Force-disabled two-factor authentication for the user",
-	"user.passkey_register":  "Registered a passkey",
-	"user.passkey_delete":    "Deleted a passkey",
-	"user.reset_passkey":     "Reset the user passkey",
-	"option.update":          "Updated system setting ${key}",
-	"email.test":             "Sent a test email using ${provider}",
-	"email.template_update":  "Updated email template ${event} (${locale})",
-	"email.template_restore": "Restored email template ${event} (${locale})",
-
-	"channel.create":             "Created channel ${name} (type ${type}, count ${count})",
-	"channel.update":             "Updated channel ${name} (ID: ${id})",
-	"channel.delete":             "Deleted channel ${name} (ID: ${id})",
-	"channel.delete_batch":       "Batch deleted ${count} channels",
-	"channel.delete_disabled":    "Deleted all disabled channels (${count})",
-	"channel.key_view":           "Viewed channel key ${name} (ID: ${id})",
-	"channel.tag_disable":        "Disabled channels with tag ${tag}",
-	"channel.tag_enable":         "Enabled channels with tag ${tag}",
-	"channel.tag_edit":           "Edited channels with tag ${tag}",
-	"channel.tag_batch_set":      "Batch set tag for ${count} channels",
-	"channel.copy":               "Copied channel (source ID: ${sourceId}) to ${name} (new ID: ${id})",
-	"channel.multi_key_manage":   "Multi-key management ${action} on channel (ID: ${id})",
-	"channel.upstream_apply":     "Applied upstream model changes to channel (ID: ${id})",
-	"channel.upstream_apply_all": "Applied upstream model changes to ${count} channels",
-
-	"redemption.create": "Created ${count} redemption codes named ${name} (${quota} each)",
-
-	"subscription.plan_reset":      "Reset active subscriptions for plan ${plan_id}",
-	"subscription.user_plan_reset": "Reset active plan ${plan_id} subscriptions for user ${target_user_id}",
-}
-
 // auditContentEN 按 action 模板渲染英文兜底文本；未登记的 action 退回 action 本身。
 func auditContentEN(action string, params map[string]interface{}) string {
-	tmpl, ok := auditContentTemplates[action]
-	if !ok {
-		return action
-	}
-	return os.Expand(tmpl, func(key string) string {
-		if v, ok := params[key]; ok {
-			return fmt.Sprintf("%v", v)
-		}
-		return ""
-	})
+	return model.RenderOperationLogContent(action, params, model.LogLanguageEN)
 }
 
 // auditOperatorInfo 从上下文构建操作者身份信息（管理员 id/用户名/角色）。

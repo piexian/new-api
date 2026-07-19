@@ -306,6 +306,7 @@ func GetAllMidjourney(c *gin.Context) {
 
 	items := model.GetAllTasks(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
 	total := model.CountAllTasks(queryParams)
+	localizeMidjourneyLogs(items, resolveRequestLogLanguage(c))
 
 	if setting.MjForwardUrlEnabled {
 		for i, midjourney := range items {
@@ -331,6 +332,7 @@ func GetUserMidjourney(c *gin.Context) {
 
 	items := model.GetAllUserTask(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
 	total := model.CountAllUserTask(userId, queryParams)
+	localizeMidjourneyLogs(items, resolveRequestLogLanguage(c))
 
 	if setting.MjForwardUrlEnabled {
 		for i, midjourney := range items {

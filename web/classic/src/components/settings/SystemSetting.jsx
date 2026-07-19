@@ -110,6 +110,7 @@ const SystemSetting = () => {
     SMTPStartTLSEnabled: '',
     SMTPForceAuthLogin: '',
     EmailProvider: 'smtp',
+    EmailDefaultLanguage: 'en',
     CFEmailAccountID: '',
     CFEmailAPIToken: '',
     CFEmailFrom: '',
@@ -386,6 +387,12 @@ const SystemSetting = () => {
 
     if (originInputs['EmailProvider'] !== inputs.EmailProvider) {
       options.push({ key: 'EmailProvider', value: inputs.EmailProvider });
+    }
+    if (originInputs['EmailDefaultLanguage'] !== inputs.EmailDefaultLanguage) {
+      options.push({
+        key: 'EmailDefaultLanguage',
+        value: inputs.EmailDefaultLanguage,
+      });
     }
 
     if (inputs.EmailProvider === 'smtp') {
@@ -1593,6 +1600,25 @@ const SystemSetting = () => {
                         </Form.Select.Option>
                         <Form.Select.Option value='cloudflare'>
                           {t('Cloudflare Email Service')}
+                        </Form.Select.Option>
+                      </Form.Select>
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Select
+                        field='EmailDefaultLanguage'
+                        label={t('Default email language')}
+                        extraText={t(
+                          'Used for new users and when a personal language has no email template.',
+                        )}
+                      >
+                        <Form.Select.Option value='zh-CN'>
+                          简体中文
+                        </Form.Select.Option>
+                        <Form.Select.Option value='zh-TW'>
+                          繁體中文
+                        </Form.Select.Option>
+                        <Form.Select.Option value='en'>
+                          English
                         </Form.Select.Option>
                       </Form.Select>
                     </Col>

@@ -152,8 +152,8 @@ export interface LogOtherData {
       clamped: number
     }
   }
-  // Language-independent operation descriptor (audit/login logs).
-  // Frontend renders localized content from action + params via i18n templates.
+  // Language-independent operation descriptor (audit/login logs). The API uses
+  // it for log-language localization; the frontend keeps it as a legacy fallback.
   op?: {
     action?: string
     params?: Record<string, string | number | boolean | string[]>

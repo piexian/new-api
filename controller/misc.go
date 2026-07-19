@@ -403,13 +403,13 @@ func SendPasswordResetEmail(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if _, err := model.GetUniqueUserByEmail(email); err == nil {
+	if user, err := model.GetUniqueUserByEmail(email); err == nil {
 		code := common.GenerateVerificationCode(0)
 		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
 		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", strings.TrimRight(system_setting.ServerAddress, "/"), url.QueryEscape(email), url.QueryEscape(code))
 		if err := service.SendTemplatedEmail(
 			service.EmailTemplateEventPasswordReset,
-			i18n.GetLangFromContext(c),
+			user.GetSetting().Language,
 			email,
 			map[string]string{
 				"reset_url":     link,

@@ -121,10 +121,10 @@ function buildTypeDetailSegments(
   other: LogOtherData | null,
   t: (key: string, opts?: Record<string, unknown>) => string
 ): DetailSegment[] {
-  // Audit (type=3) and login (type=7) logs: render localized content from the
-  // structured op descriptor instead of the raw (English-fallback) content.
+  // The API localizes audit/login content using the user's log preference.
+  // Keep the client-side template only as a fallback for legacy API responses.
   if (log.type === 3 || log.type === 7) {
-    const text = renderAuditContent(other, t)
+    const text = log.content || renderAuditContent(other, t)
     return text ? [{ text }] : []
   }
 
