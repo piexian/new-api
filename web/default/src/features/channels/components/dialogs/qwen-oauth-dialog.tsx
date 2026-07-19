@@ -110,16 +110,42 @@ export function QwenOAuthDialog({
       }
 
       const initialInterval = Math.max(response.data?.interval || 5, 1)
+      const expiresAt =
+        Date.now() + Math.max(response.data?.expires_in || 600, 1) * 1000
       setVerificationUrl(url)
       setStatus('pending')
       window.open(url, '_blank', 'noopener,noreferrer')
 
-      const poll = async (intervalSeconds: number): Promise<void> => {
+      const schedulePoll = (intervalSeconds: number, failureCount: number) => {
+        const intervalMs = intervalSeconds * 1000
+        const jitterWindowMs =
+          failureCount <= 0
+            ? 1000
+            : Math.min(intervalMs * 2 ** Math.min(failureCount, 3), 30_000)
+        timerRef.current = setTimeout(
+          () => void poll(intervalSeconds, failureCount),
+          intervalMs + Math.floor(Math.random() * jitterWindowMs)
+        )
+      }
+
+      const poll = async (
+        intervalSeconds: number,
+        failureCount: number
+      ): Promise<void> => {
         if (cancelledRef.current) return
+        if (Date.now() >= expiresAt) {
+          stopPolling()
+          setStatus('idle')
+          toast.error(t('Authorization session expired'))
+          return
+        }
         try {
           const result = await completeQwenOAuth(normalizedAPIKey, channelId)
           if (!result.success) {
-            throw new Error(result.message || t('Authorization failed'))
+            stopPolling()
+            setStatus('idle')
+            toast.error(result.message || t('Authorization failed'))
+            return
           }
 
           const nextStatus = result.data?.status || 'authorization_pending'
@@ -145,23 +171,14 @@ export function QwenOAuthDialog({
 
           const nextInterval =
             nextStatus === 'slow_down' ? intervalSeconds + 5 : intervalSeconds
-          timerRef.current = setTimeout(
-            () => void poll(nextInterval),
-            nextInterval * 1000
-          )
-        } catch (error) {
-          stopPolling()
-          setStatus('idle')
-          toast.error(
-            error instanceof Error ? error.message : t('Authorization failed')
-          )
+          schedulePoll(nextInterval, 0)
+        } catch {
+          if (cancelledRef.current) return
+          schedulePoll(intervalSeconds, failureCount + 1)
         }
       }
 
-      timerRef.current = setTimeout(
-        () => void poll(initialInterval),
-        initialInterval * 1000
-      )
+      schedulePoll(initialInterval, 0)
     } catch (error) {
       stopPolling()
       toast.error(

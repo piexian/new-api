@@ -22,6 +22,32 @@ type CredentialUser struct {
 	AliyunID string `json:"aliyun_id,omitempty"`
 }
 
+func ExtractAPIKey(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if strings.HasPrefix(trimmed, "sk-sp-") {
+		return trimmed, nil
+	}
+	if trimmed == "" {
+		return "", errors.New("qwen token plan credential is empty")
+	}
+
+	var credential struct {
+		Type   string `json:"type"`
+		APIKey string `json:"api_key"`
+	}
+	if err := common.UnmarshalJsonStr(trimmed, &credential); err != nil {
+		return "", errors.New("qwen token plan credential must be an sk-sp- API key or a valid JSON object")
+	}
+	if strings.TrimSpace(credential.Type) != "qwen_token_plan" {
+		return "", errors.New("qwen token plan credential has an invalid type")
+	}
+	apiKey := strings.TrimSpace(credential.APIKey)
+	if !strings.HasPrefix(apiKey, "sk-sp-") {
+		return "", errors.New("qwen token plan credential must include an sk-sp- API key")
+	}
+	return apiKey, nil
+}
+
 func ParseCredential(raw string) (*Credential, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {

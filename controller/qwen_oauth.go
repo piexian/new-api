@@ -49,19 +49,28 @@ func startQwenOAuthWithChannelID(c *gin.Context, channelID int) {
 			return
 		}
 		proxyURL = channel.GetSetting().Proxy
+		if _, err := qwentokenplan.ExtractAPIKey(channel.Key); err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "existing channel does not contain a reusable sk-sp- API key"})
+			return
+		}
+	}
+
+	session := sessions.Default(c)
+	clientID, _ := session.Get(qwenOAuthSessionKey(channelID, "client_id")).(string)
+	if strings.TrimSpace(clientID) == "" {
+		clientID = uuid.NewString()
+		session.Set(qwenOAuthSessionKey(channelID, "client_id"), clientID)
 	}
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
-	flow, err := service.CreateQwenOAuthAuthorizationFlow(ctx, proxyURL, uuid.NewString())
+	flow, err := service.CreateQwenOAuthAuthorizationFlow(ctx, proxyURL, clientID)
 	if err != nil {
 		common.SysError("failed to start qwen oauth: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "启动 QianWen 授权失败，请稍后重试"})
 		return
 	}
 
-	session := sessions.Default(c)
-	session.Set(qwenOAuthSessionKey(channelID, "client_id"), flow.ClientID)
 	session.Set(qwenOAuthSessionKey(channelID, "token"), flow.Token)
 	session.Set(qwenOAuthSessionKey(channelID, "verifier"), flow.Verifier)
 	session.Set(qwenOAuthSessionKey(channelID, "expires_at"), time.Now().Add(time.Duration(flow.ExpiresIn)*time.Second).Unix())
@@ -109,12 +118,12 @@ func completeQwenOAuthWithChannelID(c *gin.Context, channelID int) {
 			return
 		}
 		proxyURL = channel.GetSetting().Proxy
-		credential, err := qwentokenplan.ParseCredential(channel.Key)
+		storedAPIKey, err := qwentokenplan.ExtractAPIKey(channel.Key)
 		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "existing channel credential is invalid"})
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "existing channel does not contain a reusable sk-sp- API key"})
 			return
 		}
-		apiKey = credential.APIKey
+		apiKey = storedAPIKey
 	}
 	if !strings.HasPrefix(apiKey, "sk-sp-") {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "a valid sk-sp- API key is required before OAuth authorization"})
@@ -136,7 +145,7 @@ func completeQwenOAuthWithChannelID(c *gin.Context, channelID int) {
 	result, err := service.PollQwenOAuthAuthorization(ctx, proxyURL, clientID, token, verifier)
 	if err != nil {
 		common.SysError("failed to poll qwen oauth: " + err.Error())
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "查询 QianWen 授权状态失败，请稍后重试"})
+		c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "查询 QianWen 授权状态失败，请稍后重试"})
 		return
 	}
 	if result.Status != "complete" {
@@ -208,7 +217,7 @@ func getQwenTokenPlanChannel(channelID int) (*model.Channel, error) {
 }
 
 func clearQwenOAuthSession(session sessions.Session, channelID int) {
-	for _, field := range []string{"client_id", "token", "verifier", "expires_at"} {
+	for _, field := range []string{"token", "verifier", "expires_at"} {
 		session.Delete(qwenOAuthSessionKey(channelID, field))
 	}
 	_ = session.Save()

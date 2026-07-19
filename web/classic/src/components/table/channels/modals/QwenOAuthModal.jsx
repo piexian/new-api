@@ -96,12 +96,33 @@ const QwenOAuthModal = ({
         Number(response?.data?.data?.interval || 5),
         1,
       );
+      const expiresAt =
+        Date.now() +
+        Math.max(Number(response?.data?.data?.expires_in || 600), 1) * 1000;
       setVerificationUrl(url);
       setStatus('pending');
       window.open(url, '_blank', 'noopener,noreferrer');
 
-      const poll = async (intervalSeconds) => {
+      const schedulePoll = (intervalSeconds, failureCount) => {
+        const intervalMs = intervalSeconds * 1000;
+        const jitterWindowMs =
+          failureCount <= 0
+            ? 1000
+            : Math.min(intervalMs * 2 ** Math.min(failureCount, 3), 30000);
+        timerRef.current = setTimeout(
+          () => poll(intervalSeconds, failureCount),
+          intervalMs + Math.floor(Math.random() * jitterWindowMs),
+        );
+      };
+
+      const poll = async (intervalSeconds, failureCount) => {
         if (cancelledRef.current) return;
+        if (Date.now() >= expiresAt) {
+          stopPolling();
+          setStatus('idle');
+          showError(t('授权会话已过期'));
+          return;
+        }
         try {
           const completePath = channelId
             ? `/api/channel/${channelId}/qwen/oauth/complete`
@@ -112,7 +133,10 @@ const QwenOAuthModal = ({
             { skipErrorHandler: true },
           );
           if (!result?.data?.success) {
-            throw new Error(result?.data?.message || t('授权失败'));
+            stopPolling();
+            setStatus('idle');
+            showError(result?.data?.message || t('授权失败'));
+            return;
           }
 
           const nextStatus =
@@ -139,21 +163,14 @@ const QwenOAuthModal = ({
 
           const nextInterval =
             nextStatus === 'slow_down' ? intervalSeconds + 5 : intervalSeconds;
-          timerRef.current = setTimeout(
-            () => poll(nextInterval),
-            nextInterval * 1000,
-          );
-        } catch (error) {
-          stopPolling();
-          setStatus('idle');
-          showError(error?.message || t('授权失败'));
+          schedulePoll(nextInterval, 0);
+        } catch {
+          if (cancelledRef.current) return;
+          schedulePoll(intervalSeconds, failureCount + 1);
         }
       };
 
-      timerRef.current = setTimeout(
-        () => poll(initialInterval),
-        initialInterval * 1000,
-      );
+      schedulePoll(initialInterval, 0);
     } catch (error) {
       stopPolling();
       showError(error?.message || t('启动授权失败'));
