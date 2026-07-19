@@ -131,19 +131,9 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     name: CHANNEL_TYPES[69],
     icon: 'https://avatars.githubusercontent.com/u/282503705?s=200&v=4',
     defaultBaseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com',
-    supportedModels: [
-      'qwen3.8-max-preview',
-      'qwen3.7-max',
-      'qwen3.7-plus',
-      'qwen3.6-flash',
-      'glm-5.2',
-      'deepseek-v4-pro',
-    ],
     hints: {
       baseUrl: 'Default: https://token-plan.cn-beijing.maas.aliyuncs.com',
-      key: 'Enter an sk-sp- key, then complete QianWen OAuth to bind plan usage access',
-      models:
-        'qwen3.8-max-preview,qwen3.7-max,qwen3.7-plus,qwen3.6-flash,glm-5.2,deepseek-v4-pro',
+      key: 'Enter sk-sp- API key',
       other:
         'Native OpenAI Chat, Responses, and Anthropic Messages routing for Token Plan Personal',
     },

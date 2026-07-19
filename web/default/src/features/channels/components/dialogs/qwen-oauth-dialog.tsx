@@ -91,7 +91,10 @@ export function QwenOAuthDialog({
 
   const startAuthorization = async () => {
     const normalizedAPIKey = apiKey.trim()
-    if (!channelId && !normalizedAPIKey.startsWith('sk-sp-')) {
+    if (
+      !normalizedAPIKey.startsWith('sk-sp-') &&
+      (!channelId || normalizedAPIKey !== '')
+    ) {
       toast.error(t('Enter a valid sk-sp- Token Plan API key first'))
       return
     }
@@ -103,7 +106,7 @@ export function QwenOAuthDialog({
     setIdentity(null)
 
     try {
-      const response = await startQwenOAuth(channelId)
+      const response = await startQwenOAuth(normalizedAPIKey, channelId)
       const url = response.data?.verification_url?.trim() || ''
       if (!response.success || !url) {
         throw new Error(response.message || t('Failed to start authorization'))

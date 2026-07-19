@@ -170,7 +170,7 @@ function type2secretPrompt(type) {
     case 57:
       return '请输入 JSON 格式的 OAuth 凭据（必须包含 access_token 和 account_id）';
     case CHANNEL_TYPE_QWEN_TOKEN_PLAN:
-      return '请输入 sk-sp- API Key 并完成千问 OAuth 绑定';
+      return '请输入 sk-sp- Token Plan API Key';
     case 61:
       return '按照如下格式输入：APPID|APIKey|APISecret';
     default:
@@ -1391,6 +1391,9 @@ const EditChannelModal = (props) => {
   const handleQwenOAuthGenerated = (key, identity) => {
     if (key) {
       handleInputChange('key', key);
+    } else if (isEdit) {
+      handleInputChange('key', '');
+      setQwenApiKeyInput('');
     }
     setQwenCredentialBound(true);
     setQwenOAuthIdentity(identity || null);
@@ -1764,12 +1767,12 @@ const EditChannelModal = (props) => {
 
       const rawKey = String(localInputs.key || '').trim();
       if (!isEdit && rawKey === '') {
-        showInfo(t('请先完成千问 OAuth 授权并绑定凭据'));
+        showInfo(t('请输入 sk-sp- Token Plan API Key'));
         return;
       }
-      if (rawKey !== '') {
+      if (rawKey !== '' && !rawKey.startsWith('sk-sp-')) {
         if (!verifyJSON(rawKey)) {
-          showInfo(t('Qwen Token Plan 凭据必须是合法的 JSON 格式'));
+          showInfo(t('请输入 sk-sp- Token Plan API Key'));
           return;
         }
         try {
@@ -3331,18 +3334,16 @@ const EditChannelModal = (props) => {
                               <div className='flex flex-col gap-3'>
                                 <Input
                                   type='password'
-                                  value={isEdit ? '' : qwenApiKeyInput}
-                                  disabled={isEdit || isIonetLocked}
-                                  placeholder={
-                                    isEdit
-                                      ? t('API Key 已保存在绑定凭据中')
-                                      : t('请输入 sk-sp- Token Plan API Key')
-                                  }
+                                  value={qwenApiKeyInput}
+                                  disabled={isIonetLocked}
+                                  placeholder={t(
+                                    '请输入 sk-sp- Token Plan API Key',
+                                  )}
                                   onChange={(value) => {
                                     setQwenApiKeyInput(value);
                                     setQwenCredentialBound(false);
                                     setQwenOAuthIdentity(null);
-                                    handleInputChange('key', '');
+                                    handleInputChange('key', value);
                                   }}
                                   prefix={t('Token Plan API Key')}
                                 />
@@ -3353,10 +3354,11 @@ const EditChannelModal = (props) => {
                                     theme='outline'
                                     disabled={
                                       isIonetLocked ||
-                                      (!isEdit &&
-                                        !qwenApiKeyInput
-                                          .trim()
-                                          .startsWith('sk-sp-'))
+                                      (!qwenApiKeyInput
+                                        .trim()
+                                        .startsWith('sk-sp-') &&
+                                        (!isEdit ||
+                                          qwenApiKeyInput.trim() !== ''))
                                     }
                                     onClick={() =>
                                       setQwenOAuthModalVisible(true)
@@ -3382,7 +3384,7 @@ const EditChannelModal = (props) => {
                                 <Banner
                                   type='warning'
                                   description={t(
-                                    'Qwen Token Plan 个人版仅限交互式编码与 Agent 工具，并且只支持单条绑定凭据。千问没有公开接口证明 API Key 与 OAuth 账号同属一个主体，New API 仅能分别校验并强绑定存储。',
+                                    'OAuth 用于查询 Token Plan 套餐与用量，sk-sp- API Key 仍用于模型推理。授权页完成登录后，本页面会自动轮询并绑定凭据。',
                                   )}
                                 />
                               </div>

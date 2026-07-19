@@ -409,12 +409,12 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   50: 'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)',
   51: 'Format: Access Key ID|Secret Access Key',
   57: 'Paste Codex OAuth JSON credential (access_token / refresh_token / account_id)',
-  69: 'Complete Qwen authorization to create a bound Token Plan credential',
+  69: 'Enter a valid sk-sp- Token Plan API key first',
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {
   3: 'For channels added after May 10, 2025, no need to remove "." from model names during deployment',
   8: 'If connecting to upstream One API or New API relay projects, use OpenAI type instead unless you know what you are doing',
   37: 'Dify channels only support chatflow and agent, and agent does not support images',
-  69: 'Qwen Token Plan Personal is limited to interactive coding and agent tools. It supports one bound credential only: an sk-sp- inference key plus QianWen OAuth for plan usage. QianWen does not provide an API to prove both credentials belong to the same account.',
+  69: 'Sign in with the QianWen account used for Token Plan usage lookup. The API key remains the inference credential.',
 }

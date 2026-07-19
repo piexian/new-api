@@ -206,6 +206,13 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 	switch channel.Type {
 	case constant.ChannelTypeAnthropic:
 		headers = GetClaudeAuthHeader(key)
+	case constant.ChannelTypeQwenTokenPlan:
+		apiKey, err := qwentokenplan.ExtractAPIKey(key)
+		if err != nil {
+			return nil, err
+		}
+		key = apiKey
+		headers = GetAuthHeader(key)
 	default:
 		headers = GetAuthHeader(key)
 	}
@@ -534,7 +541,7 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 		trimmedKey := strings.TrimSpace(channel.Key)
 		if isAdd || trimmedKey != "" {
-			if _, err := qwentokenplan.ParseCredential(trimmedKey); err != nil {
+			if _, err := qwentokenplan.ExtractAPIKey(trimmedKey); err != nil {
 				return err
 			}
 		}
@@ -1024,6 +1031,18 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 
+	if channel.Type == constant.ChannelTypeQwenTokenPlan && strings.TrimSpace(channel.Key) != "" {
+		mergedKey, err := qwentokenplan.MergeAPIKey(originChannel.Key, channel.Key, time.Now())
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		channel.Key = mergedKey
+	}
+
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
 		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
@@ -1281,11 +1300,15 @@ func FetchModels(c *gin.Context) {
 	key = strings.Split(key, "\n")[0]
 
 	if req.Type == constant.ChannelTypeQwenTokenPlan {
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"data":    constant.QwenTokenPlanModelList,
-		})
-		return
+		apiKey, err := qwentokenplan.ExtractAPIKey(key)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		key = apiKey
 	}
 
 	if req.Type == constant.ChannelTypeOllama {
@@ -1436,7 +1459,9 @@ func FetchModels(c *gin.Context) {
 		}
 	}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
-	if req.Type == constant.ChannelTypeKilo {
+	if req.Type == constant.ChannelTypeQwenTokenPlan {
+		url = qwentokenplan.OpenAIBaseURL(baseURL) + "/models"
+	} else if req.Type == constant.ChannelTypeKilo {
 		url = fmt.Sprintf("%s/models", baseURL)
 	} else if req.Type == constant.ChannelTypeZenMux {
 		url = fmt.Sprintf("%s/models", baseURL)

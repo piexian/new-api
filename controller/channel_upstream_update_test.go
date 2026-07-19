@@ -1,10 +1,12 @@
 package controller
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
@@ -151,6 +153,56 @@ func TestFetchChannelUpstreamModelIDsMiniMaxNormalizesBaseURLAndKeepsNativeEndpo
 	require.Contains(t, models, "MiniMax-M2.7")
 	require.Contains(t, models, minimax.MusicCoverPreprocessModel)
 	require.Contains(t, models, minimax.LyricsGenerationModel)
+}
+
+func TestFetchChannelUpstreamModelIDsQwenUsesModelsEndpointAndBoundAPIKey(t *testing.T) {
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		require.Equal(t, "Bearer sk-sp-models", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"qwen-live-model","object":"model"}]}`))
+	}))
+	defer server.Close()
+
+	baseURL := server.URL
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeQwenTokenPlan,
+		Key:     `{"type":"qwen_token_plan","api_key":"sk-sp-models","access_token":"oauth-token","expires_at":"2099-01-01T00:00:00Z"}`,
+		BaseURL: &baseURL,
+	}
+
+	models, err := fetchChannelUpstreamModelIDs(channel)
+	require.NoError(t, err)
+	require.Equal(t, "/compatible-mode/v1/models", gotPath)
+	require.Equal(t, []string{"qwen-live-model"}, models)
+}
+
+func TestFetchModelsQwenUsesLiveModelsEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/compatible-mode/v1/models", r.URL.Path)
+		require.Equal(t, "Bearer sk-sp-create", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"qwen-create-model","object":"model"}]}`))
+	}))
+	defer server.Close()
+
+	payload, err := common.Marshal(map[string]any{
+		"base_url": server.URL,
+		"type":     constant.ChannelTypeQwenTokenPlan,
+		"key":      "sk-sp-create",
+	})
+	require.NoError(t, err)
+
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(payload))
+	context.Request.Header.Set("Content-Type", "application/json")
+
+	FetchModels(context)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"success":true,"data":["qwen-create-model"]}`, recorder.Body.String())
 }
 
 func TestFetchChannelUpstreamModelIDsVolcEngineUsesArkDataPlaneModels(t *testing.T) {

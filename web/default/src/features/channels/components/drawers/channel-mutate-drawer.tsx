@@ -203,14 +203,6 @@ const DOUBAO_PLAN_DEFAULT_MODEL = 'ark-code-latest'
 const OPENCODE_ZEN_BASE_URL = 'opencode-zen'
 const QWEN_TOKEN_PLAN_BASE_URL =
   'https://token-plan.cn-beijing.maas.aliyuncs.com'
-const QWEN_TOKEN_PLAN_DEFAULT_MODELS = [
-  'qwen3.8-max-preview',
-  'qwen3.7-max',
-  'qwen3.7-plus',
-  'qwen3.6-flash',
-  'glm-5.2',
-  'deepseek-v4-pro',
-]
 const OPENCODE_GO_BASE_URL = 'opencode-go'
 const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn'
 const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai'
@@ -1351,10 +1343,6 @@ export function ChannelMutateDrawer({
       if (!currentBaseUrlValue || currentBaseUrlValue === '') {
         form.setValue('base_url', QWEN_TOKEN_PLAN_BASE_URL)
       }
-      const currentModelsValue = form.getValues('models')
-      if (!currentModelsValue || currentModelsValue === '') {
-        form.setValue('models', QWEN_TOKEN_PLAN_DEFAULT_MODELS.join(','))
-      }
     }
 
     // Type 18 (Xunfei) - set default other (version)
@@ -1492,6 +1480,12 @@ export function ChannelMutateDrawer({
           shouldDirty: true,
           shouldValidate: true,
         })
+      } else if (channelId) {
+        form.setValue('key', '', {
+          shouldDirty: false,
+          shouldValidate: true,
+        })
+        setQwenAPIKeyInput('')
       }
       setQwenOAuthIdentity(identity)
       if (channelId) {
@@ -3465,25 +3459,17 @@ export function ChannelMutateDrawer({
                                           <Input
                                             type='password'
                                             autoComplete='new-password'
-                                            value={
-                                              isEditing ? '' : qwenAPIKeyInput
-                                            }
-                                            placeholder={
-                                              isEditing
-                                                ? t(
-                                                    'The saved API key is kept inside the bound credential'
-                                                  )
-                                                : t('Enter sk-sp- API key')
-                                            }
-                                            disabled={
-                                              sensitiveLocked || isEditing
-                                            }
+                                            value={qwenAPIKeyInput}
+                                            placeholder={t(
+                                              'Enter sk-sp- API key'
+                                            )}
+                                            disabled={sensitiveLocked}
                                             onChange={(event) => {
-                                              setQwenAPIKeyInput(
+                                              const nextAPIKey =
                                                 event.target.value
-                                              )
+                                              setQwenAPIKeyInput(nextAPIKey)
                                               setQwenOAuthIdentity(null)
-                                              form.setValue('key', '', {
+                                              form.setValue('key', nextAPIKey, {
                                                 shouldDirty: true,
                                                 shouldValidate: true,
                                               })
@@ -3497,11 +3483,9 @@ export function ChannelMutateDrawer({
                                           <span>
                                             {isEditing
                                               ? t(
-                                                  'Authorize again to replace the OAuth portion while keeping the saved sk-sp- API key.'
+                                                  'Enter new key to update, or leave empty to keep current key'
                                                 )
-                                              : t(
-                                                  'Enter the inference API key, then authorize QianWen usage access. Both credentials are stored together.'
-                                                )}
+                                              : t('Enter sk-sp- API key')}
                                           </span>
                                         </FormDescription>
 
@@ -3512,10 +3496,12 @@ export function ChannelMutateDrawer({
                                             size='sm'
                                             disabled={
                                               sensitiveLocked ||
-                                              (!isEditing &&
-                                                !qwenAPIKeyInput
-                                                  .trim()
-                                                  .startsWith('sk-sp-'))
+                                              (!qwenAPIKeyInput
+                                                .trim()
+                                                .startsWith('sk-sp-') &&
+                                                (!isEditing ||
+                                                  qwenAPIKeyInput.trim() !==
+                                                    ''))
                                             }
                                             onClick={() =>
                                               setQwenOAuthDialogOpen(true)
@@ -3541,7 +3527,7 @@ export function ChannelMutateDrawer({
                                         <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
                                           <AlertDescription>
                                             {t(
-                                              'Qwen Token Plan Personal is for interactive coding and agent tools only. QianWen provides no public API to prove the sk-sp- key and OAuth account have the same owner; New API validates each credential separately and binds them in one channel record.'
+                                              'Sign in with the QianWen account used for Token Plan usage lookup. The API key remains the inference credential.'
                                             )}
                                           </AlertDescription>
                                         </Alert>

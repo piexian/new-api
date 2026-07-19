@@ -117,8 +117,10 @@ function isVertexJsonKey(value: string | undefined): boolean {
 }
 
 function isQwenTokenPlanCredential(value: string | undefined): boolean {
+  const trimmed = value?.trim() || ''
+  if (trimmed.startsWith('sk-sp-')) return true
   try {
-    const parsed = parseOptionalJson(value)
+    const parsed = parseOptionalJson(trimmed)
     if (!isJsonObjectValue(parsed)) return false
     return (
       parsed.type === 'qwen_token_plan' &&
@@ -298,7 +300,7 @@ export const channelFormSchema = z
         addRequiredIssue(
           ctx,
           'key',
-          'Complete Qwen authorization to bind the sk-sp- API key and OAuth account'
+          'Enter a valid sk-sp- Token Plan API key first'
         )
       }
     }

@@ -68,7 +68,10 @@ const QwenOAuthModal = ({
 
   const startOAuth = async () => {
     const normalizedApiKey = String(apiKey || '').trim();
-    if (!channelId && !normalizedApiKey.startsWith('sk-sp-')) {
+    if (
+      !normalizedApiKey.startsWith('sk-sp-') &&
+      (!channelId || normalizedApiKey !== '')
+    ) {
       showError(t('请先输入有效的 sk-sp- Token Plan API Key'));
       return;
     }
@@ -84,7 +87,7 @@ const QwenOAuthModal = ({
         : '/api/channel/qwen/oauth/start';
       const response = await API.post(
         startPath,
-        {},
+        { api_key: normalizedApiKey },
         { skipErrorHandler: true },
       );
       const url = response?.data?.data?.verification_url || '';

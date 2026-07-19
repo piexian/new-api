@@ -84,6 +84,23 @@ func EncodeCredential(credential Credential) (string, error) {
 	return string(encoded), nil
 }
 
+func MergeAPIKey(existing string, replacement string, now time.Time) (string, error) {
+	if replacementCredential, err := ParseCredential(replacement); err == nil {
+		return EncodeCredential(*replacementCredential)
+	}
+
+	apiKey, err := ExtractAPIKey(replacement)
+	if err != nil {
+		return "", err
+	}
+	existingCredential, err := ParseCredential(existing)
+	if err != nil || existingCredential.OAuthExpired(now) {
+		return apiKey, nil
+	}
+	existingCredential.APIKey = apiKey
+	return EncodeCredential(*existingCredential)
+}
+
 func (credential *Credential) OAuthExpired(now time.Time) bool {
 	if credential == nil {
 		return true

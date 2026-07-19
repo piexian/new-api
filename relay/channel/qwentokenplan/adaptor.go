@@ -81,11 +81,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
-	credential, err := ParseCredential(info.ApiKey)
+	apiKey, err := ExtractAPIKey(info.ApiKey)
 	if err != nil {
 		return err
 	}
-	apiKey := credential.APIKey
 	if a.RequestMode == requestModeClaude {
 		req.Set("x-api-key", apiKey)
 		anthropicVersion := c.Request.Header.Get("anthropic-version")
@@ -136,7 +135,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 }
 
 func (a *Adaptor) GetModelList() []string {
-	return channelconstant.QwenTokenPlanModelList
+	return nil
 }
 
 func (a *Adaptor) GetChannelName() string {

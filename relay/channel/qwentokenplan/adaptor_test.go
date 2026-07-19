@@ -89,6 +89,24 @@ func TestSetupRequestHeaderDoesNotForwardUsageToken(t *testing.T) {
 	require.NotContains(t, header.Get("Authorization"), "cli-access-token")
 }
 
+func TestSetupRequestHeaderAcceptsRawTokenPlanKey(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{ApiKey: "sk-sp-raw"},
+	}
+	adaptor := &Adaptor{}
+	adaptor.Init(info)
+	header := http.Header{}
+
+	require.NoError(t, adaptor.SetupRequestHeader(context, &header, info))
+	require.Equal(t, "Bearer sk-sp-raw", header.Get("Authorization"))
+}
+
 func TestBoundCredentialParsing(t *testing.T) {
 	t.Parallel()
 	credential, err := ParseCredential(`{"type":"qwen_token_plan","api_key":"sk-sp-relay","access_token":"cli-access-token","expires_at":"2099-01-01T00:00:00Z","user":{"aliyun_id":"123"}}`)

@@ -2,7 +2,9 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,12 +21,20 @@ import (
 	"github.com/google/uuid"
 )
 
-type qwenOAuthCompleteRequest struct {
+type qwenOAuthRequest struct {
 	APIKey string `json:"api_key"`
 }
 
 func qwenOAuthSessionKey(channelID int, field string) string {
 	return fmt.Sprintf("qwen_oauth_%s_%d", field, channelID)
+}
+
+func bindOptionalQwenOAuthRequest(c *gin.Context) (qwenOAuthRequest, error) {
+	request := qwenOAuthRequest{}
+	if err := c.ShouldBindJSON(&request); err != nil && !errors.Is(err, io.EOF) {
+		return request, err
+	}
+	return request, nil
 }
 
 func StartQwenOAuth(c *gin.Context) {
@@ -41,18 +51,26 @@ func StartQwenOAuthForChannel(c *gin.Context) {
 }
 
 func startQwenOAuthWithChannelID(c *gin.Context, channelID int) {
+	request, err := bindOptionalQwenOAuthRequest(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
 	proxyURL := ""
+	var channel *model.Channel
 	if channelID > 0 {
-		channel, err := getQwenTokenPlanChannel(channelID)
+		var err error
+		channel, err = getQwenTokenPlanChannel(channelID)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 			return
 		}
 		proxyURL = channel.GetSetting().Proxy
-		if _, err := qwentokenplan.ExtractAPIKey(channel.Key); err != nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "existing channel does not contain a reusable sk-sp- API key"})
-			return
-		}
+	}
+	if _, err := resolveQwenOAuthAPIKey(channel, request.APIKey); err != nil {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "a valid sk-sp- API key is required before OAuth authorization"})
+		return
 	}
 
 	session := sessions.Default(c)
@@ -101,14 +119,13 @@ func CompleteQwenOAuthForChannel(c *gin.Context) {
 }
 
 func completeQwenOAuthWithChannelID(c *gin.Context, channelID int) {
-	request := qwenOAuthCompleteRequest{}
-	if err := c.ShouldBindJSON(&request); err != nil {
+	request, err := bindOptionalQwenOAuthRequest(c)
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
 	proxyURL := ""
-	apiKey := strings.TrimSpace(request.APIKey)
 	var channel *model.Channel
 	if channelID > 0 {
 		var err error
@@ -118,14 +135,9 @@ func completeQwenOAuthWithChannelID(c *gin.Context, channelID int) {
 			return
 		}
 		proxyURL = channel.GetSetting().Proxy
-		storedAPIKey, err := qwentokenplan.ExtractAPIKey(channel.Key)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{"success": false, "message": "existing channel does not contain a reusable sk-sp- API key"})
-			return
-		}
-		apiKey = storedAPIKey
 	}
-	if !strings.HasPrefix(apiKey, "sk-sp-") {
+	apiKey, err := resolveQwenOAuthAPIKey(channel, request.APIKey)
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "a valid sk-sp- API key is required before OAuth authorization"})
 		return
 	}
@@ -200,6 +212,16 @@ func completeQwenOAuthWithChannelID(c *gin.Context, channelID int) {
 		data["key"] = encoded
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": data})
+}
+
+func resolveQwenOAuthAPIKey(channel *model.Channel, requestedAPIKey string) (string, error) {
+	if strings.TrimSpace(requestedAPIKey) != "" {
+		return qwentokenplan.ExtractAPIKey(requestedAPIKey)
+	}
+	if channel == nil {
+		return "", fmt.Errorf("qwen token plan API key is required")
+	}
+	return qwentokenplan.ExtractAPIKey(channel.Key)
 }
 
 func getQwenTokenPlanChannel(channelID int) (*model.Channel, error) {

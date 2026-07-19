@@ -374,12 +374,13 @@ export async function refreshCodexCredential(
 // ============================================================================
 
 export async function startQwenOAuth(
+  apiKey: string,
   channelId?: number
 ): Promise<QwenOAuthStartResponse> {
   const path = channelId
     ? `/api/channel/${channelId}/qwen/oauth/start`
     : '/api/channel/qwen/oauth/start'
-  const res = await api.post(path, {}, channelActionConfig())
+  const res = await api.post(path, { api_key: apiKey }, channelActionConfig())
   return res.data
 }
 

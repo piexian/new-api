@@ -21,6 +21,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/opencode"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
+	"github.com/QuantumNous/new-api/relay/channel/qwentokenplan"
 	"github.com/QuantumNous/new-api/relay/channel/zenmux"
 	"github.com/QuantumNous/new-api/service"
 
@@ -280,10 +281,6 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 			return normalizeModelNames(staticModels), nil
 		}
 	}
-	if channel.Type == constant.ChannelTypeQwenTokenPlan {
-		return normalizeModelNames(constant.QwenTokenPlanModelList), nil
-	}
-
 	if channel.Type == constant.ChannelTypeOllama {
 		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])
 		models, err := ollama.FetchOllamaModels(baseURL, key)
@@ -358,6 +355,8 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 			return normalizeModelNames(opencode.ModelList), nil
 		}
 		url = modelsURL
+	case constant.ChannelTypeQwenTokenPlan:
+		url = qwentokenplan.OpenAIBaseURL(baseURL) + "/models"
 	default:
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}
