@@ -345,6 +345,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeXunfeiMaaS:     true,
 	constant.ChannelTypeZenMux:         true,
 	constant.ChannelTypeAdvancedCustom: true,
+	constant.ChannelTypeQwenTokenPlan:  true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {

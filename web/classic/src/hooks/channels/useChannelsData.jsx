@@ -42,6 +42,7 @@ import { openCodexUsageModal } from '../../components/table/channels/modals/Code
 import { openMiniMaxUsageModal } from '../../components/table/channels/modals/MiniMaxUsageModal';
 import { openZhipuCodingPlanUsageModal } from '../../components/table/channels/modals/ZhipuCodingPlanModal';
 import { openKimiCodingPlanUsageModal } from '../../components/table/channels/modals/KimiCodingPlanModal';
+import { openQwenTokenPlanUsageModal } from '../../components/table/channels/modals/QwenTokenPlanModal';
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -806,6 +807,13 @@ export const useChannelsData = () => {
     });
   };
 
+  const openQwenTokenPlanUsage = (record) => {
+    openQwenTokenPlanUsageModal({
+      t,
+      record,
+    });
+  };
+
   const fixChannelsAbilities = async () => {
     const res = await API.post(`/api/channel/fix`);
     const { success, message, data } = res.data;
@@ -1260,6 +1268,7 @@ export const useChannelsData = () => {
     openMiniMaxTokenPlanUsage,
     openZhipuCodingPlanUsage,
     openKimiCodingPlanUsage,
+    openQwenTokenPlanUsage,
     fixChannelsAbilities,
     checkOllamaVersion,
     testChannel,

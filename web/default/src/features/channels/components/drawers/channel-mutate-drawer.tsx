@@ -179,6 +179,10 @@ import {
   type MissingModelsAction,
 } from '../dialogs/missing-models-confirmation-dialog'
 import { ParamOverrideEditorDialog } from '../dialogs/param-override-editor-dialog'
+import {
+  QwenOAuthDialog,
+  type QwenOAuthIdentity,
+} from '../dialogs/qwen-oauth-dialog'
 import { StatusCodeRiskDialog } from '../dialogs/status-code-risk-dialog'
 import { ModelMappingEditor } from '../model-mapping-editor'
 import {
@@ -197,6 +201,16 @@ const DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan'
 const DOUBAO_AGENT_PLAN_BASE_URL = 'doubao-agent-plan'
 const DOUBAO_PLAN_DEFAULT_MODEL = 'ark-code-latest'
 const OPENCODE_ZEN_BASE_URL = 'opencode-zen'
+const QWEN_TOKEN_PLAN_BASE_URL =
+  'https://token-plan.cn-beijing.maas.aliyuncs.com'
+const QWEN_TOKEN_PLAN_DEFAULT_MODELS = [
+  'qwen3.8-max-preview',
+  'qwen3.7-max',
+  'qwen3.7-plus',
+  'qwen3.6-flash',
+  'glm-5.2',
+  'deepseek-v4-pro',
+]
 const OPENCODE_GO_BASE_URL = 'opencode-go'
 const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn'
 const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai'
@@ -639,6 +653,10 @@ export function ChannelMutateDrawer({
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
+  const [qwenOAuthDialogOpen, setQwenOAuthDialogOpen] = useState(false)
+  const [qwenAPIKeyInput, setQwenAPIKeyInput] = useState('')
+  const [qwenOAuthIdentity, setQwenOAuthIdentity] =
+    useState<QwenOAuthIdentity | null>(null)
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
   const initialStatusCodeMappingRef = useRef<string>('')
@@ -715,6 +733,9 @@ export function ChannelMutateDrawer({
     if (!open) {
       setChannelKey(null)
       setIsChannelKeyLoading(false)
+      setQwenOAuthDialogOpen(false)
+      setQwenAPIKeyInput('')
+      setQwenOAuthIdentity(null)
     } else if (channelId) {
       setChannelKey(null)
     }
@@ -872,7 +893,8 @@ export function ChannelMutateDrawer({
     multiKeyMode === 'batch' || multiKeyMode === 'multi_to_single'
   const isChannelDetailLoading = isEditing && isChannelLoading
   const supportsMultiKeyAddMode =
-    currentType !== 57 && !(currentType === 41 && vertexKeyType === 'api_key')
+    ![57, 69].includes(currentType) &&
+    !(currentType === 41 && vertexKeyType === 'api_key')
   const addModeOptions = useMemo(
     () =>
       supportsMultiKeyAddMode
@@ -880,6 +902,17 @@ export function ChannelMutateDrawer({
         : ADD_MODE_OPTIONS.filter((option) => option.value === 'single'),
     [supportsMultiKeyAddMode]
   )
+
+  useEffect(() => {
+    if (currentType === 69 && multiKeyMode !== 'single') {
+      form.setValue('multi_key_mode', 'single', { shouldValidate: true })
+    }
+    if (currentType !== 69) {
+      setQwenOAuthDialogOpen(false)
+      setQwenAPIKeyInput('')
+      setQwenOAuthIdentity(null)
+    }
+  }, [currentType, form, multiKeyMode])
 
   const advancedCustomStats = useMemo(
     () => getAdvancedCustomStats(currentAdvancedCustom),
@@ -1313,6 +1346,17 @@ export function ChannelMutateDrawer({
       }
     }
 
+    if (currentType === 69) {
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue === '') {
+        form.setValue('base_url', QWEN_TOKEN_PLAN_BASE_URL)
+      }
+      const currentModelsValue = form.getValues('models')
+      if (!currentModelsValue || currentModelsValue === '') {
+        form.setValue('models', QWEN_TOKEN_PLAN_DEFAULT_MODELS.join(','))
+      }
+    }
+
     // Type 18 (Xunfei) - set default other (version)
     if (currentType === 18) {
       const currentOther = form.getValues('other')
@@ -1440,6 +1484,25 @@ export function ChannelMutateDrawer({
       setIsCodexCredentialRefreshing(false)
     }
   }, [channelId, queryClient, t])
+
+  const handleQwenOAuthSuccess = useCallback(
+    (key: string | undefined, identity: QwenOAuthIdentity) => {
+      if (key) {
+        form.setValue('key', key, {
+          shouldDirty: true,
+          shouldValidate: true,
+        })
+      }
+      setQwenOAuthIdentity(identity)
+      if (channelId) {
+        queryClient.invalidateQueries({
+          queryKey: channelsQueryKeys.detail(channelId),
+        })
+        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      }
+    },
+    [channelId, form, queryClient]
+  )
 
   // Unified function to update models
   const updateModels = useCallback(
@@ -3384,6 +3447,108 @@ export function ChannelMutateDrawer({
                                       'Enter one API key per line for batch creation'
                                     )
                                   }
+
+                                  if (currentType === 69) {
+                                    const credentialBound = Boolean(
+                                      currentKey?.trim().startsWith('{')
+                                    )
+                                    const authorizeButtonLabel =
+                                      isEditing || credentialBound
+                                        ? t('Authorize again')
+                                        : t('Authorize and bind')
+                                    return (
+                                      <FormItem>
+                                        <FormLabel>
+                                          {t('Token Plan API Key *')}
+                                        </FormLabel>
+                                        <FormControl>
+                                          <Input
+                                            type='password'
+                                            autoComplete='new-password'
+                                            value={
+                                              isEditing ? '' : qwenAPIKeyInput
+                                            }
+                                            placeholder={
+                                              isEditing
+                                                ? t(
+                                                    'The saved API key is kept inside the bound credential'
+                                                  )
+                                                : t('Enter sk-sp- API key')
+                                            }
+                                            disabled={
+                                              sensitiveLocked || isEditing
+                                            }
+                                            onChange={(event) => {
+                                              setQwenAPIKeyInput(
+                                                event.target.value
+                                              )
+                                              setQwenOAuthIdentity(null)
+                                              form.setValue('key', '', {
+                                                shouldDirty: true,
+                                                shouldValidate: true,
+                                              })
+                                            }}
+                                          />
+                                        </FormControl>
+                                        <FormControl>
+                                          <input type='hidden' {...field} />
+                                        </FormControl>
+                                        <FormDescription>
+                                          <span>
+                                            {isEditing
+                                              ? t(
+                                                  'Authorize again to replace the OAuth portion while keeping the saved sk-sp- API key.'
+                                                )
+                                              : t(
+                                                  'Enter the inference API key, then authorize QianWen usage access. Both credentials are stored together.'
+                                                )}
+                                          </span>
+                                        </FormDescription>
+
+                                        <div className='flex flex-wrap items-center gap-2'>
+                                          <Button
+                                            type='button'
+                                            variant='outline'
+                                            size='sm'
+                                            disabled={
+                                              sensitiveLocked ||
+                                              (!isEditing &&
+                                                !qwenAPIKeyInput
+                                                  .trim()
+                                                  .startsWith('sk-sp-'))
+                                            }
+                                            onClick={() =>
+                                              setQwenOAuthDialogOpen(true)
+                                            }
+                                          >
+                                            <KeyRound className='mr-2 h-4 w-4' />
+                                            {authorizeButtonLabel}
+                                          </Button>
+                                          {credentialBound && (
+                                            <Badge variant='secondary'>
+                                              {t('Bound credential ready')}
+                                            </Badge>
+                                          )}
+                                          {qwenOAuthIdentity && (
+                                            <span className='text-muted-foreground text-xs break-all'>
+                                              {qwenOAuthIdentity.email ||
+                                                qwenOAuthIdentity.aliyunId ||
+                                                t('Unknown account')}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                                          <AlertDescription>
+                                            {t(
+                                              'Qwen Token Plan Personal is for interactive coding and agent tools only. QianWen provides no public API to prove the sk-sp- key and OAuth account have the same owner; New API validates each credential separately and binds them in one channel record.'
+                                            )}
+                                          </AlertDescription>
+                                        </Alert>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )
+                                  }
                                   return (
                                     <FormItem>
                                       <FormLabel>{t('API Key *')}</FormLabel>
@@ -5203,6 +5368,14 @@ export function ChannelMutateDrawer({
             ? parseModelsString(form.getValues('models') || '')
             : undefined
         }
+      />
+
+      <QwenOAuthDialog
+        open={qwenOAuthDialogOpen}
+        onOpenChange={setQwenOAuthDialogOpen}
+        apiKey={qwenAPIKeyInput}
+        channelId={isEditing ? channelId || undefined : undefined}
+        onSuccess={handleQwenOAuthSuccess}
       />
 
       <SecureVerificationDialog

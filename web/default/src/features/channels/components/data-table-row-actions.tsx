@@ -70,6 +70,7 @@ import {
   isKimiCodingPlanChannel,
   isMiniMaxTokenPlanChannel,
   isMultiKeyChannel,
+  isQwenTokenPlanChannel,
   isZhipuCodingPlanChannel,
 } from '../lib'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
@@ -102,7 +103,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const canQueryPlanUsage =
     isMiniMaxTokenPlanChannel(channel) ||
     isZhipuCodingPlanChannel(channel) ||
-    isKimiCodingPlanChannel(channel)
+    isKimiCodingPlanChannel(channel) ||
+    isQwenTokenPlanChannel(channel)
 
   const handleEdit = () => {
     setCurrentRow(channel)
@@ -304,7 +306,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {canQueryPlanUsage && (
             <DropdownMenuItem onClick={handleQueryPlanUsage}>
-              {isMiniMaxTokenPlanChannel(channel)
+              {isMiniMaxTokenPlanChannel(channel) ||
+              isQwenTokenPlanChannel(channel)
                 ? t('Token Plan')
                 : t('Coding Plan')}
               <DropdownMenuShortcut>

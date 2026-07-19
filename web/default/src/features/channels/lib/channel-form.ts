@@ -116,6 +116,24 @@ function isVertexJsonKey(value: string | undefined): boolean {
   }
 }
 
+function isQwenTokenPlanCredential(value: string | undefined): boolean {
+  try {
+    const parsed = parseOptionalJson(value)
+    if (!isJsonObjectValue(parsed)) return false
+    return (
+      parsed.type === 'qwen_token_plan' &&
+      typeof parsed.api_key === 'string' &&
+      parsed.api_key.startsWith('sk-sp-') &&
+      typeof parsed.access_token === 'string' &&
+      parsed.access_token.trim() !== '' &&
+      typeof parsed.expires_at === 'string' &&
+      parsed.expires_at.trim() !== ''
+    )
+  } catch {
+    return false
+  }
+}
+
 function addRequiredIssue(
   ctx: z.RefinementCtx,
   path: string,
@@ -264,6 +282,23 @@ export const channelFormSchema = z
           ctx,
           'key',
           'Codex credential must be a JSON object with access_token and account_id'
+        )
+      }
+    }
+
+    if (data.type === 69) {
+      if (data.multi_key_mode && data.multi_key_mode !== 'single') {
+        addRequiredIssue(
+          ctx,
+          'multi_key_mode',
+          'Qwen Token Plan channels do not support batch creation'
+        )
+      }
+      if (data.key?.trim() && !isQwenTokenPlanCredential(data.key)) {
+        addRequiredIssue(
+          ctx,
+          'key',
+          'Complete Qwen authorization to bind the sk-sp- API key and OAuth account'
         )
       }
     }

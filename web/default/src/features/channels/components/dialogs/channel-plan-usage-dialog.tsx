@@ -48,7 +48,7 @@ import dayjs from '@/lib/dayjs'
 import type { ChannelPlanUsageResponse, KimiExtraUsage } from '../../api'
 import type { Channel } from '../../types'
 
-export type ChannelPlanUsageKind = 'minimax' | 'zhipu' | 'kimi'
+export type ChannelPlanUsageKind = 'minimax' | 'zhipu' | 'kimi' | 'qwen'
 
 type ChannelPlanUsageDialogProps = {
   open: boolean
@@ -1248,6 +1248,112 @@ function KimiUsageView({
   )
 }
 
+function QwenTokenPlanUsageView({
+  response,
+  onRefresh,
+  isRefreshing,
+}: {
+  response: ChannelPlanUsageResponse | null
+  onRefresh: () => void
+  isRefreshing?: boolean
+}) {
+  const { t } = useTranslation()
+  const usage = toRecord(response?.data)
+  const usedPercent = clampPercent(usage?.used_percent)
+  const subscribed = usage?.subscribed === true
+
+  return (
+    <div className='space-y-4'>
+      {response?.success === false && (
+        <div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400'>
+          {response.message || t('Failed to fetch Token Plan usage')}
+        </div>
+      )}
+
+      <div className='rounded-lg border p-4'>
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <StatusBadge
+              label={t('Qwen Token Plan')}
+              variant='cyan'
+              copyable={false}
+            />
+            {usage && (
+              <StatusBadge
+                label={subscribed ? t('Subscribed') : t('Not Subscribed')}
+                variant={subscribed ? 'success' : 'warning'}
+                copyable={false}
+              />
+            )}
+            {typeof response?.upstream_status === 'number' && (
+              <StatusBadge
+                label={`${t('Upstream Status')}: ${response.upstream_status}`}
+                variant='neutral'
+                copyable={false}
+              />
+            )}
+          </div>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={onRefresh}
+            disabled={Boolean(isRefreshing)}
+          >
+            <RefreshCw className='mr-1.5 h-3.5 w-3.5' />
+            {t('Refresh')}
+          </Button>
+        </div>
+        <div className='text-muted-foreground mt-2 text-xs break-all'>
+          {t('Request URL')}: {response?.request_url || '-'}
+        </div>
+      </div>
+
+      {usage && response?.success !== false && (
+        <div className='space-y-3 rounded-lg border p-4'>
+          <div className='flex flex-wrap items-center justify-between gap-2'>
+            <div className='text-sm font-semibold'>
+              {String(usage.plan_name || t('Token Plan'))}
+            </div>
+            <StatusBadge
+              label={`${Math.floor(usedPercent)}% ${t('Used')}`}
+              variant={getProgressVariant(usedPercent)}
+              copyable={false}
+            />
+          </div>
+          <Progress value={usedPercent} />
+          <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
+            <MetaBlock
+              label={t('Total')}
+              value={formatCount(usage.total_credits)}
+            />
+            <MetaBlock
+              label={t('Used')}
+              value={formatCount(usage.used_credits)}
+            />
+            <MetaBlock
+              label={t('Remaining')}
+              value={formatCount(usage.remaining_credits)}
+            />
+            <MetaBlock
+              label={t('Status')}
+              value={String(usage.status || '-')}
+            />
+            <MetaBlock
+              label={t('Reset Time')}
+              value={formatDateTime(usage.reset_at)}
+            />
+            <MetaBlock
+              label={t('Capacity Type')}
+              value={String(usage.capacity_type || '-')}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function KeyPager({
   response,
   currentKeyIndex,
@@ -1379,6 +1485,8 @@ export function ChannelPlanUsageDialog({
     title = t('MiniMax Token Plan Usage')
   } else if (kind === 'kimi') {
     title = t('Kimi Coding Plan Usage')
+  } else if (kind === 'qwen') {
+    title = t('Qwen Token Plan Usage')
   }
 
   const rawJsonText = useMemo(() => {
@@ -1409,6 +1517,14 @@ export function ChannelPlanUsageDialog({
   } else if (kind === 'kimi') {
     usageView = (
       <KimiUsageView
+        response={response}
+        onRefresh={refreshCurrentKey}
+        isRefreshing={isRefreshing}
+      />
+    )
+  } else if (kind === 'qwen') {
+    usageView = (
+      <QwenTokenPlanUsageView
         response={response}
         onRefresh={refreshCurrentKey}
         isRefreshing={isRefreshing}

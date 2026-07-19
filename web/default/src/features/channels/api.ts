@@ -98,6 +98,29 @@ export type CodexCredentialRefreshResponse = {
   }
 }
 
+export type QwenOAuthStartResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    verification_url?: string
+    expires_in?: number
+    interval?: number
+  }
+}
+
+export type QwenOAuthCompleteResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    status?: string
+    key?: string
+    email?: string
+    aliyun_id?: string
+    expires_at?: string
+    channel_id?: number
+  }
+}
+
 // ============================================================================
 // Base Channel CRUD Operations
 // ============================================================================
@@ -346,6 +369,31 @@ export async function refreshCodexCredential(
   return res.data
 }
 
+// ============================================================================
+// Qwen Token Plan OAuth Operations
+// ============================================================================
+
+export async function startQwenOAuth(
+  channelId?: number
+): Promise<QwenOAuthStartResponse> {
+  const path = channelId
+    ? `/api/channel/${channelId}/qwen/oauth/start`
+    : '/api/channel/qwen/oauth/start'
+  const res = await api.post(path, {}, channelActionConfig())
+  return res.data
+}
+
+export async function completeQwenOAuth(
+  apiKey: string,
+  channelId?: number
+): Promise<QwenOAuthCompleteResponse> {
+  const path = channelId
+    ? `/api/channel/${channelId}/qwen/oauth/complete`
+    : '/api/channel/qwen/oauth/complete'
+  const res = await api.post(path, { api_key: apiKey }, channelActionConfig())
+  return res.data
+}
+
 export async function getCodexUsage(
   channelId: number
 ): Promise<CodexUsageResponse> {
@@ -425,6 +473,21 @@ export async function getKimiCodingPlanUsage(
       params: { key_index: Math.max(Math.floor(keyIndex), 0) },
     }
   )
+  return res.data
+}
+
+export async function getQwenTokenPlanUsage(
+  channelId: number,
+  keyIndex = 0
+): Promise<ChannelPlanUsageResponse> {
+  const config: ApiRequestConfig = {
+    skipBusinessError: true,
+    disableDuplicate: true,
+  }
+  const res = await api.get(`/api/channel/${channelId}/qwen/token_plan/usage`, {
+    ...config,
+    params: { key_index: Math.max(Math.floor(keyIndex), 0) },
+  })
   return res.data
 }
 

@@ -22,6 +22,7 @@ const CHANNEL_TYPE_MINIMAX = 35
 const CHANNEL_TYPE_ZHIPU = 16
 const CHANNEL_TYPE_ZHIPU_V4 = 26
 const CHANNEL_TYPE_MOONSHOT = 25
+const CHANNEL_TYPE_QWEN_TOKEN_PLAN = 69
 
 const ZHIPU_CODING_PLAN_SPECIAL_BASE_URLS = new Set([
   'glm-coding-plan',
@@ -51,6 +52,10 @@ export function isKimiCodingPlanChannel(channel: Channel): boolean {
 
 export function isMiniMaxTokenPlanChannel(channel: Channel): boolean {
   return channel.type === CHANNEL_TYPE_MINIMAX
+}
+
+export function isQwenTokenPlanChannel(channel: Channel): boolean {
+  return channel.type === CHANNEL_TYPE_QWEN_TOKEN_PLAN
 }
 
 export function isZhipuCodingPlanChannel(channel: Channel): boolean {

@@ -280,6 +280,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 			return normalizeModelNames(staticModels), nil
 		}
 	}
+	if channel.Type == constant.ChannelTypeQwenTokenPlan {
+		return normalizeModelNames(constant.QwenTokenPlanModelList), nil
+	}
 
 	if channel.Type == constant.ChannelTypeOllama {
 		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])

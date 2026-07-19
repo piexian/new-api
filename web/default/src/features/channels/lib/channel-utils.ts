@@ -87,6 +87,7 @@ export function getChannelTypeIcon(type: number): string {
     42: 'Mistral', // Mistral
     43: 'DeepSeek', // DeepSeek
     68: 'Cerebras', // Cerebras
+    69: 'https://avatars.githubusercontent.com/u/282503705?s=200&v=4', // Qwen Token Plan
     48: 'XAI', // xAI
     49: 'Coze', // Coze
     40: 'SiliconCloud', // SiliconFlow

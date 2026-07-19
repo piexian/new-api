@@ -23,10 +23,14 @@ import { toast } from 'sonner'
 import {
   getKimiCodingPlanUsage,
   getMiniMaxTokenPlanUsage,
+  getQwenTokenPlanUsage,
   getZhipuCodingPlanUsage,
   type ChannelPlanUsageResponse,
 } from '../../api'
-import { isKimiCodingPlanChannel } from '../../lib/plan-usage-utils'
+import {
+  isKimiCodingPlanChannel,
+  isQwenTokenPlanChannel,
+} from '../../lib/plan-usage-utils'
 import { useChannels } from '../channels-provider'
 import {
   ChannelPlanUsageDialog,
@@ -55,6 +59,8 @@ export function PlanUsageQueryDialog({
     kind = 'minimax'
   } else if (currentRow && isKimiCodingPlanChannel(currentRow)) {
     kind = 'kimi'
+  } else if (currentRow && isQwenTokenPlanChannel(currentRow)) {
+    kind = 'qwen'
   }
 
   const fetchUsage = useCallback(
@@ -69,6 +75,8 @@ export function PlanUsageQueryDialog({
           res = await getMiniMaxTokenPlanUsage(row.id, keyIndex)
         } else if (kind === 'kimi') {
           res = await getKimiCodingPlanUsage(row.id, keyIndex)
+        } else if (kind === 'qwen') {
+          res = await getQwenTokenPlanUsage(row.id, keyIndex)
         } else {
           res = await getZhipuCodingPlanUsage(row.id, keyIndex)
         }
@@ -80,7 +88,7 @@ export function PlanUsageQueryDialog({
         if (!res.success) {
           toast.error(
             res.message ||
-              (kind === 'minimax'
+              (kind === 'minimax' || kind === 'qwen'
                 ? t('Failed to fetch Token Plan usage')
                 : t('Failed to fetch Coding Plan usage'))
           )

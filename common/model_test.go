@@ -228,6 +228,20 @@ func TestGetEndpointTypesByChannelTypeForOpenCode(t *testing.T) {
 	}
 }
 
+func TestGetEndpointTypesByChannelTypeForQwenTokenPlan(t *testing.T) {
+	t.Parallel()
+
+	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeQwenTokenPlan, "qwen3.7-plus")
+	want := []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+		constant.EndpointTypeAnthropic,
+	}
+	if !reflect.DeepEqual(endpoints, want) {
+		t.Fatalf("expected Qwen Token Plan endpoints %#v, got %#v", want, endpoints)
+	}
+}
+
 func TestGetEndpointTypesByChannelTypeForMoark(t *testing.T) {
 	t.Parallel()
 

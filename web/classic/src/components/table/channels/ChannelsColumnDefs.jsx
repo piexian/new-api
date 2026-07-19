@@ -44,6 +44,7 @@ import {
   CHANNEL_TYPE_CODEX,
   CHANNEL_TYPE_MINIMAX,
   CHANNEL_TYPE_MOONSHOT,
+  CHANNEL_TYPE_QWEN_TOKEN_PLAN,
   CHANNEL_TYPE_ZHIPU_V4,
   MODEL_FETCHABLE_CHANNEL_TYPES,
 } from '../../../constants';
@@ -402,6 +403,7 @@ export const getChannelsColumns = ({
   openMiniMaxTokenPlanUsage,
   openZhipuCodingPlanUsage,
   openKimiCodingPlanUsage,
+  openQwenTokenPlanUsage,
   manageChannel,
   manageTag,
   submitTagEdit,
@@ -645,6 +647,8 @@ export const getChannelsColumns = ({
           const isMiniMaxChannel = record.type === CHANNEL_TYPE_MINIMAX;
           const isZhipuPlanChannel = isZhipuCodingPlanChannel(record);
           const isKimiPlanChannel = isKimiCodingPlanChannel(record);
+          const isQwenPlanChannel =
+            record.type === CHANNEL_TYPE_QWEN_TOKEN_PLAN;
           return (
             <div>
               <Space spacing={1}>
@@ -723,6 +727,19 @@ export const getChannelsColumns = ({
                       onClick={() => openKimiCodingPlanUsage(record)}
                     >
                       {t('Coding Plan')}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {isQwenPlanChannel && (
+                  <Tooltip content={t('查询 Qwen Token Plan 额度')}>
+                    <Tag
+                      color='cyan'
+                      type='light'
+                      shape='circle'
+                      className='cursor-pointer'
+                      onClick={() => openQwenTokenPlanUsage(record)}
+                    >
+                      {t('Token Plan')}
                     </Tag>
                   </Tooltip>
                 )}

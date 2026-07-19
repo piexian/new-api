@@ -81,6 +81,12 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		}
 	case constant.ChannelTypeOpenCode:
 		endpointTypes = getOpenCodeEndpointTypes(modelName)
+	case constant.ChannelTypeQwenTokenPlan:
+		endpointTypes = []constant.EndpointType{
+			constant.EndpointTypeOpenAI,
+			constant.EndpointTypeOpenAIResponse,
+			constant.EndpointTypeAnthropic,
+		}
 	case constant.ChannelTypeSora:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
 	default:

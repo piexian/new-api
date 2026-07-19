@@ -437,6 +437,16 @@ export function getChannelIcon(channelType) {
       return getLobeHubIcon('GiteeAI.Color', iconSize);
     case 68: // Cerebras
       return <Cerebras.Color size={iconSize} />;
+    case 69: // Qwen Token Plan
+      return (
+        <img
+          src='https://avatars.githubusercontent.com/u/282503705?s=200&v=4'
+          alt='Qwen Token Plan'
+          width={iconSize}
+          height={iconSize}
+          className='rounded-sm object-cover'
+        />
+      );
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;

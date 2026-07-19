@@ -22,6 +22,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/opencode"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
+	"github.com/QuantumNous/new-api/relay/channel/qwentokenplan"
 	"github.com/QuantumNous/new-api/relay/channel/zenmux"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -527,6 +528,18 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	if channel.Type == constant.ChannelTypeQwenTokenPlan {
+		if channel.ChannelInfo.IsMultiKey {
+			return fmt.Errorf("Qwen Token Plan only supports a single bound credential")
+		}
+		trimmedKey := strings.TrimSpace(channel.Key)
+		if isAdd || trimmedKey != "" {
+			if _, err := qwentokenplan.ParseCredential(trimmedKey); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -606,6 +619,15 @@ func AddChannel(c *gin.Context) {
 	err := c.ShouldBindJSON(&addChannelRequest)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if addChannelRequest.Channel != nil &&
+		addChannelRequest.Channel.Type == constant.ChannelTypeQwenTokenPlan &&
+		addChannelRequest.Mode != "single" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "Qwen Token Plan only supports single-key mode",
+		})
 		return
 	}
 
@@ -988,6 +1010,13 @@ func UpdateChannel(c *gin.Context) {
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
 	channel.ChannelInfo = originChannel.ChannelInfo
+	if channel.Type == constant.ChannelTypeQwenTokenPlan && channel.ChannelInfo.IsMultiKey {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "Qwen Token Plan only supports a single bound credential",
+		})
+		return
+	}
 
 	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
@@ -1250,6 +1279,14 @@ func FetchModels(c *gin.Context) {
 	// remove line breaks and extra spaces.
 	key := strings.TrimSpace(req.Key)
 	key = strings.Split(key, "\n")[0]
+
+	if req.Type == constant.ChannelTypeQwenTokenPlan {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    constant.QwenTokenPlanModelList,
+		})
+		return
+	}
 
 	if req.Type == constant.ChannelTypeOllama {
 		models, err := ollama.FetchOllamaModels(baseURL, key)

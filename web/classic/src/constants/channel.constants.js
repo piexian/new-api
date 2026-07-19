@@ -27,6 +27,7 @@ export const CHANNEL_TYPE_OPENCODE = 65;
 export const CHANNEL_TYPE_MOARK = 66;
 export const CHANNEL_TYPE_ADVANCED_CUSTOM = 67;
 export const CHANNEL_TYPE_CEREBRAS = 68;
+export const CHANNEL_TYPE_QWEN_TOKEN_PLAN = 69;
 
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
@@ -84,6 +85,11 @@ export const CHANNEL_OPTIONS = [
     value: 17,
     color: 'orange',
     label: '阿里通义千问',
+  },
+  {
+    value: CHANNEL_TYPE_QWEN_TOKEN_PLAN,
+    color: 'cyan',
+    label: 'Qwen Token Plan',
   },
   {
     value: 18,
@@ -272,6 +278,7 @@ export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
   CHANNEL_TYPE_OPENCODE,
   CHANNEL_TYPE_MOARK,
   CHANNEL_TYPE_CEREBRAS,
+  CHANNEL_TYPE_QWEN_TOKEN_PLAN,
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;

@@ -66,6 +66,7 @@ const (
 	ChannelTypeMoark           = 66
 	ChannelTypeAdvancedCustom  = 67
 	ChannelTypeCerebras        = 68
+	ChannelTypeQwenTokenPlan   = 69
 	ChannelTypeDummy           // this one is only for count, do not add any channel after this
 
 )
@@ -140,6 +141,7 @@ var ChannelBaseURLs = []string{
 	"https://api.moark.com",                          //66
 	"",                                               //67
 	"https://api.cerebras.ai",                        //68
+	QwenTokenPlanRootURL,                             //69
 }
 
 var ChannelTypeNames = map[int]string{
@@ -208,6 +210,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeMoark:           "模力方舟",
 	ChannelTypeAdvancedCustom:  "Advanced Custom",
 	ChannelTypeCerebras:        "Cerebras",
+	ChannelTypeQwenTokenPlan:   "Qwen Token Plan",
 }
 
 func GetChannelTypeName(channelType int) string {

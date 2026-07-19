@@ -87,12 +87,13 @@ export const CHANNEL_TYPES = {
   66: '模力方舟',
   67: 'Advanced Custom',
   68: 'Cerebras',
+  69: 'Qwen Token Plan',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
-  1, 14, 33, 24, 43, 68, 3, 41, 48, 42, 34, 20, 4, 40, 27, 25, 17, 26, 15, 46,
-  23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 67, 57, 58, 59, 22, 21, 44,
-  2, 5, 36, 50, 51, 52, 53, 54, 55, 56, 60, 61, 62, 63, 64, 65, 66,
+  1, 14, 33, 24, 43, 68, 3, 41, 48, 42, 34, 20, 4, 40, 27, 25, 17, 69, 26, 15,
+  46, 23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 67, 57, 58, 59, 22, 21,
+  44, 2, 5, 36, 50, 51, 52, 53, 54, 55, 56, 60, 61, 62, 63, 64, 65, 66,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -396,7 +397,7 @@ export const FIELD_DESCRIPTIONS = {
 
 export const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 17, 20, 23, 24, 25, 26, 27, 31, 34, 35, 40, 42, 43, 47, 48, 58, 59,
-  62, 64, 65, 68,
+  62, 64, 65, 68, 69,
 ])
 
 export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
@@ -408,10 +409,12 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   50: 'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)',
   51: 'Format: Access Key ID|Secret Access Key',
   57: 'Paste Codex OAuth JSON credential (access_token / refresh_token / account_id)',
+  69: 'Complete Qwen authorization to create a bound Token Plan credential',
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {
   3: 'For channels added after May 10, 2025, no need to remove "." from model names during deployment',
   8: 'If connecting to upstream One API or New API relay projects, use OpenAI type instead unless you know what you are doing',
   37: 'Dify channels only support chatflow and agent, and agent does not support images',
+  69: 'Qwen Token Plan Personal is limited to interactive coding and agent tools. It supports one bound credential only: an sk-sp- inference key plus QianWen OAuth for plan usage. QianWen does not provide an API to prove both credentials belong to the same account.',
 }

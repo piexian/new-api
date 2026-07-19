@@ -99,6 +99,19 @@ export function getLobeIcon(
     )
   }
 
+  const remoteIconURL = trimmedName.replace(/\.Color$/, '')
+  if (/^https?:\/\//i.test(remoteIconURL)) {
+    return (
+      <img
+        src={remoteIconURL}
+        alt=''
+        aria-hidden='true'
+        className='shrink-0 rounded-sm object-cover'
+        style={{ width: size, height: size }}
+      />
+    )
+  }
+
   // Parse component path and chained properties
   const segments = trimmedName.split('.')
   const baseKey = segments[0]

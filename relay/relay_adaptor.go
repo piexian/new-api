@@ -33,6 +33,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/palm"
 	"github.com/QuantumNous/new-api/relay/channel/perplexity"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
+	"github.com/QuantumNous/new-api/relay/channel/qwentokenplan"
 	"github.com/QuantumNous/new-api/relay/channel/replicate"
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
@@ -149,6 +150,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &advancedcustom.Adaptor{}
 	case constant.APITypeCerebras:
 		return &cerebras.Adaptor{}
+	case constant.APITypeQwenTokenPlan:
+		return &qwentokenplan.Adaptor{}
 	}
 	return nil
 }
