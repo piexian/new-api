@@ -458,6 +458,13 @@ func TestFutureRenewalSubscriptionIsNotConsumableBeforeStart(t *testing.T) {
 
 func TestCompleteSubscriptionOrderUsesStoredRenewMode(t *testing.T) {
 	truncateSubscriptionTables(t)
+	var completedEvents []SubscriptionCompletedEvent
+	SetSubscriptionCompletedHook(func(event SubscriptionCompletedEvent) {
+		completedEvents = append(completedEvents, event)
+	})
+	t.Cleanup(func() {
+		SetSubscriptionCompletedHook(nil)
+	})
 
 	seedSubscriptionTestUser(t, 9408, "user")
 	plan := &SubscriptionPlan{
@@ -488,6 +495,14 @@ func TestCompleteSubscriptionOrderUsesStoredRenewMode(t *testing.T) {
 
 	err = CompleteSubscriptionOrder("sub-renew-order", "", PaymentProviderStripe, "", "127.0.0.1")
 	require.NoError(t, err)
+	require.Len(t, completedEvents, 1)
+	assert.Equal(t, 9408, completedEvents[0].UserId)
+	assert.Equal(t, plan.Id, completedEvents[0].PlanId)
+	assert.Equal(t, "order", completedEvents[0].SubscriptionSource)
+
+	err = CompleteSubscriptionOrder("sub-renew-order", "", PaymentProviderStripe, "", "127.0.0.1")
+	require.NoError(t, err)
+	assert.Len(t, completedEvents, 1, "replayed callbacks must not emit another completion event")
 
 	var renewedSub UserSubscription
 	require.NoError(t, DB.Where("user_id = ? AND plan_id = ? AND source = ?", 9408, plan.Id, "order").
@@ -518,9 +533,15 @@ func TestExpireDueSubscriptionsRollsBackCurrentUpgradeGroupOnly(t *testing.T) {
 		EndTime:       now - 1,
 	})
 
-	expired, err := ExpireDueSubscriptions(10)
+	expired, err := ExpireDueSubscriptionsWithDetails(10)
 	require.NoError(t, err)
-	assert.Equal(t, 1, expired)
+	require.Len(t, expired, 1)
+	assert.Equal(t, 9402, expired[0].UserId)
+	assert.Equal(t, 9512, expired[0].SubscriptionId)
+
+	replayed, err := ExpireDueSubscriptionsWithDetails(10)
+	require.NoError(t, err)
+	assert.Empty(t, replayed, "already-expired subscriptions must not emit another event")
 	assert.Equal(t, "user", getSubscriptionTestUserGroup(t, 9402))
 
 	var expiredSub UserSubscription

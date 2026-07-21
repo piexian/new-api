@@ -370,7 +370,26 @@ func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result
 	}
 	if result != nil && result.Type == RedemptionTypeSubscription && result.SubscriptionPlan != nil {
 		RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码兑换套餐 %s，兑换码ID %d", result.SubscriptionPlan.Title, redemption.Id))
+		if result.Subscription != nil {
+			emitSubscriptionCompleted(SubscriptionCompletedEvent{
+				UserId:             userId,
+				SubscriptionId:     result.Subscription.Id,
+				PlanId:             result.SubscriptionPlan.Id,
+				PlanTitle:          result.SubscriptionPlan.Title,
+				AmountTotal:        result.Subscription.AmountTotal,
+				StartTime:          result.Subscription.StartTime,
+				EndTime:            result.Subscription.EndTime,
+				NextResetTime:      result.Subscription.NextResetTime,
+				ResetPeriod:        NormalizeResetPeriod(result.SubscriptionPlan.QuotaResetPeriod),
+				PaymentMethod:      "redemption",
+				PaymentProvider:    "redemption",
+				SubscriptionSource: result.Subscription.Source,
+			})
+		}
 		return result, nil
+	}
+	if result != nil && result.Type == RedemptionTypeQuota && result.Quota > 0 {
+		common.ResetQuotaNotificationSendLocks(userId, "wallet", 0)
 	}
 	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
 	return result, nil

@@ -328,9 +328,13 @@ func (s *BillingSession) syncRelayInfo() {
 		info.SubscriptionAmountUsedAfterPreConsume = sub.AmountUsedAfter + int64(s.extraReserved)
 		info.SubscriptionPlanId = sub.PlanId
 		info.SubscriptionPlanTitle = sub.PlanTitle
+		info.SubscriptionNextResetTime = sub.NextResetTime
+		info.SubscriptionResetPeriod = sub.ResetPeriod
 	} else {
 		info.SubscriptionId = 0
 		info.SubscriptionPreConsumed = 0
+		info.SubscriptionNextResetTime = 0
+		info.SubscriptionResetPeriod = ""
 	}
 }
 

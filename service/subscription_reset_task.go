@@ -54,11 +54,15 @@ func runSubscriptionQuotaResetOnce() {
 	totalReset := 0
 	totalExpired := 0
 	for {
-		n, err := model.ExpireDueSubscriptions(subscriptionResetBatchSize)
+		expired, err := model.ExpireDueSubscriptionsWithDetails(subscriptionResetBatchSize)
+		for _, item := range expired {
+			NotifySubscriptionExpired(item)
+		}
 		if err != nil {
 			logger.LogWarn(ctx, fmt.Sprintf("subscription expire task failed: %v", err))
 			return
 		}
+		n := len(expired)
 		if n == 0 {
 			break
 		}

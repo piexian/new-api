@@ -447,11 +447,78 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 
 	if sendEmail {
 		if (quota + preConsumedQuota) != 0 {
-			checkAndSendQuotaNotify(relayInfo, quota, preConsumedQuota)
+			if relayInfo.BillingSource == BillingSourceSubscription {
+				checkAndSendSubscriptionQuotaNotify(relayInfo)
+			} else {
+				checkAndSendQuotaNotify(relayInfo, quota, preConsumedQuota)
+			}
 		}
 	}
 
 	return nil
+}
+
+const (
+	quotaNotificationLevelLow       = "low"
+	quotaNotificationLevelExhausted = "exhausted"
+)
+
+func quotaNotificationLevelForRemaining(remaining int64, threshold int64) string {
+	if remaining <= 0 {
+		return quotaNotificationLevelExhausted
+	}
+	if threshold > 0 && remaining < threshold {
+		return quotaNotificationLevelLow
+	}
+	return ""
+}
+
+func quotaNotificationTransition(before int64, remaining int64, threshold int64) string {
+	level := quotaNotificationLevelForRemaining(remaining, threshold)
+	switch level {
+	case quotaNotificationLevelExhausted:
+		if before > 0 {
+			return level
+		}
+	case quotaNotificationLevelLow:
+		if before >= threshold {
+			return level
+		}
+	}
+	return ""
+}
+
+func quotaNotificationStatusText(locale string, level string) string {
+	switch NormalizeEmailTemplateLocale(locale) {
+	case "zh-CN":
+		if level == quotaNotificationLevelExhausted {
+			return "已用尽"
+		}
+		return "偏低"
+	case "zh-TW":
+		if level == quotaNotificationLevelExhausted {
+			return "已用盡"
+		}
+		return "偏低"
+	default:
+		if level == quotaNotificationLevelExhausted {
+			return "exhausted"
+		}
+		return "running low"
+	}
+}
+
+func acquireQuotaNotificationLock(userId int, source string, sourceId int, before int64, remaining int64, threshold int64) (string, bool, func()) {
+	level := quotaNotificationTransition(before, remaining, threshold)
+	if level == "" {
+		return "", false, func() {}
+	}
+	ok, release := common.TryAcquireQuotaNotificationSendLock(userId, source, sourceId, level)
+	return level, ok, release
+}
+
+func shouldReleaseQuotaNotificationLock(err error) bool {
+	return err != nil && !errors.Is(err, common.ErrDuplicateEmailSuppressed)
 }
 
 func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) {
@@ -467,9 +534,14 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 
 		//noMoreQuota := userCache.Quota-(quota+preConsumedQuota) <= 0
 		consumeQuota := quota + preConsumedQuota
-		remaining := relayInfo.UserQuota - consumeQuota
-		if remaining < threshold {
+		before := int64(relayInfo.UserQuota)
+		remaining := before - int64(consumeQuota)
+		level, ok, release := acquireQuotaNotificationLock(relayInfo.UserId, BillingSourceWallet, 0, before, remaining, int64(threshold))
+		if ok {
 			prompt := "您的额度即将用尽"
+			if level == quotaNotificationLevelExhausted {
+				prompt = "您的额度已用尽"
+			}
 			topUpLink := GetBalanceLowRechargeURL()
 
 			// 根据通知方式生成不同的内容格式
@@ -484,14 +556,14 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 			if notifyType == dto.NotifyTypeBark {
 				// Bark推送使用简短文本，不支持HTML
 				content = "{{value}}，剩余额度：{{value}}，请及时充值"
-				values = []interface{}{prompt, logger.FormatQuota(remaining)}
+				values = []interface{}{prompt, logger.FormatQuota(int(remaining))}
 			} else if notifyType == dto.NotifyTypeGotify {
 				content = "{{value}}，当前剩余额度为 {{value}}，请及时充值。"
-				values = []interface{}{prompt, logger.FormatQuota(remaining)}
+				values = []interface{}{prompt, logger.FormatQuota(int(remaining))}
 			} else {
 				// 默认内容格式，适用于Email和Webhook（支持HTML）
 				content = "{{value}}，当前剩余额度为 {{value}}，为了不影响您的使用，请及时充值。<br/>充值链接：<a href='{{value}}'>{{value}}</a>"
-				values = []interface{}{prompt, logger.FormatQuota(remaining), topUpLink, topUpLink}
+				values = []interface{}{prompt, logger.FormatQuota(int(remaining)), topUpLink, topUpLink}
 			}
 
 			notification := dto.NewNotify(dto.NotifyTypeQuotaExceed, prompt, content, values).WithEmailTemplate(
@@ -499,13 +571,18 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 				userSetting.Language,
 				map[string]string{
 					"user_id":         fmt.Sprintf("%d", relayInfo.UserId),
-					"current_balance": logger.FormatQuota(remaining),
+					"current_balance": logger.FormatQuota(int(remaining)),
 					"threshold":       logger.FormatQuota(threshold),
 					"recharge_url":    topUpLink,
+					"quota_status":    quotaNotificationStatusText(userSetting.Language, level),
 				},
 			)
+			notification.Type = fmt.Sprintf("%s:%s:%s", dto.NotifyTypeQuotaExceed, BillingSourceWallet, level)
 			err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, notification)
 			if err != nil {
+				if shouldReleaseQuotaNotificationLock(err) {
+					release()
+				}
 				common.SysError(fmt.Sprintf("failed to send quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 			}
 		}
@@ -529,11 +606,24 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 
 		usedAfter := relayInfo.SubscriptionAmountUsedAfterPreConsume + relayInfo.SubscriptionPostDelta
 		remaining := relayInfo.SubscriptionAmountTotal - usedAfter
-		if remaining >= int64(threshold) {
+		consumed := relayInfo.SubscriptionPreConsumed + relayInfo.SubscriptionPostDelta
+		before := remaining + consumed
+		level, ok, release := acquireQuotaNotificationLock(
+			relayInfo.UserId,
+			BillingSourceSubscription,
+			relayInfo.SubscriptionId,
+			before,
+			remaining,
+			int64(threshold),
+		)
+		if !ok {
 			return
 		}
 
 		prompt := "您的订阅额度即将用尽"
+		if level == quotaNotificationLevelExhausted {
+			prompt = "您的订阅额度已用尽"
+		}
 		topUpLink := GetBalanceLowRechargeURL()
 
 		var content string
@@ -554,19 +644,32 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 			values = []interface{}{prompt, logger.FormatQuota(int(remaining)), topUpLink, topUpLink}
 		}
 
+		event := EmailTemplateEventSubscriptionBalanceLow
+		variables := map[string]string{
+			"user_id":           fmt.Sprintf("%d", relayInfo.UserId),
+			"subscription_id":   fmt.Sprintf("%d", relayInfo.SubscriptionId),
+			"subscription_name": relayInfo.SubscriptionPlanTitle,
+			"current_balance":   logger.FormatQuota(int(remaining)),
+			"threshold":         logger.FormatQuota(threshold),
+			"recharge_url":      topUpLink,
+			"quota_status":      quotaNotificationStatusText(userSetting.Language, level),
+		}
+		if relayInfo.SubscriptionNextResetTime > time.Now().Unix() && relayInfo.SubscriptionResetPeriod != model.SubscriptionResetNever {
+			event = EmailTemplateEventSubscriptionResetQuota
+			variables["reset_period"] = relayInfo.SubscriptionResetPeriod
+			variables["reset_at"] = formatEmailTimestamp(relayInfo.SubscriptionNextResetTime)
+			variables["reset_in"] = formatEmailDuration(time.Until(time.Unix(relayInfo.SubscriptionNextResetTime, 0)), userSetting.Language)
+		}
 		notification := dto.NewNotify(dto.NotifyTypeQuotaExceed, prompt, content, values).WithEmailTemplate(
-			EmailTemplateEventSubscriptionBalanceLow,
+			event,
 			userSetting.Language,
-			map[string]string{
-				"user_id":           fmt.Sprintf("%d", relayInfo.UserId),
-				"subscription_id":   fmt.Sprintf("%d", relayInfo.SubscriptionId),
-				"subscription_name": relayInfo.SubscriptionPlanTitle,
-				"current_balance":   logger.FormatQuota(int(remaining)),
-				"threshold":         logger.FormatQuota(threshold),
-				"recharge_url":      topUpLink,
-			},
+			variables,
 		)
+		notification.Type = fmt.Sprintf("%s:%s:%d:%s", dto.NotifyTypeQuotaExceed, BillingSourceSubscription, relayInfo.SubscriptionId, level)
 		if err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, notification); err != nil {
+			if shouldReleaseQuotaNotificationLock(err) {
+				release()
+			}
 			common.SysError(fmt.Sprintf("failed to send subscription quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 		}
 	})

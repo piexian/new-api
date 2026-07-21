@@ -22,6 +22,7 @@ var emailSendLocks = make(map[string]time.Time)
 const (
 	emailSendDedupWindow          = 2 * time.Minute
 	emailVerificationSendLockTime = 5 * time.Minute
+	emailPasswordResetLockTime    = 5 * time.Minute
 )
 
 func emailDailyKey() string {
@@ -36,6 +37,21 @@ func emailVerificationSendLockKey(email string) string {
 	return "email:verification:send-lock:" + strings.ToLower(strings.TrimSpace(email))
 }
 
+func emailPasswordResetSendLockKey(email string) string {
+	return "email:password-reset:send-lock:" + strings.ToLower(strings.TrimSpace(email))
+}
+
+func quotaNotificationSendLockKey(userId int, source string, sourceId int, level string, now time.Time) string {
+	return fmt.Sprintf(
+		"email:quota-notification:%d:%s:%d:%s:%s",
+		userId,
+		strings.ToLower(strings.TrimSpace(source)),
+		sourceId,
+		strings.ToLower(strings.TrimSpace(level)),
+		now.Format("20060102"),
+	)
+}
+
 func emailSendDedupKey(subject string, receiver string, content string) string {
 	hash := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(receiver)) + "\x00" + subject + "\x00" + content))
 	return "email:send:dedup:" + hex.EncodeToString(hash[:])
@@ -48,6 +64,10 @@ func secondsUntilMidnight() time.Duration {
 }
 
 func tryAcquireEmailLock(key string, ttl time.Duration) (bool, func()) {
+	return tryAcquireEmailLockWithFailurePolicy(key, ttl, true)
+}
+
+func tryAcquireEmailLockWithFailurePolicy(key string, ttl time.Duration, failOpen bool) (bool, func()) {
 	if ttl <= 0 {
 		ttl = time.Minute
 	}
@@ -56,7 +76,7 @@ func tryAcquireEmailLock(key string, ttl time.Duration) (bool, func()) {
 		ok, err := RDB.SetNX(ctx, key, "1", ttl).Result()
 		if err != nil {
 			SysError(fmt.Sprintf("failed to acquire email lock %s: %v", key, err))
-			return true, func() {}
+			return failOpen, func() {}
 		}
 		return ok, func() {
 			_ = RDB.Del(ctx, key).Err()
@@ -80,6 +100,40 @@ func tryAcquireEmailLock(key string, ttl time.Duration) (bool, func()) {
 // TryAcquireEmailVerificationSendLock prevents rapid duplicate verification-code sends to one address.
 func TryAcquireEmailVerificationSendLock(email string) (bool, func()) {
 	return tryAcquireEmailLock(emailVerificationSendLockKey(email), emailVerificationSendLockTime)
+}
+
+// TryAcquirePasswordResetSendLock prevents repeated password-reset messages to one address.
+func TryAcquirePasswordResetSendLock(email string) (bool, func()) {
+	return tryAcquireEmailLock(emailPasswordResetSendLockKey(email), emailPasswordResetLockTime)
+}
+
+// TryAcquireQuotaNotificationSendLock limits one quota notification level to once per local calendar day.
+func TryAcquireQuotaNotificationSendLock(userId int, source string, sourceId int, level string) (bool, func()) {
+	return tryAcquireEmailLockWithFailurePolicy(
+		quotaNotificationSendLockKey(userId, source, sourceId, level, time.Now()),
+		secondsUntilMidnight(),
+		false,
+	)
+}
+
+// ResetQuotaNotificationSendLocks allows new low/exhausted notifications after quota is replenished.
+func ResetQuotaNotificationSendLocks(userId int, source string, sourceId int) {
+	now := time.Now()
+	keys := []string{
+		quotaNotificationSendLockKey(userId, source, sourceId, "low", now),
+		quotaNotificationSendLockKey(userId, source, sourceId, "exhausted", now),
+	}
+	if RedisEnabled {
+		if err := RDB.Del(context.Background(), keys...).Err(); err != nil {
+			SysError(fmt.Sprintf("failed to reset quota notification locks for user %d: %v", userId, err))
+		}
+		return
+	}
+	emailDailyCountersMu.Lock()
+	defer emailDailyCountersMu.Unlock()
+	for _, key := range keys {
+		delete(emailSendLocks, key)
+	}
 }
 
 // TryAcquireEmailSendDedupLock prevents sending the exact same email multiple times in a short window.

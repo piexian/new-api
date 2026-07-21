@@ -1324,6 +1324,7 @@ func ManageUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
 		return
 	}
+	didDisableTransition := false
 	switch req.Action {
 	case "disable":
 		disableReason := strings.TrimSpace(req.DisableReason)
@@ -1388,6 +1389,7 @@ func ManageUser(c *gin.Context) {
 				common.ApiError(c, err)
 				return
 			}
+			common.ResetQuotaNotificationSendLocks(user.Id, service.BillingSourceWallet, 0)
 			recordManageAuditFor(c, user.Id, "user.quota_add", map[string]interface{}{
 				"quota": logger.LogQuota(req.Value),
 			})
@@ -1409,6 +1411,9 @@ func ManageUser(c *gin.Context) {
 				common.ApiError(c, err)
 				return
 			}
+			if req.Value > oldQuota {
+				common.ResetQuotaNotificationSendLocks(user.Id, service.BillingSourceWallet, 0)
+			}
 			recordManageAuditFor(c, user.Id, "user.quota_override", map[string]interface{}{
 				"from": logger.LogQuota(oldQuota),
 				"to":   logger.LogQuota(req.Value),
@@ -1425,7 +1430,26 @@ func ManageUser(c *gin.Context) {
 	}
 
 	switch req.Action {
-	case "disable", "enable":
+	case "disable":
+		result := model.DB.Model(&model.User{}).
+			Where("id = ? AND status <> ?", user.Id, common.UserStatusDisabled).
+			Updates(map[string]any{
+				"status":         user.Status,
+				"disable_reason": user.DisableReason,
+			})
+		if result.Error != nil {
+			common.ApiError(c, result.Error)
+			return
+		}
+		didDisableTransition = result.RowsAffected > 0
+		if !didDisableTransition {
+			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).
+				Update("disable_reason", user.DisableReason).Error; err != nil {
+				common.ApiError(c, err)
+				return
+			}
+		}
+	case "enable":
 		if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Updates(map[string]any{
 			"status":         user.Status,
 			"disable_reason": user.DisableReason,
@@ -1457,6 +1481,9 @@ func ManageUser(c *gin.Context) {
 		"username": user.Username,
 		"id":       user.Id,
 	})
+	if didDisableTransition {
+		service.NotifyAccountDisabled(user)
+	}
 	clearUser := model.User{
 		Role:          user.Role,
 		Status:        user.Status,

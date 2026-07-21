@@ -619,13 +619,19 @@ func applySubscriptionQuotaWindowDelta(sub *UserSubscription, plan *Subscription
 }
 
 type SubscriptionResetResult struct {
-	PlanId           int    `json:"plan_id"`
-	MatchedCount     int    `json:"matched_count"`
-	ResetCount       int    `json:"reset_count"`
-	UserCount        int    `json:"user_count"`
-	AdvanceResetTime bool   `json:"advance_reset_time"`
-	PlanTitle        string `json:"-"`
-	AffectedUserIds  []int  `json:"-"`
+	PlanId                int                       `json:"plan_id"`
+	MatchedCount          int                       `json:"matched_count"`
+	ResetCount            int                       `json:"reset_count"`
+	UserCount             int                       `json:"user_count"`
+	AdvanceResetTime      bool                      `json:"advance_reset_time"`
+	PlanTitle             string                    `json:"-"`
+	AffectedUserIds       []int                     `json:"-"`
+	AffectedSubscriptions []SubscriptionResetTarget `json:"-"`
+}
+
+type SubscriptionResetTarget struct {
+	UserId         int
+	SubscriptionId int
 }
 
 func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
@@ -998,6 +1004,7 @@ func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, cal
 	requiredQuota := 0
 	upgradeGroup := ""
 	planTitle := ""
+	var completedEvent *SubscriptionCompletedEvent
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
@@ -1039,7 +1046,8 @@ func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, cal
 				return err
 			}
 		}
-		if _, err := CreateUserSubscriptionFromPlanWithModeTx(tx, userId, plan, "wallet", purchaseMode); err != nil {
+		sub, err := CreateUserSubscriptionFromPlanWithModeTx(tx, userId, plan, "wallet", purchaseMode)
+		if err != nil {
 			return err
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
@@ -1061,6 +1069,21 @@ func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, cal
 		if err := tx.Create(order).Error; err != nil {
 			return err
 		}
+		completedEvent = &SubscriptionCompletedEvent{
+			UserId:             userId,
+			SubscriptionId:     sub.Id,
+			PlanId:             plan.Id,
+			PlanTitle:          plan.Title,
+			AmountTotal:        sub.AmountTotal,
+			StartTime:          sub.StartTime,
+			EndTime:            sub.EndTime,
+			NextResetTime:      sub.NextResetTime,
+			ResetPeriod:        NormalizeResetPeriod(plan.QuotaResetPeriod),
+			PaymentAmount:      order.Money,
+			PaymentMethod:      order.PaymentMethod,
+			PaymentProvider:    PaymentProviderBalance,
+			SubscriptionSource: sub.Source,
+		}
 		return upsertSubscriptionTopUpTx(tx, order, "")
 	})
 	if err != nil {
@@ -1077,6 +1100,9 @@ func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, cal
 		}
 	}
 	RecordTopupLog(userId, fmt.Sprintf("使用钱包余额购买套餐成功，套餐: %s，支付金额: %.2f", planTitle, order.Money), callerIp, "wallet", "wallet")
+	if completedEvent != nil {
+		emitSubscriptionCompleted(*completedEvent)
+	}
 	return order, nil
 }
 
@@ -1154,6 +1180,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	var logMoney float64
 	var logPaymentMethod string
 	var upgradeGroup string
+	var completedEvent *SubscriptionCompletedEvent
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
 		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
@@ -1176,7 +1203,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			// still allow completion for already purchased orders
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		_, err = CreateUserSubscriptionFromPlanWithModeTx(tx, order.UserId, plan, "order", order.PurchaseMode)
+		sub, err := CreateUserSubscriptionFromPlanWithModeTx(tx, order.UserId, plan, "order", order.PurchaseMode)
 		if err != nil {
 			return err
 		}
@@ -1199,6 +1226,21 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		logPlanTitle = plan.Title
 		logMoney = order.Money
 		logPaymentMethod = order.PaymentMethod
+		completedEvent = &SubscriptionCompletedEvent{
+			UserId:             order.UserId,
+			SubscriptionId:     sub.Id,
+			PlanId:             plan.Id,
+			PlanTitle:          plan.Title,
+			AmountTotal:        sub.AmountTotal,
+			StartTime:          sub.StartTime,
+			EndTime:            sub.EndTime,
+			NextResetTime:      sub.NextResetTime,
+			ResetPeriod:        NormalizeResetPeriod(plan.QuotaResetPeriod),
+			PaymentAmount:      order.Money,
+			PaymentMethod:      order.PaymentMethod,
+			PaymentProvider:    order.PaymentProvider,
+			SubscriptionSource: sub.Source,
+		}
 		return nil
 	})
 	if err != nil {
@@ -1210,6 +1252,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	if logUserId > 0 {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordTopupLog(logUserId, msg, callerIp, logPaymentMethod, expectedPaymentProvider)
+	}
+	if completedEvent != nil {
+		emitSubscriptionCompleted(*completedEvent)
 	}
 	return nil
 }
@@ -1291,12 +1336,32 @@ func AdminBindSubscription(userId int, planId int, purchaseMode string, sourceNo
 	if err != nil {
 		return "", err
 	}
+	var completedEvent *SubscriptionCompletedEvent
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		_, err := CreateUserSubscriptionFromPlanWithModeTx(tx, userId, plan, "admin", purchaseMode)
+		sub, err := CreateUserSubscriptionFromPlanWithModeTx(tx, userId, plan, "admin", purchaseMode)
+		if err == nil {
+			completedEvent = &SubscriptionCompletedEvent{
+				UserId:             userId,
+				SubscriptionId:     sub.Id,
+				PlanId:             plan.Id,
+				PlanTitle:          plan.Title,
+				AmountTotal:        sub.AmountTotal,
+				StartTime:          sub.StartTime,
+				EndTime:            sub.EndTime,
+				NextResetTime:      sub.NextResetTime,
+				ResetPeriod:        NormalizeResetPeriod(plan.QuotaResetPeriod),
+				PaymentMethod:      "admin",
+				PaymentProvider:    "admin",
+				SubscriptionSource: sub.Source,
+			}
+		}
 		return err
 	})
 	if err != nil {
 		return "", err
+	}
+	if completedEvent != nil {
+		emitSubscriptionCompleted(*completedEvent)
 	}
 	if strings.TrimSpace(plan.UpgradeGroup) != "" {
 		_ = UpdateUserGroupCache(userId, plan.UpgradeGroup)
@@ -1329,6 +1394,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	var logMoney float64
 	var chargedQuota int
 	var upgradeGroup string
+	var completedEvent *SubscriptionCompletedEvent
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
@@ -1363,7 +1429,8 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			}
 		}
 
-		if _, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, PaymentMethodBalance); err != nil {
+		sub, err := CreateUserSubscriptionFromPlanTx(tx, userId, plan, PaymentMethodBalance)
+		if err != nil {
 			return err
 		}
 
@@ -1389,6 +1456,21 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		logMoney = plan.PriceAmount
 		chargedQuota = requiredQuota
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+		completedEvent = &SubscriptionCompletedEvent{
+			UserId:             userId,
+			SubscriptionId:     sub.Id,
+			PlanId:             plan.Id,
+			PlanTitle:          plan.Title,
+			AmountTotal:        sub.AmountTotal,
+			StartTime:          sub.StartTime,
+			EndTime:            sub.EndTime,
+			NextResetTime:      sub.NextResetTime,
+			ResetPeriod:        NormalizeResetPeriod(plan.QuotaResetPeriod),
+			PaymentAmount:      plan.PriceAmount,
+			PaymentMethod:      PaymentMethodBalance,
+			PaymentProvider:    PaymentProviderBalance,
+			SubscriptionSource: sub.Source,
+		}
 		return nil
 	})
 	if err != nil {
@@ -1405,6 +1487,9 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	}
 	msg := fmt.Sprintf("使用余额购买订阅成功，套餐: %s，支付金额: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
 	RecordLog(userId, LogTypeTopup, msg)
+	if completedEvent != nil {
+		emitSubscriptionCompleted(*completedEvent)
+	}
 	return nil
 }
 
@@ -1598,8 +1683,10 @@ func resetUserSubscriptionTx(tx *gorm.DB, sub *UserSubscription, plan *Subscript
 
 func buildSubscriptionResetResult(plan *SubscriptionPlan, subs []UserSubscription, advanceResetTime bool) *SubscriptionResetResult {
 	userIds := make([]int, 0, len(subs))
+	targets := make([]SubscriptionResetTarget, 0, len(subs))
 	seenUsers := make(map[int]struct{}, len(subs))
 	for _, sub := range subs {
+		targets = append(targets, SubscriptionResetTarget{UserId: sub.UserId, SubscriptionId: sub.Id})
 		if _, ok := seenUsers[sub.UserId]; ok {
 			continue
 		}
@@ -1607,13 +1694,20 @@ func buildSubscriptionResetResult(plan *SubscriptionPlan, subs []UserSubscriptio
 		userIds = append(userIds, sub.UserId)
 	}
 	return &SubscriptionResetResult{
-		PlanId:           plan.Id,
-		MatchedCount:     len(subs),
-		ResetCount:       len(subs),
-		UserCount:        len(userIds),
-		AdvanceResetTime: advanceResetTime,
-		PlanTitle:        plan.Title,
-		AffectedUserIds:  userIds,
+		PlanId:                plan.Id,
+		MatchedCount:          len(subs),
+		ResetCount:            len(subs),
+		UserCount:             len(userIds),
+		AdvanceResetTime:      advanceResetTime,
+		PlanTitle:             plan.Title,
+		AffectedUserIds:       userIds,
+		AffectedSubscriptions: targets,
+	}
+}
+
+func resetSubscriptionNotificationLocks(targets []SubscriptionResetTarget) {
+	for _, target := range targets {
+		common.ResetQuotaNotificationSendLocks(target.UserId, "subscription", target.SubscriptionId)
 	}
 }
 
@@ -1675,6 +1769,7 @@ func AdminResetUserSubscriptionsByPlan(userId int, planId int, advanceResetTime 
 	if err != nil {
 		return nil, err
 	}
+	resetSubscriptionNotificationLocks(result.AffectedSubscriptions)
 	return result, nil
 }
 
@@ -1695,6 +1790,7 @@ func AdminResetPlanSubscriptions(planId int, advanceResetTime bool) (*Subscripti
 	if err != nil {
 		return nil, err
 	}
+	resetSubscriptionNotificationLocks(result.AffectedSubscriptions)
 	return result, nil
 }
 
@@ -1704,10 +1800,28 @@ type SubscriptionPreConsumeResult struct {
 	AmountTotal        int64
 	AmountUsedBefore   int64
 	AmountUsedAfter    int64
+	NextResetTime      int64
+	QuotaResetPeriod   string
+}
+
+type ExpiredSubscriptionInfo struct {
+	UserId              int
+	SubscriptionId      int
+	PlanId              int
+	PlanTitle           string
+	ExpiredAt           int64
+	SubscriptionSource  string
+	AllowWalletOverflow bool
 }
 
 // ExpireDueSubscriptions marks expired subscriptions and handles group downgrade.
 func ExpireDueSubscriptions(limit int) (int, error) {
+	expired, err := ExpireDueSubscriptionsWithDetails(limit)
+	return len(expired), err
+}
+
+// ExpireDueSubscriptionsWithDetails returns only subscriptions transitioned by this call.
+func ExpireDueSubscriptionsWithDetails(limit int) ([]ExpiredSubscriptionInfo, error) {
 	if limit <= 0 {
 		limit = 200
 	}
@@ -1717,12 +1831,12 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 		Order("end_time asc, id asc").
 		Limit(limit).
 		Find(&subs).Error; err != nil {
-		return 0, err
+		return nil, err
 	}
 	if len(subs) == 0 {
-		return 0, nil
+		return nil, nil
 	}
-	expiredCount := 0
+	expired := make([]ExpiredSubscriptionInfo, 0, len(subs))
 	userIds := make(map[int]struct{}, len(subs))
 	for _, sub := range subs {
 		if sub.UserId > 0 {
@@ -1731,9 +1845,10 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 	}
 	for userId := range userIds {
 		cacheGroup := ""
+		var userExpired []ExpiredSubscriptionInfo
 		err := DB.Transaction(func(tx *gorm.DB) error {
 			var dueSubs []UserSubscription
-			if err := tx.Where("user_id = ? AND status = ? AND end_time > 0 AND end_time <= ?", userId, "active", now).
+			if err := lockForUpdate(tx).Where("user_id = ? AND status = ? AND end_time > 0 AND end_time <= ?", userId, "active", now).
 				Order("end_time desc, id desc").
 				Find(&dueSubs).Error; err != nil {
 				return err
@@ -1750,9 +1865,20 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 			if res.Error != nil {
 				return res.Error
 			}
-			expiredCount += int(res.RowsAffected)
-
 			for _, dueSub := range dueSubs {
+				planTitle := fmt.Sprintf("Plan #%d", dueSub.PlanId)
+				if plan, planErr := getSubscriptionPlanByIdTx(tx, dueSub.PlanId); planErr == nil && strings.TrimSpace(plan.Title) != "" {
+					planTitle = plan.Title
+				}
+				userExpired = append(userExpired, ExpiredSubscriptionInfo{
+					UserId:              dueSub.UserId,
+					SubscriptionId:      dueSub.Id,
+					PlanId:              dueSub.PlanId,
+					PlanTitle:           planTitle,
+					ExpiredAt:           dueSub.EndTime,
+					SubscriptionSource:  dueSub.Source,
+					AllowWalletOverflow: dueSub.AllowWalletOverflow,
+				})
 				target, err := downgradeUserGroupForSubscriptionTx(tx, &dueSub, now)
 				if err != nil {
 					return err
@@ -1765,13 +1891,14 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 			return nil
 		})
 		if err != nil {
-			return expiredCount, err
+			return expired, err
 		}
+		expired = append(expired, userExpired...)
 		if cacheGroup != "" {
 			_ = UpdateUserGroupCache(userId, cacheGroup)
 		}
 	}
-	return expiredCount, nil
+	return expired, nil
 }
 
 // SubscriptionPreConsumeRecord stores idempotent pre-consume operations per request.
@@ -1811,18 +1938,27 @@ func fillSubscriptionPreConsumeResultTx(tx *gorm.DB, result *SubscriptionPreCons
 	result.AmountTotal = sub.AmountTotal
 	result.AmountUsedBefore = sub.AmountUsed
 	result.AmountUsedAfter = sub.AmountUsed
+	result.NextResetTime = sub.NextResetTime
+	result.QuotaResetPeriod = SubscriptionResetNever
+	if sub.PlanId > 0 {
+		plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+		if err != nil {
+			return err
+		}
+		result.QuotaResetPeriod = NormalizeResetPeriod(plan.QuotaResetPeriod)
+	}
 	return nil
 }
 
-func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64) error {
+func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, plan *SubscriptionPlan, now int64) (bool, error) {
 	if tx == nil || sub == nil || plan == nil {
-		return errors.New("invalid reset args")
+		return false, errors.New("invalid reset args")
 	}
 	if sub.NextResetTime > 0 && sub.NextResetTime > now {
-		return nil
+		return false, nil
 	}
 	if NormalizeResetPeriod(plan.QuotaResetPeriod) == SubscriptionResetNever {
-		return nil
+		return false, nil
 	}
 	baseUnix := sub.LastResetTime
 	if baseUnix <= 0 {
@@ -1840,14 +1976,14 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 		if sub.NextResetTime == 0 && next > 0 {
 			sub.NextResetTime = next
 			sub.LastResetTime = base.Unix()
-			return tx.Save(sub).Error
+			return false, tx.Save(sub).Error
 		}
-		return nil
+		return false, nil
 	}
 	sub.AmountUsed = 0
 	sub.LastResetTime = base.Unix()
 	sub.NextResetTime = next
-	return tx.Save(sub).Error
+	return true, tx.Save(sub).Error
 }
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
@@ -1875,6 +2011,7 @@ func preConsumeUserSubscription(requestId string, userId int, modelName string, 
 	modelGroups := GetModelEnableGroups(modelName)
 
 	returnValue := &SubscriptionPreConsumeResult{}
+	resetTargets := make([]SubscriptionResetTarget, 0, 1)
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var existing SubscriptionPreConsumeRecord
@@ -1963,8 +2100,12 @@ func preConsumeUserSubscription(requestId string, userId int, modelName string, 
 				subscriptionUserGroup = currentUserGroup
 			}
 			if plan != nil {
-				if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
+				reset, err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now)
+				if err != nil {
 					return err
+				}
+				if reset {
+					resetTargets = append(resetTargets, SubscriptionResetTarget{UserId: sub.UserId, SubscriptionId: sub.Id})
 				}
 				allowed := isSubscriptionModelAllowedForRequestGroupWithGroups(plan, modelName, modelGroups, subscriptionUserGroup, resolveSubscriptionModelRestrictGroup(plan, subscriptionUserGroup))
 				if enforceRequestGroup {
@@ -2018,6 +2159,11 @@ func preConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
+			returnValue.NextResetTime = sub.NextResetTime
+			returnValue.QuotaResetPeriod = SubscriptionResetNever
+			if plan != nil {
+				returnValue.QuotaResetPeriod = NormalizeResetPeriod(plan.QuotaResetPeriod)
+			}
 			return nil
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
@@ -2025,6 +2171,7 @@ func preConsumeUserSubscription(requestId string, userId int, modelName string, 
 	if err != nil {
 		return nil, err
 	}
+	resetSubscriptionNotificationLocks(resetTargets)
 	return returnValue, nil
 }
 
@@ -2077,6 +2224,7 @@ func ResetDueSubscriptions(limit int) (int, error) {
 		if err != nil || plan == nil {
 			continue
 		}
+		reset := false
 		err = DB.Transaction(func(tx *gorm.DB) error {
 			var locked UserSubscription
 			if err := lockForUpdate(tx).
@@ -2084,14 +2232,21 @@ func ResetDueSubscriptions(limit int) (int, error) {
 				First(&locked).Error; err != nil {
 				return nil
 			}
-			if err := maybeResetUserSubscriptionWithPlanTx(tx, &locked, plan, now); err != nil {
-				return err
+			var resetErr error
+			reset, resetErr = maybeResetUserSubscriptionWithPlanTx(tx, &locked, plan, now)
+			if resetErr != nil {
+				return resetErr
 			}
-			resetCount++
+			if reset {
+				resetCount++
+			}
 			return nil
 		})
 		if err != nil {
 			return resetCount, err
+		}
+		if reset {
+			common.ResetQuotaNotificationSendLocks(subCopy.UserId, "subscription", subCopy.Id)
 		}
 	}
 	return resetCount, nil
@@ -2144,7 +2299,8 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 	if delta == 0 {
 		return nil
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
+	resetTarget := SubscriptionResetTarget{}
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		now := GetDBTimestampTx(tx)
 		var sub UserSubscription
 		if err := lockForUpdate(tx).
@@ -2166,8 +2322,12 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 				return errors.New("subscription plan is nil")
 			}
 			plan = loadedPlan
-			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
-				return err
+			reset, resetErr := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now)
+			if resetErr != nil {
+				return resetErr
+			}
+			if reset {
+				resetTarget = SubscriptionResetTarget{UserId: sub.UserId, SubscriptionId: sub.Id}
 			}
 			if prepareSubscriptionQuotaWindows(&sub, plan, now) {
 				if err := tx.Save(&sub).Error; err != nil {
@@ -2191,4 +2351,8 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		}
 		return tx.Save(&sub).Error
 	})
+	if err == nil && resetTarget.SubscriptionId > 0 {
+		resetSubscriptionNotificationLocks([]SubscriptionResetTarget{resetTarget})
+	}
+	return err
 }

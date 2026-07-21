@@ -12,11 +12,21 @@ import (
 
 func TestDefaultEmailTemplatesCoverEveryEventAndLocale(t *testing.T) {
 	catalog := GetEmailTemplateCatalog()
-	require.Len(t, catalog.Events, 11)
+	require.Len(t, catalog.Events, 16)
 	require.ElementsMatch(t, []string{i18n.LangZhCN, i18n.LangZhTW, i18n.LangEn}, catalog.Locales)
+	requiredEventPlaceholders := map[string][]string{
+		EmailTemplateEventSubscriptionResetQuota: {"quota_status", "reset_period", "reset_at", "reset_in"},
+		EmailTemplateEventSubscriptionSucceeded:  {"subscription_id", "payment_provider", "subscription_source"},
+		EmailTemplateEventSubscriptionExpired:    {"subscription_id", "expired_at", "allow_wallet_overflow"},
+		EmailTemplateEventTopUpSucceeded:         {"order_no", "quota_added", "completed_at"},
+		EmailTemplateEventUserDisabled:           {"disable_reason", "disabled_at"},
+	}
 
 	for _, event := range catalog.Events {
 		for _, placeholder := range emailTemplateBasePlaceholders {
+			assert.Contains(t, event.Placeholders, placeholder, "%s should expose %s", event.Event, placeholder)
+		}
+		for _, placeholder := range requiredEventPlaceholders[event.Event] {
 			assert.Contains(t, event.Placeholders, placeholder, "%s should expose %s", event.Event, placeholder)
 		}
 		sampleVariables := SampleEmailTemplateVariables(event.Event)
@@ -149,6 +159,7 @@ func TestBalanceLowTemplateIncludesRechargeButton(t *testing.T) {
 		"current_balance": "1.00",
 		"threshold":       "10.00",
 		"recharge_url":    "https://billing.example.com/wallet",
+		"quota_status":    "偏低",
 	})
 	require.NoError(t, err)
 	assert.Contains(t, rendered.HTML, `href="https://billing.example.com/wallet"`)
@@ -165,11 +176,45 @@ func TestBalanceLowTemplateOmitsRechargeButtonWithoutServerAddress(t *testing.T)
 		"current_balance": "1.00",
 		"threshold":       "10.00",
 		"recharge_url":    "",
+		"quota_status":    "running low",
 	})
 	require.NoError(t, err)
 	assert.NotContains(t, rendered.HTML, "Recharge now")
 	assert.NotContains(t, rendered.HTML, `href=""`)
 	assert.NotContains(t, rendered.HTML, "<img")
+}
+
+func TestSubscriptionResetTemplateIncludesRecoveryTime(t *testing.T) {
+	template, err := GetEmailTemplate(EmailTemplateEventSubscriptionResetQuota, i18n.LangZhCN)
+	require.NoError(t, err)
+	rendered, err := RenderEmailTemplate(template, map[string]string{
+		"subscription_name": "每日套餐",
+		"subscription_id":   "108",
+		"current_balance":   "1.00",
+		"threshold":         "10.00",
+		"quota_status":      "偏低",
+		"reset_period":      "daily",
+		"reset_at":          "2026-07-22 00:00:00 CST",
+		"reset_in":          "17 小时",
+	})
+	require.NoError(t, err)
+	assert.Contains(t, rendered.HTML, "2026-07-22 00:00:00 CST")
+	assert.Contains(t, rendered.HTML, "17 小时")
+}
+
+func TestUserDisabledTemplateIncludesReason(t *testing.T) {
+	template, err := GetEmailTemplate(EmailTemplateEventUserDisabled, i18n.LangZhCN)
+	require.NoError(t, err)
+	rendered, err := RenderEmailTemplate(template, map[string]string{
+		"user_id":        "42",
+		"username":       "example",
+		"display_name":   "Example",
+		"disable_reason": "恶意请求导致上游风险",
+		"disabled_at":    "2026-07-21 07:00:00 CST",
+	})
+	require.NoError(t, err)
+	assert.Contains(t, rendered.HTML, "封禁理由")
+	assert.Contains(t, rendered.HTML, "恶意请求导致上游风险")
 }
 
 func TestBalanceLowRechargeURLUsesServerAddress(t *testing.T) {

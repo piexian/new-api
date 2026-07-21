@@ -1293,9 +1293,16 @@ func IncreaseUserQuota(id int, quota int, db bool) (err error) {
 	})
 	if !db && common.BatchUpdateEnabled {
 		addNewRecord(BatchUpdateTypeUserQuota, id, quota)
+		if quota > 0 {
+			common.ResetQuotaNotificationSendLocks(id, "wallet", 0)
+		}
 		return nil
 	}
-	return increaseUserQuota(id, quota)
+	err = increaseUserQuota(id, quota)
+	if err == nil && quota > 0 {
+		common.ResetQuotaNotificationSendLocks(id, "wallet", 0)
+	}
+	return err
 }
 
 func increaseUserQuota(id int, quota int) (err error) {

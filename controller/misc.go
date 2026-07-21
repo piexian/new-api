@@ -403,6 +403,14 @@ func SendPasswordResetEmail(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	ok, release := common.TryAcquirePasswordResetSendLock(email)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+		})
+		return
+	}
 	if user, err := model.GetUniqueUserByEmail(email); err == nil {
 		code := common.GenerateVerificationCode(0)
 		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
@@ -416,10 +424,14 @@ func SendPasswordResetEmail(c *gin.Context) {
 				"valid_minutes": fmt.Sprintf("%d", common.VerificationValidMinutes),
 			},
 		); err != nil {
+			release()
 			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
 		}
 	} else if err != nil && !errors.Is(err, model.ErrEmailNotFound) {
+		release()
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("skip password reset email for %s: %s", email, err.Error()))
+	} else {
+		release()
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

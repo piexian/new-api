@@ -111,6 +111,75 @@ func UpdatePendingTopUpStatus(tradeNo string, expectedPaymentProvider string, ta
 	})
 }
 
+// CompleteEpayTopUp atomically completes an Epay order and credits its wallet.
+// The completed return value is false for replayed callbacks.
+func CompleteEpayTopUp(tradeNo string, actualPaymentMethod string, callerIp string) (*TopUp, int, bool, error) {
+	if tradeNo == "" {
+		return nil, 0, false, errors.New("未提供订单号")
+	}
+
+	refCol := "`trade_no`"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		refCol = `"trade_no"`
+	}
+
+	topUp := &TopUp{}
+	quotaToAdd := 0
+	completed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return ErrTopUpNotFound
+		}
+		if topUp.PaymentProvider != PaymentProviderEpay {
+			return ErrPaymentMethodMismatch
+		}
+		if topUp.Status == common.TopUpStatusSuccess {
+			return nil
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return ErrTopUpStatusInvalid
+		}
+
+		quotaToAdd = int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		if quotaToAdd <= 0 {
+			return errors.New("无效的充值额度")
+		}
+		if actualPaymentMethod != "" {
+			topUp.PaymentMethod = actualPaymentMethod
+		}
+		topUp.Status = common.TopUpStatusSuccess
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.CallbackIp = callerIp
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).
+			Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+			return err
+		}
+		completed = true
+		return nil
+	})
+	if err != nil {
+		return nil, 0, false, err
+	}
+	if completed {
+		if err := cacheIncrUserQuota(topUp.UserId, int64(quotaToAdd)); err != nil {
+			common.SysLog(fmt.Sprintf("failed to update user quota cache after Epay top-up: user_id=%d, error=%v", topUp.UserId, err))
+		}
+		emitTopUpCompleted(TopUpCompletedEvent{
+			UserId:          topUp.UserId,
+			OrderNo:         topUp.TradeNo,
+			QuotaAdded:      int64(quotaToAdd),
+			PaymentAmount:   topUp.Money,
+			PaymentMethod:   topUp.PaymentMethod,
+			PaymentProvider: topUp.PaymentProvider,
+			CompletedAt:     topUp.CompleteTime,
+		})
+	}
+	return topUp, quotaToAdd, completed, nil
+}
+
 func Recharge(referenceId string, customerId string, callerIp string) (err error) {
 	if referenceId == "" {
 		return errors.New("未提供支付单号")
@@ -161,6 +230,15 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	emitTopUpCompleted(TopUpCompletedEvent{
+		UserId:          topUp.UserId,
+		OrderNo:         topUp.TradeNo,
+		QuotaAdded:      int64(quota),
+		PaymentAmount:   topUp.Money,
+		PaymentMethod:   topUp.PaymentMethod,
+		PaymentProvider: topUp.PaymentProvider,
+		CompletedAt:     topUp.CompleteTime,
+	})
 
 	return nil
 }
@@ -337,6 +415,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	var quotaToAdd int
 	var payMoney float64
 	var paymentMethod string
+	var completedEvent *TopUpCompletedEvent
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
@@ -385,6 +464,15 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		userId = topUp.UserId
 		payMoney = topUp.Money
 		paymentMethod = topUp.PaymentMethod
+		completedEvent = &TopUpCompletedEvent{
+			UserId:          topUp.UserId,
+			OrderNo:         topUp.TradeNo,
+			QuotaAdded:      int64(quotaToAdd),
+			PaymentAmount:   topUp.Money,
+			PaymentMethod:   topUp.PaymentMethod,
+			PaymentProvider: topUp.PaymentProvider,
+			CompletedAt:     topUp.CompleteTime,
+		}
 		return nil
 	})
 
@@ -394,6 +482,9 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 	// 事务外记录日志，避免阻塞
 	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+	if completedEvent != nil {
+		emitTopUpCompleted(*completedEvent)
+	}
 	return nil
 }
 func RechargeCreem(referenceId string, customerEmail string, customerName string, callerIp string) (err error) {
@@ -468,6 +559,15 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 	}
 
 	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	emitTopUpCompleted(TopUpCompletedEvent{
+		UserId:          topUp.UserId,
+		OrderNo:         topUp.TradeNo,
+		QuotaAdded:      quota,
+		PaymentAmount:   topUp.Money,
+		PaymentMethod:   topUp.PaymentMethod,
+		PaymentProvider: topUp.PaymentProvider,
+		CompletedAt:     topUp.CompleteTime,
+	})
 
 	return nil
 }
@@ -531,6 +631,15 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
+		emitTopUpCompleted(TopUpCompletedEvent{
+			UserId:          topUp.UserId,
+			OrderNo:         topUp.TradeNo,
+			QuotaAdded:      int64(quotaToAdd),
+			PaymentAmount:   topUp.Money,
+			PaymentMethod:   topUp.PaymentMethod,
+			PaymentProvider: topUp.PaymentProvider,
+			CompletedAt:     topUp.CompleteTime,
+		})
 	}
 
 	return nil
@@ -593,6 +702,15 @@ func RechargeWaffoPancake(tradeNo string, callerIp string) (err error) {
 
 	if quotaToAdd > 0 {
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffoPancake)
+		emitTopUpCompleted(TopUpCompletedEvent{
+			UserId:          topUp.UserId,
+			OrderNo:         topUp.TradeNo,
+			QuotaAdded:      int64(quotaToAdd),
+			PaymentAmount:   topUp.Money,
+			PaymentMethod:   topUp.PaymentMethod,
+			PaymentProvider: topUp.PaymentProvider,
+			CompletedAt:     topUp.CompleteTime,
+		})
 	}
 
 	return nil

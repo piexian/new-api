@@ -104,6 +104,54 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
 }
 
+func TestRechargeWaffoEmitsCompletionOnceForReplayedCallback(t *testing.T) {
+	truncateTables(t)
+	insertUserForPaymentGuardTest(t, 102, 0)
+	insertTopUpForPaymentGuardTest(t, "waffo-replayed-callback", 102, PaymentProviderWaffo)
+
+	var completedEvents []TopUpCompletedEvent
+	SetTopUpCompletedHook(func(event TopUpCompletedEvent) {
+		completedEvents = append(completedEvents, event)
+	})
+	t.Cleanup(func() {
+		SetTopUpCompletedHook(nil)
+	})
+
+	require.NoError(t, RechargeWaffo("waffo-replayed-callback", "127.0.0.1"))
+	require.NoError(t, RechargeWaffo("waffo-replayed-callback", "127.0.0.1"))
+	require.Len(t, completedEvents, 1)
+	assert.Equal(t, 102, completedEvents[0].UserId)
+	assert.Equal(t, "waffo-replayed-callback", completedEvents[0].OrderNo)
+	assert.Positive(t, completedEvents[0].QuotaAdded)
+	assert.Equal(t, int(completedEvents[0].QuotaAdded), getUserQuotaForPaymentGuardTest(t, 102))
+}
+
+func TestCompleteEpayTopUpCreditsAndEmitsOnceForReplayedCallback(t *testing.T) {
+	truncateTables(t)
+	insertUserForPaymentGuardTest(t, 103, 0)
+	insertTopUpForPaymentGuardTest(t, "epay-replayed-callback", 103, PaymentProviderEpay)
+
+	var completedEvents []TopUpCompletedEvent
+	SetTopUpCompletedHook(func(event TopUpCompletedEvent) {
+		completedEvents = append(completedEvents, event)
+	})
+	t.Cleanup(func() {
+		SetTopUpCompletedHook(nil)
+	})
+
+	_, quotaAdded, completed, err := CompleteEpayTopUp("epay-replayed-callback", "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	assert.True(t, completed)
+	assert.Positive(t, quotaAdded)
+
+	_, replayedQuota, replayed, err := CompleteEpayTopUp("epay-replayed-callback", "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	assert.False(t, replayed)
+	assert.Zero(t, replayedQuota)
+	require.Len(t, completedEvents, 1)
+	assert.Equal(t, quotaAdded, getUserQuotaForPaymentGuardTest(t, 103))
+}
+
 func TestUpdatePendingTopUpStatus_RejectsMismatchedPaymentProvider(t *testing.T) {
 	testCases := []struct {
 		name                    string

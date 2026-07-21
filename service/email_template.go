@@ -23,7 +23,12 @@ const (
 	EmailTemplateEventVerification           = "auth.verify_code"
 	EmailTemplateEventPasswordReset          = "auth.password_reset"
 	EmailTemplateEventBalanceLow             = "balance.low"
+	EmailTemplateEventTopUpSucceeded         = "balance.topup_succeeded"
 	EmailTemplateEventSubscriptionBalanceLow = "subscription.balance_low"
+	EmailTemplateEventSubscriptionResetQuota = "subscription.reset_quota"
+	EmailTemplateEventSubscriptionSucceeded  = "subscription.succeeded"
+	EmailTemplateEventSubscriptionExpired    = "subscription.expired"
+	EmailTemplateEventUserDisabled           = "account.disabled"
 	EmailTemplateEventChannelAutoDisabled    = "channel.auto_disabled"
 	EmailTemplateEventChannelAutoEnabled     = "channel.auto_enabled"
 	EmailTemplateEventChannelQuotaCooldown   = "channel.quota_cooldown"
@@ -80,8 +85,13 @@ var (
 	emailTemplateEvents           = []EmailTemplateEventInfo{
 		{Event: EmailTemplateEventVerification, Placeholders: emailTemplatePlaceholders("code", "valid_minutes", "verification_purpose")},
 		{Event: EmailTemplateEventPasswordReset, Placeholders: emailTemplatePlaceholders("reset_url", "valid_minutes")},
-		{Event: EmailTemplateEventBalanceLow, Placeholders: emailTemplatePlaceholders("user_id", "current_balance", "threshold", "recharge_url")},
-		{Event: EmailTemplateEventSubscriptionBalanceLow, Placeholders: emailTemplatePlaceholders("user_id", "subscription_id", "subscription_name", "current_balance", "threshold", "recharge_url")},
+		{Event: EmailTemplateEventBalanceLow, Placeholders: emailTemplatePlaceholders("user_id", "current_balance", "threshold", "recharge_url", "quota_status")},
+		{Event: EmailTemplateEventTopUpSucceeded, Placeholders: emailTemplatePlaceholders("user_id", "order_no", "quota_added", "payment_amount", "payment_method", "payment_provider", "completed_at")},
+		{Event: EmailTemplateEventSubscriptionBalanceLow, Placeholders: emailTemplatePlaceholders("user_id", "subscription_id", "subscription_name", "current_balance", "threshold", "recharge_url", "quota_status")},
+		{Event: EmailTemplateEventSubscriptionResetQuota, Placeholders: emailTemplatePlaceholders("user_id", "subscription_id", "subscription_name", "current_balance", "threshold", "quota_status", "reset_period", "reset_at", "reset_in")},
+		{Event: EmailTemplateEventSubscriptionSucceeded, Placeholders: emailTemplatePlaceholders("user_id", "subscription_id", "plan_id", "subscription_name", "amount_total", "start_at", "end_at", "next_reset_at", "reset_period", "payment_amount", "payment_method", "payment_provider", "subscription_source")},
+		{Event: EmailTemplateEventSubscriptionExpired, Placeholders: emailTemplatePlaceholders("user_id", "subscription_id", "plan_id", "subscription_name", "expired_at", "subscription_source", "allow_wallet_overflow")},
+		{Event: EmailTemplateEventUserDisabled, Placeholders: emailTemplatePlaceholders("user_id", "username", "display_name", "disable_reason", "disabled_at")},
 		{Event: EmailTemplateEventChannelAutoDisabled, Placeholders: emailTemplatePlaceholders("channel_id", "channel_name", "channel_type", "reason")},
 		{Event: EmailTemplateEventChannelAutoEnabled, Placeholders: emailTemplatePlaceholders("channel_id", "channel_name", "channel_type")},
 		{Event: EmailTemplateEventChannelQuotaCooldown, Placeholders: emailTemplatePlaceholders("channel_id", "channel_name", "channel_type", "reason", "cooldown_until")},
@@ -457,8 +467,30 @@ func SampleEmailTemplateVariables(event string) map[string]string {
 		"current_balance":         "$4.20",
 		"threshold":               "$10.00",
 		"recharge_url":            GetBalanceLowRechargeURL(),
+		"quota_status":            "running low",
 		"subscription_id":         "108",
 		"subscription_name":       "Pro",
+		"plan_id":                 "12",
+		"amount_total":            "$100.00",
+		"start_at":                time.Now().Format(time.RFC1123),
+		"end_at":                  time.Now().AddDate(0, 1, 0).Format(time.RFC1123),
+		"next_reset_at":           time.Now().Add(24 * time.Hour).Format(time.RFC1123),
+		"reset_period":            "daily",
+		"reset_at":                time.Now().Add(2 * time.Hour).Format(time.RFC1123),
+		"reset_in":                "2 hours",
+		"subscription_source":     "order",
+		"expired_at":              time.Now().Format(time.RFC1123),
+		"allow_wallet_overflow":   "yes",
+		"order_no":                "ORDER-20260721-001",
+		"quota_added":             "$25.00",
+		"payment_amount":          "25.00",
+		"payment_method":          "card",
+		"payment_provider":        "stripe",
+		"completed_at":            time.Now().Format(time.RFC1123),
+		"username":                "example-user",
+		"display_name":            "Example User",
+		"disable_reason":          "Terms of service violation",
+		"disabled_at":             time.Now().Format(time.RFC1123),
 		"channel_id":              "12",
 		"channel_name":            "Primary OpenAI",
 		"channel_type":            "1",
@@ -595,7 +627,12 @@ func buildDefaultEmailTemplates() map[string]map[string]defaultEmailTemplate {
 			},
 		},
 		EmailTemplateEventBalanceLow:             buildBalanceLowTemplates(false),
+		EmailTemplateEventTopUpSucceeded:         buildTopUpSucceededTemplates(),
 		EmailTemplateEventSubscriptionBalanceLow: buildBalanceLowTemplates(true),
+		EmailTemplateEventSubscriptionResetQuota: buildSubscriptionResetQuotaTemplates(),
+		EmailTemplateEventSubscriptionSucceeded:  buildSubscriptionSucceededTemplates(),
+		EmailTemplateEventSubscriptionExpired:    buildSubscriptionExpiredTemplates(),
+		EmailTemplateEventUserDisabled:           buildUserDisabledTemplates(),
 		EmailTemplateEventChannelAutoDisabled:    buildChannelAutoDisabledTemplates(),
 		EmailTemplateEventChannelAutoEnabled:     buildChannelAutoEnabledTemplates(),
 		EmailTemplateEventChannelQuotaCooldown:   buildChannelQuotaCooldownTemplates(),
@@ -825,16 +862,197 @@ func buildBalanceLowTemplates(subscription bool) map[string]defaultEmailTemplate
 	}
 	return map[string]defaultEmailTemplate{
 		i18n.LangEn: {
-			Subject: "[{{ site_name }}] Your " + nameEN + " is running low",
-			HTML:    emailHTMLLayout("Your "+nameEN+" is running low", "Your current balance is {{ current_balance }}, below the reminder threshold of {{ threshold }}.", emailActionButton("Recharge now", "{{ recharge_url }}")+"\n"+`<p style="margin:20px 0 0;color:#667085;font-size:14px;line-height:22px;">Recharge soon to avoid an interruption to your service.</p>`),
+			Subject: "[{{ site_name }}] Your " + nameEN + " is {{ quota_status }}",
+			HTML:    emailHTMLLayout("Your "+nameEN+" is {{ quota_status }}", "Your current balance is {{ current_balance }}. The configured reminder threshold is {{ threshold }}.", emailActionButton("Recharge now", "{{ recharge_url }}")+"\n"+`<p style="margin:20px 0 0;color:#667085;font-size:14px;line-height:22px;">Recharge to avoid an interruption to your service.</p>`),
 		},
 		i18n.LangZhCN: {
-			Subject: "[{{ site_name }}] 您的" + nameZhCN + "不足",
-			HTML:    emailHTMLLayout("您的"+nameZhCN+"即将用尽", "当前余额为 {{ current_balance }}，已低于提醒阈值 {{ threshold }}。", emailActionButton("立即充值", "{{ recharge_url }}")+"\n"+`<p style="margin:20px 0 0;color:#667085;font-size:14px;line-height:22px;">请及时充值，避免服务中断。</p>`),
+			Subject: "[{{ site_name }}] 您的" + nameZhCN + "{{ quota_status }}",
+			HTML:    emailHTMLLayout("您的"+nameZhCN+"{{ quota_status }}", "当前余额为 {{ current_balance }}，提醒阈值为 {{ threshold }}。", emailActionButton("立即充值", "{{ recharge_url }}")+"\n"+`<p style="margin:20px 0 0;color:#667085;font-size:14px;line-height:22px;">请补充余额，避免服务中断。</p>`),
 		},
 		i18n.LangZhTW: {
-			Subject: "[{{ site_name }}] 您的" + nameZhTW + "不足",
-			HTML:    emailHTMLLayout("您的"+nameZhTW+"即將用盡", "目前餘額為 {{ current_balance }}，已低於提醒門檻 {{ threshold }}。", emailActionButton("立即儲值", "{{ recharge_url }}")+"\n"+`<p style="margin:20px 0 0;color:#667085;font-size:14px;line-height:22px;">請及時儲值，避免服務中斷。</p>`),
+			Subject: "[{{ site_name }}] 您的" + nameZhTW + "{{ quota_status }}",
+			HTML:    emailHTMLLayout("您的"+nameZhTW+"{{ quota_status }}", "目前餘額為 {{ current_balance }}，提醒門檻為 {{ threshold }}。", emailActionButton("立即儲值", "{{ recharge_url }}")+"\n"+`<p style="margin:20px 0 0;color:#667085;font-size:14px;line-height:22px;">請補充餘額，避免服務中斷。</p>`),
+		},
+	}
+}
+
+func buildSubscriptionResetQuotaTemplates() map[string]defaultEmailTemplate {
+	return map[string]defaultEmailTemplate{
+		i18n.LangEn: {
+			Subject: "[{{ site_name }}] {{ subscription_name }} plan quota is {{ quota_status }}",
+			HTML: emailHTMLLayout("Plan quota is {{ quota_status }}", "This plan's quota will recover automatically; no wallet recharge is required for the reset.", emailDetailTable(
+				"Plan", "{{ subscription_name }} (#{{ subscription_id }})",
+				"Current quota", "{{ current_balance }}",
+				"Reminder threshold", "{{ threshold }}",
+				"Reset period", "{{ reset_period }}",
+				"Available again at", "{{ reset_at }}",
+				"Time remaining", "{{ reset_in }}",
+			)),
+		},
+		i18n.LangZhCN: {
+			Subject: "[{{ site_name }}] {{ subscription_name }} 套餐额度{{ quota_status }}",
+			HTML: emailHTMLLayout("套餐周期额度{{ quota_status }}", "该套餐额度会按周期自动恢复，无需为本次恢复充值钱包。", emailDetailTable(
+				"套餐", "{{ subscription_name }}（#{{ subscription_id }}）",
+				"当前额度", "{{ current_balance }}",
+				"提醒阈值", "{{ threshold }}",
+				"重置周期", "{{ reset_period }}",
+				"预计恢复时间", "{{ reset_at }}",
+				"距离恢复", "{{ reset_in }}",
+			)),
+		},
+		i18n.LangZhTW: {
+			Subject: "[{{ site_name }}] {{ subscription_name }} 方案額度{{ quota_status }}",
+			HTML: emailHTMLLayout("方案週期額度{{ quota_status }}", "該方案額度會依週期自動恢復，無需為本次恢復儲值錢包。", emailDetailTable(
+				"方案", "{{ subscription_name }}（#{{ subscription_id }}）",
+				"目前額度", "{{ current_balance }}",
+				"提醒門檻", "{{ threshold }}",
+				"重置週期", "{{ reset_period }}",
+				"預計恢復時間", "{{ reset_at }}",
+				"距離恢復", "{{ reset_in }}",
+			)),
+		},
+	}
+}
+
+func buildSubscriptionSucceededTemplates() map[string]defaultEmailTemplate {
+	return map[string]defaultEmailTemplate{
+		i18n.LangEn: {
+			Subject: "[{{ site_name }}] {{ subscription_name }} subscription activated",
+			HTML: emailHTMLLayout("Subscription activated", "Your paid subscription is ready to use.", emailDetailTable(
+				"Plan", "{{ subscription_name }} (#{{ plan_id }})",
+				"Subscription ID", "{{ subscription_id }}",
+				"Quota", "{{ amount_total }}",
+				"Starts", "{{ start_at }}",
+				"Ends", "{{ end_at }}",
+				"Next quota reset", "{{ next_reset_at }}",
+				"Reset period", "{{ reset_period }}",
+				"Paid", "{{ payment_amount }} via {{ payment_method }} / {{ payment_provider }}",
+			)),
+		},
+		i18n.LangZhCN: {
+			Subject: "[{{ site_name }}] {{ subscription_name }} 订阅已开通",
+			HTML: emailHTMLLayout("订阅开通成功", "您的付费订阅已经生效。", emailDetailTable(
+				"套餐", "{{ subscription_name }}（#{{ plan_id }}）",
+				"订阅 ID", "{{ subscription_id }}",
+				"套餐额度", "{{ amount_total }}",
+				"开始时间", "{{ start_at }}",
+				"到期时间", "{{ end_at }}",
+				"下次额度重置", "{{ next_reset_at }}",
+				"重置周期", "{{ reset_period }}",
+				"支付信息", "{{ payment_amount }}，{{ payment_method }} / {{ payment_provider }}",
+			)),
+		},
+		i18n.LangZhTW: {
+			Subject: "[{{ site_name }}] {{ subscription_name }} 訂閱已開通",
+			HTML: emailHTMLLayout("訂閱開通成功", "您的付費訂閱已經生效。", emailDetailTable(
+				"方案", "{{ subscription_name }}（#{{ plan_id }}）",
+				"訂閱 ID", "{{ subscription_id }}",
+				"方案額度", "{{ amount_total }}",
+				"開始時間", "{{ start_at }}",
+				"到期時間", "{{ end_at }}",
+				"下次額度重置", "{{ next_reset_at }}",
+				"重置週期", "{{ reset_period }}",
+				"付款資訊", "{{ payment_amount }}，{{ payment_method }} / {{ payment_provider }}",
+			)),
+		},
+	}
+}
+
+func buildSubscriptionExpiredTemplates() map[string]defaultEmailTemplate {
+	return map[string]defaultEmailTemplate{
+		i18n.LangEn: {
+			Subject: "[{{ site_name }}] {{ subscription_name }} subscription expired",
+			HTML: emailHTMLLayout("Subscription expired", "Your subscription is no longer active.", emailDetailTable(
+				"Plan", "{{ subscription_name }} (#{{ plan_id }})",
+				"Subscription ID", "{{ subscription_id }}",
+				"Expired at", "{{ expired_at }}",
+				"Source", "{{ subscription_source }}",
+				"Wallet fallback", "{{ allow_wallet_overflow }}",
+			)),
+		},
+		i18n.LangZhCN: {
+			Subject: "[{{ site_name }}] {{ subscription_name }} 订阅已到期",
+			HTML: emailHTMLLayout("订阅已到期", "该订阅已停止生效。", emailDetailTable(
+				"套餐", "{{ subscription_name }}（#{{ plan_id }}）",
+				"订阅 ID", "{{ subscription_id }}",
+				"到期时间", "{{ expired_at }}",
+				"订阅来源", "{{ subscription_source }}",
+				"允许钱包接续", "{{ allow_wallet_overflow }}",
+			)),
+		},
+		i18n.LangZhTW: {
+			Subject: "[{{ site_name }}] {{ subscription_name }} 訂閱已到期",
+			HTML: emailHTMLLayout("訂閱已到期", "該訂閱已停止生效。", emailDetailTable(
+				"方案", "{{ subscription_name }}（#{{ plan_id }}）",
+				"訂閱 ID", "{{ subscription_id }}",
+				"到期時間", "{{ expired_at }}",
+				"訂閱來源", "{{ subscription_source }}",
+				"允許錢包接續", "{{ allow_wallet_overflow }}",
+			)),
+		},
+	}
+}
+
+func buildTopUpSucceededTemplates() map[string]defaultEmailTemplate {
+	return map[string]defaultEmailTemplate{
+		i18n.LangEn: {
+			Subject: "[{{ site_name }}] Wallet top-up completed",
+			HTML: emailHTMLLayout("Top-up completed", "Funds were added to your wallet successfully.", emailDetailTable(
+				"Order", "{{ order_no }}",
+				"Quota added", "{{ quota_added }}",
+				"Payment amount", "{{ payment_amount }}",
+				"Payment", "{{ payment_method }} / {{ payment_provider }}",
+				"Completed at", "{{ completed_at }}",
+			)),
+		},
+		i18n.LangZhCN: {
+			Subject: "[{{ site_name }}] 钱包充值成功",
+			HTML: emailHTMLLayout("充值到账", "充值额度已成功加入您的钱包。", emailDetailTable(
+				"订单号", "{{ order_no }}",
+				"到账额度", "{{ quota_added }}",
+				"支付金额", "{{ payment_amount }}",
+				"支付方式", "{{ payment_method }} / {{ payment_provider }}",
+				"到账时间", "{{ completed_at }}",
+			)),
+		},
+		i18n.LangZhTW: {
+			Subject: "[{{ site_name }}] 錢包儲值成功",
+			HTML: emailHTMLLayout("儲值到帳", "儲值額度已成功加入您的錢包。", emailDetailTable(
+				"訂單號", "{{ order_no }}",
+				"到帳額度", "{{ quota_added }}",
+				"付款金額", "{{ payment_amount }}",
+				"付款方式", "{{ payment_method }} / {{ payment_provider }}",
+				"到帳時間", "{{ completed_at }}",
+			)),
+		},
+	}
+}
+
+func buildUserDisabledTemplates() map[string]defaultEmailTemplate {
+	return map[string]defaultEmailTemplate{
+		i18n.LangEn: {
+			Subject: "[{{ site_name }}] Your account was disabled",
+			HTML: emailHTMLLayout("Account disabled", "Your account can no longer access {{ site_name }}.", emailDetailTable(
+				"Account", "{{ display_name }} ({{ username }}, #{{ user_id }})",
+				"Reason", "{{ disable_reason }}",
+				"Disabled at", "{{ disabled_at }}",
+			)),
+		},
+		i18n.LangZhCN: {
+			Subject: "[{{ site_name }}] 您的账号已被封禁",
+			HTML: emailHTMLLayout("账号已被封禁", "您的账号已无法继续访问 {{ site_name }}。", emailDetailTable(
+				"账号", "{{ display_name }}（{{ username }}，#{{ user_id }}）",
+				"封禁理由", "{{ disable_reason }}",
+				"封禁时间", "{{ disabled_at }}",
+			)),
+		},
+		i18n.LangZhTW: {
+			Subject: "[{{ site_name }}] 您的帳號已被停用",
+			HTML: emailHTMLLayout("帳號已被停用", "您的帳號已無法繼續存取 {{ site_name }}。", emailDetailTable(
+				"帳號", "{{ display_name }}（{{ username }}，#{{ user_id }}）",
+				"停用理由", "{{ disable_reason }}",
+				"停用時間", "{{ disabled_at }}",
+			)),
 		},
 	}
 }
