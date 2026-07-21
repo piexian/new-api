@@ -329,6 +329,33 @@ func SetApiRouter(router *gin.Engine) {
 			ipBanRoute.POST("/batch", controller.BatchCreateIPBans)
 		}
 
+		// 风控中心（仅 root 可访问）
+		riskGroup := apiRouter.Group("/risk")
+		riskGroup.Use(middleware.RootAuth())
+		{
+			// 批量模型探测防护
+			riskGroup.GET("/probe-guard/config", controller.GetProbeGuardConfig)
+			riskGroup.PUT("/probe-guard/config", controller.UpdateProbeGuardConfig)
+			riskGroup.GET("/probe-guard/ip-offenses", controller.ListProbeIPOffenses)
+			riskGroup.GET("/probe-guard/user-offenses", controller.ListProbeUserOffenses)
+			riskGroup.POST("/probe-guard/ip-offenses/:ip/reset", controller.ResetProbeIPOffense)
+			riskGroup.POST("/probe-guard/user-offenses/:id/unban", controller.UnbanProbeUser)
+			riskGroup.GET("/probe-guard/stats", controller.ProbeGuardStats)
+			// 错误日志触发自动封禁
+			riskGroup.GET("/error-ban/config", controller.GetErrorBanConfig)
+			riskGroup.PUT("/error-ban/config", controller.UpdateErrorBanConfig)
+			riskGroup.POST("/error-ban/rules/test", controller.TestErrorBanRule)
+			riskGroup.GET("/error-ban/ip-states", controller.ListErrorBanIPStates)
+			riskGroup.GET("/error-ban/user-states", controller.ListErrorBanUserStates)
+			riskGroup.POST("/error-ban/ip-states/:ip/reset", controller.ResetErrorBanIPState)
+			riskGroup.POST("/error-ban/user-states/:id/reset", controller.ResetErrorBanUserState)
+			riskGroup.GET("/error-ban/stats", controller.ErrorBanStats)
+			// 统一封禁日志
+			riskGroup.GET("/ban-logs", controller.ListRiskBanLogs)
+			riskGroup.GET("/ban-logs/stats", controller.RiskBanLogStats)
+			riskGroup.GET("/ban-logs/:id", controller.GetRiskBanLog)
+		}
+
 		prefillGroupRoute := apiRouter.Group("/prefill_group")
 		prefillGroupRoute.Use(middleware.AdminAuth())
 		{

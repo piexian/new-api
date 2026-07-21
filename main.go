@@ -105,6 +105,9 @@ func main() {
 	model.InitIPBanCache()
 	go model.SyncIPBanCache(common.SyncFrequency)
 
+	// 风控中心过期数据清理（每小时）
+	go model.StartRiskDataRetention(1)
+
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
 

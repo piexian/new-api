@@ -302,6 +302,11 @@ func migrateDB() error {
 		&CasbinRule{},
 		&AuthzRole{},
 		&IPBan{},
+		&ProbeIPAbuseState{},
+		&ProbeUserAbuseState{},
+		&ErrorBanIPState{},
+		&ErrorBanUserState{},
+		&RiskBanLog{},
 	)
 	if err != nil {
 		return err

@@ -22,20 +22,21 @@ import {
   CreditCard,
   FileText,
   FlaskConical,
+  Gift,
   Key,
   LayoutDashboard,
   ListTodo,
+  Mail,
   MessageSquare,
   Radio,
   ServerCog,
   Settings,
+  Shield,
+  ShieldBan,
   Ticket,
   User,
   Users,
   Wallet,
-  Mail,
-  ShieldBan,
-  Gift,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -172,6 +173,13 @@ export function useSidebarData(): SidebarData {
             title: t('System Info'),
             url: '/system-info',
             icon: ServerCog,
+            requiredRole: ROLE.SUPER_ADMIN,
+          },
+          {
+            title: t('Risk Center'),
+            url: '/risk/probe-guard',
+            activeUrls: ['/risk'],
+            icon: Shield,
             requiredRole: ROLE.SUPER_ADMIN,
           },
           {

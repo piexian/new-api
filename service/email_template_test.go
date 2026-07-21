@@ -12,7 +12,7 @@ import (
 
 func TestDefaultEmailTemplatesCoverEveryEventAndLocale(t *testing.T) {
 	catalog := GetEmailTemplateCatalog()
-	require.Len(t, catalog.Events, 16)
+	require.Len(t, catalog.Events, 17)
 	require.ElementsMatch(t, []string{i18n.LangZhCN, i18n.LangZhTW, i18n.LangEn}, catalog.Locales)
 	requiredEventPlaceholders := map[string][]string{
 		EmailTemplateEventSubscriptionResetQuota: {"quota_status", "reset_period", "reset_at", "reset_in"},

@@ -34,8 +34,8 @@ import {
   useParams,
 } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
-import User from './pages/User';
 import IPBan from './pages/IPBan';
+import RiskCenter from './pages/RiskCenter';
 import {
   API,
   AuthRedirect,
@@ -278,6 +278,20 @@ function App() {
               '/console/channel',
               <AdminRoute>
                 <Channel />
+              </AdminRoute>,
+            )}
+          />
+          <Route
+            path='/console/risk/*'
+            element={routeGuard(
+              '/console/risk',
+              <AdminRoute>
+                <Suspense
+                  fallback={<Loading></Loading>}
+                  key={location.pathname}
+                >
+                  <RiskCenter />
+                </Suspense>
               </AdminRoute>,
             )}
           />

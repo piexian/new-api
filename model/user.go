@@ -463,6 +463,42 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 	return &user, err
 }
 
+// DisableUserByRiskBan 原子地禁用一个普通用户并记录封禁原因。
+// 仅当目标为未禁用的普通用户时生效，避免误伤管理员或覆盖已有封禁。
+// 返回是否实际发生了禁用动作。
+func DisableUserByRiskBan(id int, reason string) (bool, error) {
+	if id == 0 {
+		return false, errors.New("id 为空！")
+	}
+	result := DB.Model(&User{}).
+		Where("id = ? AND role = ? AND status <> ?", id, common.RoleCommonUser, common.UserStatusDisabled).
+		Updates(map[string]interface{}{
+			"status":         common.UserStatusDisabled,
+			"disable_reason": reason,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
+// EnableUserByRiskBan 重新启用一个被风控自动封禁的用户（清空封禁原因）。
+func EnableUserByRiskBan(id int) (bool, error) {
+	if id == 0 {
+		return false, errors.New("id 为空！")
+	}
+	result := DB.Model(&User{}).
+		Where("id = ? AND status = ?", id, common.UserStatusDisabled).
+		Updates(map[string]interface{}{
+			"status":         common.UserStatusEnabled,
+			"disable_reason": "",
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
 func GetUserIdByAffCode(affCode string) (int, error) {
 	if affCode == "" {
 		return 0, errors.New("affCode 为空！")

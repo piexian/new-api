@@ -243,6 +243,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
     redemption: true,
     user: true,
     setting: true,
+    risk_center: true,
     subscription: true,
   },
 }
@@ -324,6 +325,7 @@ const SIDEBAR_ROUTE_RULES: SidebarRouteRule[] = [
   { prefix: '/redemption-codes', section: 'admin', module: 'redemption' },
   { prefix: '/subscriptions', section: 'admin', module: 'subscription' },
   { prefix: '/dashboard', section: 'console', module: 'detail' },
+  { prefix: '/risk', section: 'admin', module: 'risk_center' },
   { prefix: '/keys', section: 'console', module: 'token' },
   { prefix: '/wallet', section: 'personal', module: 'topup' },
   { prefix: '/profile', section: 'personal', module: 'personal' },

@@ -29,6 +29,7 @@ const (
 	EmailTemplateEventSubscriptionSucceeded  = "subscription.succeeded"
 	EmailTemplateEventSubscriptionExpired    = "subscription.expired"
 	EmailTemplateEventUserDisabled           = "account.disabled"
+	EmailTemplateEventAccountAutoBanned      = "account.auto_banned"
 	EmailTemplateEventChannelAutoDisabled    = "channel.auto_disabled"
 	EmailTemplateEventChannelAutoEnabled     = "channel.auto_enabled"
 	EmailTemplateEventChannelQuotaCooldown   = "channel.quota_cooldown"
@@ -92,6 +93,7 @@ var (
 		{Event: EmailTemplateEventSubscriptionSucceeded, Placeholders: emailTemplatePlaceholders("user_id", "subscription_id", "plan_id", "subscription_name", "amount_total", "start_at", "end_at", "next_reset_at", "reset_period", "payment_amount", "payment_method", "payment_provider", "subscription_source")},
 		{Event: EmailTemplateEventSubscriptionExpired, Placeholders: emailTemplatePlaceholders("user_id", "subscription_id", "plan_id", "subscription_name", "expired_at", "subscription_source", "allow_wallet_overflow")},
 		{Event: EmailTemplateEventUserDisabled, Placeholders: emailTemplatePlaceholders("user_id", "username", "display_name", "disable_reason", "disabled_at")},
+		{Event: EmailTemplateEventAccountAutoBanned, Placeholders: emailTemplatePlaceholders("user_id", "username", "display_name", "ban_source", "ban_reason", "is_permanent", "ban_duration", "banned_at", "unban_at", "offense_count", "tier_level", "tier_action", "rule_id", "rule_name", "error_sample", "triggered_models", "trigger_ip", "appeal_hint")},
 		{Event: EmailTemplateEventChannelAutoDisabled, Placeholders: emailTemplatePlaceholders("channel_id", "channel_name", "channel_type", "reason")},
 		{Event: EmailTemplateEventChannelAutoEnabled, Placeholders: emailTemplatePlaceholders("channel_id", "channel_name", "channel_type")},
 		{Event: EmailTemplateEventChannelQuotaCooldown, Placeholders: emailTemplatePlaceholders("channel_id", "channel_name", "channel_type", "reason", "cooldown_until")},
@@ -514,6 +516,21 @@ func SampleEmailTemplateVariables(event string) map[string]string {
 		"notification_type":       "system.notice",
 		"notification_title":      "System notification",
 		"notification_content":    "A system event requires your attention.",
+		"ban_source":              "error_ban",
+		"ban_reason":              "Repeated upstream authentication failures",
+		"is_permanent":            "no",
+		"ban_duration":            "240 分钟",
+		"banned_at":               time.Now().Format(time.RFC1123),
+		"unban_at":                time.Now().Add(4 * time.Hour).Format(time.RFC1123),
+		"offense_count":           "2",
+		"tier_level":              "2",
+		"tier_action":             "temp_ip_ban",
+		"rule_id":                 "invalid_api_key",
+		"rule_name":               "Invalid API key",
+		"error_sample":            "status_code=401, invalid_api_key: incorrect api key provided",
+		"triggered_models":        "gpt-5, claude-3-5-sonnet",
+		"trigger_ip":              "203.0.113.42",
+		"appeal_hint":             "如认为误封，请联系管理员。",
 	}
 	return values
 }
@@ -633,6 +650,7 @@ func buildDefaultEmailTemplates() map[string]map[string]defaultEmailTemplate {
 		EmailTemplateEventSubscriptionSucceeded:  buildSubscriptionSucceededTemplates(),
 		EmailTemplateEventSubscriptionExpired:    buildSubscriptionExpiredTemplates(),
 		EmailTemplateEventUserDisabled:           buildUserDisabledTemplates(),
+		EmailTemplateEventAccountAutoBanned:      buildAccountAutoBannedTemplates(),
 		EmailTemplateEventChannelAutoDisabled:    buildChannelAutoDisabledTemplates(),
 		EmailTemplateEventChannelAutoEnabled:     buildChannelAutoEnabledTemplates(),
 		EmailTemplateEventChannelQuotaCooldown:   buildChannelQuotaCooldownTemplates(),
@@ -1053,6 +1071,56 @@ func buildUserDisabledTemplates() map[string]defaultEmailTemplate {
 				"停用理由", "{{ disable_reason }}",
 				"停用時間", "{{ disabled_at }}",
 			)),
+		},
+	}
+}
+
+func buildAccountAutoBannedTemplates() map[string]defaultEmailTemplate {
+	return map[string]defaultEmailTemplate{
+		i18n.LangEn: {
+			Subject: "[{{ site_name }}] Your account was automatically banned",
+			HTML: emailHTMLLayout("Account automatically banned", "Automated risk control disabled your account after detecting suspicious activity.", emailDetailTable(
+				"Account", "{{ display_name }} ({{ username }}, #{{ user_id }})",
+				"Source", "{{ ban_source }}",
+				"Reason", "{{ ban_reason }}",
+				"Permanent", "{{ is_permanent }}",
+				"Duration", "{{ ban_duration }}",
+				"Banned at", "{{ banned_at }}",
+				"Unban at", "{{ unban_at }}",
+				"Offense count", "{{ offense_count }}",
+				"Rule", "{{ rule_name }} ({{ rule_id }})",
+				"Trigger IP", "{{ trigger_ip }}",
+			)+"\n"+emailTextPanel("{{ appeal_hint }}")),
+		},
+		i18n.LangZhCN: {
+			Subject: "[{{ site_name }}] 您的账号已被自动封禁",
+			HTML: emailHTMLLayout("账号已被自动封禁", "风控系统检测到异常行为后自动封禁了您的账号。", emailDetailTable(
+				"账号", "{{ display_name }}（{{ username }}，#{{ user_id }}）",
+				"来源", "{{ ban_source }}",
+				"封禁理由", "{{ ban_reason }}",
+				"是否永久", "{{ is_permanent }}",
+				"封禁时长", "{{ ban_duration }}",
+				"封禁时间", "{{ banned_at }}",
+				"解封时间", "{{ unban_at }}",
+				"违规次数", "{{ offense_count }}",
+				"触发规则", "{{ rule_name }}（{{ rule_id }}）",
+				"触发 IP", "{{ trigger_ip }}",
+			)+"\n"+emailTextPanel("{{ appeal_hint }}")),
+		},
+		i18n.LangZhTW: {
+			Subject: "[{{ site_name }}] 您的帳號已被自動封禁",
+			HTML: emailHTMLLayout("帳號已被自動封禁", "風控系統偵測到異常行為後自動封禁了您的帳號。", emailDetailTable(
+				"帳號", "{{ display_name }}（{{ username }}，#{{ user_id }}）",
+				"來源", "{{ ban_source }}",
+				"封禁理由", "{{ ban_reason }}",
+				"是否永久", "{{ is_permanent }}",
+				"封禁時長", "{{ ban_duration }}",
+				"封禁時間", "{{ banned_at }}",
+				"解封時間", "{{ unban_at }}",
+				"違規次數", "{{ offense_count }}",
+				"觸發規則", "{{ rule_name }}（{{ rule_id }}）",
+				"觸發 IP", "{{ trigger_ip }}",
+			)+"\n"+emailTextPanel("{{ appeal_hint }}")),
 		},
 	}
 }

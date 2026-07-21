@@ -35,6 +35,7 @@ import { Route as authOtpRouteImport } from './routes/(auth)/otp'
 import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
+import { Route as AuthenticatedRiskRouteRouteImport } from './routes/_authenticated/risk/route'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
@@ -42,6 +43,7 @@ import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
 import { Route as AuthenticatedSystemInfoIndexRouteImport } from './routes/_authenticated/system-info/index'
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
+import { Route as AuthenticatedRiskIndexRouteImport } from './routes/_authenticated/risk/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
@@ -64,6 +66,9 @@ import { Route as AuthenticatedSystemSettingsModelsIndexRouteImport } from './ro
 import { Route as AuthenticatedSystemSettingsContentIndexRouteImport } from './routes/_authenticated/system-settings/content/index'
 import { Route as AuthenticatedSystemSettingsBillingIndexRouteImport } from './routes/_authenticated/system-settings/billing/index'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
+import { Route as AuthenticatedRiskProbeGuardIndexRouteImport } from './routes/_authenticated/risk/probe-guard/index'
+import { Route as AuthenticatedRiskErrorBanIndexRouteImport } from './routes/_authenticated/risk/error-ban/index'
+import { Route as AuthenticatedRiskBanLogsIndexRouteImport } from './routes/_authenticated/risk/ban-logs/index'
 import { Route as AuthenticatedSystemSettingsSiteSectionRouteImport } from './routes/_authenticated/system-settings/site/$section'
 import { Route as AuthenticatedSystemSettingsSecuritySectionRouteImport } from './routes/_authenticated/system-settings/security/$section'
 import { Route as AuthenticatedSystemSettingsOperationsSectionRouteImport } from './routes/_authenticated/system-settings/operations/$section'
@@ -71,6 +76,10 @@ import { Route as AuthenticatedSystemSettingsModelsSectionRouteImport } from './
 import { Route as AuthenticatedSystemSettingsContentSectionRouteImport } from './routes/_authenticated/system-settings/content/$section'
 import { Route as AuthenticatedSystemSettingsBillingSectionRouteImport } from './routes/_authenticated/system-settings/billing/$section'
 import { Route as AuthenticatedSystemSettingsAuthSectionRouteImport } from './routes/_authenticated/system-settings/auth/$section'
+import { Route as AuthenticatedRiskProbeGuardUserOffensesIndexRouteImport } from './routes/_authenticated/risk/probe-guard/user-offenses/index'
+import { Route as AuthenticatedRiskProbeGuardIpOffensesIndexRouteImport } from './routes/_authenticated/risk/probe-guard/ip-offenses/index'
+import { Route as AuthenticatedRiskErrorBanUserStatesIndexRouteImport } from './routes/_authenticated/risk/error-ban/user-states/index'
+import { Route as AuthenticatedRiskErrorBanIpStatesIndexRouteImport } from './routes/_authenticated/risk/error-ban/ip-states/index'
 
 const UserAgreementRoute = UserAgreementRouteImport.update({
   id: '/user-agreement',
@@ -201,6 +210,11 @@ const AuthenticatedSystemSettingsRouteRoute =
     path: '/system-settings',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedRiskRouteRoute = AuthenticatedRiskRouteRouteImport.update({
+  id: '/risk',
+  path: '/risk',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   id: '/pricing/$modelId/',
   path: '/pricing/$modelId/',
@@ -241,6 +255,11 @@ const AuthenticatedSubscriptionsIndexRoute =
     path: '/subscriptions/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedRiskIndexRoute = AuthenticatedRiskIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedRiskRouteRoute,
+} as any)
 const AuthenticatedRedemptionCodesIndexRoute =
   AuthenticatedRedemptionCodesIndexRouteImport.update({
     id: '/redemption-codes/',
@@ -370,6 +389,24 @@ const AuthenticatedSystemSettingsAuthIndexRoute =
     path: '/auth/',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
   } as any)
+const AuthenticatedRiskProbeGuardIndexRoute =
+  AuthenticatedRiskProbeGuardIndexRouteImport.update({
+    id: '/probe-guard/',
+    path: '/probe-guard/',
+    getParentRoute: () => AuthenticatedRiskRouteRoute,
+  } as any)
+const AuthenticatedRiskErrorBanIndexRoute =
+  AuthenticatedRiskErrorBanIndexRouteImport.update({
+    id: '/error-ban/',
+    path: '/error-ban/',
+    getParentRoute: () => AuthenticatedRiskRouteRoute,
+  } as any)
+const AuthenticatedRiskBanLogsIndexRoute =
+  AuthenticatedRiskBanLogsIndexRouteImport.update({
+    id: '/ban-logs/',
+    path: '/ban-logs/',
+    getParentRoute: () => AuthenticatedRiskRouteRoute,
+  } as any)
 const AuthenticatedSystemSettingsSiteSectionRoute =
   AuthenticatedSystemSettingsSiteSectionRouteImport.update({
     id: '/site/$section',
@@ -412,11 +449,36 @@ const AuthenticatedSystemSettingsAuthSectionRoute =
     path: '/auth/$section',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
   } as any)
+const AuthenticatedRiskProbeGuardUserOffensesIndexRoute =
+  AuthenticatedRiskProbeGuardUserOffensesIndexRouteImport.update({
+    id: '/probe-guard/user-offenses/',
+    path: '/probe-guard/user-offenses/',
+    getParentRoute: () => AuthenticatedRiskRouteRoute,
+  } as any)
+const AuthenticatedRiskProbeGuardIpOffensesIndexRoute =
+  AuthenticatedRiskProbeGuardIpOffensesIndexRouteImport.update({
+    id: '/probe-guard/ip-offenses/',
+    path: '/probe-guard/ip-offenses/',
+    getParentRoute: () => AuthenticatedRiskRouteRoute,
+  } as any)
+const AuthenticatedRiskErrorBanUserStatesIndexRoute =
+  AuthenticatedRiskErrorBanUserStatesIndexRouteImport.update({
+    id: '/error-ban/user-states/',
+    path: '/error-ban/user-states/',
+    getParentRoute: () => AuthenticatedRiskRouteRoute,
+  } as any)
+const AuthenticatedRiskErrorBanIpStatesIndexRoute =
+  AuthenticatedRiskErrorBanIpStatesIndexRouteImport.update({
+    id: '/error-ban/ip-states/',
+    path: '/error-ban/ip-states/',
+    getParentRoute: () => AuthenticatedRiskRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/user-agreement': typeof UserAgreementRoute
+  '/risk': typeof AuthenticatedRiskRouteRouteWithChildren
   '/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/forgot-password': typeof authForgotPasswordRoute
   '/oauth': typeof authOauthRoute
@@ -453,6 +515,7 @@ export interface FileRoutesByFullPath {
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/risk/': typeof AuthenticatedRiskIndexRoute
   '/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-info/': typeof AuthenticatedSystemInfoIndexRoute
   '/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
@@ -467,6 +530,9 @@ export interface FileRoutesByFullPath {
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/risk/ban-logs/': typeof AuthenticatedRiskBanLogsIndexRoute
+  '/risk/error-ban/': typeof AuthenticatedRiskErrorBanIndexRoute
+  '/risk/probe-guard/': typeof AuthenticatedRiskProbeGuardIndexRoute
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -474,6 +540,10 @@ export interface FileRoutesByFullPath {
   '/system-settings/operations/': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
+  '/risk/error-ban/ip-states/': typeof AuthenticatedRiskErrorBanIpStatesIndexRoute
+  '/risk/error-ban/user-states/': typeof AuthenticatedRiskErrorBanUserStatesIndexRoute
+  '/risk/probe-guard/ip-offenses/': typeof AuthenticatedRiskProbeGuardIpOffensesIndexRoute
+  '/risk/probe-guard/user-offenses/': typeof AuthenticatedRiskProbeGuardUserOffensesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -514,6 +584,7 @@ export interface FileRoutesByTo {
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/risk': typeof AuthenticatedRiskIndexRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-info': typeof AuthenticatedSystemInfoIndexRoute
   '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
@@ -528,6 +599,9 @@ export interface FileRoutesByTo {
   '/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/risk/ban-logs': typeof AuthenticatedRiskBanLogsIndexRoute
+  '/risk/error-ban': typeof AuthenticatedRiskErrorBanIndexRoute
+  '/risk/probe-guard': typeof AuthenticatedRiskProbeGuardIndexRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -535,6 +609,10 @@ export interface FileRoutesByTo {
   '/system-settings/operations': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/system-settings/security': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/system-settings/site': typeof AuthenticatedSystemSettingsSiteIndexRoute
+  '/risk/error-ban/ip-states': typeof AuthenticatedRiskErrorBanIpStatesIndexRoute
+  '/risk/error-ban/user-states': typeof AuthenticatedRiskErrorBanUserStatesIndexRoute
+  '/risk/probe-guard/ip-offenses': typeof AuthenticatedRiskProbeGuardIpOffensesIndexRoute
+  '/risk/probe-guard/user-offenses': typeof AuthenticatedRiskProbeGuardUserOffensesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -543,6 +621,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/privacy-policy': typeof PrivacyPolicyRoute
   '/user-agreement': typeof UserAgreementRoute
+  '/_authenticated/risk': typeof AuthenticatedRiskRouteRouteWithChildren
   '/_authenticated/system-settings': typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/oauth': typeof authOauthRoute
@@ -579,6 +658,7 @@ export interface FileRoutesById {
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/_authenticated/risk/': typeof AuthenticatedRiskIndexRoute
   '/_authenticated/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/_authenticated/system-info/': typeof AuthenticatedSystemInfoIndexRoute
   '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
@@ -593,6 +673,9 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/operations/$section': typeof AuthenticatedSystemSettingsOperationsSectionRoute
   '/_authenticated/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/_authenticated/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/_authenticated/risk/ban-logs/': typeof AuthenticatedRiskBanLogsIndexRoute
+  '/_authenticated/risk/error-ban/': typeof AuthenticatedRiskErrorBanIndexRoute
+  '/_authenticated/risk/probe-guard/': typeof AuthenticatedRiskProbeGuardIndexRoute
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/_authenticated/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/_authenticated/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -600,6 +683,10 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/operations/': typeof AuthenticatedSystemSettingsOperationsIndexRoute
   '/_authenticated/system-settings/security/': typeof AuthenticatedSystemSettingsSecurityIndexRoute
   '/_authenticated/system-settings/site/': typeof AuthenticatedSystemSettingsSiteIndexRoute
+  '/_authenticated/risk/error-ban/ip-states/': typeof AuthenticatedRiskErrorBanIpStatesIndexRoute
+  '/_authenticated/risk/error-ban/user-states/': typeof AuthenticatedRiskErrorBanUserStatesIndexRoute
+  '/_authenticated/risk/probe-guard/ip-offenses/': typeof AuthenticatedRiskProbeGuardIpOffensesIndexRoute
+  '/_authenticated/risk/probe-guard/user-offenses/': typeof AuthenticatedRiskProbeGuardUserOffensesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -607,6 +694,7 @@ export interface FileRouteTypes {
     | '/'
     | '/privacy-policy'
     | '/user-agreement'
+    | '/risk'
     | '/system-settings'
     | '/forgot-password'
     | '/oauth'
@@ -643,6 +731,7 @@ export interface FileRouteTypes {
     | '/playground/'
     | '/profile/'
     | '/redemption-codes/'
+    | '/risk/'
     | '/subscriptions/'
     | '/system-info/'
     | '/system-settings/'
@@ -657,6 +746,9 @@ export interface FileRouteTypes {
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/risk/ban-logs/'
+    | '/risk/error-ban/'
+    | '/risk/probe-guard/'
     | '/system-settings/auth/'
     | '/system-settings/billing/'
     | '/system-settings/content/'
@@ -664,6 +756,10 @@ export interface FileRouteTypes {
     | '/system-settings/operations/'
     | '/system-settings/security/'
     | '/system-settings/site/'
+    | '/risk/error-ban/ip-states/'
+    | '/risk/error-ban/user-states/'
+    | '/risk/probe-guard/ip-offenses/'
+    | '/risk/probe-guard/user-offenses/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -704,6 +800,7 @@ export interface FileRouteTypes {
     | '/playground'
     | '/profile'
     | '/redemption-codes'
+    | '/risk'
     | '/subscriptions'
     | '/system-info'
     | '/system-settings'
@@ -718,6 +815,9 @@ export interface FileRouteTypes {
     | '/system-settings/operations/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/risk/ban-logs'
+    | '/risk/error-ban'
+    | '/risk/probe-guard'
     | '/system-settings/auth'
     | '/system-settings/billing'
     | '/system-settings/content'
@@ -725,6 +825,10 @@ export interface FileRouteTypes {
     | '/system-settings/operations'
     | '/system-settings/security'
     | '/system-settings/site'
+    | '/risk/error-ban/ip-states'
+    | '/risk/error-ban/user-states'
+    | '/risk/probe-guard/ip-offenses'
+    | '/risk/probe-guard/user-offenses'
   id:
     | '__root__'
     | '/'
@@ -732,6 +836,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/privacy-policy'
     | '/user-agreement'
+    | '/_authenticated/risk'
     | '/_authenticated/system-settings'
     | '/(auth)/forgot-password'
     | '/(auth)/oauth'
@@ -768,6 +873,7 @@ export interface FileRouteTypes {
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
+    | '/_authenticated/risk/'
     | '/_authenticated/subscriptions/'
     | '/_authenticated/system-info/'
     | '/_authenticated/system-settings/'
@@ -782,6 +888,9 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/operations/$section'
     | '/_authenticated/system-settings/security/$section'
     | '/_authenticated/system-settings/site/$section'
+    | '/_authenticated/risk/ban-logs/'
+    | '/_authenticated/risk/error-ban/'
+    | '/_authenticated/risk/probe-guard/'
     | '/_authenticated/system-settings/auth/'
     | '/_authenticated/system-settings/billing/'
     | '/_authenticated/system-settings/content/'
@@ -789,6 +898,10 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/operations/'
     | '/_authenticated/system-settings/security/'
     | '/_authenticated/system-settings/site/'
+    | '/_authenticated/risk/error-ban/ip-states/'
+    | '/_authenticated/risk/error-ban/user-states/'
+    | '/_authenticated/risk/probe-guard/ip-offenses/'
+    | '/_authenticated/risk/probe-guard/user-offenses/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -996,6 +1109,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemSettingsRouteRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/risk': {
+      id: '/_authenticated/risk'
+      path: '/risk'
+      fullPath: '/risk'
+      preLoaderRoute: typeof AuthenticatedRiskRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/pricing/$modelId/': {
       id: '/pricing/$modelId/'
       path: '/pricing/$modelId'
@@ -1044,6 +1164,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/subscriptions/'
       preLoaderRoute: typeof AuthenticatedSubscriptionsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/risk/': {
+      id: '/_authenticated/risk/'
+      path: '/'
+      fullPath: '/risk/'
+      preLoaderRoute: typeof AuthenticatedRiskIndexRouteImport
+      parentRoute: typeof AuthenticatedRiskRouteRoute
     }
     '/_authenticated/redemption-codes/': {
       id: '/_authenticated/redemption-codes/'
@@ -1199,6 +1326,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemSettingsAuthIndexRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
+    '/_authenticated/risk/probe-guard/': {
+      id: '/_authenticated/risk/probe-guard/'
+      path: '/probe-guard'
+      fullPath: '/risk/probe-guard/'
+      preLoaderRoute: typeof AuthenticatedRiskProbeGuardIndexRouteImport
+      parentRoute: typeof AuthenticatedRiskRouteRoute
+    }
+    '/_authenticated/risk/error-ban/': {
+      id: '/_authenticated/risk/error-ban/'
+      path: '/error-ban'
+      fullPath: '/risk/error-ban/'
+      preLoaderRoute: typeof AuthenticatedRiskErrorBanIndexRouteImport
+      parentRoute: typeof AuthenticatedRiskRouteRoute
+    }
+    '/_authenticated/risk/ban-logs/': {
+      id: '/_authenticated/risk/ban-logs/'
+      path: '/ban-logs'
+      fullPath: '/risk/ban-logs/'
+      preLoaderRoute: typeof AuthenticatedRiskBanLogsIndexRouteImport
+      parentRoute: typeof AuthenticatedRiskRouteRoute
+    }
     '/_authenticated/system-settings/site/$section': {
       id: '/_authenticated/system-settings/site/$section'
       path: '/site/$section'
@@ -1248,6 +1396,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSystemSettingsAuthSectionRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
     }
+    '/_authenticated/risk/probe-guard/user-offenses/': {
+      id: '/_authenticated/risk/probe-guard/user-offenses/'
+      path: '/probe-guard/user-offenses'
+      fullPath: '/risk/probe-guard/user-offenses/'
+      preLoaderRoute: typeof AuthenticatedRiskProbeGuardUserOffensesIndexRouteImport
+      parentRoute: typeof AuthenticatedRiskRouteRoute
+    }
+    '/_authenticated/risk/probe-guard/ip-offenses/': {
+      id: '/_authenticated/risk/probe-guard/ip-offenses/'
+      path: '/probe-guard/ip-offenses'
+      fullPath: '/risk/probe-guard/ip-offenses/'
+      preLoaderRoute: typeof AuthenticatedRiskProbeGuardIpOffensesIndexRouteImport
+      parentRoute: typeof AuthenticatedRiskRouteRoute
+    }
+    '/_authenticated/risk/error-ban/user-states/': {
+      id: '/_authenticated/risk/error-ban/user-states/'
+      path: '/error-ban/user-states'
+      fullPath: '/risk/error-ban/user-states/'
+      preLoaderRoute: typeof AuthenticatedRiskErrorBanUserStatesIndexRouteImport
+      parentRoute: typeof AuthenticatedRiskRouteRoute
+    }
+    '/_authenticated/risk/error-ban/ip-states/': {
+      id: '/_authenticated/risk/error-ban/ip-states/'
+      path: '/error-ban/ip-states'
+      fullPath: '/risk/error-ban/ip-states/'
+      preLoaderRoute: typeof AuthenticatedRiskErrorBanIpStatesIndexRouteImport
+      parentRoute: typeof AuthenticatedRiskRouteRoute
+    }
   }
 }
 
@@ -1276,6 +1452,39 @@ const authRouteRouteChildren: authRouteRouteChildren = {
 const authRouteRouteWithChildren = authRouteRoute._addFileChildren(
   authRouteRouteChildren,
 )
+
+interface AuthenticatedRiskRouteRouteChildren {
+  AuthenticatedRiskIndexRoute: typeof AuthenticatedRiskIndexRoute
+  AuthenticatedRiskBanLogsIndexRoute: typeof AuthenticatedRiskBanLogsIndexRoute
+  AuthenticatedRiskErrorBanIndexRoute: typeof AuthenticatedRiskErrorBanIndexRoute
+  AuthenticatedRiskProbeGuardIndexRoute: typeof AuthenticatedRiskProbeGuardIndexRoute
+  AuthenticatedRiskErrorBanIpStatesIndexRoute: typeof AuthenticatedRiskErrorBanIpStatesIndexRoute
+  AuthenticatedRiskErrorBanUserStatesIndexRoute: typeof AuthenticatedRiskErrorBanUserStatesIndexRoute
+  AuthenticatedRiskProbeGuardIpOffensesIndexRoute: typeof AuthenticatedRiskProbeGuardIpOffensesIndexRoute
+  AuthenticatedRiskProbeGuardUserOffensesIndexRoute: typeof AuthenticatedRiskProbeGuardUserOffensesIndexRoute
+}
+
+const AuthenticatedRiskRouteRouteChildren: AuthenticatedRiskRouteRouteChildren =
+  {
+    AuthenticatedRiskIndexRoute: AuthenticatedRiskIndexRoute,
+    AuthenticatedRiskBanLogsIndexRoute: AuthenticatedRiskBanLogsIndexRoute,
+    AuthenticatedRiskErrorBanIndexRoute: AuthenticatedRiskErrorBanIndexRoute,
+    AuthenticatedRiskProbeGuardIndexRoute:
+      AuthenticatedRiskProbeGuardIndexRoute,
+    AuthenticatedRiskErrorBanIpStatesIndexRoute:
+      AuthenticatedRiskErrorBanIpStatesIndexRoute,
+    AuthenticatedRiskErrorBanUserStatesIndexRoute:
+      AuthenticatedRiskErrorBanUserStatesIndexRoute,
+    AuthenticatedRiskProbeGuardIpOffensesIndexRoute:
+      AuthenticatedRiskProbeGuardIpOffensesIndexRoute,
+    AuthenticatedRiskProbeGuardUserOffensesIndexRoute:
+      AuthenticatedRiskProbeGuardUserOffensesIndexRoute,
+  }
+
+const AuthenticatedRiskRouteRouteWithChildren =
+  AuthenticatedRiskRouteRoute._addFileChildren(
+    AuthenticatedRiskRouteRouteChildren,
+  )
 
 interface AuthenticatedSystemSettingsRouteRouteChildren {
   AuthenticatedSystemSettingsIndexRoute: typeof AuthenticatedSystemSettingsIndexRoute
@@ -1335,6 +1544,7 @@ const AuthenticatedSystemSettingsRouteRouteWithChildren =
   )
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedRiskRouteRoute: typeof AuthenticatedRiskRouteRouteWithChildren
   AuthenticatedSystemSettingsRouteRoute: typeof AuthenticatedSystemSettingsRouteRouteWithChildren
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
@@ -1359,6 +1569,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedRiskRouteRoute: AuthenticatedRiskRouteRouteWithChildren,
   AuthenticatedSystemSettingsRouteRoute:
     AuthenticatedSystemSettingsRouteRouteWithChildren,
   AuthenticatedChat2linkRoute: AuthenticatedChat2linkRoute,

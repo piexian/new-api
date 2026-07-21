@@ -158,6 +158,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	relayInfo.SetEstimatePromptTokens(tokens)
 
+	// 批量模型探测防护：在重试循环之前检测，保证每次请求只计数一次。
+	if probeErr := service.CheckProbeGuard(c, relayInfo); probeErr != nil {
+		newAPIError = probeErr
+		return
+	}
+
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
@@ -252,6 +258,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		logger.LogInfo(c, retryLogStr)
 	}
 	if newAPIError != nil {
+		// 错误日志触发自动封禁：终态错误，每次请求只计数一次（内部异步处理）。
+		service.CheckErrorBan(c, relayInfo, newAPIError)
 		gopool.Go(func() {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})
