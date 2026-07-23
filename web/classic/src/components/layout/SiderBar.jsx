@@ -39,6 +39,7 @@ const routerMap = {
   invite: '/console/invite',
   user: '/console/user',
   ip_ban: '/console/ip_ban',
+  risk_center: '/console/risk',
   subscription: '/console/subscription',
   log: '/console/log',
   email: '/console/email-log',
@@ -203,6 +204,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         itemKey: 'ip_ban',
         to: '/ip_ban',
         className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('风控中心'),
+        itemKey: 'risk_center',
+        to: '/risk',
+        className: isRoot() ? '' : 'tableHiddle',
       },
       {
         text: t('系统设置'),

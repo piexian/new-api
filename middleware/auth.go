@@ -45,7 +45,7 @@ func disabledUserMessage(c *gin.Context, reason string) string {
 	})
 }
 
-func disabledUserBusinessResponse(c *gin.Context, reason string, userId int, username string) {
+func disabledUserBusinessResponse(c *gin.Context, reason string, disabledUntil int64, userId int, username string) {
 	reason = strings.TrimSpace(reason)
 	message := disabledUserMessage(c, reason)
 	c.JSON(http.StatusOK, gin.H{
@@ -54,6 +54,7 @@ func disabledUserBusinessResponse(c *gin.Context, reason string, userId int, use
 		"data": gin.H{
 			"error_type":     "user_disabled",
 			"disable_reason": reason,
+			"disabled_until": disabledUntil,
 			"user_id":        userId,
 			"username":       username,
 		},
@@ -94,6 +95,7 @@ func authHelper(c *gin.Context, minRole int) {
 	statusValue := session.Get("status")
 	groupValue := session.Get("group")
 	disableReason := ""
+	disabledUntil := int64(0)
 	useAccessToken := false
 	if usernameValue == nil {
 		// Check access token
@@ -139,6 +141,7 @@ func authHelper(c *gin.Context, minRole int) {
 			statusValue = user.Status
 			groupValue = user.Group
 			disableReason = user.DisableReason
+			disabledUntil = user.DisabledUntil
 			useAccessToken = true
 		} else {
 			c.JSON(http.StatusOK, gin.H{
@@ -239,10 +242,11 @@ func authHelper(c *gin.Context, minRole int) {
 		status = userCache.Status
 		group = userCache.Group
 		disableReason = userCache.DisableReason
+		disabledUntil = userCache.DisabledUntil
 	}
 
 	if status == common.UserStatusDisabled {
-		disabledUserBusinessResponse(c, disableReason, id, username)
+		disabledUserBusinessResponse(c, disableReason, disabledUntil, id, username)
 		return
 	}
 	if role < minRole {
@@ -348,10 +352,19 @@ func TokenOrUserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		// Try session auth first (dashboard users)
 		session := sessions.Default(c)
-		if id := session.Get("id"); id != nil {
-			if status, ok := session.Get("status").(int); ok && status == common.UserStatusEnabled {
-				c.Set("id", id)
+		if id, ok := session.Get("id").(int); ok && id > 0 {
+			user, err := model.GetUserCache(id)
+			if err == nil && user.Status == common.UserStatusEnabled {
+				c.Set("id", user.Id)
+				c.Set("username", user.Username)
+				c.Set("role", user.Role)
+				c.Set("group", user.Group)
+				c.Set("user_group", user.Group)
 				c.Next()
+				return
+			}
+			if err == nil && user.Status == common.UserStatusDisabled {
+				disabledUserBusinessResponse(c, user.DisableReason, user.DisabledUntil, user.Id, user.Username)
 				return
 			}
 		}
@@ -422,7 +435,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 			return
 		}
 		if userCache.Status != common.UserStatusEnabled {
-			disabledUserBusinessResponse(c, userCache.DisableReason, token.UserId, userCache.Username)
+			disabledUserBusinessResponse(c, userCache.DisableReason, userCache.DisabledUntil, token.UserId, userCache.Username)
 			return
 		}
 

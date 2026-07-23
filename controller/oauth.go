@@ -233,6 +233,9 @@ func HandleOAuth(c *gin.Context) {
 	}
 
 	// 8. Check user status
+	if !refreshExpiredUserBan(c, user) {
+		return
+	}
 	if user.Status != common.UserStatusEnabled {
 		apiDisabledUser(c, user)
 		return

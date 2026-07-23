@@ -113,6 +113,9 @@ func WeChatAuth(c *gin.Context) {
 		}
 	}
 
+	if !refreshExpiredUserBan(c, &user) {
+		return
+	}
 	if user.Status != common.UserStatusEnabled {
 		apiDisabledUser(c, &user)
 		return

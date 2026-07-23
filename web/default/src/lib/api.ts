@@ -66,7 +66,8 @@ api.get = ((url: string, config: ApiRequestConfig = {}) => {
   const key = `${url}?${params}`
 
   // Return existing in-flight request if available
-  if (inFlightGet.has(key)) return inFlightGet.get(key)!
+  const pendingRequest = inFlightGet.get(key)
+  if (pendingRequest) return pendingRequest
 
   // Create new request and clean up after completion
   const req = originalGet(url, config).finally(() => inFlightGet.delete(key))
@@ -83,6 +84,7 @@ type BusinessErrorData = {
   disable_reason?: unknown
   user_id?: unknown
   username?: unknown
+  disabled_until?: unknown
 }
 
 function isAccountDisabledResponse(data: unknown) {
@@ -117,6 +119,11 @@ function showBusinessError(data: unknown) {
       typeof responseData.data?.username === 'string'
         ? responseData.data.username
         : undefined
+    const rawDisabledUntil = responseData.data?.disabled_until
+    const disabledUntil =
+      typeof rawDisabledUntil === 'number' && Number.isFinite(rawDisabledUntil)
+        ? rawDisabledUntil
+        : undefined
 
     showAccountDisabledDialog({
       title: t('Account disabled'),
@@ -124,6 +131,7 @@ function showBusinessError(data: unknown) {
       reason,
       userId,
       username,
+      disabledUntil,
     })
     return
   }

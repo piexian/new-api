@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -17,6 +18,18 @@ import (
 
 // probeGuardCGNATPrefix 运营商级 NAT 地址段，视为内网，避免误封代理网关。
 var probeGuardCGNATPrefix = netip.MustParsePrefix("100.64.0.0/10")
+
+func riskRequestGroup(relayInfo *relaycommon.RelayInfo) string {
+	if relayInfo == nil {
+		return ""
+	}
+	for _, group := range []string{relayInfo.UsingGroup, relayInfo.TokenGroup, relayInfo.UserGroup} {
+		if group = strings.TrimSpace(group); group != "" {
+			return group
+		}
+	}
+	return ""
+}
 
 // normalizeProbeClientIP 规范化客户端 IP，拒绝非公网地址，避免误封内网网关。
 func normalizeProbeClientIP(clientIP string) (string, bool) {
@@ -34,7 +47,7 @@ func normalizeProbeClientIP(clientIP string) (string, bool) {
 	return addr.String(), true
 }
 
-// probeBanTier 根据违规次数返回 IP 封禁时长（分钟）与是否永久。
+// probeBanTier 根据目标维度自身的违规次数返回封禁时长（分钟）与是否永久。
 func probeBanTier(offenseCount int, setting risk_setting.ProbeGuardSetting) (durationMinutes int, isPermanent bool) {
 	if offenseCount >= setting.PermanentOffenseCount {
 		return 0, true
@@ -78,26 +91,33 @@ func writeProbeGuardIPLog(reason, clientIP string, userBase *model.UserBase, mod
 	})
 }
 
-func writeProbeGuardUserLog(reason, clientIP string, userBase *model.UserBase, models string, offenseCount int, now int64) {
+func writeProbeGuardUserLog(reason, clientIP string, userBase *model.UserBase, models string, durationMinutes int, isPermanent bool, unbanAt int64, offenseCount int, dryRun bool, now int64) {
 	_ = model.CreateRiskBanLog(&model.RiskBanLog{
-		Dimension:    model.RiskBanDimensionUser,
-		TargetIP:     clientIP,
-		UserId:       userBase.Id,
-		Username:     userBase.Username,
-		Source:       model.RiskBanSourceProbeGuard,
-		Action:       risk_setting.TierActionDisableUser,
-		IsPermanent:  true,
-		OffenseCount: offenseCount,
-		Reason:       reason,
-		Models:       models,
-		CreatedAt:    now,
+		Dimension:       model.RiskBanDimensionUser,
+		TargetIP:        clientIP,
+		UserId:          userBase.Id,
+		Username:        userBase.Username,
+		Source:          model.RiskBanSourceProbeGuard,
+		Action:          risk_setting.TierActionDisableUser,
+		DurationMinutes: durationMinutes,
+		IsPermanent:     isPermanent,
+		UnbanAt:         unbanAt,
+		OffenseCount:    offenseCount,
+		Reason:          reason,
+		Models:          models,
+		DryRun:          dryRun,
+		CreatedAt:       now,
 	})
 }
 
-func buildProbeGuardInfo(reason, clientIP string, userBase *model.UserBase, models string, durationMinutes int, isPermanent bool, unbanAt int64, offenseCount int, dryRun bool, now int64) RiskBanInfo {
+func buildProbeGuardInfo(setting risk_setting.ProbeGuardSetting, dimension, reason, clientIP string, userBase *model.UserBase, models string, durationMinutes int, isPermanent bool, unbanAt int64, offenseCount int, dryRun bool, now int64) RiskBanInfo {
+	tierAction := probeTierAction(isPermanent)
+	if dimension == model.RiskBanDimensionUser {
+		tierAction = risk_setting.TierActionDisableUser
+	}
 	return RiskBanInfo{
 		Source:          model.RiskBanSourceProbeGuard,
-		Dimension:       model.RiskBanDimensionIP,
+		Dimension:       dimension,
 		TriggerIP:       clientIP,
 		UserId:          userBase.Id,
 		Username:        userBase.Username,
@@ -107,11 +127,71 @@ func buildProbeGuardInfo(reason, clientIP string, userBase *model.UserBase, mode
 		BannedAt:        now,
 		UnbanAt:         unbanAt,
 		OffenseCount:    offenseCount,
-		TierAction:      probeTierAction(isPermanent),
+		TierAction:      tierAction,
 		TriggeredModels: models,
-		AppealHint:      risk_setting.GetProbeGuardSetting().AppealHint,
+		AppealHint:      setting.AppealHint,
 		DryRun:          dryRun,
 	}
+}
+
+type probeGuardWindow struct {
+	dimension   string
+	target      string
+	windowKey   string
+	cooldownKey string
+	count       int64
+}
+
+func observeProbeGuardWindows(setting risk_setting.ProbeGuardSetting, clientIP, modelName string, userBase *model.UserBase) []probeGuardWindow {
+	windows := make([]probeGuardWindow, 0, 2)
+	if setting.BansIP() {
+		windows = append(windows, probeGuardWindow{
+			dimension:   model.RiskBanDimensionIP,
+			target:      clientIP,
+			windowKey:   riskIPKey("probe_guard:ip", clientIP),
+			cooldownKey: riskIPKey("probe_guard:cooldown:ip", clientIP),
+		})
+	}
+	if setting.BansUser() {
+		userTarget := strconv.Itoa(userBase.Id)
+		windows = append(windows, probeGuardWindow{
+			dimension:   model.RiskBanDimensionUser,
+			target:      userTarget,
+			windowKey:   "probe_guard:user:" + userTarget,
+			cooldownKey: "probe_guard:cooldown:user:" + userTarget,
+		})
+	}
+
+	triggered := make([]probeGuardWindow, 0, len(windows))
+	for i := range windows {
+		window := &windows[i]
+		window.count = riskWindowAddDistinct(window.windowKey, modelName, setting.WindowSeconds)
+		contextValue := clientIP
+		if window.dimension == model.RiskBanDimensionIP {
+			contextValue = userBase.Username
+		}
+		recordRiskLiveProgress(riskLiveProgressRecord{
+			RiskLiveTarget: RiskLiveTarget{
+				Source:        RiskLiveSourceProbeGuard,
+				RuleId:        RiskLiveProbeGuardRuleID,
+				RuleName:      "Probe Guard",
+				Dimension:     window.dimension,
+				Target:        window.target,
+				UserId:        userBase.Id,
+				Username:      userBase.Username,
+				Context:       contextValue,
+				CurrentCount:  window.count,
+				Threshold:     setting.DistinctModelCount,
+				WindowSeconds: setting.WindowSeconds,
+			},
+			WindowKey:   window.windowKey,
+			CooldownKey: window.cooldownKey,
+		})
+		if int(window.count) >= setting.DistinctModelCount && riskCooldownAcquire(window.cooldownKey, setting.OffenseDedupeSeconds) {
+			triggered = append(triggered, *window)
+		}
+	}
+	return triggered
 }
 
 // CheckProbeGuard 检测批量模型探测行为。触发时返回中断请求的错误，否则返回 nil。
@@ -132,6 +212,9 @@ func CheckProbeGuard(c *gin.Context, relayInfo *relaycommon.RelayInfo) *types.Ne
 	if setting.IsUserWhitelisted(userBase.Id) {
 		return nil
 	}
+	if setting.IsGroupWhitelisted(riskRequestGroup(relayInfo)) {
+		return nil
+	}
 
 	clientIP, ok := normalizeProbeClientIP(c.ClientIP())
 	if !ok {
@@ -143,62 +226,74 @@ func CheckProbeGuard(c *gin.Context, relayInfo *relaycommon.RelayInfo) *types.Ne
 		return nil
 	}
 
-	windowKey := riskIPKey("probe_guard:ip", clientIP)
-	distinct := riskWindowAddDistinct(windowKey, modelName, setting.WindowSeconds)
-	if int(distinct) < setting.DistinctModelCount {
+	triggered := observeProbeGuardWindows(setting, clientIP, modelName, userBase)
+	if len(triggered) == 0 {
 		return nil
 	}
 
-	// 冷却去重：冷却窗口内只计一次违规。
-	cooldownKey := riskIPKey("probe_guard:cooldown", clientIP)
-	if !riskCooldownAcquire(cooldownKey, setting.OffenseDedupeSeconds) {
-		return nil
-	}
-
-	triggeredModels := strings.Join(riskWindowMembers(windowKey), ",")
 	now := common.GetTimestamp()
-
-	// 演练模式：仅记录与通知，不实际封禁。
-	if setting.DryRun {
-		reason := probeGuardReason(0, true)
-		writeProbeGuardIPLog(reason, clientIP, userBase, triggeredModels, 0, false, 0, 0, true, now)
-		if setting.NotifyAdminEnabled {
-			NotifyAdminAutoBan(buildProbeGuardInfo(reason, clientIP, userBase, triggeredModels, 0, false, 0, 0, true, now))
+	ipPermanent := false
+	userPermanent := false
+	processed := false
+	for _, window := range triggered {
+		windowModels := riskWindowMembers(window.windowKey)
+		triggeredModels := strings.Join(windowModels, ",")
+		if window.dimension == model.RiskBanDimensionIP {
+			state, stateErr := model.IncrementProbeIPAbuseOffense(clientIP, userBase.Id, windowModels)
+			if stateErr != nil {
+				common.SysError("probe guard increment IP offense failed: " + stateErr.Error())
+				continue
+			}
+			processed = true
+			durationMinutes, isPermanent := probeBanTier(state.OffenseCount, setting)
+			unbanAt := probeGuardUnbanAt(now, durationMinutes, isPermanent)
+			reason := probeGuardReason(state.OffenseCount, setting.DryRun)
+			if setting.DryRun {
+				writeProbeGuardIPLog(reason, clientIP, userBase, triggeredModels, durationMinutes, isPermanent, unbanAt, state.OffenseCount, true, now)
+				if setting.NotifyAdminEnabled {
+					NotifyAdminAutoBan(buildProbeGuardInfo(setting, model.RiskBanDimensionIP, reason, clientIP, userBase, triggeredModels, durationMinutes, isPermanent, unbanAt, state.OffenseCount, true, now))
+				}
+				continue
+			}
+			ipPermanent = isPermanent
+			if err := model.UpsertProbeGuardIPBan(clientIP, reason, unbanAt); err != nil {
+				common.SysError("probe guard apply ip ban failed: " + err.Error())
+				continue
+			}
+			writeProbeGuardIPLog(reason, clientIP, userBase, triggeredModels, durationMinutes, isPermanent, unbanAt, state.OffenseCount, false, now)
+			if setting.NotifyAdminEnabled {
+				NotifyAdminAutoBan(buildProbeGuardInfo(setting, model.RiskBanDimensionIP, reason, clientIP, userBase, triggeredModels, durationMinutes, isPermanent, unbanAt, state.OffenseCount, false, now))
+			}
+			continue
 		}
+
+		state, stateErr := model.IncrementProbeUserAbuseOffense(userBase.Id, clientIP, windowModels)
+		if stateErr != nil {
+			common.SysError("probe guard increment user offense failed: " + stateErr.Error())
+			continue
+		}
+		processed = true
+		durationMinutes, isPermanent := probeBanTier(state.OffenseCount, setting)
+		userPermanent = isPermanent
+		if setting.DryRun {
+			unbanAt := probeGuardUnbanAt(now, durationMinutes, isPermanent)
+			writeProbeGuardUserLog(setting.UserBanReason, clientIP, userBase, triggeredModels, durationMinutes, isPermanent, unbanAt, state.OffenseCount, true, now)
+			if setting.NotifyAdminEnabled {
+				NotifyAdminAutoBan(buildProbeGuardInfo(setting, model.RiskBanDimensionUser, setting.UserBanReason, clientIP, userBase, triggeredModels, durationMinutes, isPermanent, unbanAt, state.OffenseCount, true, now))
+			}
+			continue
+		}
+		userInfo, applied := applyProbeGuardUserBan(setting, clientIP, userBase, triggeredModels, state.OffenseCount, now)
+		if applied && setting.NotifyAdminEnabled {
+			NotifyAdminAutoBan(userInfo)
+		}
+	}
+	if !processed || setting.DryRun {
 		return nil
-	}
-
-	state, err := model.IncrementProbeIPAbuseOffense(clientIP, userBase.Id, riskWindowMembers(windowKey))
-	if err != nil {
-		common.SysError("probe guard increment offense failed: " + err.Error())
-		return nil
-	}
-
-	durationMinutes, isPermanent := probeBanTier(state.OffenseCount, setting)
-	reason := probeGuardReason(state.OffenseCount, false)
-	var unbanAt int64
-	if !isPermanent {
-		unbanAt = now + int64(durationMinutes)*60
-	}
-	if err := model.UpsertProbeGuardIPBan(clientIP, reason, unbanAt); err != nil {
-		common.SysError("probe guard apply ip ban failed: " + err.Error())
-		return nil
-	}
-
-	writeProbeGuardIPLog(reason, clientIP, userBase, triggeredModels, durationMinutes, isPermanent, unbanAt, state.OffenseCount, false, now)
-	info := buildProbeGuardInfo(reason, clientIP, userBase, triggeredModels, durationMinutes, isPermanent, unbanAt, state.OffenseCount, false, now)
-
-	// 连坐禁用账号：达到阈值时封禁发起请求的账号。
-	if setting.UserBanEnabled && state.OffenseCount >= setting.UserBanThreshold {
-		applyProbeGuardUserBan(setting, clientIP, userBase, triggeredModels, state.OffenseCount, info, now)
-	}
-
-	if setting.NotifyAdminEnabled {
-		NotifyAdminAutoBan(info)
 	}
 
 	statusCode := http.StatusTooManyRequests
-	if isPermanent {
+	if ipPermanent || userPermanent {
 		statusCode = http.StatusForbidden
 	}
 	return types.NewErrorWithStatusCode(
@@ -209,33 +304,40 @@ func CheckProbeGuard(c *gin.Context, relayInfo *relaycommon.RelayInfo) *types.Ne
 	)
 }
 
+func probeGuardUnbanAt(now int64, durationMinutes int, isPermanent bool) int64 {
+	if isPermanent {
+		return 0
+	}
+	return now + int64(durationMinutes)*60
+}
+
 // applyProbeGuardUserBan 禁用触发探测的账号并记录、通知。
-func applyProbeGuardUserBan(setting risk_setting.ProbeGuardSetting, clientIP string, userBase *model.UserBase, models string, offenseCount int, info RiskBanInfo, now int64) {
-	disabled, err := model.DisableUserByRiskBan(userBase.Id, setting.UserBanReason)
+func applyProbeGuardUserBan(setting risk_setting.ProbeGuardSetting, clientIP string, userBase *model.UserBase, models string, offenseCount int, now int64) (RiskBanInfo, bool) {
+	durationMinutes, isPermanent := probeBanTier(offenseCount, setting)
+	unbanAt := probeGuardUnbanAt(now, durationMinutes, isPermanent)
+	info := buildProbeGuardInfo(setting, model.RiskBanDimensionUser, setting.UserBanReason, clientIP, userBase, models, durationMinutes, isPermanent, unbanAt, offenseCount, false, now)
+	disabled, err := model.DisableUserByRiskBan(userBase.Id, setting.UserBanReason, durationMinutes, now)
 	if err != nil {
 		common.SysError("probe guard disable user failed: " + err.Error())
-		return
+		return info, false
 	}
 	if !disabled {
-		return
+		return info, false
 	}
 	_ = model.InvalidateUserCache(userBase.Id)
 	_ = model.InvalidateUserTokensCache(userBase.Id)
-	_, _ = model.IncrementProbeUserAbuseOffense(userBase.Id, clientIP, riskWindowMembers(riskIPKey("probe_guard:ip", clientIP)))
-	writeProbeGuardUserLog(setting.UserBanReason, clientIP, userBase, models, offenseCount, now)
+	writeProbeGuardUserLog(setting.UserBanReason, clientIP, userBase, models, durationMinutes, isPermanent, unbanAt, offenseCount, false, now)
 
 	if setting.NotifyUserEnabled {
 		user, uErr := model.GetUserById(userBase.Id, false)
 		if uErr != nil {
-			return
+			return info, true
 		}
-		userInfo := info
-		userInfo.Dimension = model.RiskBanDimensionUser
-		userInfo.Reason = setting.UserBanReason
-		userInfo.IsPermanent = true
-		userInfo.TierAction = risk_setting.TierActionDisableUser
-		if nErr := NotifyUserAutoBanned(user, userInfo); nErr != nil {
+		info.Username = user.Username
+		info.DisplayName = user.DisplayName
+		if nErr := NotifyUserAutoBanned(user, info); nErr != nil {
 			common.SysLog("failed to notify probe-guard banned user: " + nErr.Error())
 		}
 	}
+	return info, true
 }

@@ -22,18 +22,24 @@ const (
 	TierActionBoth        = "both"         // 永久封禁 IP 并禁用账号
 )
 
-// MaxErrorBanRules 限制规则数量，避免配置膨胀与正则编译开销。
-const MaxErrorBanRules = 20
+// 配置数量上限，避免配置膨胀与匹配开销失控。
+const (
+	MaxErrorBanRules           = 20
+	MaxErrorBanMatchersPerRule = 50
+)
 
 // ErrorBanRule 单条错误匹配规则。
 type ErrorBanRule struct {
-	Id             string `json:"id"`
-	Name           string `json:"name"`
-	Pattern        string `json:"pattern"`
-	Enabled        bool   `json:"enabled"`
-	Dimension      string `json:"dimension"` // 为空时继承全局 DefaultDimension
-	Threshold      int    `json:"threshold"`
-	ReasonTemplate string `json:"reason_template"`
+	Id             string         `json:"id"`
+	Name           string         `json:"name"`
+	Pattern        string         `json:"pattern"`
+	Keywords       []string       `json:"keywords"`
+	ErrorCodes     []string       `json:"error_codes"`
+	Enabled        bool           `json:"enabled"`
+	Dimension      string         `json:"dimension"` // 为空时继承全局 DefaultDimension
+	Threshold      int            `json:"threshold"`
+	ReasonTemplate string         `json:"reason_template"`
+	Tiers          []ErrorBanTier `json:"tiers"`
 }
 
 // ErrorBanTier 按违规次数匹配的阶梯处罚。
@@ -55,6 +61,7 @@ type ErrorBanSetting struct {
 	NotifyAdminEnabled    bool           `json:"notify_admin_enabled"`
 	AppealHint            string         `json:"appeal_hint"`
 	WhitelistUserIDs      string         `json:"whitelist_user_ids"`
+	WhitelistGroups       []string       `json:"whitelist_groups"`
 	ExcludeStatusCodes    []int          `json:"exclude_status_codes"`
 	Rules                 []ErrorBanRule `json:"rules"`
 	Tiers                 []ErrorBanTier `json:"tiers"`
@@ -68,6 +75,7 @@ var errorBanSetting = ErrorBanSetting{
 	NotifyUserEnabled:  true,
 	NotifyAdminEnabled: true,
 	AppealHint:         "如认为误封，请联系管理员。",
+	WhitelistGroups:    []string{},
 	ExcludeStatusCodes: []int{},
 	Rules:              []ErrorBanRule{},
 	Tiers:              defaultErrorBanTiers(),
@@ -88,6 +96,16 @@ func defaultErrorBanTiers() []ErrorBanTier {
 // GetErrorBanSetting 返回经过归一化的配置副本。
 func GetErrorBanSetting() ErrorBanSetting {
 	snapshot := errorBanSetting
+	snapshot.WhitelistGroups = append([]string{}, errorBanSetting.WhitelistGroups...)
+	snapshot.ExcludeStatusCodes = append([]int{}, errorBanSetting.ExcludeStatusCodes...)
+	snapshot.Rules = make([]ErrorBanRule, len(errorBanSetting.Rules))
+	for i, rule := range errorBanSetting.Rules {
+		snapshot.Rules[i] = rule
+		snapshot.Rules[i].Keywords = append([]string{}, rule.Keywords...)
+		snapshot.Rules[i].ErrorCodes = append([]string{}, rule.ErrorCodes...)
+		snapshot.Rules[i].Tiers = append([]ErrorBanTier{}, rule.Tiers...)
+	}
+	snapshot.Tiers = append([]ErrorBanTier{}, errorBanSetting.Tiers...)
 	snapshot.Normalize()
 	return snapshot
 }
@@ -95,30 +113,57 @@ func GetErrorBanSetting() ErrorBanSetting {
 // Normalize 收敛字段到合法区间，并裁剪超额规则。
 func (s *ErrorBanSetting) Normalize() {
 	s.WindowSeconds = clampInt(s.WindowSeconds, 10, 86400, 300)
+	s.WhitelistGroups = normalizeStringList(s.WhitelistGroups)
 	if s.DefaultDimension != DimensionIP && s.DefaultDimension != DimensionUser {
 		s.DefaultDimension = DimensionIP
+	}
+	if s.ExcludeStatusCodes == nil {
+		s.ExcludeStatusCodes = []int{}
+	}
+	if len(s.Tiers) == 0 {
+		s.Tiers = defaultErrorBanTiers()
+	}
+	normalizeErrorBanTiers(s.Tiers)
+	if s.Rules == nil {
+		s.Rules = []ErrorBanRule{}
 	}
 	if len(s.Rules) > MaxErrorBanRules {
 		s.Rules = s.Rules[:MaxErrorBanRules]
 	}
 	for i := range s.Rules {
-		s.Rules[i].Threshold = clampInt(s.Rules[i].Threshold, 1, 100000, 5)
-		if s.Rules[i].Dimension != "" &&
-			s.Rules[i].Dimension != DimensionIP &&
-			s.Rules[i].Dimension != DimensionUser {
-			s.Rules[i].Dimension = ""
+		rule := &s.Rules[i]
+		rule.Id = strings.TrimSpace(rule.Id)
+		rule.Threshold = clampInt(rule.Threshold, 1, 100000, 5)
+		rule.Keywords = normalizeStringList(rule.Keywords)
+		rule.ErrorCodes = normalizeStringList(rule.ErrorCodes)
+		if len(rule.Keywords) > MaxErrorBanMatchersPerRule {
+			rule.Keywords = rule.Keywords[:MaxErrorBanMatchersPerRule]
 		}
-	}
-	if len(s.Tiers) == 0 {
-		s.Tiers = defaultErrorBanTiers()
-	}
-	for i := range s.Tiers {
-		s.Tiers[i].OffenseCount = clampInt(s.Tiers[i].OffenseCount, 1, 100000, 1)
-		if !isValidTierAction(s.Tiers[i].Action) {
-			s.Tiers[i].Action = TierActionTempIPBan
+		if len(rule.ErrorCodes) > MaxErrorBanMatchersPerRule {
+			rule.ErrorCodes = rule.ErrorCodes[:MaxErrorBanMatchersPerRule]
 		}
-		if s.Tiers[i].DurationMinutes < 0 {
-			s.Tiers[i].DurationMinutes = 0
+		if rule.Dimension != "" && rule.Dimension != DimensionIP && rule.Dimension != DimensionUser {
+			rule.Dimension = ""
+		}
+		if len(rule.Tiers) == 0 {
+			rule.Tiers = append([]ErrorBanTier{}, s.Tiers...)
+		}
+		normalizeErrorBanTiers(rule.Tiers)
+	}
+}
+
+func normalizeErrorBanTiers(tiers []ErrorBanTier) {
+	for i := range tiers {
+		tiers[i].OffenseCount = clampInt(tiers[i].OffenseCount, 1, 100000, 1)
+		if !isValidTierAction(tiers[i].Action) {
+			tiers[i].Action = TierActionTempIPBan
+		}
+		if tiers[i].Action == TierActionTempIPBan && tiers[i].DurationMinutes <= 0 {
+			tiers[i].DurationMinutes = 1
+		} else if tiers[i].DurationMinutes < 0 {
+			tiers[i].DurationMinutes = 0
+		} else if tiers[i].DurationMinutes > 525600 {
+			tiers[i].DurationMinutes = 525600
 		}
 	}
 }
@@ -134,6 +179,11 @@ func isValidTierAction(action string) bool {
 // IsUserWhitelisted 判断用户是否在白名单中。
 func (s *ErrorBanSetting) IsUserWhitelisted(userId int) bool {
 	return whitelistContains(s.WhitelistUserIDs, userId)
+}
+
+// IsGroupWhitelisted 判断请求分组是否在白名单中。
+func (s *ErrorBanSetting) IsGroupWhitelisted(group string) bool {
+	return stringListContains(s.WhitelistGroups, group)
 }
 
 // IsStatusCodeExcluded 判断状态码是否被排除。
@@ -155,10 +205,10 @@ func (s *ErrorBanSetting) ResolveDimension(ruleDimension string) string {
 }
 
 // MatchTier 返回不超过 offenseCount 的最高阶梯。
-func (s *ErrorBanSetting) MatchTier(offenseCount int) (ErrorBanTier, bool) {
+func (r *ErrorBanRule) MatchTier(offenseCount int) (ErrorBanTier, bool) {
 	var matched *ErrorBanTier
-	for i := range s.Tiers {
-		tier := &s.Tiers[i]
+	for i := range r.Tiers {
+		tier := &r.Tiers[i]
 		if tier.OffenseCount > offenseCount {
 			continue
 		}
@@ -178,6 +228,24 @@ type CompiledRule struct {
 	Re   *regexp.Regexp
 }
 
+// Matches 对所有已配置条件执行 AND 匹配；错误码列表内任一精确命中或 * 通配即可。
+func (r *CompiledRule) Matches(errorText, errorCode string) bool {
+	if r.Re != nil && !r.Re.MatchString(errorText) {
+		return false
+	}
+	for _, keyword := range r.Rule.Keywords {
+		if !strings.Contains(errorText, keyword) {
+			return false
+		}
+	}
+	if len(r.Rule.ErrorCodes) > 0 &&
+		!stringListContains(r.Rule.ErrorCodes, "*") &&
+		!stringListContains(r.Rule.ErrorCodes, errorCode) {
+		return false
+	}
+	return r.Re != nil || len(r.Rule.Keywords) > 0 || len(r.Rule.ErrorCodes) > 0
+}
+
 // compiledRules 保存当前已编译规则快照，使用 atomic.Value 支持热更新。
 var compiledRules atomic.Value // []CompiledRule
 
@@ -187,12 +255,19 @@ func RebuildRegexCache() error {
 	snapshot := GetErrorBanSetting()
 	compiled := make([]CompiledRule, 0, len(snapshot.Rules))
 	for _, rule := range snapshot.Rules {
-		if !rule.Enabled || strings.TrimSpace(rule.Pattern) == "" {
+		if !rule.Enabled {
 			continue
 		}
-		re, err := regexp.Compile(rule.Pattern)
-		if err != nil {
-			return err
+		var re *regexp.Regexp
+		if strings.TrimSpace(rule.Pattern) != "" {
+			var err error
+			re, err = regexp.Compile(rule.Pattern)
+			if err != nil {
+				return err
+			}
+		}
+		if re == nil && len(rule.Keywords) == 0 && len(rule.ErrorCodes) == 0 {
+			continue
 		}
 		compiled = append(compiled, CompiledRule{Rule: rule, Re: re})
 	}

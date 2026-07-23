@@ -27,6 +27,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { TitledCard } from '@/components/ui/titled-card'
@@ -37,6 +44,7 @@ import {
   updateProbeGuardConfig,
   type ProbeGuardConfig,
 } from '../api'
+import { RiskWhitelistGroupsField } from './risk-whitelist-groups-field'
 
 export function ProbeGuardPage() {
   const { t } = useTranslation()
@@ -99,17 +107,17 @@ export function ProbeGuardPage() {
   if (configLoading || !config) {
     return (
       <SectionPageLayout>
-        <SectionPageLayout.Title>
-          {t('Probe Guard')}
-        </SectionPageLayout.Title>
+        <SectionPageLayout.Title>{t('Probe Guard')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
-          <div className='flex items-center justify-center py-12 text-muted-foreground'>
+          <div className='text-muted-foreground flex items-center justify-center py-12'>
             {t('Loading...')}
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
     )
   }
+
+  const bansUser = config.ban_dimension !== 'ip'
 
   return (
     <SectionPageLayout>
@@ -126,7 +134,7 @@ export function ProbeGuardPage() {
         <div className='mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4'>
           <Card>
             <CardHeader className='pb-2'>
-              <CardTitle className='text-sm font-medium text-muted-foreground'>
+              <CardTitle className='text-muted-foreground text-sm font-medium'>
                 {t('IP States')}
               </CardTitle>
             </CardHeader>
@@ -138,7 +146,7 @@ export function ProbeGuardPage() {
           </Card>
           <Card>
             <CardHeader className='pb-2'>
-              <CardTitle className='text-sm font-medium text-muted-foreground'>
+              <CardTitle className='text-muted-foreground text-sm font-medium'>
                 {t('User States')}
               </CardTitle>
             </CardHeader>
@@ -150,7 +158,7 @@ export function ProbeGuardPage() {
           </Card>
           <Card>
             <CardHeader className='pb-2'>
-              <CardTitle className='text-sm font-medium text-muted-foreground'>
+              <CardTitle className='text-muted-foreground text-sm font-medium'>
                 {t('Total Offenses')}
               </CardTitle>
             </CardHeader>
@@ -162,7 +170,7 @@ export function ProbeGuardPage() {
           </Card>
           <Card>
             <CardHeader className='pb-2'>
-              <CardTitle className='text-sm font-medium text-muted-foreground'>
+              <CardTitle className='text-muted-foreground text-sm font-medium'>
                 {t('Recent Offenses')}
               </CardTitle>
             </CardHeader>
@@ -191,20 +199,36 @@ export function ProbeGuardPage() {
                 onCheckedChange={(v) => updateField('dry_run', v)}
               />
             </div>
-            <div className='flex items-center justify-between'>
-              <Label>{t('User Ban Enabled')}</Label>
-              <Switch
-                checked={config.user_ban_enabled}
-                onCheckedChange={(v) => updateField('user_ban_enabled', v)}
-              />
+            <div className='space-y-2'>
+              <Label>{t('Ban Dimension')}</Label>
+              <Select
+                value={config.ban_dimension}
+                onValueChange={(value) =>
+                  updateField(
+                    'ban_dimension',
+                    value as ProbeGuardConfig['ban_dimension']
+                  )
+                }
+              >
+                <SelectTrigger className='w-full'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value='ip'>{t('IP')}</SelectItem>
+                  <SelectItem value='user'>{t('User')}</SelectItem>
+                  <SelectItem value='both'>{t('IP + User')}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className='flex items-center justify-between'>
-              <Label>{t('Notify User')}</Label>
-              <Switch
-                checked={config.notify_user_enabled}
-                onCheckedChange={(v) => updateField('notify_user_enabled', v)}
-              />
-            </div>
+            {bansUser && (
+              <div className='flex items-center justify-between'>
+                <Label>{t('Notify User')}</Label>
+                <Switch
+                  checked={config.notify_user_enabled}
+                  onCheckedChange={(v) => updateField('notify_user_enabled', v)}
+                />
+              </div>
+            )}
             <div className='flex items-center justify-between'>
               <Label>{t('Notify Admin')}</Label>
               <Switch
@@ -231,38 +255,29 @@ export function ProbeGuardPage() {
                   min={1}
                   value={config.distinct_model_count}
                   onChange={(e) =>
-                    updateField(
-                      'distinct_model_count',
-                      Number(e.target.value)
-                    )
+                    updateField('distinct_model_count', Number(e.target.value))
                   }
                 />
               </div>
               <div className='space-y-2'>
-                <Label>{t('First IP Ban (minutes)')}</Label>
+                <Label>{t('First Ban (minutes)')}</Label>
                 <Input
                   type='number'
-                  min={0}
+                  min={1}
                   value={config.first_ip_ban_minutes}
                   onChange={(e) =>
-                    updateField(
-                      'first_ip_ban_minutes',
-                      Number(e.target.value)
-                    )
+                    updateField('first_ip_ban_minutes', Number(e.target.value))
                   }
                 />
               </div>
               <div className='space-y-2'>
-                <Label>{t('Second IP Ban (minutes)')}</Label>
+                <Label>{t('Second Ban (minutes)')}</Label>
                 <Input
                   type='number'
-                  min={0}
+                  min={1}
                   value={config.second_ip_ban_minutes}
                   onChange={(e) =>
-                    updateField(
-                      'second_ip_ban_minutes',
-                      Number(e.target.value)
-                    )
+                    updateField('second_ip_ban_minutes', Number(e.target.value))
                   }
                 />
               </div>
@@ -270,7 +285,7 @@ export function ProbeGuardPage() {
                 <Label>{t('Permanent Offense Count')}</Label>
                 <Input
                   type='number'
-                  min={0}
+                  min={1}
                   value={config.permanent_offense_count}
                   onChange={(e) =>
                     updateField(
@@ -294,17 +309,6 @@ export function ProbeGuardPage() {
                   }
                 />
               </div>
-              <div className='space-y-2'>
-                <Label>{t('User Ban Threshold')}</Label>
-                <Input
-                  type='number'
-                  min={0}
-                  value={config.user_ban_threshold}
-                  onChange={(e) =>
-                    updateField('user_ban_threshold', Number(e.target.value))
-                  }
-                />
-              </div>
             </div>
             <div className='space-y-2'>
               <Label>{t('Whitelist User IDs')}</Label>
@@ -317,14 +321,23 @@ export function ProbeGuardPage() {
               />
             </div>
             <div className='space-y-2'>
-              <Label>{t('User Ban Reason')}</Label>
-              <Input
-                value={config.user_ban_reason}
-                onChange={(e) =>
-                  updateField('user_ban_reason', e.target.value)
-                }
+              <Label>{t('Whitelist Groups')}</Label>
+              <RiskWhitelistGroupsField
+                selected={config.whitelist_groups}
+                onChange={(groups) => updateField('whitelist_groups', groups)}
               />
             </div>
+            {bansUser && (
+              <div className='space-y-2'>
+                <Label>{t('User Ban Reason')}</Label>
+                <Input
+                  value={config.user_ban_reason}
+                  onChange={(e) =>
+                    updateField('user_ban_reason', e.target.value)
+                  }
+                />
+              </div>
+            )}
             <div className='space-y-2'>
               <Label>{t('Appeal Hint')}</Label>
               <Textarea
@@ -338,9 +351,7 @@ export function ProbeGuardPage() {
                 onClick={() => config && saveMutation.mutate(config)}
                 disabled={!isDirty || saveMutation.isPending}
               >
-                {saveMutation.isPending
-                  ? t('Saving...')
-                  : t('Save Settings')}
+                {saveMutation.isPending ? t('Saving...') : t('Save Settings')}
               </Button>
             </div>
           </div>

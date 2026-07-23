@@ -69,6 +69,13 @@ export default function AccountDisabledDialog() {
   }, [payload]);
 
   const closeDialog = () => setPayload(null);
+  const isTemporary = Number(payload?.disabledUntil) > 0;
+  const unbanTime = isTemporary
+    ? new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'medium',
+      }).format(new Date(payload.disabledUntil * 1000))
+    : '';
 
   return (
     <Modal
@@ -111,6 +118,35 @@ export default function AccountDisabledDialog() {
       bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
       centered
     >
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: isTemporary
+            ? 'repeat(2, minmax(0, 1fr))'
+            : '1fr',
+          gap: 12,
+          marginBottom: 16,
+          padding: 12,
+          border: '1px solid var(--semi-color-border)',
+          borderRadius: 6,
+          background: 'var(--semi-color-fill-0)',
+        }}
+      >
+        <div>
+          <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>
+            {t('封禁类型')}
+          </div>
+          <div>{isTemporary ? t('临时封禁') : t('永久封禁')}</div>
+        </div>
+        {isTemporary && (
+          <div>
+            <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>
+              {t('自动解封时间')}
+            </div>
+            <div>{unbanTime}</div>
+          </div>
+        )}
+      </div>
       <div
         className='account-disabled-dialog-content'
         style={{

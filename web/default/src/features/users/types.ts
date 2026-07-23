@@ -66,6 +66,7 @@ export const userSchema = z.object({
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
   disable_reason: z.string().optional(),
+  disabled_until: z.number().optional(),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
@@ -167,6 +168,7 @@ export interface ManageUserPayload {
   id: number
   action: Exclude<ManageUserAction, 'add_quota'>
   disable_reason?: string
+  duration_minutes?: number
 }
 
 // ============================================================================

@@ -21,21 +21,43 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { TabPane, Tabs, Layout } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { ShieldAlert, Ban, ScrollText } from 'lucide-react';
+import { Activity, Ban, Gauge, ScrollText, ShieldAlert } from 'lucide-react';
 import { isRoot } from '../../helpers';
 import ProbeGuardTab from './ProbeGuardTab';
 import ErrorBanTab from './ErrorBanTab';
+import RiskStatesTab from './RiskStatesTab';
 import BanLogsTab from './BanLogsTab';
+import LiveProgressTab from './LiveProgressTab';
 
 const RiskCenter = () => {
   const { t } = useTranslation();
-  const [tabActiveKey, setTabActiveKey] = React.useState('probe-guard');
+  const [tabActiveKey, setTabActiveKey] = React.useState('live-progress');
 
   if (!isRoot()) {
     return <Navigate to='/forbidden' replace />;
   }
 
   const panes = [
+    {
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Gauge size={18} />
+          {t('Live Progress')}
+        </span>
+      ),
+      content: <LiveProgressTab />,
+      itemKey: 'live-progress',
+    },
+    {
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Activity size={18} />
+          {t('状态记录')}
+        </span>
+      ),
+      content: <RiskStatesTab />,
+      itemKey: 'risk-states',
+    },
     {
       tab: (
         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>

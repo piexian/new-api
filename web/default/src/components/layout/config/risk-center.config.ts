@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
-import { Gavel, ListChecks, ShieldAlert } from 'lucide-react'
+import { Activity, Gauge, Gavel, ListChecks, ShieldAlert } from 'lucide-react'
 
 import type { NavGroup, SidebarView } from '../types'
 
@@ -34,40 +34,24 @@ function getRiskCenterNavGroups(t: TFunction): NavGroup[] {
       title: t('Risk Center'),
       items: [
         {
+          title: t('Live Progress'),
+          icon: Gauge,
+          url: '/risk/live-progress',
+        },
+        {
           title: t('Probe Guard'),
           icon: ShieldAlert,
-          items: [
-            {
-              title: t('Settings'),
-              url: '/risk/probe-guard',
-            },
-            {
-              title: t('IP Offenses'),
-              url: '/risk/probe-guard/ip-offenses',
-            },
-            {
-              title: t('User Offenses'),
-              url: '/risk/probe-guard/user-offenses',
-            },
-          ],
+          url: '/risk/probe-guard',
         },
         {
           title: t('Error Ban'),
           icon: Gavel,
-          items: [
-            {
-              title: t('Settings'),
-              url: '/risk/error-ban',
-            },
-            {
-              title: t('IP States'),
-              url: '/risk/error-ban/ip-states',
-            },
-            {
-              title: t('User States'),
-              url: '/risk/error-ban/user-states',
-            },
-          ],
+          url: '/risk/error-ban',
+        },
+        {
+          title: t('Risk States'),
+          icon: Activity,
+          url: '/risk/states',
         },
         {
           title: t('Ban Logs'),

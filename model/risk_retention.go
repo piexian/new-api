@@ -26,10 +26,10 @@ func CleanupRiskData() {
 	}
 
 	stateBefore := now - riskStateRetentionSeconds
-	if res := DB.Where("last_offense_at < ? AND window_count = 0", stateBefore).Delete(&ErrorBanIPState{}); res.Error != nil {
+	if res := DB.Where("last_offense_at < ?", stateBefore).Delete(&ErrorBanIPState{}); res.Error != nil {
 		common.SysError("error ban ip state cleanup failed: " + res.Error.Error())
 	}
-	if res := DB.Where("last_offense_at < ? AND window_count = 0", stateBefore).Delete(&ErrorBanUserState{}); res.Error != nil {
+	if res := DB.Where("last_offense_at < ?", stateBefore).Delete(&ErrorBanUserState{}); res.Error != nil {
 		common.SysError("error ban user state cleanup failed: " + res.Error.Error())
 	}
 	if res := DB.Where("last_offense_at < ? AND offense_count = 0", stateBefore).Delete(&ProbeIPAbuseState{}); res.Error != nil {

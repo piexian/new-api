@@ -21,6 +21,7 @@ type IPBanRequest struct {
 	Target          string `json:"target"`
 	Reason          string `json:"reason"`
 	ExpiresAt       int64  `json:"expires_at"`
+	AutoBanUser     bool   `json:"auto_ban_user"`
 	ConfirmSelfLock bool   `json:"confirm_self_lock"`
 }
 
@@ -28,6 +29,7 @@ type IPBanBatchRequest struct {
 	Lines           string `json:"lines"`
 	DefaultReason   string `json:"default_reason"`
 	ExpiresAt       int64  `json:"expires_at"`
+	AutoBanUser     bool   `json:"auto_ban_user"`
 	ConfirmSelfLock bool   `json:"confirm_self_lock"`
 }
 
@@ -105,10 +107,11 @@ func AddIPBan(c *gin.Context) {
 	}
 
 	ban := &model.IPBan{
-		Target:    target,
-		Reason:    reason,
-		ExpiresAt: req.ExpiresAt,
-		CreatedBy: c.GetInt("id"),
+		Target:      target,
+		Reason:      reason,
+		ExpiresAt:   req.ExpiresAt,
+		AutoBanUser: req.AutoBanUser,
+		CreatedBy:   c.GetInt("id"),
 	}
 	if err := model.CreateIPBan(ban); err != nil {
 		common.ApiError(c, err)
@@ -153,6 +156,7 @@ func UpdateIPBan(c *gin.Context) {
 	ban.Target = target
 	ban.Reason = reason
 	ban.ExpiresAt = req.ExpiresAt
+	ban.AutoBanUser = req.AutoBanUser
 	if err := model.UpdateIPBan(ban); err != nil {
 		common.ApiError(c, err)
 		return
@@ -206,10 +210,11 @@ func BatchCreateIPBans(c *gin.Context) {
 			return
 		}
 		ban := &model.IPBan{
-			Target:    entry.Target,
-			Reason:    entry.Reason,
-			ExpiresAt: req.ExpiresAt,
-			CreatedBy: c.GetInt("id"),
+			Target:      entry.Target,
+			Reason:      entry.Reason,
+			ExpiresAt:   req.ExpiresAt,
+			AutoBanUser: req.AutoBanUser,
+			CreatedBy:   c.GetInt("id"),
 		}
 		if err := model.CreateIPBan(ban); err != nil {
 			common.ApiError(c, err)

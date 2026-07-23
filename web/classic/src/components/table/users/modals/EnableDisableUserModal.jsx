@@ -18,7 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, TextArea, Typography } from '@douyinfe/semi-ui';
+import {
+  InputNumber,
+  Modal,
+  Select,
+  TextArea,
+  Typography,
+} from '@douyinfe/semi-ui';
 
 const EnableDisableUserModal = ({
   visible,
@@ -28,6 +34,10 @@ const EnableDisableUserModal = ({
   action,
   disableReason,
   setDisableReason,
+  disableType,
+  setDisableType,
+  disableDurationMinutes,
+  setDisableDurationMinutes,
   t,
 }) => {
   const isDisable = action === 'disable';
@@ -42,8 +52,36 @@ const EnableDisableUserModal = ({
       type='warning'
     >
       {isDisable ? (
-        <div>
+        <div className='flex flex-col gap-3'>
           <Text>{t('此操作将禁用用户账户')}</Text>
+          <div className='flex flex-col gap-1'>
+            <Text type='tertiary' size='small'>
+              {t('封禁类型')}
+            </Text>
+            <Select
+              value={disableType}
+              onChange={setDisableType}
+              optionList={[
+                { value: 'permanent', label: t('永久封禁') },
+                { value: 'temporary', label: t('临时封禁') },
+              ]}
+            />
+          </div>
+          {disableType === 'temporary' && (
+            <div className='flex flex-col gap-1'>
+              <Text type='tertiary' size='small'>
+                {t('封禁时长（分钟）')}
+              </Text>
+              <InputNumber
+                value={disableDurationMinutes}
+                onChange={setDisableDurationMinutes}
+                min={1}
+                max={525600}
+                step={1}
+                style={{ width: '100%' }}
+              />
+            </div>
+          )}
           <TextArea
             value={disableReason}
             onChange={(value) => setDisableReason(value)}
@@ -51,7 +89,6 @@ const EnableDisableUserModal = ({
             autosize
             maxCount={5000}
             showClear
-            style={{ marginTop: 12 }}
           />
           <Text type='tertiary' size='small'>
             {t('用户下次登录时将看到该原因')}

@@ -18,10 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
 
-import { ErrorBanUserStatesPage } from '@/features/risk-center/components/error-ban-user-states-page'
+import { RiskStatesPage } from '@/features/risk-center/components/risk-states-page'
 
-export const Route = createFileRoute(
-  '/_authenticated/risk/error-ban/user-states/'
-)({
-  component: ErrorBanUserStatesPage,
+export const Route = createFileRoute('/_authenticated/risk/states/')({
+  component: RiskStatesPage,
 })

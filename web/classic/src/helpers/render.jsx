@@ -87,6 +87,7 @@ import {
   Server,
   CalendarClock,
   ShieldBan,
+  ShieldAlert,
   Mail,
 } from 'lucide-react';
 import {
@@ -159,6 +160,8 @@ export function getLucideIcon(key, selected = false) {
       return <User {...commonProps} color={iconColor} />;
     case 'ip_ban':
       return <ShieldBan {...commonProps} color={iconColor} />;
+    case 'risk_center':
+      return <ShieldAlert {...commonProps} color={iconColor} />;
     case 'models':
       return <Package {...commonProps} color={iconColor} />;
     case 'deployment':

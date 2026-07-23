@@ -333,6 +333,10 @@ func SetApiRouter(router *gin.Engine) {
 		riskGroup := apiRouter.Group("/risk")
 		riskGroup.Use(middleware.RootAuth())
 		{
+			// 阈值前实时进度
+			riskGroup.GET("/live-progress/rules", controller.ListRiskLiveRules)
+			riskGroup.GET("/live-progress/targets", controller.ListRiskLiveTargets)
+			riskGroup.PATCH("/live-progress/rules/enabled", controller.ToggleRiskLiveRule)
 			// 批量模型探测防护
 			riskGroup.GET("/probe-guard/config", controller.GetProbeGuardConfig)
 			riskGroup.PUT("/probe-guard/config", controller.UpdateProbeGuardConfig)

@@ -62,6 +62,8 @@ const UsersTable = (usersData) => {
   const [modalUser, setModalUser] = useState(null);
   const [enableDisableAction, setEnableDisableAction] = useState('');
   const [disableReason, setDisableReason] = useState('');
+  const [disableType, setDisableType] = useState('permanent');
+  const [disableDurationMinutes, setDisableDurationMinutes] = useState(60);
   const [showResetPasskeyModal, setShowResetPasskeyModal] = useState(false);
   const [showResetTwoFAModal, setShowResetTwoFAModal] = useState(false);
   const [showUserSubscriptionsModal, setShowUserSubscriptionsModal] =
@@ -83,6 +85,8 @@ const UsersTable = (usersData) => {
     setModalUser(user);
     setEnableDisableAction(action);
     setDisableReason(action === 'disable' ? user?.disable_reason || '' : '');
+    setDisableType('permanent');
+    setDisableDurationMinutes(60);
     setShowEnableDisableModal(true);
   };
 
@@ -128,7 +132,13 @@ const UsersTable = (usersData) => {
       enableDisableAction,
       modalUser,
       enableDisableAction === 'disable'
-        ? { disable_reason: disableReason.trim() }
+        ? {
+            disable_reason: disableReason.trim(),
+            duration_minutes:
+              disableType === 'temporary'
+                ? Math.max(1, disableDurationMinutes)
+                : 0,
+          }
         : {},
     );
     setShowEnableDisableModal(false);
@@ -243,6 +253,10 @@ const UsersTable = (usersData) => {
         action={enableDisableAction}
         disableReason={disableReason}
         setDisableReason={setDisableReason}
+        disableType={disableType}
+        setDisableType={setDisableType}
+        disableDurationMinutes={disableDurationMinutes}
+        setDisableDurationMinutes={setDisableDurationMinutes}
         t={t}
       />
 

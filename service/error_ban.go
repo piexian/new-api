@@ -25,8 +25,10 @@ type ErrorBanSnapshot struct {
 	Username   string
 	ModelName  string
 	ErrorText  string
+	ErrorCode  string
 	StatusCode int
 	RequestId  string
+	Group      string
 }
 
 // truncateErrorBanString 按 rune 截断字符串。
@@ -54,8 +56,10 @@ func CheckErrorBan(c *gin.Context, relayInfo *relaycommon.RelayInfo, finalErr *t
 		Username:   c.GetString("username"),
 		ModelName:  relayInfo.OriginModelName,
 		ErrorText:  truncateErrorBanString(finalErr.MaskSensitiveErrorWithStatusCode(), 2048),
+		ErrorCode:  string(finalErr.GetErrorCode()),
 		StatusCode: finalErr.StatusCode,
 		RequestId:  c.GetString(common.RequestIdKey),
+		Group:      riskRequestGroup(relayInfo),
 	}
 	gopool.Go(func() {
 		processErrorBan(snapshot)
@@ -65,7 +69,7 @@ func CheckErrorBan(c *gin.Context, relayInfo *relaycommon.RelayInfo, finalErr *t
 // processErrorBan 异步执行规则匹配与处罚。
 func processErrorBan(snap ErrorBanSnapshot) {
 	setting := risk_setting.GetErrorBanSetting()
-	if !setting.Enabled || snap.ErrorText == "" {
+	if !setting.Enabled {
 		return
 	}
 	if setting.IsStatusCodeExcluded(snap.StatusCode) {
@@ -86,6 +90,9 @@ func processErrorBan(snap ErrorBanSnapshot) {
 	if setting.IsUserWhitelisted(snap.UserId) {
 		return
 	}
+	if setting.IsGroupWhitelisted(snap.Group) {
+		return
+	}
 
 	rules := risk_setting.GetCompiledRules()
 	if len(rules) == 0 {
@@ -98,7 +105,7 @@ func processErrorBan(snap ErrorBanSnapshot) {
 	}
 
 	for _, cr := range rules {
-		if cr.Re.MatchString(snap.ErrorText) {
+		if cr.Matches(snap.ErrorText, snap.ErrorCode) {
 			processErrorBanRuleMatch(setting, snap, cr.Rule)
 		}
 	}
@@ -112,8 +119,11 @@ func processErrorBanRuleMatch(setting risk_setting.ErrorBanSetting, snap ErrorBa
 	}
 
 	var windowKey string
+	var target string
+	contextValue := snap.ClientIP
 	if dimension == risk_setting.DimensionUser {
 		windowKey = fmt.Sprintf("error_ban:user:%d:%s", snap.UserId, rule.Id)
+		target = strconv.Itoa(snap.UserId)
 	} else {
 		ip, ok := normalizeProbeClientIP(snap.ClientIP)
 		if !ok {
@@ -121,9 +131,31 @@ func processErrorBanRuleMatch(setting risk_setting.ErrorBanSetting, snap ErrorBa
 		}
 		dimension = risk_setting.DimensionIP
 		windowKey = riskIPKey("error_ban:ip:"+rule.Id, ip)
+		target = ip
+		contextValue = snap.Username
+		if contextValue == "" && snap.UserId > 0 {
+			contextValue = strconv.Itoa(snap.UserId)
+		}
 	}
 
 	count := riskWindowAddEvent(windowKey, setting.WindowSeconds)
+	recordRiskLiveProgress(riskLiveProgressRecord{
+		RiskLiveTarget: RiskLiveTarget{
+			Source:        RiskLiveSourceErrorBan,
+			RuleId:        rule.Id,
+			RuleName:      rule.Name,
+			Dimension:     dimension,
+			Target:        target,
+			UserId:        snap.UserId,
+			Username:      snap.Username,
+			Context:       contextValue,
+			CurrentCount:  count,
+			Threshold:     rule.Threshold,
+			WindowSeconds: setting.WindowSeconds,
+		},
+		WindowKey:   windowKey,
+		CooldownKey: windowKey + ":offense",
+	})
 	if int(count) < rule.Threshold {
 		return
 	}
@@ -144,7 +176,7 @@ func processErrorBanRuleMatch(setting risk_setting.ErrorBanSetting, snap ErrorBa
 		return
 	}
 
-	tier, ok := setting.MatchTier(offenseCount)
+	tier, ok := rule.MatchTier(offenseCount)
 	if !ok {
 		return
 	}
@@ -296,6 +328,7 @@ func applyErrorBanIPBan(snap ErrorBanSnapshot, info RiskBanInfo, permanent bool)
 	info.UnbanAt = unbanAt
 	info.TierAction = risk_setting.TierActionTempIPBan
 	if permanent {
+		info.DurationMinutes = 0
 		info.TierAction = risk_setting.TierActionPermIPBan
 	}
 	writeErrorBanLog(info, snap.ErrorText, false)
@@ -305,7 +338,13 @@ func applyErrorBanUserBan(setting risk_setting.ErrorBanSetting, snap ErrorBanSna
 	if snap.UserId <= 0 {
 		return
 	}
-	disabled, err := model.DisableUserByRiskBan(snap.UserId, info.Reason)
+	durationMinutes := info.DurationMinutes
+	isPermanent := durationMinutes == 0
+	unbanAt := int64(0)
+	if !isPermanent {
+		unbanAt = info.BannedAt + int64(durationMinutes)*60
+	}
+	disabled, err := model.DisableUserByRiskBan(snap.UserId, info.Reason, durationMinutes, info.BannedAt)
 	if err != nil {
 		common.SysError("error ban disable user failed: " + err.Error())
 		return
@@ -317,12 +356,15 @@ func applyErrorBanUserBan(setting risk_setting.ErrorBanSetting, snap ErrorBanSna
 	_ = model.InvalidateUserTokensCache(snap.UserId)
 
 	info.Dimension = model.RiskBanDimensionUser
-	info.IsPermanent = true
+	info.IsPermanent = isPermanent
+	info.UnbanAt = unbanAt
 	info.TierAction = risk_setting.TierActionDisableUser
 	writeErrorBanLog(info, snap.ErrorText, false)
 
 	if setting.NotifyUserEnabled {
 		if user, uErr := model.GetUserById(snap.UserId, false); uErr == nil {
+			info.Username = user.Username
+			info.DisplayName = user.DisplayName
 			if nErr := NotifyUserAutoBanned(user, info); nErr != nil {
 				common.SysLog("failed to notify error-ban user: " + nErr.Error())
 			}

@@ -35,23 +35,79 @@ export type PageData<T> = {
   items: T[]
 }
 
+export type RiskLiveSource = 'probe_guard' | 'error_ban'
+export type RiskLiveDimension = 'ip' | 'user' | 'both'
+export type RiskLiveStatus =
+  | 'observing'
+  | 'near_threshold'
+  | 'threshold_reached'
+
+export type RiskLiveRuleSummary = {
+  source: RiskLiveSource
+  rule_id: string
+  rule_name: string
+  enabled: boolean
+  parent_enabled: boolean
+  system: boolean
+  dry_run: boolean
+  dimension: RiskLiveDimension
+  threshold: number
+  window_seconds: number
+  active_targets: number
+  near_threshold_targets: number
+  triggered_targets: number
+  max_progress_percent: number
+  last_seen_at: number
+}
+
+export type RiskLiveTarget = {
+  id: string
+  source: RiskLiveSource
+  rule_id: string
+  rule_name: string
+  dimension: Exclude<RiskLiveDimension, 'both'>
+  target: string
+  user_id: number
+  username: string
+  context: string
+  current_count: number
+  threshold: number
+  progress_percent: number
+  window_seconds: number
+  remaining_seconds: number
+  last_seen_at: number
+  expires_at: number
+  status: RiskLiveStatus
+  members: string[]
+}
+
 // Probe Guard types
+export type ProbeGuardBanDimension = 'ip' | 'user' | 'both'
+
 export type ProbeGuardConfig = {
   enabled: boolean
   dry_run: boolean
   window_seconds: number
   distinct_model_count: number
+  ban_dimension: ProbeGuardBanDimension
   first_ip_ban_minutes: number
   second_ip_ban_minutes: number
   permanent_offense_count: number
   offense_dedupe_seconds: number
   whitelist_user_ids: string
-  user_ban_enabled: boolean
-  user_ban_threshold: number
+  whitelist_groups: string[]
   user_ban_reason: string
   notify_user_enabled: boolean
   notify_admin_enabled: boolean
   appeal_hint: string
+}
+
+function normalizeProbeGuardConfig(data: ProbeGuardConfig): ProbeGuardConfig {
+  return {
+    ...data,
+    ban_dimension: data.ban_dimension || 'ip',
+    whitelist_groups: data.whitelist_groups ?? [],
+  }
 }
 
 export type ProbeIPOffense = {
@@ -88,10 +144,13 @@ export type ErrorBanRule = {
   id: string
   name: string
   pattern: string
+  keywords: string[]
+  error_codes: string[]
   enabled: boolean
   dimension: '' | 'ip' | 'user'
   threshold: number
   reason_template: string
+  tiers: ErrorBanTier[]
 }
 
 export type ErrorBanTier = {
@@ -111,6 +170,7 @@ export type ErrorBanConfig = {
   notify_admin_enabled: boolean
   appeal_hint: string
   whitelist_user_ids: string
+  whitelist_groups: string[]
   exclude_status_codes: number[]
   rules: ErrorBanRule[]
   tiers: ErrorBanTier[]
@@ -202,6 +262,126 @@ const skipBusinessErrorConfig = {
   skipBusinessError: true,
 } as Record<string, unknown>
 
+function normalizePageResponse<T>(
+  response: ApiResponse<PageData<T>>,
+  normalizeItem: (item: T) => T
+): ApiResponse<PageData<T>> {
+  if (!response.data) return response
+
+  return {
+    ...response,
+    data: {
+      ...response.data,
+      items: (response.data.items ?? []).map(normalizeItem),
+    },
+  }
+}
+
+function normalizeProbeIPOffense(item: ProbeIPOffense): ProbeIPOffense {
+  return {
+    ...item,
+    target_ip: item.target_ip ?? '',
+    last_models: item.last_models ?? '',
+  }
+}
+
+function normalizeProbeUserOffense(item: ProbeUserOffense): ProbeUserOffense {
+  return {
+    ...item,
+    last_ip: item.last_ip ?? '',
+    last_models: item.last_models ?? '',
+  }
+}
+
+function normalizeErrorBanIPState(item: ErrorBanIPState): ErrorBanIPState {
+  return {
+    ...item,
+    target_ip: item.target_ip ?? '',
+    rule_id: item.rule_id ?? '',
+    last_error: item.last_error ?? '',
+  }
+}
+
+function normalizeErrorBanUserState(
+  item: ErrorBanUserState
+): ErrorBanUserState {
+  return {
+    ...item,
+    rule_id: item.rule_id ?? '',
+    last_error: item.last_error ?? '',
+  }
+}
+
+function normalizeRiskBanLog(log: RiskBanLog): RiskBanLog {
+  return {
+    ...log,
+    target_ip: log.target_ip ?? '',
+    username: log.username ?? '',
+    rule_id: log.rule_id ?? '',
+    rule_name: log.rule_name ?? '',
+    reason: log.reason ?? '',
+    error_sample: log.error_sample ?? '',
+    models: log.models ?? '',
+  }
+}
+
+function normalizeRiskLiveTarget(target: RiskLiveTarget): RiskLiveTarget {
+  return {
+    ...target,
+    rule_name: target.rule_name ?? '',
+    target: target.target ?? '',
+    username: target.username ?? '',
+    context: target.context ?? '',
+    members: target.members ?? [],
+  }
+}
+
+// ============================================================================
+// Live Progress API
+// ============================================================================
+
+export async function getRiskLiveRules(): Promise<
+  ApiResponse<RiskLiveRuleSummary[]>
+> {
+  const res = await api.get('/api/risk/live-progress/rules')
+  const response = res.data as ApiResponse<RiskLiveRuleSummary[]>
+  return {
+    ...response,
+    data: response.data ?? [],
+  }
+}
+
+export async function getRiskLiveTargets(params: {
+  source: RiskLiveSource
+  rule_id: string
+  dimension?: Exclude<RiskLiveDimension, 'both'> | ''
+  p?: number
+  page_size?: number
+  keyword?: string
+}): Promise<ApiResponse<PageData<RiskLiveTarget>>> {
+  const res = await api.get('/api/risk/live-progress/targets', {
+    params: {
+      ...params,
+      dimension: params.dimension || undefined,
+      keyword: params.keyword || undefined,
+    },
+  })
+  return normalizePageResponse(res.data, normalizeRiskLiveTarget)
+}
+
+export async function toggleRiskLiveRule(data: {
+  source: RiskLiveSource
+  rule_id: string
+  enabled: boolean
+}): Promise<ApiResponse<typeof data>> {
+  const res = await api.patch(
+    '/api/risk/live-progress/rules/enabled',
+    data,
+    skipBusinessErrorConfig
+  )
+  return res.data
+}
+
 // ============================================================================
 // Probe Guard API
 // ============================================================================
@@ -210,7 +390,13 @@ export async function getProbeGuardConfig(): Promise<
   ApiResponse<ProbeGuardConfig>
 > {
   const res = await api.get('/api/risk/probe-guard/config')
-  return res.data
+  const response = res.data as ApiResponse<ProbeGuardConfig>
+  return response.data
+    ? {
+        ...response,
+        data: normalizeProbeGuardConfig(response.data),
+      }
+    : response
 }
 
 export async function updateProbeGuardConfig(
@@ -221,7 +407,13 @@ export async function updateProbeGuardConfig(
     data,
     skipBusinessErrorConfig
   )
-  return res.data
+  const response = res.data as ApiResponse<ProbeGuardConfig>
+  return response.data
+    ? {
+        ...response,
+        data: normalizeProbeGuardConfig(response.data),
+      }
+    : response
 }
 
 export async function getProbeGuardIPOffenses(
@@ -231,7 +423,7 @@ export async function getProbeGuardIPOffenses(
   const res = await api.get('/api/risk/probe-guard/ip-offenses', {
     params: { p, page_size, keyword: keyword || undefined },
   })
-  return res.data
+  return normalizePageResponse(res.data, normalizeProbeIPOffense)
 }
 
 export async function getProbeGuardUserOffenses(
@@ -241,7 +433,7 @@ export async function getProbeGuardUserOffenses(
   const res = await api.get('/api/risk/probe-guard/user-offenses', {
     params: { p, page_size, keyword: keyword || undefined },
   })
-  return res.data
+  return normalizePageResponse(res.data, normalizeProbeUserOffense)
 }
 
 export async function resetProbeGuardIPOffense(
@@ -269,11 +461,36 @@ export async function getProbeGuardStats(): Promise<
 // Error Ban API
 // ============================================================================
 
+function normalizeErrorBanConfig(data: ErrorBanConfig): ErrorBanConfig {
+  const legacyTiers = data.tiers ?? []
+  return {
+    ...data,
+    whitelist_groups: data.whitelist_groups ?? [],
+    exclude_status_codes: data.exclude_status_codes ?? [],
+    rules: (data.rules ?? []).map((rule) => ({
+      ...rule,
+      name: rule.name ?? '',
+      pattern: rule.pattern ?? '',
+      keywords: rule.keywords ?? [],
+      error_codes: rule.error_codes ?? [],
+      reason_template: rule.reason_template ?? '',
+      tiers: (rule.tiers?.length ? rule.tiers : legacyTiers).map((tier) => ({
+        ...tier,
+        reason_suffix: tier.reason_suffix ?? '',
+      })),
+    })),
+    tiers: legacyTiers,
+  }
+}
+
 export async function getErrorBanConfig(): Promise<
   ApiResponse<ErrorBanConfig>
 > {
   const res = await api.get('/api/risk/error-ban/config')
-  return res.data
+  const response = res.data as ApiResponse<ErrorBanConfig>
+  return response.data
+    ? { ...response, data: normalizeErrorBanConfig(response.data) }
+    : response
 }
 
 export async function updateErrorBanConfig(
@@ -284,12 +501,18 @@ export async function updateErrorBanConfig(
     data,
     skipBusinessErrorConfig
   )
-  return res.data
+  const response = res.data as ApiResponse<ErrorBanConfig>
+  return response.data
+    ? { ...response, data: normalizeErrorBanConfig(response.data) }
+    : response
 }
 
 export async function testErrorBanRule(data: {
   pattern: string
+  keywords: string[]
+  error_codes: string[]
   sample_text: string
+  error_code: string
 }): Promise<ApiResponse<RuleTestResult>> {
   const res = await api.post(
     '/api/risk/error-ban/rules/test',
@@ -306,7 +529,7 @@ export async function getErrorBanIPStates(
   const res = await api.get('/api/risk/error-ban/ip-states', {
     params: { p, page_size, keyword: keyword || undefined },
   })
-  return res.data
+  return normalizePageResponse(res.data, normalizeErrorBanIPState)
 }
 
 export async function getErrorBanUserStates(
@@ -316,7 +539,7 @@ export async function getErrorBanUserStates(
   const res = await api.get('/api/risk/error-ban/user-states', {
     params: { p, page_size, keyword: keyword || undefined },
   })
-  return res.data
+  return normalizePageResponse(res.data, normalizeErrorBanUserState)
 }
 
 export async function resetErrorBanIPState(
@@ -333,9 +556,7 @@ export async function resetErrorBanUserState(
   return res.data
 }
 
-export async function getErrorBanStats(): Promise<
-  ApiResponse<ErrorBanStats>
-> {
+export async function getErrorBanStats(): Promise<ApiResponse<ErrorBanStats>> {
   const res = await api.get('/api/risk/error-ban/stats')
   return res.data
 }
@@ -368,19 +589,30 @@ export async function getRiskBanLogs(
   if (start_at) params.start_at = start_at
   if (end_at) params.end_at = end_at
   const res = await api.get('/api/risk/ban-logs', { params })
-  return res.data
+  return normalizePageResponse(res.data, normalizeRiskBanLog)
 }
 
 export async function getRiskBanLog(
   id: number
 ): Promise<ApiResponse<RiskBanLog>> {
   const res = await api.get(`/api/risk/ban-logs/${id}`)
-  return res.data
+  const response = res.data as ApiResponse<RiskBanLog>
+  return response.data
+    ? { ...response, data: normalizeRiskBanLog(response.data) }
+    : response
 }
 
-export async function getRiskBanLogStats(): Promise<
-  ApiResponse<BanLogStats>
-> {
+export async function getRiskBanLogStats(): Promise<ApiResponse<BanLogStats>> {
   const res = await api.get('/api/risk/ban-logs/stats')
-  return res.data
+  const response = res.data as ApiResponse<BanLogStats>
+  return response.data
+    ? {
+        ...response,
+        data: {
+          ...response.data,
+          by_dimension: response.data.by_dimension ?? {},
+          by_source: response.data.by_source ?? {},
+        },
+      }
+    : response
 }

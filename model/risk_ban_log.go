@@ -157,11 +157,11 @@ func DeleteRiskBanLogsBefore(before int64) (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
-// HasRiskBanLogForUser 判断是否存在某用户的风控封禁记录，用于解封校验。
-func HasRiskBanLogForUser(userId int) (bool, error) {
+// HasCurrentRiskBanLogForUser 判断当前禁用原因是否对应一条实际风控封禁记录。
+func HasCurrentRiskBanLogForUser(userId int, reason string) (bool, error) {
 	var count int64
 	err := DB.Model(&RiskBanLog{}).
-		Where("user_id = ? AND dimension = ?", userId, RiskBanDimensionUser).
+		Where("user_id = ? AND dimension = ? AND dry_run = ? AND reason = ?", userId, RiskBanDimensionUser, false, reason).
 		Count(&count).Error
 	return count > 0, err
 }

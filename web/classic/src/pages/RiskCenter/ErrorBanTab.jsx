@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Card,
   Form,
+  Input,
   InputNumber,
   Select,
   Space,
@@ -32,9 +33,9 @@ import {
   Tag,
 } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { Plus, Trash2, TestTube } from 'lucide-react';
-import { API, showError, showSuccess, timestamp2string } from '../../helpers';
-import CardTable from '../../components/common/ui/CardTable';
+import { Pencil, Plus, Save, Trash2, TestTube } from 'lucide-react';
+import { API, showError, showSuccess } from '../../helpers';
+import RiskWhitelistGroupsField from './RiskWhitelistGroupsField';
 
 const { Title, Text } = Typography;
 
@@ -48,44 +49,90 @@ const defaultConfig = {
   notify_admin_enabled: true,
   appeal_hint: '',
   whitelist_user_ids: '',
+  whitelist_groups: [],
   exclude_status_codes: [],
   rules: [],
   tiers: [
-    { offense_count: 1, action: 'temp_ip_ban', duration_minutes: 30, reason_suffix: '' },
+    {
+      offense_count: 1,
+      action: 'temp_ip_ban',
+      duration_minutes: 30,
+      reason_suffix: '',
+    },
   ],
 };
 
-const ACTION_OPTIONS = [
-  { value: 'temp_ip_ban', label: '临时IP封禁' },
-  { value: 'perm_ip_ban', label: '永久IP封禁' },
-  { value: 'disable_user', label: '禁用用户' },
-  { value: 'both', label: '同时封禁IP和用户' },
-];
+const createDefaultTier = (offenseCount = 1) => ({
+  offense_count: offenseCount,
+  action: 'temp_ip_ban',
+  duration_minutes: 30,
+  reason_suffix: '',
+});
 
-const DIMENSION_OPTIONS = [
-  { value: '', label: '继承全局' },
-  { value: 'ip', label: 'IP' },
-  { value: 'user', label: '用户' },
-];
+const normalizeRule = (rule, legacyTiers) => ({
+  ...rule,
+  pattern: rule.pattern || '',
+  keywords: rule.keywords || [],
+  error_codes: rule.error_codes || [],
+  tiers:
+    rule.tiers && rule.tiers.length
+      ? rule.tiers
+      : legacyTiers && legacyTiers.length
+        ? legacyTiers.map((tier) => ({ ...tier }))
+        : [createDefaultTier()],
+});
+
+const normalizeConfig = (data) => ({
+  ...data,
+  whitelist_groups: data.whitelist_groups || [],
+  exclude_status_codes: data.exclude_status_codes || [],
+  rules: (data.rules || []).map((rule) => normalizeRule(rule, data.tiers)),
+});
+
+const buildSaveConfig = (config, values) => ({
+  ...config,
+  ...values,
+  // The rule editor is state-controlled while Semi Form retains its old snapshot.
+  rules: config.rules || [],
+  tiers: config.tiers || [],
+  whitelist_groups: values.whitelist_groups ?? config.whitelist_groups ?? [],
+  exclude_status_codes: config.exclude_status_codes || [],
+});
+
+const ControlField = ({ label, children }) => (
+  <div className='flex min-w-0 flex-col gap-1.5'>
+    <Text type='secondary'>{label}</Text>
+    {children}
+  </div>
+);
 
 const ErrorBanTab = () => {
   const { t } = useTranslation();
+  const actionOptions = [
+    { value: 'temp_ip_ban', label: t('临时IP封禁') },
+    { value: 'perm_ip_ban', label: t('永久IP封禁') },
+    { value: 'disable_user', label: t('禁用用户') },
+    { value: 'both', label: t('同时封禁IP和用户') },
+  ];
+  const dimensionOptions = [
+    { value: '', label: t('继承全局') },
+    { value: 'ip', label: 'IP' },
+    { value: 'user', label: t('用户') },
+  ];
   const [config, setConfig] = useState(defaultConfig);
-  const [stats, setStats] = useState(null);
-  const [ipStates, setIpStates] = useState([]);
-  const [userStates, setUserStates] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [ipPage, setIpPage] = useState(1);
-  const [ipTotal, setIpTotal] = useState(0);
-  const [userPage, setUserPage] = useState(1);
-  const [userTotal, setUserTotal] = useState(0);
-  const pageSize = 10;
+  const formApiRef = useRef(null);
+  const [ruleVisible, setRuleVisible] = useState(false);
+  const [editingRuleIndex, setEditingRuleIndex] = useState(null);
+  const [ruleDraft, setRuleDraft] = useState(null);
 
   // Test dialog state
   const [testVisible, setTestVisible] = useState(false);
   const [testPattern, setTestPattern] = useState('');
+  const [testKeywords, setTestKeywords] = useState('');
+  const [testErrorCodes, setTestErrorCodes] = useState('');
   const [testSample, setTestSample] = useState('');
+  const [testErrorCode, setTestErrorCode] = useState('');
   const [testResult, setTestResult] = useState(null);
   const [testLoading, setTestLoading] = useState(false);
 
@@ -93,48 +140,9 @@ const ErrorBanTab = () => {
     try {
       const res = await API.get('/api/risk/error-ban/config');
       if (res.data.success) {
-        setConfig(res.data.data);
-      }
-    } catch (err) {
-      showError(err);
-    }
-  }, []);
-
-  const fetchStats = useCallback(async () => {
-    try {
-      const res = await API.get('/api/risk/error-ban/stats');
-      if (res.data.success) {
-        setStats(res.data.data);
-      }
-    } catch (err) {
-      showError(err);
-    }
-  }, []);
-
-  const fetchIpStates = useCallback(async (page) => {
-    try {
-      const res = await API.get('/api/risk/error-ban/ip-states', {
-        params: { p: page, page_size: 10 },
-      });
-      if (res.data.success) {
-        setIpStates(res.data.data.items);
-        setIpTotal(res.data.data.total);
-        setIpPage(res.data.data.page);
-      }
-    } catch (err) {
-      showError(err);
-    }
-  }, []);
-
-  const fetchUserStates = useCallback(async (page) => {
-    try {
-      const res = await API.get('/api/risk/error-ban/user-states', {
-        params: { p: page, page_size: 10 },
-      });
-      if (res.data.success) {
-        setUserStates(res.data.data.items);
-        setUserTotal(res.data.data.total);
-        setUserPage(res.data.data.page);
+        const nextConfig = normalizeConfig(res.data.data);
+        setConfig(nextConfig);
+        formApiRef.current?.setValues(nextConfig);
       }
     } catch (err) {
       showError(err);
@@ -142,18 +150,18 @@ const ErrorBanTab = () => {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([fetchConfig(), fetchStats(), fetchIpStates(1), fetchUserStates(1)])
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [fetchConfig, fetchStats, fetchIpStates, fetchUserStates]);
+    fetchConfig();
+  }, [fetchConfig]);
 
-  const handleSave = async () => {
+  const handleSave = async (values) => {
     setSaving(true);
     try {
-      const res = await API.put('/api/risk/error-ban/config', config);
+      const nextConfig = buildSaveConfig(config, values);
+      const res = await API.put('/api/risk/error-ban/config', nextConfig);
       if (res.data.success) {
-        setConfig(res.data.data);
+        const savedConfig = normalizeConfig(res.data.data);
+        setConfig(savedConfig);
+        formApiRef.current?.setValues(savedConfig);
         showSuccess(t('保存成功'));
       } else {
         showError(res.data.message);
@@ -165,45 +173,36 @@ const ErrorBanTab = () => {
     }
   };
 
-  const handleResetIpState = async (ip) => {
-    try {
-      const res = await API.post(`/api/risk/error-ban/ip-states/${ip}/reset`);
-      if (res.data.success) {
-        showSuccess(t('重置成功'));
-        fetchIpStates(ipPage);
-      } else {
-        showError(res.data.message);
-      }
-    } catch (err) {
-      showError(err);
-    }
-  };
-
-  const handleResetUserState = async (id) => {
-    try {
-      const res = await API.post(`/api/risk/error-ban/user-states/${id}/reset`);
-      if (res.data.success) {
-        showSuccess(t('重置成功'));
-        fetchUserStates(userPage);
-      } else {
-        showError(res.data.message);
-      }
-    } catch (err) {
-      showError(err);
-    }
-  };
-
   const addRule = () => {
-    const newRule = {
+    setEditingRuleIndex(null);
+    setRuleDraft({
       id: `rule_${Date.now()}`,
       name: '',
       pattern: '',
+      keywords: [],
+      error_codes: [],
       enabled: true,
       dimension: '',
       threshold: 3,
       reason_template: '',
-    };
-    setConfig({ ...config, rules: [...(config.rules || []), newRule] });
+      tiers: [createDefaultTier()],
+    });
+    setRuleVisible(true);
+  };
+
+  const editRule = (index) => {
+    setEditingRuleIndex(index);
+    setRuleDraft(normalizeRule(config.rules[index], config.tiers));
+    setRuleVisible(true);
+  };
+
+  const saveRule = () => {
+    if (!ruleDraft) return;
+    const rules = [...(config.rules || [])];
+    if (editingRuleIndex === null) rules.push(ruleDraft);
+    else rules[editingRuleIndex] = ruleDraft;
+    setConfig({ ...config, rules });
+    setRuleVisible(false);
   };
 
   const removeRule = (index) => {
@@ -212,32 +211,23 @@ const ErrorBanTab = () => {
     setConfig({ ...config, rules });
   };
 
-  const updateRule = (index, field, value) => {
+  const toggleRule = (index, enabled) => {
     const rules = [...(config.rules || [])];
-    rules[index] = { ...rules[index], [field]: value };
+    rules[index] = { ...rules[index], enabled };
     setConfig({ ...config, rules });
   };
 
-  const addTier = () => {
-    const newTier = {
-      offense_count: (config.tiers?.length || 0) + 1,
-      action: 'temp_ip_ban',
-      duration_minutes: 30,
-      reason_suffix: '',
-    };
-    setConfig({ ...config, tiers: [...(config.tiers || []), newTier] });
-  };
-
-  const removeTier = (index) => {
-    const tiers = [...(config.tiers || [])];
-    tiers.splice(index, 1);
-    setConfig({ ...config, tiers });
-  };
-
-  const updateTier = (index, field, value) => {
-    const tiers = [...(config.tiers || [])];
+  const updateDraftTier = (index, field, value) => {
+    const tiers = [...(ruleDraft.tiers || [])];
     tiers[index] = { ...tiers[index], [field]: value };
-    setConfig({ ...config, tiers });
+    if (
+      field === 'action' &&
+      value === 'temp_ip_ban' &&
+      tiers[index].duration_minutes <= 0
+    ) {
+      tiers[index].duration_minutes = 1;
+    }
+    setRuleDraft({ ...ruleDraft, tiers });
   };
 
   const handleTestRule = async () => {
@@ -246,7 +236,16 @@ const ErrorBanTab = () => {
     try {
       const res = await API.post('/api/risk/error-ban/rules/test', {
         pattern: testPattern,
+        keywords: testKeywords
+          .split('\n')
+          .map((value) => value.trim())
+          .filter(Boolean),
+        error_codes: testErrorCodes
+          .split('\n')
+          .map((value) => value.trim())
+          .filter(Boolean),
         sample_text: testSample,
+        error_code: testErrorCode,
       });
       if (res.data.success) {
         setTestResult(res.data.data);
@@ -260,76 +259,20 @@ const ErrorBanTab = () => {
     }
   };
 
-  const ipColumns = useMemo(
-    () => [
-      { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
-      { title: t('IP地址'), dataIndex: 'target_ip', key: 'target_ip' },
-      { title: t('规则ID'), dataIndex: 'rule_id', key: 'rule_id' },
-      { title: t('违规次数'), dataIndex: 'offense_count', key: 'offense_count', width: 90 },
-      { title: t('窗口内次数'), dataIndex: 'window_count', key: 'window_count', width: 100 },
-      {
-        title: t('最近违规'),
-        dataIndex: 'last_offense_at',
-        key: 'last_offense_at',
-        render: (val) => (val ? timestamp2string(val) : '-'),
-      },
-      {
-        title: t('操作'),
-        key: 'action',
-        render: (_, record) => (
-          <Button
-            size='small'
-            type='danger'
-            onClick={() => handleResetIpState(record.target_ip)}
-          >
-            {t('重置')}
-          </Button>
-        ),
-      },
-    ],
-    [t],
-  );
-
-  const userColumns = useMemo(
-    () => [
-      { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
-      { title: t('用户ID'), dataIndex: 'user_id', key: 'user_id', width: 100 },
-      { title: t('规则ID'), dataIndex: 'rule_id', key: 'rule_id' },
-      { title: t('违规次数'), dataIndex: 'offense_count', key: 'offense_count', width: 90 },
-      { title: t('窗口内次数'), dataIndex: 'window_count', key: 'window_count', width: 100 },
-      {
-        title: t('最近违规'),
-        dataIndex: 'last_offense_at',
-        key: 'last_offense_at',
-        render: (val) => (val ? timestamp2string(val) : '-'),
-      },
-      {
-        title: t('操作'),
-        key: 'action',
-        render: (_, record) => (
-          <Button
-            size='small'
-            type='danger'
-            onClick={() => handleResetUserState(record.id)}
-          >
-            {t('重置')}
-          </Button>
-        ),
-      },
-    ],
-    [t],
-  );
-
   return (
     <div className='flex flex-col gap-4'>
       <Card>
         <div className='flex justify-between items-center mb-4'>
           <Title heading={5}>{t('错误封禁配置')}</Title>
-          <Button icon={<TestTube size={16} />} onClick={() => setTestVisible(true)}>
+          <Button
+            icon={<TestTube size={16} />}
+            onClick={() => setTestVisible(true)}
+          >
             {t('测试规则')}
           </Button>
         </div>
         <Form
+          getFormApi={(api) => (formApiRef.current = api)}
           initValues={config}
           onSubmit={handleSave}
           labelPosition='left'
@@ -353,8 +296,15 @@ const ErrorBanTab = () => {
               { value: 'user', label: '用户' },
             ]}
           />
-          <Form.Input field='default_reason_template' label={t('默认封禁原因模板')} />
-          <Form.Input field='whitelist_user_ids' label={t('白名单用户ID（逗号分隔）')} />
+          <Form.Input
+            field='default_reason_template'
+            label={t('默认封禁原因模板')}
+          />
+          <Form.Input
+            field='whitelist_user_ids'
+            label={t('白名单用户ID（逗号分隔）')}
+          />
+          <RiskWhitelistGroupsField selectedGroups={config.whitelist_groups} />
           <Form.Switch field='notify_user_enabled' label={t('通知用户')} />
           <Form.Switch field='notify_admin_enabled' label={t('通知管理员')} />
           <Form.TextArea field='appeal_hint' label={t('申诉提示')} rows={2} />
@@ -370,169 +320,272 @@ const ErrorBanTab = () => {
       <Card>
         <div className='flex justify-between items-center mb-4'>
           <Title heading={5}>{t('封禁规则')}</Title>
-          <Button icon={<Plus size={16} />} onClick={addRule}>
-            {t('添加规则')}
-          </Button>
+          <Space>
+            <Button
+              icon={<Save size={16} />}
+              loading={saving}
+              onClick={() =>
+                handleSave(formApiRef.current?.getValues?.() || config)
+              }
+            >
+              {t('保存配置')}
+            </Button>
+            <Button
+              icon={<Plus size={16} />}
+              onClick={addRule}
+              disabled={(config.rules || []).length >= 20}
+            >
+              {t('添加规则')}
+            </Button>
+          </Space>
         </div>
-        {(config.rules || []).map((rule, index) => (
-          <div key={rule.id || index} className='border rounded-lg p-4 mb-3'>
-            <div className='flex justify-between items-center mb-2'>
-              <Text strong>
-                {t('规则')} #{index + 1}
+        <div className='overflow-hidden rounded-lg border border-semi-color-border bg-semi-color-bg-0 divide-y divide-semi-color-border'>
+          {(config.rules || []).length === 0 && (
+            <div className='p-4 text-center'>
+              <Text type='tertiary'>{t('暂无规则')}</Text>
+            </div>
+          )}
+          {(config.rules || []).map((rule, index) => (
+            <div
+              key={rule.id}
+              className='flex items-center gap-3 min-h-14 px-4 py-2 transition-colors hover:bg-semi-color-fill-0'
+            >
+              <Text strong ellipsis={{ showTooltip: true }} className='flex-1'>
+                {rule.name || rule.id}
               </Text>
+              <Text type='secondary'>
+                {t('触发阈值')}: {rule.threshold}
+              </Text>
+              <Switch
+                checked={rule.enabled}
+                aria-label={t('Toggle rule {{name}}', {
+                  name: rule.name || rule.id,
+                })}
+                onChange={(enabled) => toggleRule(index, enabled)}
+              />
               <Button
-                type='danger'
+                theme='borderless'
+                size='small'
+                icon={<Pencil size={14} />}
+                aria-label={t('编辑')}
+                onClick={() => editRule(index)}
+              />
+              <Button
+                theme='borderless'
                 size='small'
                 icon={<Trash2 size={14} />}
+                aria-label={t('删除')}
                 onClick={() => removeRule(index)}
               />
             </div>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-              <Form.Input
-                label={t('规则名称')}
-                value={rule.name}
-                onChange={(v) => updateRule(index, 'name', v)}
-              />
-              <Form.Input
-                label='ID'
-                value={rule.id}
-                onChange={(v) => updateRule(index, 'id', v)}
-              />
-              <Form.Input
-                label={t('正则表达式')}
-                value={rule.pattern}
-                onChange={(v) => updateRule(index, 'pattern', v)}
-              />
-              <Form.Select
-                label={t('封禁维度')}
-                value={rule.dimension}
-                onChange={(v) => updateRule(index, 'dimension', v)}
-                optionList={DIMENSION_OPTIONS}
-              />
-              <Form.InputNumber
-                label={t('触发阈值')}
-                value={rule.threshold}
-                min={1}
-                max={100}
-                onChange={(v) => updateRule(index, 'threshold', v)}
-              />
-              <Form.Input
-                label={t('封禁原因模板')}
-                value={rule.reason_template}
-                onChange={(v) => updateRule(index, 'reason_template', v)}
-              />
-              <Form.Switch
-                label={t('启用')}
-                checked={rule.enabled}
-                onChange={(v) => updateRule(index, 'enabled', v)}
-              />
-            </div>
-          </div>
-        ))}
-      </Card>
-
-      {/* Tiers section */}
-      <Card>
-        <div className='flex justify-between items-center mb-4'>
-          <Title heading={5}>{t('处罚等级')}</Title>
-          <Button icon={<Plus size={16} />} onClick={addTier}>
-            {t('添加等级')}
-          </Button>
+          ))}
         </div>
-        {(config.tiers || []).map((tier, index) => (
-          <div key={index} className='border rounded-lg p-4 mb-3'>
-            <div className='flex justify-between items-center mb-2'>
-              <Text strong>
-                {t('等级')} #{index + 1}
-              </Text>
-              <Button
-                type='danger'
-                size='small'
-                icon={<Trash2 size={14} />}
-                onClick={() => removeTier(index)}
-              />
-            </div>
+      </Card>
+
+      <Modal
+        title={editingRuleIndex === null ? t('添加规则') : t('编辑规则')}
+        visible={ruleVisible}
+        width={760}
+        onCancel={() => setRuleVisible(false)}
+        onOk={saveRule}
+        okButtonProps={{
+          disabled:
+            !ruleDraft?.name?.trim() ||
+            !ruleDraft?.id?.trim() ||
+            ruleDraft?.threshold < 1 ||
+            (ruleDraft?.enabled &&
+              !ruleDraft?.pattern?.trim() &&
+              !ruleDraft?.keywords?.length &&
+              !ruleDraft?.error_codes?.length) ||
+            !ruleDraft?.tiers?.length ||
+            ruleDraft?.tiers?.some(
+              (tier) =>
+                tier.offense_count < 1 ||
+                tier.duration_minutes < 0 ||
+                (tier.action === 'temp_ip_ban' && tier.duration_minutes < 1),
+            ),
+        }}
+      >
+        {ruleDraft && (
+          <div className='flex flex-col gap-4'>
+            <Text>{t('所有已配置的匹配条件必须同时满足')}</Text>
             <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-              <Form.InputNumber
-                label={t('累计违规次数')}
-                value={tier.offense_count}
-                min={1}
-                max={100}
-                onChange={(v) => updateTier(index, 'offense_count', v)}
+              <ControlField label={t('规则名称')}>
+                <Input
+                  value={ruleDraft.name || ''}
+                  onChange={(name) => setRuleDraft({ ...ruleDraft, name })}
+                />
+              </ControlField>
+              <ControlField label={t('规则ID')}>
+                <Input
+                  value={ruleDraft.id || ''}
+                  onChange={(id) => setRuleDraft({ ...ruleDraft, id })}
+                />
+              </ControlField>
+              <ControlField label={t('触发阈值')}>
+                <InputNumber
+                  value={ruleDraft.threshold}
+                  min={1}
+                  max={100000}
+                  onChange={(threshold) =>
+                    setRuleDraft({ ...ruleDraft, threshold })
+                  }
+                />
+              </ControlField>
+              <ControlField label={t('封禁维度')}>
+                <Select
+                  value={ruleDraft.dimension || ''}
+                  onChange={(dimension) =>
+                    setRuleDraft({ ...ruleDraft, dimension })
+                  }
+                  optionList={dimensionOptions}
+                />
+              </ControlField>
+            </div>
+            <ControlField label={t('正则表达式（可选）')}>
+              <Input
+                value={ruleDraft.pattern || ''}
+                onChange={(pattern) => setRuleDraft({ ...ruleDraft, pattern })}
               />
-              <Form.Select
-                label={t('处罚动作')}
-                value={tier.action}
-                onChange={(v) => updateTier(index, 'action', v)}
-                optionList={ACTION_OPTIONS}
+            </ControlField>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+              <ControlField label={t('错误关键词（每行一个，全部匹配）')}>
+                <TextArea
+                  value={(ruleDraft.keywords || []).join('\n')}
+                  onChange={(value) =>
+                    setRuleDraft({
+                      ...ruleDraft,
+                      keywords: value
+                        .split('\n')
+                        .map((item) => item.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  rows={3}
+                />
+              </ControlField>
+              <ControlField label={t('错误码（每行一个，任一匹配）')}>
+                <TextArea
+                  value={(ruleDraft.error_codes || []).join('\n')}
+                  onChange={(value) =>
+                    setRuleDraft({
+                      ...ruleDraft,
+                      error_codes: value
+                        .split('\n')
+                        .map((item) => item.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  rows={3}
+                  placeholder='*'
+                />
+              </ControlField>
+            </div>
+            <ControlField label={t('封禁原因模板')}>
+              <Input
+                value={ruleDraft.reason_template || ''}
+                onChange={(reason_template) =>
+                  setRuleDraft({ ...ruleDraft, reason_template })
+                }
               />
-              <Form.InputNumber
-                label={t('封禁时长（分钟）')}
-                value={tier.duration_minutes}
-                min={0}
-                max={86400}
-                onChange={(v) => updateTier(index, 'duration_minutes', v)}
-              />
-              <Form.Input
-                label={t('原因后缀')}
-                value={tier.reason_suffix}
-                onChange={(v) => updateTier(index, 'reason_suffix', v)}
-              />
+            </ControlField>
+            <div className='border-t border-semi-color-border pt-3'>
+              <div className='flex justify-between items-center mb-3'>
+                <Text strong>{t('处罚等级')}</Text>
+                <Button
+                  size='small'
+                  icon={<Plus size={14} />}
+                  onClick={() =>
+                    setRuleDraft({
+                      ...ruleDraft,
+                      tiers: [
+                        ...(ruleDraft.tiers || []),
+                        createDefaultTier(
+                          (ruleDraft.tiers?.at(-1)?.offense_count || 0) + 1,
+                        ),
+                      ],
+                    })
+                  }
+                >
+                  {t('添加等级')}
+                </Button>
+              </div>
+              {(ruleDraft.tiers || []).map((tier, index) => (
+                <div
+                  key={index}
+                  className='border-t border-semi-color-border py-3 first:border-t-0'
+                >
+                  <div className='flex justify-between items-center mb-2'>
+                    <Text strong>
+                      {t('等级')} #{index + 1}
+                    </Text>
+                    <Button
+                      theme='borderless'
+                      size='small'
+                      icon={<Trash2 size={14} />}
+                      onClick={() =>
+                        setRuleDraft({
+                          ...ruleDraft,
+                          tiers: ruleDraft.tiers.filter(
+                            (_, tierIndex) => tierIndex !== index,
+                          ),
+                        })
+                      }
+                    />
+                  </div>
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+                    <ControlField label={t('累计违规次数')}>
+                      <InputNumber
+                        value={tier.offense_count}
+                        min={1}
+                        max={100000}
+                        onChange={(value) =>
+                          updateDraftTier(index, 'offense_count', value)
+                        }
+                      />
+                    </ControlField>
+                    <ControlField label={t('处罚动作')}>
+                      <Select
+                        value={tier.action}
+                        onChange={(value) =>
+                          updateDraftTier(index, 'action', value)
+                        }
+                        optionList={actionOptions}
+                      />
+                    </ControlField>
+                    {tier.action !== 'perm_ip_ban' && (
+                      <ControlField
+                        label={
+                          tier.action === 'temp_ip_ban'
+                            ? t('IP封禁时长（分钟）')
+                            : t('账号封禁时长（分钟，0为永久）')
+                        }
+                      >
+                        <InputNumber
+                          value={tier.duration_minutes}
+                          min={tier.action === 'temp_ip_ban' ? 1 : 0}
+                          max={525600}
+                          onChange={(value) =>
+                            updateDraftTier(index, 'duration_minutes', value)
+                          }
+                        />
+                      </ControlField>
+                    )}
+                    <ControlField label={t('原因后缀')}>
+                      <Input
+                        value={tier.reason_suffix || ''}
+                        onChange={(value) =>
+                          updateDraftTier(index, 'reason_suffix', value)
+                        }
+                      />
+                    </ControlField>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        ))}
-      </Card>
-
-      {/* Stats */}
-      {stats && (
-        <Card>
-          <Title heading={5} className='mb-2'>
-            {t('统计数据')}
-          </Title>
-          <div className='flex flex-wrap gap-4'>
-            <Text>{t('IP状态数')}: {stats.total_ip_states}</Text>
-            <Text>{t('用户状态数')}: {stats.total_user_states}</Text>
-            <Text>{t('总违规次数')}: {stats.total_offenses}</Text>
-            <Text>{t('活跃规则数')}: {stats.active_rules}</Text>
-          </div>
-        </Card>
-      )}
-
-      <Card>
-        <Title heading={5} className='mb-4'>
-          {t('IP状态记录')}
-        </Title>
-        <CardTable
-          columns={ipColumns}
-          dataSource={ipStates}
-          loading={loading}
-          rowKey='id'
-          pagination={{
-            currentPage: ipPage,
-            pageSize: pageSize,
-            total: ipTotal,
-            onChange: (page) => fetchIpStates(page),
-          }}
-        />
-      </Card>
-
-      <Card>
-        <Title heading={5} className='mb-4'>
-          {t('用户状态记录')}
-        </Title>
-        <CardTable
-          columns={userColumns}
-          dataSource={userStates}
-          loading={loading}
-          rowKey='id'
-          pagination={{
-            currentPage: userPage,
-            pageSize: pageSize,
-            total: userTotal,
-            onChange: (page) => fetchUserStates(page),
-          }}
-        />
-      </Card>
+        )}
+      </Modal>
 
       {/* Test rule dialog */}
       <Modal
@@ -545,28 +598,54 @@ const ErrorBanTab = () => {
         footer={
           <Space>
             <Button onClick={() => setTestVisible(false)}>{t('关闭')}</Button>
-            <Button type='primary' loading={testLoading} onClick={handleTestRule}>
+            <Button
+              type='primary'
+              loading={testLoading}
+              onClick={handleTestRule}
+            >
               {t('测试')}
             </Button>
           </Space>
         }
       >
         <div className='flex flex-col gap-3'>
-          <Form.Input
-            label={t('正则表达式')}
-            value={testPattern}
-            onChange={(v) => setTestPattern(v)}
-          />
-          <Form.TextArea
-            label={t('样本文本')}
-            value={testSample}
-            onChange={(v) => setTestSample(v)}
-            rows={4}
-          />
+          <ControlField label={t('正则表达式')}>
+            <Input value={testPattern} onChange={(v) => setTestPattern(v)} />
+          </ControlField>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+            <ControlField label={t('错误关键词（每行一个，全部匹配）')}>
+              <TextArea
+                value={testKeywords}
+                onChange={(value) => setTestKeywords(value)}
+                rows={3}
+              />
+            </ControlField>
+            <ControlField label={t('允许的错误码（每行一个）')}>
+              <TextArea
+                value={testErrorCodes}
+                onChange={(value) => setTestErrorCodes(value)}
+                rows={3}
+                placeholder='*'
+              />
+            </ControlField>
+          </div>
+          <ControlField label={t('样本文本')}>
+            <TextArea
+              value={testSample}
+              onChange={(v) => setTestSample(v)}
+              rows={4}
+            />
+          </ControlField>
+          <ControlField label={t('样本错误码')}>
+            <Input
+              value={testErrorCode}
+              onChange={(value) => setTestErrorCode(value)}
+            />
+          </ControlField>
           {testResult && (
             <div className='mt-2 p-3 rounded bg-gray-50 dark:bg-gray-800'>
               <Text>
-                {t('正则有效')}:{' '}
+                {t('规则有效')}:{' '}
                 <Tag color={testResult.valid ? 'green' : 'red'}>
                   {testResult.valid ? t('是') : t('否')}
                 </Tag>

@@ -55,6 +55,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     user: true,
     ip_ban: true,
     subscription: true,
+    risk_center: true,
     setting: true,
   },
 };

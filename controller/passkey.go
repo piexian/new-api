@@ -318,6 +318,9 @@ func PasskeyLoginFinish(c *gin.Context) {
 		return
 	}
 
+	if !refreshExpiredUserBan(c, modelUser) {
+		return
+	}
 	if modelUser.Status != common.UserStatusEnabled {
 		apiDisabledUser(c, modelUser)
 		return

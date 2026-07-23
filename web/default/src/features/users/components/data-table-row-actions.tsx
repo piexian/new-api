@@ -41,6 +41,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Tooltip,
@@ -77,6 +86,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [tokensDialogOpen, setTokensDialogOpen] = useState(false)
   const [disableDialogOpen, setDisableDialogOpen] = useState(false)
   const [disableReason, setDisableReason] = useState(user.disable_reason || '')
+  const [disableType, setDisableType] = useState<'permanent' | 'temporary'>(
+    'permanent'
+  )
+  const [disableDurationMinutes, setDisableDurationMinutes] = useState(60)
 
   const handleEdit = () => {
     setCurrentRow(user)
@@ -96,6 +109,10 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               id: user.id,
               action,
               disable_reason: disableReason.trim(),
+              duration_minutes:
+                disableType === 'temporary'
+                  ? Math.max(1, disableDurationMinutes)
+                  : 0,
             })
           : await manageUser(user.id, action)
       if (result.success) {
@@ -188,6 +205,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             onSelect={(event) => {
               event.preventDefault()
               setDisableReason(user.disable_reason || '')
+              setDisableType('permanent')
+              setDisableDurationMinutes(60)
               setDisableDialogOpen(true)
             }}
             disabled={isRoot}
@@ -306,13 +325,55 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         destructive
         handleConfirm={() => handleManage('disable')}
       >
-        <Textarea
-          value={disableReason}
-          onChange={(event) => setDisableReason(event.target.value)}
-          placeholder={t('Enter disable reason')}
-          maxLength={DISABLE_REASON_MAX_LENGTH}
-          rows={8}
-        />
+        <div className='space-y-4'>
+          <div className='space-y-2'>
+            <Label>{t('Ban type')}</Label>
+            <Select
+              value={disableType}
+              onValueChange={(value) =>
+                setDisableType(value as 'permanent' | 'temporary')
+              }
+            >
+              <SelectTrigger className='w-full'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='permanent'>{t('Permanent ban')}</SelectItem>
+                <SelectItem value='temporary'>{t('Temporary ban')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {disableType === 'temporary' && (
+            <div className='space-y-2'>
+              <Label htmlFor={`disable-duration-${user.id}`}>
+                {t('Ban duration (minutes)')}
+              </Label>
+              <Input
+                id={`disable-duration-${user.id}`}
+                type='number'
+                min={1}
+                max={525600}
+                value={disableDurationMinutes}
+                onChange={(event) =>
+                  setDisableDurationMinutes(Number(event.target.value))
+                }
+              />
+            </div>
+          )}
+          <div className='space-y-2'>
+            <Label htmlFor={`disable-reason-${user.id}`}>
+              {t('Disable reason')}
+            </Label>
+            <Textarea
+              id={`disable-reason-${user.id}`}
+              value={disableReason}
+              onChange={(event) => setDisableReason(event.target.value)}
+              placeholder={t('Enter disable reason')}
+              maxLength={DISABLE_REASON_MAX_LENGTH}
+              rows={6}
+            />
+          </div>
+        </div>
       </ConfirmDialog>
 
       <ConfirmDialog

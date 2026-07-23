@@ -177,6 +177,7 @@ export const useUsersData = () => {
             status: user.status,
             role: user.role,
             disable_reason: user.disable_reason,
+            disabled_until: user.disabled_until,
           };
         }
         return u;

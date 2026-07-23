@@ -24,6 +24,7 @@ type UserBase struct {
 	Username      string `json:"username"`
 	Setting       string `json:"setting"`
 	DisableReason string `json:"disable_reason"`
+	DisabledUntil int64  `json:"disabled_until"`
 }
 
 func (user *UserBase) WriteContext(c *gin.Context) {
@@ -100,6 +101,20 @@ func GetUserCache(userId int) (*UserBase, error) {
 		// 老版本缓存没有 Role 字段，会反序列化成 0。鉴权必须拿到最新角色，
 		// 否则提升为管理员后仍可能被旧缓存当作游客处理。
 		if hasRoleField {
+			if userCache.Status == common.UserStatusDisabled && userCache.DisabledUntil > 0 && userCache.DisabledUntil <= common.GetTimestamp() {
+				user := &User{
+					Id:            userCache.Id,
+					Status:        userCache.Status,
+					DisableReason: userCache.DisableReason,
+					DisabledUntil: userCache.DisabledUntil,
+				}
+				if _, restoreErr := user.RestoreExpiredUserBan(); restoreErr != nil {
+					return nil, restoreErr
+				}
+				userCache.Status = user.Status
+				userCache.DisableReason = user.DisableReason
+				userCache.DisabledUntil = user.DisabledUntil
+			}
 			return userCache, nil
 		}
 	}
@@ -115,6 +130,9 @@ func GetUserCache(userId int) (*UserBase, error) {
 	user, err := GetUserById(userId, false)
 	if err != nil {
 		return nil, err // Return nil and error if DB lookup fails
+	}
+	if _, err := user.RestoreExpiredUserBan(); err != nil {
+		return nil, err
 	}
 
 	if canFillCache {

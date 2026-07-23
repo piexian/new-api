@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/risk_setting"
 	"github.com/gin-gonic/gin"
@@ -38,6 +39,8 @@ func UpdateProbeGuardConfig(c *gin.Context) {
 		return
 	}
 	req.Normalize()
+	riskConfigUpdateMu.Lock()
+	defer riskConfigUpdateMu.Unlock()
 	if err := saveRiskConfig("probe_guard_setting.", &req); err != nil {
 		common.ApiError(c, err)
 		return
@@ -82,6 +85,7 @@ func ResetProbeIPOffense(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	service.ClearRiskLiveProgress(service.RiskLiveSourceProbeGuard, risk_setting.DimensionIP, ip)
 	common.ApiSuccess(c, gin.H{"ip": ip})
 }
 
@@ -106,8 +110,8 @@ func UnbanProbeUser(c *gin.Context) {
 		common.ApiErrorMsg(c, "该用户当前未被禁用")
 		return
 	}
-	// 仅解封风控自动封禁的账号，避免误解除管理员手动封禁。
-	hasLog, _ := model.HasRiskBanLogForUser(id)
+	// 仅解封当前禁用原因与风控记录匹配的账号，避免误解除管理员手动封禁。
+	hasLog, _ := model.HasCurrentRiskBanLogForUser(id, user.DisableReason)
 	if !isRiskBanReason(user.DisableReason) && !hasLog {
 		common.ApiErrorMsg(c, "该用户不是被风控自动封禁的，请通过用户管理手动解禁")
 		return
@@ -119,6 +123,7 @@ func UnbanProbeUser(c *gin.Context) {
 	_ = model.InvalidateUserCache(id)
 	_ = model.InvalidateUserTokensCache(id)
 	_ = model.ResetProbeUserAbuse(id)
+	service.ClearRiskLiveProgress(service.RiskLiveSourceProbeGuard, risk_setting.DimensionUser, strconv.Itoa(id))
 	common.ApiSuccess(c, gin.H{"id": id})
 }
 

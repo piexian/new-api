@@ -20,6 +20,7 @@ import (
 const (
 	UserNameMaxLength      = 20
 	DisableReasonMaxLength = 5000
+	UserBanMaxMinutes      = 525600
 	AffCodeLength          = 6
 
 	affCodeRefreshOptionKey = "AffCodeRefreshV20260619"
@@ -36,6 +37,7 @@ type User struct {
 	Role               int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status             int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	DisableReason      string                     `json:"disable_reason,omitempty" gorm:"type:text;column:disable_reason" validate:"max=5000"`
+	DisabledUntil      int64                      `json:"disabled_until,omitempty" gorm:"default:0;column:disabled_until;index"`
 	Email              string                     `json:"email" gorm:"index" validate:"max=50"`
 	GitHubId           string                     `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId          string                     `json:"discord_id" gorm:"column:discord_id;index"`
@@ -85,6 +87,7 @@ func (user *User) ToBaseUser() *UserBase {
 		Setting:       user.Setting,
 		Email:         user.Email,
 		DisableReason: user.DisableReason,
+		DisabledUntil: user.DisabledUntil,
 	}
 	return cache
 }
@@ -465,16 +468,28 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 
 // DisableUserByRiskBan 原子地禁用一个普通用户并记录封禁原因。
 // 仅当目标为未禁用的普通用户时生效，避免误伤管理员或覆盖已有封禁。
+// durationMinutes 为 0 时永久封禁，大于 0 时按分钟临时封禁。
 // 返回是否实际发生了禁用动作。
-func DisableUserByRiskBan(id int, reason string) (bool, error) {
+func DisableUserByRiskBan(id int, reason string, durationMinutes int, bannedAt int64) (bool, error) {
 	if id == 0 {
 		return false, errors.New("id 为空！")
+	}
+	if durationMinutes < 0 || durationMinutes > UserBanMaxMinutes {
+		return false, fmt.Errorf("封禁时长必须在 0 到 %d 分钟之间", UserBanMaxMinutes)
+	}
+	disabledUntil := int64(0)
+	if durationMinutes > 0 {
+		if bannedAt <= 0 {
+			bannedAt = common.GetTimestamp()
+		}
+		disabledUntil = bannedAt + int64(durationMinutes)*60
 	}
 	result := DB.Model(&User{}).
 		Where("id = ? AND role = ? AND status <> ?", id, common.RoleCommonUser, common.UserStatusDisabled).
 		Updates(map[string]interface{}{
 			"status":         common.UserStatusDisabled,
 			"disable_reason": reason,
+			"disabled_until": disabledUntil,
 		})
 	if result.Error != nil {
 		return false, result.Error
@@ -492,11 +507,51 @@ func EnableUserByRiskBan(id int) (bool, error) {
 		Updates(map[string]interface{}{
 			"status":         common.UserStatusEnabled,
 			"disable_reason": "",
+			"disabled_until": 0,
 		})
 	if result.Error != nil {
 		return false, result.Error
 	}
 	return result.RowsAffected > 0, nil
+}
+
+// RestoreExpiredUserBan 原子恢复已到期的临时封禁，并刷新传入用户的状态。
+func (user *User) RestoreExpiredUserBan() (bool, error) {
+	if user == nil || user.Id <= 0 || user.Status != common.UserStatusDisabled || user.DisabledUntil <= 0 || user.DisabledUntil > common.GetTimestamp() {
+		return false, nil
+	}
+
+	result := DB.Model(&User{}).
+		Where("id = ? AND status = ? AND disabled_until = ? AND disabled_until > 0 AND disabled_until <= ?", user.Id, common.UserStatusDisabled, user.DisabledUntil, common.GetTimestamp()).
+		Updates(map[string]interface{}{
+			"status":         common.UserStatusEnabled,
+			"disable_reason": "",
+			"disabled_until": 0,
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		var current User
+		if err := DB.Select("status", "disable_reason", "disabled_until").First(&current, user.Id).Error; err != nil {
+			return false, err
+		}
+		user.Status = current.Status
+		user.DisableReason = current.DisableReason
+		user.DisabledUntil = current.DisabledUntil
+		return false, nil
+	}
+
+	user.Status = common.UserStatusEnabled
+	user.DisableReason = ""
+	user.DisabledUntil = 0
+	if err := InvalidateUserCache(user.Id); err != nil {
+		common.SysLog(fmt.Sprintf("failed to invalidate restored user cache for user %d: %s", user.Id, err.Error()))
+	}
+	if err := InvalidateUserTokensCache(user.Id); err != nil {
+		common.SysLog(fmt.Sprintf("failed to invalidate restored user tokens cache for user %d: %s", user.Id, err.Error()))
+	}
+	return true, nil
 }
 
 func GetUserIdByAffCode(affCode string) (int, error) {
@@ -1033,6 +1088,9 @@ func (user *User) ValidateAndFill() (err error) {
 	if !okay {
 		return ErrInvalidCredentials
 	}
+	if _, err = user.RestoreExpiredUserBan(); err != nil {
+		return fmt.Errorf("%w: %v", ErrDatabase, err)
+	}
 	if user.Status != common.UserStatusEnabled {
 		return ErrUserDisabled
 	}
@@ -1218,6 +1276,9 @@ func ValidateAccessToken(token string) (*User, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
+		return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
+	}
+	if _, err = user.RestoreExpiredUserBan(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
 	}
 	return user, nil

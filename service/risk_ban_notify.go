@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -49,21 +50,48 @@ func formatRiskTime(ts int64) string {
 }
 
 // banDurationText 返回封禁时长的可读描述。
-func (info RiskBanInfo) banDurationText() string {
+func (info RiskBanInfo) banDurationText(language string) string {
 	if info.IsPermanent {
-		return "永久封禁"
+		switch language {
+		case i18n.LangZhCN:
+			return "永久封禁"
+		case i18n.LangZhTW:
+			return "永久停用"
+		default:
+			return "Permanent"
+		}
 	}
 	if info.DurationMinutes <= 0 {
 		return "-"
 	}
-	return fmt.Sprintf("%d 分钟", info.DurationMinutes)
+	switch language {
+	case i18n.LangZhCN:
+		return fmt.Sprintf("%d 分钟", info.DurationMinutes)
+	case i18n.LangZhTW:
+		return fmt.Sprintf("%d 分鐘", info.DurationMinutes)
+	default:
+		return fmt.Sprintf("%d minutes", info.DurationMinutes)
+	}
 }
 
 // toEmailVariables 构造邮件模板变量。
-func (info RiskBanInfo) toEmailVariables() map[string]string {
+func (info RiskBanInfo) toEmailVariables(language string) map[string]string {
 	isPermanent := "no"
+	banType := "Temporary"
 	if info.IsPermanent {
 		isPermanent = "yes"
+		banType = "Permanent"
+	}
+	if language == i18n.LangZhCN {
+		banType = "临时封禁"
+		if info.IsPermanent {
+			banType = "永久封禁"
+		}
+	} else if language == i18n.LangZhTW {
+		banType = "暫時停用"
+		if info.IsPermanent {
+			banType = "永久停用"
+		}
 	}
 	return map[string]string{
 		"user_id":          strconv.Itoa(info.UserId),
@@ -72,7 +100,8 @@ func (info RiskBanInfo) toEmailVariables() map[string]string {
 		"ban_source":       info.Source,
 		"ban_reason":       info.Reason,
 		"is_permanent":     isPermanent,
-		"ban_duration":     info.banDurationText(),
+		"ban_type":         banType,
+		"ban_duration":     info.banDurationText(language),
 		"banned_at":        formatRiskTime(info.BannedAt),
 		"unban_at":         formatRiskTime(info.UnbanAt),
 		"offense_count":    strconv.Itoa(info.OffenseCount),
@@ -109,7 +138,7 @@ func (info RiskBanInfo) adminContent() string {
 	}
 	content := fmt.Sprintf("来源：%s\n对象：%s\n动作：%s\n原因：%s\n永久封禁：%s\n封禁时长：%s\n违规次数：%d\n时间：%s",
 		info.Source, info.describeTarget(), info.TierAction, info.Reason, permanent,
-		info.banDurationText(), info.OffenseCount, formatRiskTime(info.BannedAt))
+		info.banDurationText(i18n.LangZhCN), info.OffenseCount, formatRiskTime(info.BannedAt))
 	if info.RuleId != "" {
 		content += fmt.Sprintf("\n规则：%s（%s）", info.RuleName, info.RuleId)
 	}
@@ -131,9 +160,29 @@ func NotifyUserAutoBanned(user *model.User, info RiskBanInfo) error {
 		return nil
 	}
 	userSetting := user.GetSetting()
-	variables := info.toEmailVariables()
-	subject := fmt.Sprintf("[%s] 您的账号已被自动封禁", common.SystemName)
-	content := fmt.Sprintf("您的账号 %s 因风控规则被封禁，原因：%s。%s", info.Username, info.Reason, info.AppealHint)
+	variables := info.toEmailVariables(userSetting.Language)
+	var subject, content string
+	switch userSetting.Language {
+	case i18n.LangZhCN:
+		subject = fmt.Sprintf("[%s] 您的账号已被自动封禁", common.SystemName)
+		content = fmt.Sprintf("您的账号 %s 因风控规则被封禁，原因：%s。封禁时长：%s。", info.Username, info.Reason, info.banDurationText(userSetting.Language))
+		if info.UnbanAt > 0 {
+			content += fmt.Sprintf("自动解封时间：%s。", formatRiskTime(info.UnbanAt))
+		}
+	case i18n.LangZhTW:
+		subject = fmt.Sprintf("[%s] 您的帳號已被自動停用", common.SystemName)
+		content = fmt.Sprintf("您的帳號 %s 因風控規則被停用，原因：%s。停用時長：%s。", info.Username, info.Reason, info.banDurationText(userSetting.Language))
+		if info.UnbanAt > 0 {
+			content += fmt.Sprintf("自動恢復時間：%s。", formatRiskTime(info.UnbanAt))
+		}
+	default:
+		subject = fmt.Sprintf("[%s] Your account was automatically banned", common.SystemName)
+		content = fmt.Sprintf("Your account %s was banned by automated risk control. Reason: %s. Duration: %s. ", info.Username, info.Reason, info.banDurationText(userSetting.Language))
+		if info.UnbanAt > 0 {
+			content += fmt.Sprintf("It will be restored automatically at %s. ", formatRiskTime(info.UnbanAt))
+		}
+	}
+	content += info.AppealHint
 	notification := dto.NewNotify(RiskNotifyTypeUser, subject, content, nil).
 		WithEmailTemplate(EmailTemplateEventAccountAutoBanned, userSetting.Language, variables)
 	return NotifyUser(user.Id, user.Email, userSetting, notification)

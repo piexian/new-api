@@ -5,12 +5,12 @@ import (
 	"encoding/base64"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/go-redis/redis/v8"
+	"github.com/google/uuid"
 )
 
 // 滑动窗口与冷却去重的共享基础设施，供探测防护与错误封禁复用。
@@ -18,6 +18,7 @@ import (
 const (
 	riskWindowShardCount      = 16
 	riskWindowMaxKeysPerShard = 10000
+	riskCooldownMaxKeys       = 10000
 	riskWindowCleanupInterval = 30 * time.Second
 	// riskWindowRetentionSeconds 为内存清理的最长保留窗口，略大于配置允许的最大窗口（24h），
 	// 确保清理不会误删仍在窗口期内的事件。
@@ -60,6 +61,32 @@ func (s *riskWindowShard) add(key, member string, windowSeconds int, now int64) 
 	s.data[key] = kept
 	s.evictOverflowLocked(now)
 	return len(kept)
+}
+
+// count 清理窗口外事件并返回当前成员数，不写入新事件。
+func (s *riskWindowShard) count(key string, windowSeconds int, now int64) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cutoff := now - int64(windowSeconds)
+	events := s.data[key]
+	kept := events[:0]
+	for _, event := range events {
+		if event.ts > cutoff {
+			kept = append(kept, event)
+		}
+	}
+	if len(kept) == 0 {
+		delete(s.data, key)
+		return 0
+	}
+	s.data[key] = kept
+	return len(kept)
+}
+
+func (s *riskWindowShard) delete(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.data, key)
 }
 
 // evictOverflowLocked 在超过容量上限时淘汰最近最久未活动的 key。
@@ -158,6 +185,15 @@ func (s *riskWindowStore) add(key, member string, windowSeconds int) int64 {
 	return int64(s.shardFor(key).add(key, member, windowSeconds, now))
 }
 
+func (s *riskWindowStore) count(key string, windowSeconds int) int64 {
+	now := common.GetTimestamp()
+	return int64(s.shardFor(key).count(key, windowSeconds, now))
+}
+
+func (s *riskWindowStore) delete(key string) {
+	s.shardFor(key).delete(key)
+}
+
 func (s *riskWindowStore) startCleanup() {
 	gopool.Go(func() {
 		for {
@@ -166,6 +202,7 @@ func (s *riskWindowStore) startCleanup() {
 			for _, shard := range s.shards {
 				shard.cleanup(now)
 			}
+			riskCooldownStore.cleanup(now)
 		}
 	})
 }
@@ -173,10 +210,63 @@ func (s *riskWindowStore) startCleanup() {
 var (
 	globalRiskWindow      = newRiskWindowStore()
 	riskWindowCleanupOnce sync.Once
+	riskEventNodeID       = uuid.NewString()
 	riskEventSeq          uint64
-	riskCooldownStore     sync.Map // key -> 冷却到期 Unix 秒（内存回退路径）
+	riskCooldownStore     = newRiskCooldownMap()
 	riskWindowRedisScript = redis.NewScript(riskWindowLuaScript)
+	riskWindowCountScript = redis.NewScript(riskWindowCountLuaScript)
 )
+
+type riskCooldownMap struct {
+	mu   sync.Mutex
+	data map[string]int64
+}
+
+func newRiskCooldownMap() *riskCooldownMap {
+	return &riskCooldownMap{data: make(map[string]int64)}
+}
+
+func (s *riskCooldownMap) acquire(key string, seconds int, now int64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if expiry, ok := s.data[key]; ok {
+		if expiry > now {
+			return false
+		}
+		delete(s.data, key)
+	}
+	if len(s.data) >= riskCooldownMaxKeys {
+		var oldestKey string
+		var oldestExpiry int64
+		for candidate, expiry := range s.data {
+			if oldestKey == "" || expiry < oldestExpiry {
+				oldestKey = candidate
+				oldestExpiry = expiry
+			}
+		}
+		if oldestKey != "" {
+			delete(s.data, oldestKey)
+		}
+	}
+	s.data[key] = now + int64(seconds)
+	return true
+}
+
+func (s *riskCooldownMap) cleanup(now int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for key, expiry := range s.data {
+		if expiry <= now {
+			delete(s.data, key)
+		}
+	}
+}
+
+func (s *riskCooldownMap) delete(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.data, key)
+}
 
 const riskWindowLuaScript = `
 local key = KEYS[1]
@@ -192,6 +282,14 @@ end
 return redis.call('ZCARD', key)
 `
 
+const riskWindowCountLuaScript = `
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+return redis.call('ZCARD', key)
+`
+
 func ensureRiskWindowCleanup() {
 	riskWindowCleanupOnce.Do(globalRiskWindow.startCleanup)
 }
@@ -204,7 +302,16 @@ func riskIPKey(prefix, ip string) string {
 // riskEventMember 生成窗口内唯一的事件成员，用于“事件总数”类统计。
 // 组合时间戳与进程内自增序列，保证多节点共享 Redis 时成员不冲突。
 func riskEventMember() string {
-	return strconv.FormatInt(common.GetTimestamp(), 10) + "-" + strconv.FormatUint(atomic.AddUint64(&riskEventSeq, 1), 10)
+	return riskEventNodeID + "-" + strconv.FormatInt(common.GetTimestamp(), 10) + "-" + strconv.FormatUint(nextRiskEventSequence(), 10)
+}
+
+var riskEventSequenceMu sync.Mutex
+
+func nextRiskEventSequence() uint64 {
+	riskEventSequenceMu.Lock()
+	defer riskEventSequenceMu.Unlock()
+	riskEventSeq++
+	return riskEventSeq
 }
 
 // riskWindowAddDistinct 将 member 加入 key 的滑动窗口，返回窗口内去重成员数。
@@ -231,6 +338,32 @@ func riskWindowAddEvent(key string, windowSeconds int) int64 {
 	return riskWindowAddDistinct(key, riskEventMember(), windowSeconds)
 }
 
+// riskWindowCount 返回当前滑动窗口内成员数，不写入新事件。
+func riskWindowCount(key string, windowSeconds int) int64 {
+	ensureRiskWindowCleanup()
+	if common.RedisEnabled {
+		now := common.GetTimestamp()
+		result, err := riskWindowCountScript.Run(context.Background(), common.RDB, []string{key}, now, windowSeconds).Result()
+		if err == nil {
+			if count, ok := result.(int64); ok {
+				return count
+			}
+		} else {
+			common.SysLog("risk window redis count failed, fallback to memory: " + err.Error())
+		}
+	}
+	return globalRiskWindow.count(key, windowSeconds)
+}
+
+func riskWindowDelete(key string) {
+	globalRiskWindow.delete(key)
+	if common.RedisEnabled {
+		if err := common.RDB.Del(context.Background(), key).Err(); err != nil {
+			common.SysLog("risk window redis delete failed: " + err.Error())
+		}
+	}
+}
+
 // riskWindowMembers 返回窗口内当前的成员列表，优先读取 Redis。
 func riskWindowMembers(key string) []string {
 	if common.RedisEnabled {
@@ -255,12 +388,16 @@ func riskCooldownAcquire(key string, seconds int) bool {
 		}
 		common.SysLog("risk cooldown redis set failed, fallback to memory: " + err.Error())
 	}
+	ensureRiskWindowCleanup()
 	now := common.GetTimestamp()
-	if v, ok := riskCooldownStore.Load(key); ok {
-		if expiry, isInt := v.(int64); isInt && expiry > now {
-			return false
+	return riskCooldownStore.acquire(key, seconds, now)
+}
+
+func riskCooldownDelete(key string) {
+	riskCooldownStore.delete(key)
+	if common.RedisEnabled {
+		if err := common.RDB.Del(context.Background(), key).Err(); err != nil {
+			common.SysLog("risk cooldown redis delete failed: " + err.Error())
 		}
 	}
-	riskCooldownStore.Store(key, now+int64(seconds))
-	return true
 }

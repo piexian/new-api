@@ -171,11 +171,12 @@ func UpsertProbeGuardIPBan(target, reason string, expiresAt int64) error {
 		findErr := tx.Where("target = ?", normalized).First(&ban).Error
 		if errors.Is(findErr, gorm.ErrRecordNotFound) {
 			return tx.Create(&IPBan{
-				Target:    normalized,
-				Reason:    reason,
-				ExpiresAt: expiresAt,
-				CreatedAt: now,
-				UpdatedAt: now,
+				Target:      normalized,
+				Reason:      reason,
+				ExpiresAt:   expiresAt,
+				AutoBanUser: true,
+				CreatedAt:   now,
+				UpdatedAt:   now,
 			}).Error
 		}
 		if findErr != nil {
@@ -191,9 +192,10 @@ func UpsertProbeGuardIPBan(target, reason string, expiresAt int64) error {
 			newExpires = ban.ExpiresAt // 保留更长的封禁
 		}
 		return tx.Model(&ban).Updates(map[string]interface{}{
-			"reason":     reason,
-			"expires_at": newExpires,
-			"updated_at": now,
+			"reason":        reason,
+			"expires_at":    newExpires,
+			"auto_ban_user": true,
+			"updated_at":    now,
 		}).Error
 	})
 	if err != nil {

@@ -50,10 +50,12 @@ func apiDisabledUser(c *gin.Context, user *model.User) {
 	reason := ""
 	userId := 0
 	username := ""
+	disabledUntil := int64(0)
 	if user != nil {
 		reason = strings.TrimSpace(user.DisableReason)
 		userId = user.Id
 		username = user.Username
+		disabledUntil = user.DisabledUntil
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": false,
@@ -61,10 +63,22 @@ func apiDisabledUser(c *gin.Context, user *model.User) {
 		"data": gin.H{
 			"error_type":     "user_disabled",
 			"disable_reason": reason,
+			"disabled_until": disabledUntil,
 			"user_id":        userId,
 			"username":       username,
 		},
 	})
+}
+
+func refreshExpiredUserBan(c *gin.Context, user *model.User) bool {
+	if user == nil {
+		return true
+	}
+	if _, err := user.RestoreExpiredUserBan(); err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	return true
 }
 
 const (
@@ -672,7 +686,8 @@ func calculateUserPermissions(userRole int) map[string]interface{} {
 		permissions["sidebar_settings"] = true
 		permissions["sidebar_modules"] = map[string]interface{}{
 			"admin": map[string]interface{}{
-				"setting": false, // 管理员不能访问系统设置
+				"risk_center": false, // 管理员不能访问风控中心
+				"setting":     false, // 管理员不能访问系统设置
 			},
 		}
 	} else {
@@ -719,26 +734,28 @@ func generateDefaultSidebarConfig(userRole int) string {
 	if userRole == common.RoleAdminUser {
 		// 管理员可以访问管理员区域，但不能访问系统设置
 		defaultConfig["admin"] = map[string]interface{}{
-			"enabled":    true,
-			"ip_ban":     true,
-			"channel":    true,
-			"models":     true,
-			"deployment": true,
-			"redemption": true,
-			"user":       true,
-			"setting":    false, // 管理员不能访问系统设置
+			"enabled":     true,
+			"ip_ban":      true,
+			"channel":     true,
+			"models":      true,
+			"deployment":  true,
+			"redemption":  true,
+			"user":        true,
+			"risk_center": false,
+			"setting":     false, // 管理员不能访问系统设置
 		}
 	} else if userRole == common.RoleRootUser {
 		// 超级管理员可以访问所有功能
 		defaultConfig["admin"] = map[string]interface{}{
-			"enabled":    true,
-			"ip_ban":     true,
-			"channel":    true,
-			"models":     true,
-			"deployment": true,
-			"redemption": true,
-			"user":       true,
-			"setting":    true,
+			"enabled":     true,
+			"ip_ban":      true,
+			"channel":     true,
+			"models":      true,
+			"deployment":  true,
+			"redemption":  true,
+			"user":        true,
+			"risk_center": true,
+			"setting":     true,
 		}
 	}
 	// 普通用户不包含admin区域
@@ -1295,11 +1312,12 @@ func updateAdminPermissionsForUserInTx(c *gin.Context, tx *gorm.DB, userID int, 
 }
 
 type ManageRequest struct {
-	Id            int    `json:"id"`
-	Action        string `json:"action"`
-	Value         int    `json:"value"`
-	Mode          string `json:"mode"`
-	DisableReason string `json:"disable_reason"`
+	Id              int    `json:"id"`
+	Action          string `json:"action"`
+	Value           int    `json:"value"`
+	Mode            string `json:"mode"`
+	DisableReason   string `json:"disable_reason"`
+	DurationMinutes int    `json:"duration_minutes"`
 }
 
 // ManageUser Only admin user can do this
@@ -1332,8 +1350,16 @@ func ManageUser(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": fmt.Sprintf("disable_reason max %d", model.DisableReasonMaxLength)})
 			return
 		}
+		if req.DurationMinutes < 0 || req.DurationMinutes > model.UserBanMaxMinutes {
+			common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": fmt.Sprintf("duration_minutes must be 0 or between 1 and %d", model.UserBanMaxMinutes)})
+			return
+		}
 		user.Status = common.UserStatusDisabled
 		user.DisableReason = disableReason
+		user.DisabledUntil = 0
+		if req.DurationMinutes > 0 {
+			user.DisabledUntil = common.GetTimestamp() + int64(req.DurationMinutes)*60
+		}
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDisableRootUser)
 			return
@@ -1341,6 +1367,7 @@ func ManageUser(c *gin.Context) {
 	case "enable":
 		user.Status = common.UserStatusEnabled
 		user.DisableReason = ""
+		user.DisabledUntil = 0
 	case "delete":
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDeleteRootUser)
@@ -1436,6 +1463,7 @@ func ManageUser(c *gin.Context) {
 			Updates(map[string]any{
 				"status":         user.Status,
 				"disable_reason": user.DisableReason,
+				"disabled_until": user.DisabledUntil,
 			})
 		if result.Error != nil {
 			common.ApiError(c, result.Error)
@@ -1444,7 +1472,10 @@ func ManageUser(c *gin.Context) {
 		didDisableTransition = result.RowsAffected > 0
 		if !didDisableTransition {
 			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).
-				Update("disable_reason", user.DisableReason).Error; err != nil {
+				Updates(map[string]any{
+					"disable_reason": user.DisableReason,
+					"disabled_until": user.DisabledUntil,
+				}).Error; err != nil {
 				common.ApiError(c, err)
 				return
 			}
@@ -1453,6 +1484,7 @@ func ManageUser(c *gin.Context) {
 		if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Updates(map[string]any{
 			"status":         user.Status,
 			"disable_reason": user.DisableReason,
+			"disabled_until": user.DisabledUntil,
 		}).Error; err != nil {
 			common.ApiError(c, err)
 			return
@@ -1477,9 +1509,11 @@ func ManageUser(c *gin.Context) {
 		}
 	}
 	recordManageAuditFor(c, user.Id, "user.manage", map[string]interface{}{
-		"action":   req.Action,
-		"username": user.Username,
-		"id":       user.Id,
+		"action":           req.Action,
+		"username":         user.Username,
+		"id":               user.Id,
+		"duration_minutes": req.DurationMinutes,
+		"disabled_until":   user.DisabledUntil,
 	})
 	if didDisableTransition {
 		service.NotifyAccountDisabled(user)
@@ -1488,6 +1522,7 @@ func ManageUser(c *gin.Context) {
 		Role:          user.Role,
 		Status:        user.Status,
 		DisableReason: user.DisableReason,
+		DisabledUntil: user.DisabledUntil,
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

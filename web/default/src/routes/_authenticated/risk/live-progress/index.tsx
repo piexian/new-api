@@ -18,10 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
 
-import { ProbeGuardUserOffensesPage } from '@/features/risk-center/components/probe-guard-user-offenses-page'
+import { LiveProgressPage } from '@/features/risk-center/components/live-progress-page'
 
-export const Route = createFileRoute(
-  '/_authenticated/risk/probe-guard/user-offenses/'
-)({
-  component: ProbeGuardUserOffensesPage,
+export const Route = createFileRoute('/_authenticated/risk/live-progress/')({
+  component: LiveProgressPage,
 })

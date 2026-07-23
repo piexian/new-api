@@ -93,6 +93,7 @@ const NotificationSettings = ({
       redemption: true,
       user: true,
       ip_ban: true,
+      risk_center: true,
       setting: true,
     },
   });
@@ -178,6 +179,7 @@ const NotificationSettings = ({
         redemption: true,
         user: true,
         ip_ban: true,
+        risk_center: true,
         setting: true,
       },
     };
@@ -318,6 +320,11 @@ const NotificationSettings = ({
           key: 'ip_ban',
           title: t('IP封禁管理'),
           description: t('IP封禁规则管理'),
+        },
+        {
+          key: 'risk_center',
+          title: t('风控中心'),
+          description: t('探测防护、错误封禁和风险状态管理'),
         },
         {
           key: 'setting',

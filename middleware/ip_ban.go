@@ -55,7 +55,8 @@ func handleIPBanAutoUserBan(authHeader, clientIP, reason string) {
 	if user.Role >= common.RoleAdminUser {
 		return
 	}
-	disabled, err := model.DisableUserByRiskBan(user.Id, reason)
+	now := common.GetTimestamp()
+	disabled, err := model.DisableUserByRiskBan(user.Id, reason, 0, now)
 	if err != nil {
 		common.SysError("ip ban auto user ban failed: " + err.Error())
 		return
@@ -67,7 +68,6 @@ func handleIPBanAutoUserBan(authHeader, clientIP, reason string) {
 	_ = model.InvalidateUserCache(user.Id)
 	_ = model.InvalidateUserTokensCache(user.Id)
 
-	now := common.GetTimestamp()
 	_ = model.CreateRiskBanLog(&model.RiskBanLog{
 		Dimension:   model.RiskBanDimensionUser,
 		TargetIP:    clientIP,

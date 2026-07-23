@@ -83,6 +83,19 @@ export function AccountDisabledDialog() {
     return items.join(' · ')
   }, [payload])
 
+  const banMeta = useMemo(() => {
+    if (payload?.disabledUntil && payload.disabledUntil > 0) {
+      return {
+        type: t('Temporary ban'),
+        until: new Intl.DateTimeFormat(undefined, {
+          dateStyle: 'medium',
+          timeStyle: 'medium',
+        }).format(new Date(payload.disabledUntil * 1000)),
+      }
+    }
+    return { type: t('Permanent ban'), until: '' }
+  }, [payload?.disabledUntil, t])
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className='max-h-[calc(100dvh-2rem)] overflow-hidden sm:max-w-2xl'>
@@ -96,6 +109,20 @@ export function AccountDisabledDialog() {
             <DialogTitle>{payload?.title || t('Account disabled')}</DialogTitle>
           </div>
         </DialogHeader>
+        <div className='bg-muted/40 grid gap-3 rounded-md border p-3 text-sm sm:grid-cols-2'>
+          <div>
+            <div className='text-muted-foreground text-xs'>{t('Ban type')}</div>
+            <div className='font-medium'>{banMeta.type}</div>
+          </div>
+          {banMeta.until && (
+            <div>
+              <div className='text-muted-foreground text-xs'>
+                {t('Automatically unbans at')}
+              </div>
+              <div className='font-medium'>{banMeta.until}</div>
+            </div>
+          )}
+        </div>
         <div className='bg-muted/20 max-h-[min(70dvh,42rem)] overflow-y-auto rounded-lg border p-4'>
           <Markdown className='prose-neutral dark:prose-invert'>
             {content}

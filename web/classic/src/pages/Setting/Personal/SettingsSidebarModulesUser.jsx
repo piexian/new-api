@@ -109,6 +109,7 @@ export default function SettingsSidebarModulesUser() {
         redemption: isSidebarModuleAllowed('admin', 'redemption'),
         user: isSidebarModuleAllowed('admin', 'user'),
         ip_ban: isSidebarModuleAllowed('admin', 'ip_ban'),
+        risk_center: isSidebarModuleAllowed('admin', 'risk_center'),
         setting: isSidebarModuleAllowed('admin', 'setting'),
       };
     }
@@ -361,6 +362,11 @@ export default function SettingsSidebarModulesUser() {
           key: 'ip_ban',
           title: t('IP封禁管理'),
           description: t('IP封禁规则管理'),
+        },
+        {
+          key: 'risk_center',
+          title: t('风控中心'),
+          description: t('探测防护、错误封禁和风险状态管理'),
         },
         {
           key: 'setting',

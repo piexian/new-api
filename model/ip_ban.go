@@ -253,7 +253,7 @@ func CreateIPBan(ban *IPBan) error {
 
 func UpdateIPBan(ban *IPBan) error {
 	ban.UpdatedAt = common.GetTimestamp()
-	return DB.Model(ban).Select("target", "reason", "expires_at", "updated_at").Updates(ban).Error
+	return DB.Model(ban).Select("target", "reason", "expires_at", "auto_ban_user", "updated_at").Updates(ban).Error
 }
 
 func DeleteIPBanById(id int) error {

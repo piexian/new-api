@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 
@@ -118,11 +119,45 @@ func NotifyAccountDisabled(user model.User) {
 	if displayName == "" {
 		displayName = user.Username
 	}
+	language := user.GetSetting().Language
+	banType := "Permanent"
+	banDuration := "Permanent"
+	unbanAt := "-"
+	if user.DisabledUntil > 0 {
+		minutes := (user.DisabledUntil - time.Now().Unix() + 59) / 60
+		if minutes < 1 {
+			minutes = 1
+		}
+		banType = "Temporary"
+		banDuration = fmt.Sprintf("%d minutes", minutes)
+		unbanAt = formatEmailTimestamp(user.DisabledUntil)
+	}
+	switch language {
+	case i18n.LangZhCN:
+		if user.DisabledUntil > 0 {
+			banType = "临时封禁"
+			banDuration = strings.TrimSuffix(banDuration, " minutes") + " 分钟"
+		} else {
+			banType = "永久封禁"
+			banDuration = "永久"
+		}
+	case i18n.LangZhTW:
+		if user.DisabledUntil > 0 {
+			banType = "暫時停用"
+			banDuration = strings.TrimSuffix(banDuration, " minutes") + " 分鐘"
+		} else {
+			banType = "永久停用"
+			banDuration = "永久"
+		}
+	}
 	queueTransactionalEmail(user.Id, EmailTemplateEventUserDisabled, map[string]string{
 		"user_id":        fmt.Sprintf("%d", user.Id),
 		"username":       user.Username,
 		"display_name":   displayName,
 		"disable_reason": reason,
 		"disabled_at":    formatEmailTimestamp(time.Now().Unix()),
+		"ban_type":       banType,
+		"ban_duration":   banDuration,
+		"unban_at":       unbanAt,
 	})
 }
