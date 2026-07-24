@@ -36,6 +36,7 @@ type ErrorBanRule struct {
 	Keywords       []string       `json:"keywords"`
 	ErrorCodes     []string       `json:"error_codes"`
 	Enabled        bool           `json:"enabled"`
+	CountRetries   bool           `json:"count_retries"`
 	Dimension      string         `json:"dimension"` // 为空时继承全局 DefaultDimension
 	Threshold      int            `json:"threshold"`
 	ReasonTemplate string         `json:"reason_template"`

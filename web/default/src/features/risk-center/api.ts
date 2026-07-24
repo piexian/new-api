@@ -147,6 +147,7 @@ export type ErrorBanRule = {
   keywords: string[]
   error_codes: string[]
   enabled: boolean
+  count_retries: boolean
   dimension: '' | 'ip' | 'user'
   threshold: number
   reason_template: string
@@ -473,6 +474,7 @@ function normalizeErrorBanConfig(data: ErrorBanConfig): ErrorBanConfig {
       pattern: rule.pattern ?? '',
       keywords: rule.keywords ?? [],
       error_codes: rule.error_codes ?? [],
+      count_retries: rule.count_retries ?? false,
       reason_template: rule.reason_template ?? '',
       tiers: (rule.tiers?.length ? rule.tiers : legacyTiers).map((tier) => ({
         ...tier,

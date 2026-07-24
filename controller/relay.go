@@ -250,6 +250,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if !shouldRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry()) {
 			break
 		}
+		// 仅显式开启 count_retries 的规则统计即将进入下一次尝试的失败。
+		service.CheckErrorBan(c, relayInfo, newAPIError, true)
 	}
 
 	useChannel := c.GetStringSlice("use_channel")
@@ -258,8 +260,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		logger.LogInfo(c, retryLogStr)
 	}
 	if newAPIError != nil {
-		// 错误日志触发自动封禁：终态错误，每次请求只计数一次（内部异步处理）。
-		service.CheckErrorBan(c, relayInfo, newAPIError)
+		// 终态错误始终计数一次；开启 count_retries 的规则还会包含此前的重试失败。
+		service.CheckErrorBan(c, relayInfo, newAPIError, false)
 		gopool.Go(func() {
 			perfmetrics.RecordRelaySample(relayInfo, false, 0)
 		})

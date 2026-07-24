@@ -175,6 +175,7 @@ export function ErrorBanPage() {
       keywords: [],
       error_codes: [],
       enabled: true,
+      count_retries: false,
       dimension: '',
       threshold: 5,
       reason_template: '',
@@ -627,6 +628,25 @@ export function ErrorBanPage() {
                       })
                     }
                     placeholder={t('Optional regular expression')}
+                  />
+                </div>
+                <div className='flex items-center justify-between gap-4 rounded-md border p-3'>
+                  <div className='min-w-0 space-y-1'>
+                    <Label>{t('Count retry failures')}</Label>
+                    <p className='text-muted-foreground text-xs'>
+                      {t(
+                        'Include each failed channel attempt in this rule window'
+                      )}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={ruleDraft.count_retries}
+                    onCheckedChange={(countRetries) =>
+                      setRuleDraft({
+                        ...ruleDraft,
+                        count_retries: countRetries,
+                      })
+                    }
                   />
                 </div>
                 <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>

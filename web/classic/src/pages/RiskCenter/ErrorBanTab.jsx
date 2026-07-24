@@ -74,6 +74,7 @@ const normalizeRule = (rule, legacyTiers) => ({
   pattern: rule.pattern || '',
   keywords: rule.keywords || [],
   error_codes: rule.error_codes || [],
+  count_retries: rule.count_retries ?? false,
   tiers:
     rule.tiers && rule.tiers.length
       ? rule.tiers
@@ -182,6 +183,7 @@ const ErrorBanTab = () => {
       keywords: [],
       error_codes: [],
       enabled: true,
+      count_retries: false,
       dimension: '',
       threshold: 3,
       reason_template: '',
@@ -448,6 +450,24 @@ const ErrorBanTab = () => {
                 onChange={(pattern) => setRuleDraft({ ...ruleDraft, pattern })}
               />
             </ControlField>
+            <div className='flex items-center justify-between gap-4 rounded-lg border border-semi-color-border p-3'>
+              <div className='min-w-0'>
+                <Text>{t('Count retry failures')}</Text>
+                <div>
+                  <Text type='secondary' size='small'>
+                    {t(
+                      'Include each failed channel attempt in this rule window',
+                    )}
+                  </Text>
+                </div>
+              </div>
+              <Switch
+                checked={!!ruleDraft.count_retries}
+                onChange={(count_retries) =>
+                  setRuleDraft({ ...ruleDraft, count_retries })
+                }
+              />
+            </div>
             <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
               <ControlField label={t('错误关键词（每行一个，全部匹配）')}>
                 <TextArea

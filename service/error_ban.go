@@ -20,15 +20,16 @@ const errorBanDedupeSeconds = 300
 // ErrorBanSnapshot 是进入异步处理前对请求上下文的不可变快照。
 // 绝不能在 goroutine 中持有 *gin.Context（gin 会回收复用）。
 type ErrorBanSnapshot struct {
-	ClientIP   string
-	UserId     int
-	Username   string
-	ModelName  string
-	ErrorText  string
-	ErrorCode  string
-	StatusCode int
-	RequestId  string
-	Group      string
+	ClientIP     string
+	UserId       int
+	Username     string
+	ModelName    string
+	ErrorText    string
+	ErrorCode    string
+	StatusCode   int
+	RequestId    string
+	Group        string
+	RetryFailure bool
 }
 
 // truncateErrorBanString 按 rune 截断字符串。
@@ -40,9 +41,9 @@ func truncateErrorBanString(s string, n int) string {
 	return string(runes[:n])
 }
 
-// CheckErrorBan 在 relay 终态错误处同步抽取快照，随后异步执行错误封禁检测。
-// 与错误日志开关相互独立，每次请求只计数一次。
-func CheckErrorBan(c *gin.Context, relayInfo *relaycommon.RelayInfo, finalErr *types.NewAPIError) {
+// CheckErrorBan 同步抽取错误快照，随后异步执行错误封禁检测。
+// retryFailure 为 true 时，仅开启 CountRetries 的规则参与匹配。
+func CheckErrorBan(c *gin.Context, relayInfo *relaycommon.RelayInfo, finalErr *types.NewAPIError, retryFailure bool) {
 	if finalErr == nil || relayInfo == nil {
 		return
 	}
@@ -51,15 +52,16 @@ func CheckErrorBan(c *gin.Context, relayInfo *relaycommon.RelayInfo, finalErr *t
 		return
 	}
 	snapshot := ErrorBanSnapshot{
-		ClientIP:   c.ClientIP(),
-		UserId:     relayInfo.UserId,
-		Username:   c.GetString("username"),
-		ModelName:  relayInfo.OriginModelName,
-		ErrorText:  truncateErrorBanString(finalErr.MaskSensitiveErrorWithStatusCode(), 2048),
-		ErrorCode:  string(finalErr.GetErrorCode()),
-		StatusCode: finalErr.StatusCode,
-		RequestId:  c.GetString(common.RequestIdKey),
-		Group:      riskRequestGroup(relayInfo),
+		ClientIP:     c.ClientIP(),
+		UserId:       relayInfo.UserId,
+		Username:     c.GetString("username"),
+		ModelName:    relayInfo.OriginModelName,
+		ErrorText:    truncateErrorBanString(finalErr.MaskSensitiveErrorWithStatusCode(), 2048),
+		ErrorCode:    string(finalErr.GetErrorCode()),
+		StatusCode:   finalErr.StatusCode,
+		RequestId:    c.GetString(common.RequestIdKey),
+		Group:        riskRequestGroup(relayInfo),
+		RetryFailure: retryFailure,
 	}
 	gopool.Go(func() {
 		processErrorBan(snapshot)
@@ -105,10 +107,17 @@ func processErrorBan(snap ErrorBanSnapshot) {
 	}
 
 	for _, cr := range rules {
-		if cr.Matches(snap.ErrorText, snap.ErrorCode) {
+		if shouldProcessErrorBanRule(snap, cr) {
 			processErrorBanRuleMatch(setting, snap, cr.Rule)
 		}
 	}
+}
+
+func shouldProcessErrorBanRule(snap ErrorBanSnapshot, rule risk_setting.CompiledRule) bool {
+	if snap.RetryFailure && !rule.Rule.CountRetries {
+		return false
+	}
+	return rule.Matches(snap.ErrorText, snap.ErrorCode)
 }
 
 // processErrorBanRuleMatch 处理单条规则命中：窗口计数、阈值判定、阶梯处罚。

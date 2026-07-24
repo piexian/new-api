@@ -246,6 +246,20 @@ func TestErrorBanRuleCombinedMatchers(t *testing.T) {
 	require.False(t, wildcardWithKeyword.Matches("upstream rejected", "gateway_error"), "configured keyword must still match")
 }
 
+func TestErrorBanRetryFailureRequiresRuleOptIn(t *testing.T) {
+	baseRule := risk_setting.CompiledRule{Rule: risk_setting.ErrorBanRule{
+		ErrorCodes: []string{"upstream_error"},
+	}}
+	retrySnapshot := ErrorBanSnapshot{ErrorCode: "upstream_error", RetryFailure: true}
+	finalSnapshot := ErrorBanSnapshot{ErrorCode: "upstream_error"}
+
+	require.False(t, shouldProcessErrorBanRule(retrySnapshot, baseRule))
+	require.True(t, shouldProcessErrorBanRule(finalSnapshot, baseRule))
+
+	baseRule.Rule.CountRetries = true
+	require.True(t, shouldProcessErrorBanRule(retrySnapshot, baseRule))
+}
+
 func TestErrorBanWildcardCountsAllErrors(t *testing.T) {
 	setupRiskModels(t)
 	setErrorBanConfig(t, map[string]string{
