@@ -226,6 +226,8 @@ func HandleOAuth(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserOAuthRegisterDisabled)
 		case *GitHubAccountAgeTooYoungError:
 			common.ApiErrorI18n(c, i18n.MsgOAuthGitHubAccountTooYoung, e.Params)
+		case *OAuthEmailAlreadyTakenError, *oauth.OAuthError:
+			handleOAuthError(c, err)
 		default:
 			common.ApiError(c, err)
 		}
@@ -307,6 +309,10 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 			return
 		}
 	}
+	if err := fillGitHubEmailIfEmpty(provider, &user, oauthUser); err != nil {
+		handleOAuthError(c, err)
+		return
+	}
 
 	common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, gin.H{
 		"action": "bind",
@@ -327,6 +333,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		if user.Id == 0 {
 			return nil, &OAuthUserDeletedError{}
 		}
+		if err := fillGitHubEmailIfEmpty(provider, user, oauthUser); err != nil {
+			return nil, err
+		}
 		return user, nil
 	}
 
@@ -345,6 +354,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 					common.SysError(fmt.Sprintf("[OAuth] Failed to migrate user %d: %s", user.Id, err.Error()))
 					// Continue with login even if migration fails
 				}
+				if err := fillGitHubEmailIfEmpty(provider, user, oauthUser); err != nil {
+					return nil, err
+				}
 				return user, nil
 			}
 		}
@@ -356,6 +368,9 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 	if _, ok := provider.(*oauth.GitHubProvider); ok {
 		if err := validateGitHubAccountAge(c, oauthUser.CreatedAt); err != nil {
+			return nil, err
+		}
+		if err := requireGitHubOAuthEmail(provider, oauthUser); err != nil {
 			return nil, err
 		}
 	}
@@ -469,6 +484,31 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	return user, nil
 }
 
+func fillGitHubEmailIfEmpty(provider oauth.Provider, user *model.User, oauthUser *oauth.OAuthUser) error {
+	if _, ok := provider.(*oauth.GitHubProvider); !ok || user == nil || model.NormalizeEmail(user.Email) != "" {
+		return nil
+	}
+	if err := requireGitHubOAuthEmail(provider, oauthUser); err != nil {
+		return err
+	}
+	_, err := model.BindEmailToUserIfEmpty(user, oauthUser.Email)
+	if errors.Is(err, model.ErrEmailAlreadyTaken) {
+		common.SysLog(fmt.Sprintf("[OAuth] GitHub email for user %d is already bound to another account", user.Id))
+		return &OAuthEmailAlreadyTakenError{}
+	}
+	return err
+}
+
+func requireGitHubOAuthEmail(provider oauth.Provider, oauthUser *oauth.OAuthUser) error {
+	if _, ok := provider.(*oauth.GitHubProvider); !ok {
+		return nil
+	}
+	if oauthUser == nil || model.NormalizeEmail(oauthUser.Email) == "" {
+		return oauth.NewOAuthError(i18n.MsgOAuthUserInfoEmpty, providerParams(provider.GetName()))
+	}
+	return nil
+}
+
 // Error types for OAuth
 type OAuthUserDeletedError struct{}
 
@@ -504,6 +544,8 @@ func handleOAuthError(c *gin.Context, err error) {
 		common.ApiErrorMsg(c, e.Message)
 	case *oauth.TrustLevelError:
 		common.ApiErrorI18n(c, i18n.MsgOAuthTrustLevelLow)
+	case *OAuthEmailAlreadyTakenError:
+		common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
 	default:
 		common.ApiError(c, err)
 	}

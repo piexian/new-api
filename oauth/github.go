@@ -24,6 +24,8 @@ func init() {
 // GitHubProvider implements OAuth for GitHub
 type GitHubProvider struct{}
 
+var githubAPIBase = "https://api.github.com"
+
 type gitHubOAuthResponse struct {
 	AccessToken string `json:"access_token"`
 	Scope       string `json:"scope"`
@@ -36,6 +38,12 @@ type gitHubUser struct {
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type gitHubEmail struct {
+	Email    string `json:"email"`
+	Primary  bool   `json:"primary"`
+	Verified bool   `json:"verified"`
 }
 
 func (p *GitHubProvider) GetName() string {
@@ -106,11 +114,10 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAuthUser, error) {
 	logger.LogDebug(ctx, "[OAuth-GitHub] GetUserInfo: fetching user info")
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user", nil)
+	req, err := newGitHubAPIRequest(ctx, "/user", token.AccessToken)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 
 	client := http.Client{
 		Timeout: 20 * time.Second,
@@ -146,9 +153,17 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 		logger.LogError(ctx, "[OAuth-GitHub] GetUserInfo failed: empty id or login field")
 		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "GitHub"})
 	}
+	if githubUser.Email == "" {
+		primaryEmail, emailErr := fetchGitHubPrimaryEmail(ctx, &client, token.AccessToken)
+		if emailErr != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo email lookup failed: %s", emailErr.Error()))
+		} else {
+			githubUser.Email = primaryEmail
+		}
+	}
 
-	logger.LogDebug(ctx, "[OAuth-GitHub] GetUserInfo success: id=%d, login=%s, name=%s, email=%s",
-		githubUser.Id, githubUser.Login, githubUser.Name, githubUser.Email)
+	logger.LogDebug(ctx, "[OAuth-GitHub] GetUserInfo success: id=%d, login=%s, name=%s, has_email=%t",
+		githubUser.Id, githubUser.Login, githubUser.Name, githubUser.Email != "")
 
 	return &OAuthUser{
 		ProviderUserID: strconv.FormatInt(githubUser.Id, 10), // Use numeric ID as primary identifier
@@ -160,6 +175,44 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 			"legacy_id": githubUser.Login, // Store login for migration from old accounts
 		},
 	}, nil
+}
+
+func newGitHubAPIRequest(ctx context.Context, path string, accessToken string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubAPIBase+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req.Header.Set("Accept", "application/vnd.github+json")
+	return req, nil
+}
+
+func fetchGitHubPrimaryEmail(ctx context.Context, client *http.Client, accessToken string) (string, error) {
+	req, err := newGitHubAPIRequest(ctx, "/user/emails", accessToken)
+	if err != nil {
+		return "", err
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("status %d", res.StatusCode)
+	}
+
+	var emails []gitHubEmail
+	if err := json.NewDecoder(res.Body).Decode(&emails); err != nil {
+		return "", err
+	}
+	for _, email := range emails {
+		if email.Primary && email.Verified && email.Email != "" {
+			return email.Email, nil
+		}
+	}
+	return "", nil
 }
 
 func (p *GitHubProvider) IsUserIDTaken(providerUserID string) bool {
