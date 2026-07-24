@@ -112,6 +112,75 @@ func TestEnsureEmailAvailableRejectsExistingEmailCaseInsensitive(t *testing.T) {
 	require.NoError(t, EnsureEmailAvailable("taken@example.com", user.Id))
 }
 
+func TestBindEmailToUserIfEmptySetsNormalizedEmail(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	user := &User{
+		Username: "github-empty-email",
+		Password: "",
+		GitHubId: "123",
+		AffCode:  "github-empty-email-aff",
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, DB.Create(user).Error)
+
+	updated, err := BindEmailToUserIfEmpty(user, " GitHub@Example.COM ")
+	require.NoError(t, err)
+	require.True(t, updated)
+	require.Equal(t, "github@example.com", user.Email)
+
+	var stored User
+	require.NoError(t, DB.First(&stored, user.Id).Error)
+	require.Equal(t, "github@example.com", stored.Email)
+}
+
+func TestBindEmailToUserIfEmptyDoesNotOverwriteExistingEmail(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	user := &User{
+		Username: "github-existing-email",
+		Password: "",
+		Email:    "user-chosen@example.com",
+		GitHubId: "456",
+		AffCode:  "github-existing-email-aff",
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, DB.Create(user).Error)
+
+	updated, err := BindEmailToUserIfEmpty(user, "github@example.com")
+	require.NoError(t, err)
+	require.False(t, updated)
+	require.Equal(t, "user-chosen@example.com", user.Email)
+}
+
+func TestBindEmailToUserIfEmptyRejectsEmailOwnedByAnotherUser(t *testing.T) {
+	setupUserUpdateTestState(t)
+
+	require.NoError(t, DB.Create(&User{
+		Username: "email-owner",
+		Password: "password",
+		Email:    "taken@example.com",
+		AffCode:  "email-owner-aff",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	target := &User{
+		Username: "github-conflict",
+		Password: "",
+		GitHubId: "789",
+		AffCode:  "github-conflict-aff",
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, DB.Create(target).Error)
+
+	updated, err := BindEmailToUserIfEmpty(target, "TAKEN@example.com")
+	require.ErrorIs(t, err, ErrEmailAlreadyTaken)
+	require.False(t, updated)
+
+	var stored User
+	require.NoError(t, DB.First(&stored, target.Id).Error)
+	require.Empty(t, stored.Email)
+}
+
 func TestInsertRejectsDuplicateEmailWithoutUniqueIndex(t *testing.T) {
 	setupUserUpdateTestState(t)
 

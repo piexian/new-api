@@ -87,6 +87,23 @@ func formatAvailableGroups(userUsableGroups map[string]string) string {
 	return strings.Join(groups, "、")
 }
 
+func requiresGitHubEmailRelogin(user *model.UserBase) bool {
+	return user != nil &&
+		strings.TrimSpace(user.GitHubId) != "" &&
+		model.NormalizeEmail(user.Email) == ""
+}
+
+func clearGitHubEmailReloginSession(session sessions.Session) {
+	session.Clear()
+	if err := session.Save(); err != nil {
+		common.SysLog("failed to clear GitHub email relogin session: " + err.Error())
+	}
+}
+
+func sessionRequiresGitHubEmailRelogin(session sessions.Session, user *model.UserBase) bool {
+	return requiresGitHubEmailRelogin(user)
+}
+
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
 	usernameValue := session.Get("username")
@@ -237,6 +254,15 @@ func authHelper(c *gin.Context, minRole int) {
 			c.Abort()
 			return
 		}
+		if sessionRequiresGitHubEmailRelogin(session, userCache) {
+			clearGitHubEmailReloginSession(session)
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
+			})
+			c.Abort()
+			return
+		}
 		username = userCache.Username
 		role = userCache.Role
 		status = userCache.Status
@@ -297,6 +323,11 @@ func TryUserAuth() func(c *gin.Context) {
 		}
 
 		user, err := model.GetUserCache(id)
+		if err == nil && sessionRequiresGitHubEmailRelogin(session, user) {
+			clearGitHubEmailReloginSession(session)
+			c.Next()
+			return
+		}
 		if err == nil && user.Status == common.UserStatusEnabled && validUserInfo(user.Username, user.Role) {
 			c.Set("id", user.Id)
 			c.Set("username", user.Username)
@@ -354,6 +385,11 @@ func TokenOrUserAuth() func(c *gin.Context) {
 		session := sessions.Default(c)
 		if id, ok := session.Get("id").(int); ok && id > 0 {
 			user, err := model.GetUserCache(id)
+			if err == nil && sessionRequiresGitHubEmailRelogin(session, user) {
+				clearGitHubEmailReloginSession(session)
+				TokenAuth()(c)
+				return
+			}
 			if err == nil && user.Status == common.UserStatusEnabled {
 				c.Set("id", user.Id)
 				c.Set("username", user.Username)

@@ -19,6 +19,7 @@ type UserBase struct {
 	Role          int    `json:"role"`
 	Group         string `json:"group"`
 	Email         string `json:"email"`
+	GitHubId      string `json:"github_id"`
 	Quota         int    `json:"quota"`
 	Status        int    `json:"status"`
 	Username      string `json:"username"`
@@ -96,11 +97,11 @@ func updateUserCache(user User) error {
 // GetUserCache gets complete user cache from hash
 func GetUserCache(userId int) (*UserBase, error) {
 	// Try getting from Redis first
-	userCache, hasRoleField, err := cacheGetUserBase(userId)
+	userCache, hasRequiredFields, err := cacheGetUserBase(userId)
 	if err == nil {
-		// 老版本缓存没有 Role 字段，会反序列化成 0。鉴权必须拿到最新角色，
-		// 否则提升为管理员后仍可能被旧缓存当作游客处理。
-		if hasRoleField {
+		// Old snapshots may lack fields added to the authorization contract.
+		// Treat them as stale so authorization always sees current DB values.
+		if hasRequiredFields {
 			if userCache.Status == common.UserStatusDisabled && userCache.DisabledUntil > 0 && userCache.DisabledUntil <= common.GetTimestamp() {
 				user := &User{
 					Id:            userCache.Id,
@@ -159,7 +160,8 @@ func cacheGetUserBase(userId int) (*UserBase, bool, error) {
 		return nil, false, err
 	}
 	_, hasRoleField := fields["Role"]
-	return &userCache, hasRoleField, nil
+	_, hasGitHubIdField := fields["GitHubId"]
+	return &userCache, hasRoleField && hasGitHubIdField, nil
 }
 
 // Add atomic quota operations using hash fields

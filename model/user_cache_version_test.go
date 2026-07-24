@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -141,4 +142,36 @@ func TestUpdateUserGroupCacheRejectsOlderSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "default", cached.Group)
 	requireUserCacheEventually(t, oldUser.Id, common.RoleCommonUser, "default")
+}
+
+func TestGetUserCacheRefreshesSnapshotWithoutGitHubIdField(t *testing.T) {
+	setupUserCacheVersionTest(t)
+	user := User{
+		Username: "github-cache-user",
+		Password: "password123",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+		GitHubId: "123456",
+	}
+	require.NoError(t, DB.Create(&user).Error)
+
+	require.NoError(t, common.RDB.HSet(context.Background(), getUserCacheKey(user.Id), map[string]interface{}{
+		"Id":       user.Id,
+		"Role":     user.Role,
+		"Group":    user.Group,
+		"Email":    user.Email,
+		"Quota":    user.Quota,
+		"Status":   user.Status,
+		"Username": user.Username,
+		"Setting":  user.Setting,
+	}).Err())
+
+	cached, err := GetUserCache(user.Id)
+	require.NoError(t, err)
+	require.Equal(t, user.GitHubId, cached.GitHubId)
+	require.Eventually(t, func() bool {
+		refreshed, hasRequiredFields, cacheErr := cacheGetUserBase(user.Id)
+		return cacheErr == nil && hasRequiredFields && refreshed.GitHubId == user.GitHubId
+	}, time.Second, 10*time.Millisecond)
 }

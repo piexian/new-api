@@ -81,6 +81,7 @@ func (user *User) ToBaseUser() *UserBase {
 		Id:            user.Id,
 		Role:          user.Role,
 		Group:         user.Group,
+		GitHubId:      user.GitHubId,
 		Quota:         user.Quota,
 		Status:        user.Status,
 		Username:      user.Username,
@@ -806,6 +807,58 @@ func BindEmailToUser(user *User, email string) error {
 		return err
 	}
 	return updateUserCache(*user)
+}
+
+// BindEmailToUserIfEmpty atomically binds an email without replacing an
+// address that was already set by the user or another concurrent request.
+func BindEmailToUserIfEmpty(user *User, email string) (bool, error) {
+	if user == nil || user.Id == 0 {
+		return false, errors.New("user id is empty")
+	}
+	email = NormalizeEmail(email)
+	if email == "" {
+		return false, nil
+	}
+
+	updated := false
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		return withNormalizedEmailLock(tx, email, func(tx *gorm.DB) error {
+			var current User
+			if err := lockForUpdate(tx).First(&current, user.Id).Error; err != nil {
+				return err
+			}
+			if NormalizeEmail(current.Email) != "" {
+				*user = current
+				return nil
+			}
+			if err := ensureEmailAvailableWithTx(tx, email, current.Id); err != nil {
+				return err
+			}
+
+			result := tx.Model(&current).
+				Where("id = ? AND (email IS NULL OR TRIM(email) = '')", current.Id).
+				Update("email", email)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 0 {
+				return tx.First(user, current.Id).Error
+			}
+
+			current.Email = email
+			*user = current
+			updated = true
+			return nil
+		})
+	}); err != nil {
+		return false, err
+	}
+	if updated {
+		if err := updateUserCache(*user); err != nil {
+			return true, err
+		}
+	}
+	return updated, nil
 }
 
 func ensureEmailAvailableWithTx(tx *gorm.DB, email string, excludeUserID int) error {
