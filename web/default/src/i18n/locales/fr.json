@@ -5919,7 +5919,14 @@
     "Window Remaining": "Temps restant",
     "Window {{window}}s / Threshold {{threshold}}": "Fenêtre {{window}} s / Seuil {{threshold}}",
     "{{seconds}} seconds": "{{seconds}} secondes",
-    "Last Activity": "Dernière activité"
+    "Last Activity": "Dernière activité",
+    "Count retry failures": "Compter les échecs de nouvelle tentative",
+    "Include each failed channel attempt in this rule window": "Inclure chaque tentative de canal échouée dans la fenêtre de cette règle",
+    "Email Log Details": "Détails du journal des e-mails",
+    "Failed to load email details": "Échec du chargement des détails de l’e-mail",
+    "HTML Source": "Source HTML",
+    "Rendered Email": "E-mail rendu",
+    "Email content is unavailable for older logs": "Le contenu n’est pas disponible pour les anciens journaux"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

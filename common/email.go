@@ -101,7 +101,7 @@ func SendEmail(subject string, receiver string, content string) error {
 		provider = "smtp"
 	}
 	record := func(status string, err error) {
-		recordEmailLog(provider, receiver, subject, status, time.Since(startTime).Milliseconds(), err)
+		recordEmailLog(provider, receiver, subject, content, status, time.Since(startTime).Milliseconds(), err)
 	}
 
 	if err := CheckEmailDailyLimit(); err != nil {

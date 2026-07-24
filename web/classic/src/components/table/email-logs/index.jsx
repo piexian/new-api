@@ -24,6 +24,7 @@ import EmailLogsActions from './EmailLogsActions';
 import EmailLogsFilters from './EmailLogsFilters';
 import EmailLogsTable from './EmailLogsTable';
 import ColumnSelectorModal from './modals/ColumnSelectorModal';
+import EmailLogDetailsModal from './modals/EmailLogDetailsModal';
 import { useEmailLogsData } from '../../../hooks/email-logs/useEmailLogsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
@@ -35,6 +36,7 @@ const EmailLogsPage = () => {
   return (
     <>
       <ColumnSelectorModal {...emailLogsData} />
+      <EmailLogDetailsModal {...emailLogsData} />
       <Layout>
         <CardPro
           type='type2'

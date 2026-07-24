@@ -4523,6 +4523,14 @@
     "Search...": "搜索...",
     "Status": "状态",
     "Threshold": "阈值",
-    "User": "用户"
+    "User": "用户",
+    "Count retry failures": "统计重试失败",
+    "Include each failed channel attempt in this rule window": "将每次渠道失败尝试计入此规则窗口",
+    "Email Log Details": "邮件日志详情",
+    "Failed to load email details": "邮件详情加载失败",
+    "HTML Source": "HTML 源码",
+    "Rendered Email": "邮件预览",
+    "Email content is unavailable for older logs": "旧日志未保存邮件正文",
+    "Preview": "预览"
   }
 }

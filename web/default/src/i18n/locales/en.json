@@ -5919,7 +5919,14 @@
     "Window Remaining": "Window Remaining",
     "Window {{window}}s / Threshold {{threshold}}": "Window {{window}}s / Threshold {{threshold}}",
     "{{seconds}} seconds": "{{seconds}} seconds",
-    "Last Activity": "Last Activity"
+    "Last Activity": "Last Activity",
+    "Count retry failures": "Count retry failures",
+    "Include each failed channel attempt in this rule window": "Include each failed channel attempt in this rule window",
+    "Email Log Details": "Email Log Details",
+    "Failed to load email details": "Failed to load email details",
+    "HTML Source": "HTML Source",
+    "Rendered Email": "Rendered Email",
+    "Email content is unavailable for older logs": "Email content is unavailable for older logs"
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

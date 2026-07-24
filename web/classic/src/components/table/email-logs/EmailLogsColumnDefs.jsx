@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { IconEyeOpened } from '@douyinfe/semi-icons';
 
 const { Text } = Typography;
 
@@ -65,7 +66,12 @@ const renderCopyableText = (text, copyText, className = '') => {
   );
 };
 
-export const getEmailLogsColumns = ({ t, COLUMN_KEYS, copyText }) => [
+export const getEmailLogsColumns = ({
+  t,
+  COLUMN_KEYS,
+  copyText,
+  onPreview,
+}) => [
   {
     key: COLUMN_KEYS.SEND_TIME,
     title: t('发送时间'),
@@ -122,5 +128,22 @@ export const getEmailLogsColumns = ({ t, COLUMN_KEYS, copyText }) => [
     title: t('错误信息'),
     dataIndex: 'error_message',
     render: (text) => renderCopyableText(text, copyText),
+  },
+  {
+    key: COLUMN_KEYS.ACTIONS,
+    title: t('Actions'),
+    dataIndex: 'id',
+    fixed: 'right',
+    render: (_id, record) => (
+      <Tooltip content={t('Preview')}>
+        <Button
+          theme='borderless'
+          size='small'
+          icon={<IconEyeOpened />}
+          aria-label={t('Preview')}
+          onClick={() => onPreview?.(record)}
+        />
+      </Tooltip>
+    ),
   },
 ];

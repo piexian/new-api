@@ -25,6 +25,7 @@ import { formatTimestampToDate } from '@/lib/format'
 
 import { EMAIL_STATUS_MAPPINGS } from '../../constants'
 import type { EmailLog } from '../../types'
+import { EmailLogPreviewAction } from '../dialogs/email-log-preview-dialog'
 import { createFailReasonColumn } from './column-helpers'
 
 function getEmailStatusConfig(status: string) {
@@ -151,5 +152,14 @@ export function useEmailLogsColumns(): ColumnDef<EmailLog>[] {
       headerLabel: t('Error Message'),
       cellTitle: t('Fail Reason Details'),
     }),
+    {
+      id: 'actions',
+      header: t('Actions'),
+      cell: ({ row }) => <EmailLogPreviewAction log={row.original} />,
+      enableSorting: false,
+      enableHiding: false,
+      size: 72,
+      meta: { label: t('Actions') },
+    },
   ]
 }

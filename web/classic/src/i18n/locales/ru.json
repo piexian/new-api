@@ -4461,6 +4461,14 @@
     "Search...": "Поиск...",
     "Status": "Статус",
     "Threshold": "Порог",
-    "User": "Пользователь"
+    "User": "Пользователь",
+    "Count retry failures": "Учитывать ошибки повторных попыток",
+    "Include each failed channel attempt in this rule window": "Включать каждую неудачную попытку канала в окно этого правила",
+    "Email Log Details": "Сведения о журнале писем",
+    "Failed to load email details": "Не удалось загрузить сведения о письме",
+    "HTML Source": "Исходный HTML",
+    "Rendered Email": "Предпросмотр письма",
+    "Email content is unavailable for older logs": "Содержимое письма недоступно для старых журналов",
+    "Preview": "Предпросмотр"
   }
 }

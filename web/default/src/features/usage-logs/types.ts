@@ -335,9 +335,16 @@ export interface EmailLog {
   provider: string
   receiver: string
   subject: string
+  content?: string
   status: string // success, failed, suppressed
   error_message?: string
   duration_ms: number
+}
+
+export interface GetEmailLogResponse {
+  success: boolean
+  message?: string
+  data?: EmailLog
 }
 
 // ============================================================================

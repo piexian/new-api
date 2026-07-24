@@ -25,6 +25,7 @@ import type {
   GetLogStatsParams,
   GetLogStatsResponse,
   GetEmailLogsParams,
+  GetEmailLogResponse,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
   UserInfo,
@@ -118,3 +119,8 @@ export const getUserTaskLogs = (params: GetTaskLogsParams) =>
 
 export const getAllEmailLogs = (params: GetEmailLogsParams) =>
   fetchLogs('/api/log/email', params, true)
+
+export async function getEmailLog(id: number): Promise<GetEmailLogResponse> {
+  const res = await api.get(`/api/log/email/${id}`)
+  return res.data
+}

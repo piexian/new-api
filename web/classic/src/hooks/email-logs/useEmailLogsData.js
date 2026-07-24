@@ -43,6 +43,7 @@ export const useEmailLogsData = () => {
     PROVIDER: 'provider',
     DURATION: 'duration',
     ERROR_MESSAGE: 'error_message',
+    ACTIONS: 'actions',
   };
 
   const [logs, setLogs] = useState([]);
@@ -53,6 +54,10 @@ export const useEmailLogsData = () => {
   const [formApi, setFormApi] = useState(null);
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [compactMode, setCompactMode] = useTableCompactMode('emailLogs');
+  const [emailDetailVisible, setEmailDetailVisible] = useState(false);
+  const [emailDetailLoading, setEmailDetailLoading] = useState(false);
+  const [emailDetail, setEmailDetail] = useState(null);
+  const [emailDetailError, setEmailDetailError] = useState('');
 
   const isAdminUser = isAdmin();
   const STORAGE_KEY = 'email-logs-table-columns-admin';
@@ -77,6 +82,7 @@ export const useEmailLogsData = () => {
     [COLUMN_KEYS.PROVIDER]: true,
     [COLUMN_KEYS.DURATION]: true,
     [COLUMN_KEYS.ERROR_MESSAGE]: true,
+    [COLUMN_KEYS.ACTIONS]: true,
   });
 
   const getInitialVisibleColumns = () => {
@@ -197,6 +203,31 @@ export const useEmailLogsData = () => {
     }
   };
 
+  const openEmailLogDetails = async (log) => {
+    setEmailDetail(log);
+    setEmailDetailError('');
+    setEmailDetailVisible(true);
+    setEmailDetailLoading(true);
+    try {
+      const res = await API.get(`/api/log/email/${log.id}`);
+      if (res.data.success && res.data.data) {
+        setEmailDetail(res.data.data);
+      } else {
+        setEmailDetailError(
+          res.data.message || t('Failed to load email details'),
+        );
+      }
+    } catch (error) {
+      setEmailDetailError(error?.message || t('Failed to load email details'));
+    } finally {
+      setEmailDetailLoading(false);
+    }
+  };
+
+  const closeEmailLogDetails = () => {
+    setEmailDetailVisible(false);
+  };
+
   const initDefaultColumns = () => {
     const defaults = getDefaultColumnVisibility();
     setVisibleColumns(defaults);
@@ -253,6 +284,12 @@ export const useEmailLogsData = () => {
     handlePageSizeChange,
     refresh,
     copyText,
+    emailDetailVisible,
+    emailDetailLoading,
+    emailDetail,
+    emailDetailError,
+    openEmailLogDetails,
+    closeEmailLogDetails,
     enrichLogs,
     syncPageData,
     t,

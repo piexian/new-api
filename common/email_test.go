@@ -311,6 +311,45 @@ func TestSendEmailUsesExplicitStartTLSWithInsecureCertificate(t *testing.T) {
 	}
 }
 
+func TestSendEmailRecorderReceivesRenderedContent(t *testing.T) {
+	server := newFakeSMTPServerWithSTARTTLSAdvertisement(t, false)
+	defer server.close()
+	withSMTPSettings(t)
+
+	SMTPServer = server.host
+	SMTPPort = server.port
+	SMTPSSLEnabled = false
+	SMTPStartTLSEnabled = false
+	SMTPAccount = ""
+	SMTPFrom = "sender@example.com"
+	SMTPToken = ""
+	SystemName = "New API"
+
+	type recordedEmail struct {
+		subject string
+		content string
+		status  string
+	}
+	recorded := make(chan recordedEmail, 1)
+	originalRecorder := recordEmailLog
+	recordEmailLog = func(provider, receiver, subject, content, status string, durationMs int64, err error) {
+		recorded <- recordedEmail{subject: subject, content: content, status: status}
+	}
+	t.Cleanup(func() { recordEmailLog = originalRecorder })
+
+	const content = "<p>Rendered template</p>"
+	require.NoError(t, SendEmail("Template preview", "receiver@example.com", content))
+
+	select {
+	case log := <-recorded:
+		require.Equal(t, "Template preview", log.subject)
+		require.Equal(t, content, log.content)
+		require.Equal(t, "success", log.status)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for email log recorder")
+	}
+}
+
 func TestSendEmailExplicitStartTLSRequiresServerSupport(t *testing.T) {
 	server := newFakeSMTPServerWithSTARTTLSAdvertisement(t, false)
 	defer server.close()

@@ -5919,7 +5919,14 @@
     "Window Remaining": "Thời gian còn lại của cửa sổ",
     "Window {{window}}s / Threshold {{threshold}}": "Cửa sổ {{window}} giây / Ngưỡng {{threshold}}",
     "{{seconds}} seconds": "{{seconds}} giây",
-    "Last Activity": "Hoạt động gần nhất"
+    "Last Activity": "Hoạt động gần nhất",
+    "Count retry failures": "Tính lỗi thử lại",
+    "Include each failed channel attempt in this rule window": "Tính mỗi lần thử kênh thất bại vào cửa sổ của quy tắc này",
+    "Email Log Details": "Chi tiết nhật ký email",
+    "Failed to load email details": "Không thể tải chi tiết email",
+    "HTML Source": "Nguồn HTML",
+    "Rendered Email": "Bản xem trước email",
+    "Email content is unavailable for older logs": "Nội dung email không có trong các nhật ký cũ"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

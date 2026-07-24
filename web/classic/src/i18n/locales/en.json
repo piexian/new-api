@@ -4542,6 +4542,14 @@
     "Search...": "Search...",
     "Status": "Status",
     "Threshold": "Threshold",
-    "User": "User"
+    "User": "User",
+    "Count retry failures": "Count retry failures",
+    "Include each failed channel attempt in this rule window": "Include each failed channel attempt in this rule window",
+    "Email Log Details": "Email Log Details",
+    "Failed to load email details": "Failed to load email details",
+    "HTML Source": "HTML Source",
+    "Rendered Email": "Rendered Email",
+    "Email content is unavailable for older logs": "Email content is unavailable for older logs",
+    "Preview": "Preview"
   }
 }

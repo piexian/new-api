@@ -5919,7 +5919,14 @@
     "Window Remaining": "視窗剩餘時間",
     "Window {{window}}s / Threshold {{threshold}}": "視窗 {{window}} 秒 / 閾值 {{threshold}}",
     "{{seconds}} seconds": "{{seconds}} 秒",
-    "Last Activity": "最近活動"
+    "Last Activity": "最近活動",
+    "Count retry failures": "統計重試失敗",
+    "Include each failed channel attempt in this rule window": "將每次渠道失敗嘗試計入此規則視窗",
+    "Email Log Details": "郵件日誌詳情",
+    "Failed to load email details": "郵件詳情載入失敗",
+    "HTML Source": "HTML 原始碼",
+    "Rendered Email": "郵件預覽",
+    "Email content is unavailable for older logs": "舊日誌未儲存郵件正文"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

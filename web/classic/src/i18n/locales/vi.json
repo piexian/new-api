@@ -4963,6 +4963,14 @@
     "Search...": "Tìm kiếm...",
     "Status": "Trạng thái",
     "Threshold": "Ngưỡng",
-    "User": "Người dùng"
+    "User": "Người dùng",
+    "Count retry failures": "Tính lỗi thử lại",
+    "Include each failed channel attempt in this rule window": "Tính mỗi lần thử kênh thất bại vào cửa sổ của quy tắc này",
+    "Email Log Details": "Chi tiết nhật ký email",
+    "Failed to load email details": "Không thể tải chi tiết email",
+    "HTML Source": "Nguồn HTML",
+    "Rendered Email": "Bản xem trước email",
+    "Email content is unavailable for older logs": "Nội dung email không có trong các nhật ký cũ",
+    "Preview": "Xem trước"
   }
 }

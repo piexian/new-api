@@ -30,9 +30,15 @@ const ColumnSelectorModal = ({
   initDefaultColumns,
   COLUMN_KEYS,
   copyText,
+  openEmailLogDetails,
   t,
 }) => {
-  const allColumns = getEmailLogsColumns({ t, COLUMN_KEYS, copyText });
+  const allColumns = getEmailLogsColumns({
+    t,
+    COLUMN_KEYS,
+    copyText,
+    onPreview: openEmailLogDetails,
+  });
 
   return (
     <Modal

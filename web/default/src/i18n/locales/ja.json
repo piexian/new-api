@@ -5919,7 +5919,14 @@
     "Window Remaining": "ウィンドウ残り時間",
     "Window {{window}}s / Threshold {{threshold}}": "ウィンドウ {{window}} 秒 / しきい値 {{threshold}}",
     "{{seconds}} seconds": "{{seconds}} 秒",
-    "Last Activity": "最終アクティビティ"
+    "Last Activity": "最終アクティビティ",
+    "Count retry failures": "再試行の失敗をカウント",
+    "Include each failed channel attempt in this rule window": "失敗した各チャネル試行をこのルールのウィンドウに含めます",
+    "Email Log Details": "メールログの詳細",
+    "Failed to load email details": "メール詳細の読み込みに失敗しました",
+    "HTML Source": "HTML ソース",
+    "Rendered Email": "メールプレビュー",
+    "Email content is unavailable for older logs": "古いログにはメール本文が保存されていません"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

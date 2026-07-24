@@ -5919,7 +5919,14 @@
     "Window Remaining": "窗口剩余时间",
     "Window {{window}}s / Threshold {{threshold}}": "窗口 {{window}} 秒 / 阈值 {{threshold}}",
     "{{seconds}} seconds": "{{seconds}} 秒",
-    "Last Activity": "最近活动"
+    "Last Activity": "最近活动",
+    "Count retry failures": "统计重试失败",
+    "Include each failed channel attempt in this rule window": "将每次渠道失败尝试计入此规则窗口",
+    "Email Log Details": "邮件日志详情",
+    "Failed to load email details": "邮件详情加载失败",
+    "HTML Source": "HTML 源码",
+    "Rendered Email": "邮件预览",
+    "Email content is unavailable for older logs": "旧日志未保存邮件正文"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

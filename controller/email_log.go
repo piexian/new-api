@@ -35,3 +35,18 @@ func GetAllEmailLogs(c *gin.Context) {
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
 }
+
+func GetEmailLog(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		common.ApiErrorMsg(c, "invalid email log id")
+		return
+	}
+	log, err := model.GetEmailLogById(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	localizeEmailLogs([]*model.EmailLog{log}, resolveRequestLogLanguage(c))
+	common.ApiSuccess(c, log)
+}

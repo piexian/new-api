@@ -4411,6 +4411,14 @@
     "Search...": "検索...",
     "Status": "ステータス",
     "Threshold": "しきい値",
-    "User": "ユーザー"
+    "User": "ユーザー",
+    "Count retry failures": "再試行の失敗をカウント",
+    "Include each failed channel attempt in this rule window": "失敗した各チャネル試行をこのルールのウィンドウに含めます",
+    "Email Log Details": "メールログの詳細",
+    "Failed to load email details": "メール詳細の読み込みに失敗しました",
+    "HTML Source": "HTML ソース",
+    "Rendered Email": "メールプレビュー",
+    "Email content is unavailable for older logs": "古いログにはメール本文が保存されていません",
+    "Preview": "プレビュー"
   }
 }

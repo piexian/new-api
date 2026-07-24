@@ -38,13 +38,20 @@ const EmailLogsTable = (emailLogsData) => {
     handlePageChange,
     handlePageSizeChange,
     copyText,
+    openEmailLogDetails,
     t,
     COLUMN_KEYS,
   } = emailLogsData;
 
   const allColumns = useMemo(
-    () => getEmailLogsColumns({ t, COLUMN_KEYS, copyText }),
-    [t, COLUMN_KEYS, copyText],
+    () =>
+      getEmailLogsColumns({
+        t,
+        COLUMN_KEYS,
+        copyText,
+        onPreview: openEmailLogDetails,
+      }),
+    [t, COLUMN_KEYS, copyText, openEmailLogDetails],
   );
 
   const visibleColumnsList = useMemo(
