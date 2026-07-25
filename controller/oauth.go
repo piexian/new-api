@@ -27,7 +27,8 @@ func GenerateOAuthCode(c *gin.Context) {
 	session := sessions.Default(c)
 	state := common.GetRandomString(12)
 	affCode := strings.TrimSpace(c.Query("aff"))
-	if affCode != "" {
+	isRegistration := c.Query("registration") == "true"
+	if isRegistration && affCode != "" {
 		session.Set("aff", affCode)
 	} else {
 		session.Delete("aff")

@@ -115,7 +115,7 @@ export async function getOAuthState(
   try {
     const affCode = affiliateCode.trim()
     const res = await api.get('/api/oauth/state', {
-      params: affCode ? { aff: affCode } : undefined,
+      params: affCode ? { aff: affCode, registration: true } : undefined,
     })
     if (res.data.success) {
       return res.data.data

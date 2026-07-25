@@ -252,7 +252,7 @@ export async function getOAuthState(affiliateCode = '') {
   let path = '/api/oauth/state';
   const affCode = affiliateCode.trim();
   if (affCode && affCode.length > 0) {
-    path += `?aff=${encodeURIComponent(affCode)}`;
+    path += `?registration=true&aff=${encodeURIComponent(affCode)}`;
   }
   const res = await API.get(path);
   const { success, message, data } = res.data;

@@ -90,7 +90,7 @@ export async function githubOAuthStart(clientId: string, state: string) {
 export async function getOAuthState(affiliateCode = ''): Promise<string> {
   const aff = affiliateCode.trim()
   const res = await api.get('/api/oauth/state', {
-    params: aff ? { aff } : undefined,
+    params: aff ? { aff, registration: true } : undefined,
   })
   if (res.data?.success) return res.data.data
   return ''
