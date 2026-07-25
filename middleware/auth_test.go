@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	newapii18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -131,6 +132,7 @@ func TestClearGitHubEmailReloginSession(t *testing.T) {
 }
 
 func TestUserAuthClearsLegacyGitHubSessionWithoutEmail(t *testing.T) {
+	require.NoError(t, newapii18n.Init())
 	recorder := performHeaderNavRequest(t, UserAuth(), true, model.User{
 		Id:       1,
 		Username: "tester",
@@ -142,6 +144,13 @@ func TestUserAuthClearsLegacyGitHubSessionWithoutEmail(t *testing.T) {
 
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 	require.NotEmpty(t, recorder.Header().Values("Set-Cookie"))
+	var response struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.False(t, response.Success)
+	require.Equal(t, "Account anomaly detected. Sign in again with OAuth to repair it automatically.", response.Message)
 }
 
 func TestUserAuthAllowsGitHubSessionWithEmail(t *testing.T) {

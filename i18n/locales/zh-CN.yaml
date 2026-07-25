@@ -33,6 +33,7 @@ auth.user_id_format_error: "无权进行此操作，New-Api-User 格式错误"
 auth.user_id_mismatch: "无权进行此操作，New-Api-User 与登录用户不匹配"
 auth.user_banned: "用户已被封禁"
 auth.insufficient_privilege: "无权进行此操作，权限不足"
+auth.oauth_email_repair: "账号异常，请以 OAuth 登录重新登录自动修复"
 
 # Token messages
 token.name_too_long: "令牌名称过长"

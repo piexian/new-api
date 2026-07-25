@@ -258,7 +258,7 @@ func authHelper(c *gin.Context, minRole int) {
 			clearGitHubEmailReloginSession(session)
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
-				"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
+				"message": common.TranslateMessage(c, i18n.MsgAuthOAuthEmailRepair),
 			})
 			c.Abort()
 			return

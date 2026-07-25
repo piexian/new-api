@@ -32,6 +32,7 @@ auth.user_id_format_error: "Unauthorized, New-Api-User header format error"
 auth.user_id_mismatch: "Unauthorized, New-Api-User does not match logged in user"
 auth.user_banned: "User has been banned"
 auth.insufficient_privilege: "Unauthorized, insufficient privileges"
+auth.oauth_email_repair: "Account anomaly detected. Sign in again with OAuth to repair it automatically."
 
 # Token messages
 token.name_too_long: "Token name is too long"

@@ -328,3 +328,43 @@ func TestLoginDisabledUserShowsReasonAfterPasswordValidation(t *testing.T) {
 		t.Fatalf("invalid password path must not expose disable reason, got %q", response.Message)
 	}
 }
+
+func TestLoginRejectsGitHubUserWithoutEmailBeforeSessionSetup(t *testing.T) {
+	if err := newapii18n.Init(); err != nil {
+		t.Fatalf("failed to initialize i18n: %v", err)
+	}
+	db := setupUserSelfControllerTestDB(t)
+	hashedPassword, err := common.Password2Hash("password123")
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+	user := seedSelfUser(t, db, "github-email-repair-login", hashedPassword)
+	if err := db.Model(&model.User{}).Where("id = ?", user.Id).Update("github_id", "123456").Error; err != nil {
+		t.Fatalf("failed to seed GitHub binding: %v", err)
+	}
+
+	ctx, recorder := newSelfJSONContext(
+		t,
+		http.MethodPost,
+		"/api/user/login",
+		map[string]any{
+			"username": user.Username,
+			"password": "password123",
+		},
+		0,
+		0,
+	)
+	ctx.Request.Header.Set("Accept-Language", "zh-CN")
+	Login(ctx)
+
+	response := decodeSelfResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected GitHub email repair login failure, got success: %s", recorder.Body.String())
+	}
+	if response.Message != "账号异常，请以 OAuth 登录重新登录自动修复" {
+		t.Fatalf("unexpected GitHub email repair message: %q", response.Message)
+	}
+	if len(recorder.Header().Values("Set-Cookie")) != 0 {
+		t.Fatalf("GitHub email repair rejection must not create a session")
+	}
+}

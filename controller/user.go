@@ -135,6 +135,20 @@ func applyUsernameChangeWindow(userSetting *dto.UserSetting, now int64) username
 	return getUsernameChangeQuotaStatus(*userSetting, now)
 }
 
+func requiresOAuthEmailRepair(user *model.User) bool {
+	return user != nil &&
+		strings.TrimSpace(user.GitHubId) != "" &&
+		model.NormalizeEmail(user.Email) == ""
+}
+
+func rejectOAuthEmailRepair(c *gin.Context, user *model.User) bool {
+	if !requiresOAuthEmailRepair(user) {
+		return false
+	}
+	common.ApiErrorI18n(c, i18n.MsgAuthOAuthEmailRepair)
+	return true
+}
+
 func Login(c *gin.Context) {
 	if !common.PasswordLoginEnabled {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
@@ -171,6 +185,9 @@ func Login(c *gin.Context) {
 		default:
 			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
 		}
+		return
+	}
+	if rejectOAuthEmailRepair(c, &user) {
 		return
 	}
 
@@ -238,6 +255,9 @@ func recordLoginAudit(user *model.User, c *gin.Context) {
 
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context) {
+	if rejectOAuthEmailRepair(c, user) {
+		return
+	}
 	model.UpdateUserLastLoginAt(user.Id)
 	session := sessions.Default(c)
 	session.Set("id", user.Id)

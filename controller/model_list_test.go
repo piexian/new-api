@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	newapii18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -451,4 +452,46 @@ func TestSetupLoginDoesNotTouchPasswordWhenPasswordFieldOmitted(t *testing.T) {
 	var stored model.User
 	require.NoError(t, db.First(&stored, user.Id).Error)
 	assert.Equal(t, hashedPassword, stored.Password)
+}
+
+func TestSetupLoginRejectsGitHubUserWithoutEmail(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, newapii18n.Init())
+	require.NoError(t, db.AutoMigrate(&model.Log{}))
+
+	user := &model.User{
+		Username: "github-email-repair-user",
+		Password: "password",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+		GitHubId: "123456",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	router := gin.New()
+	store := cookie.NewStore([]byte("test-session-secret"))
+	router.Use(sessions.Sessions("session", store))
+	router.GET("/", func(c *gin.Context) {
+		setupLogin(user, c)
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("Accept-Language", "zh-CN")
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.False(t, response.Success)
+	require.Equal(t, "账号异常，请以 OAuth 登录重新登录自动修复", response.Message)
+	require.Empty(t, recorder.Header().Values("Set-Cookie"))
+
+	var stored model.User
+	require.NoError(t, db.First(&stored, user.Id).Error)
+	require.Zero(t, stored.LastLoginAt)
 }
