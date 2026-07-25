@@ -258,6 +258,12 @@ func setupLogin(user *model.User, c *gin.Context) {
 	if rejectOAuthEmailRepair(c, user) {
 		return
 	}
+	setupLoginSession(user, c)
+}
+
+// setupLoginSession completes a login after the caller has performed all
+// authentication-specific account checks.
+func setupLoginSession(user *model.User, c *gin.Context) {
 	model.UpdateUserLastLoginAt(user.Id)
 	session := sessions.Default(c)
 	session.Set("id", user.Id)

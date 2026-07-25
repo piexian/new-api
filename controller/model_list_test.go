@@ -495,3 +495,45 @@ func TestSetupLoginRejectsGitHubUserWithoutEmail(t *testing.T) {
 	require.NoError(t, db.First(&stored, user.Id).Error)
 	require.Zero(t, stored.LastLoginAt)
 }
+
+func TestSetupLoginSessionAllowsVerifiedOAuthRecovery(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Log{}))
+
+	user := &model.User{
+		Username: "github-oauth-recovery-user",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+		GitHubId: "654321",
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	router := gin.New()
+	store := cookie.NewStore([]byte("test-session-secret"))
+	router.Use(sessions.Sessions("session", store))
+	router.GET("/", func(c *gin.Context) {
+		setupLoginSession(user, c)
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			ID int `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Equal(t, user.Id, response.Data.ID)
+	require.NotEmpty(t, recorder.Header().Values("Set-Cookie"))
+
+	var stored model.User
+	require.NoError(t, db.First(&stored, user.Id).Error)
+	require.NotZero(t, stored.LastLoginAt)
+	require.Empty(t, stored.Email)
+}

@@ -222,7 +222,8 @@ func HandleOAuth(c *gin.Context) {
 
 	// 7. Find or create user
 	user, err := findOrCreateOAuthUser(c, provider, oauthUser, session)
-	if err != nil {
+	recoverableEmailConflict := isRecoverableGitHubEmailConflict(provider, user, err)
+	if err != nil && !recoverableEmailConflict {
 		switch e := err.(type) {
 		case *OAuthUserDeletedError:
 			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
@@ -248,6 +249,11 @@ func HandleOAuth(c *gin.Context) {
 	}
 
 	// 9. Setup login
+	if recoverableEmailConflict {
+		common.SysLog(fmt.Sprintf("[OAuth] Allowing GitHub login for user %d without changing conflicting email ownership", user.Id))
+		setupLoginSession(user, c)
+		return
+	}
 	setupLogin(user, c)
 }
 
@@ -338,6 +344,10 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 			return nil, &OAuthUserDeletedError{}
 		}
 		if err := fillGitHubEmailIfEmpty(provider, user, oauthUser); err != nil {
+			var emailConflict *OAuthEmailAlreadyTakenError
+			if errors.As(err, &emailConflict) {
+				return user, err
+			}
 			return nil, err
 		}
 		return user, nil
@@ -359,6 +369,10 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 					// Continue with login even if migration fails
 				}
 				if err := fillGitHubEmailIfEmpty(provider, user, oauthUser); err != nil {
+					var emailConflict *OAuthEmailAlreadyTakenError
+					if errors.As(err, &emailConflict) {
+						return user, err
+					}
 					return nil, err
 				}
 				return user, nil
@@ -530,6 +544,14 @@ type OAuthEmailAlreadyTakenError struct{}
 
 func (e *OAuthEmailAlreadyTakenError) Error() string {
 	return "email is already in use"
+}
+
+func isRecoverableGitHubEmailConflict(provider oauth.Provider, user *model.User, err error) bool {
+	if _, ok := provider.(*oauth.GitHubProvider); !ok || user == nil || user.Id == 0 {
+		return false
+	}
+	var emailConflict *OAuthEmailAlreadyTakenError
+	return errors.As(err, &emailConflict)
 }
 
 // handleOAuthError handles OAuth errors and returns translated message

@@ -1,10 +1,13 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/gin-contrib/sessions"
@@ -56,7 +59,7 @@ func TestExistingGitHubOAuthUserFillsOnlyEmptyEmail(t *testing.T) {
 	}
 }
 
-func TestExistingGitHubOAuthUserEmailConflictBlocksLogin(t *testing.T) {
+func TestExistingGitHubOAuthUserEmailConflictReturnsRecoverableUser(t *testing.T) {
 	db := setupUserSelfControllerTestDB(t)
 	owner := seedSelfUser(t, db, "github-email-owner", "")
 	owner.Email = "taken@example.com"
@@ -78,8 +81,17 @@ func TestExistingGitHubOAuthUserEmailConflictBlocksLogin(t *testing.T) {
 	if _, ok := err.(*OAuthEmailAlreadyTakenError); !ok {
 		t.Fatalf("error = %T %v, want OAuthEmailAlreadyTakenError", err, err)
 	}
-	if got != nil {
-		t.Fatalf("user = %#v, want nil", got)
+	if got == nil || got.Id != target.Id {
+		t.Fatalf("user = %#v, want existing user %d", got, target.Id)
+	}
+	if !isRecoverableGitHubEmailConflict(&oauth.GitHubProvider{}, got, err) {
+		t.Fatal("existing GitHub user email conflict should be recoverable")
+	}
+	if isRecoverableGitHubEmailConflict(mockOAuthProvider{}, got, err) {
+		t.Fatal("non-GitHub provider must not recover an email conflict")
+	}
+	if isRecoverableGitHubEmailConflict(&oauth.GitHubProvider{}, got, errors.New("database error")) {
+		t.Fatal("non-email-conflict error must not be recoverable")
 	}
 
 	var stored model.User
@@ -88,6 +100,45 @@ func TestExistingGitHubOAuthUserEmailConflictBlocksLogin(t *testing.T) {
 	}
 	if stored.Email != "" {
 		t.Fatalf("conflicting email was persisted: %q", stored.Email)
+	}
+}
+
+func TestNewGitHubOAuthUserEmailConflictRemainsBlocked(t *testing.T) {
+	db := setupUserSelfControllerTestDB(t)
+	owner := seedSelfUser(t, db, "new-github-email-owner", "")
+	owner.Email = "taken-new@example.com"
+	if err := db.Model(owner).Update("email", owner.Email).Error; err != nil {
+		t.Fatalf("failed to seed owner email: %v", err)
+	}
+
+	oldRegisterEnabled := common.RegisterEnabled
+	oldOAuthRegisterEnabled := common.OAuthRegisterEnabled
+	oldMinimumAge := common.GitHubMinimumAccountAge
+	common.RegisterEnabled = true
+	common.OAuthRegisterEnabled = true
+	common.GitHubMinimumAccountAge = 0
+	t.Cleanup(func() {
+		common.RegisterEnabled = oldRegisterEnabled
+		common.OAuthRegisterEnabled = oldOAuthRegisterEnabled
+		common.GitHubMinimumAccountAge = oldMinimumAge
+	})
+
+	ctx, session := newGitHubOAuthTestContext(t)
+	got, err := findOrCreateOAuthUser(ctx, &oauth.GitHubProvider{}, &oauth.OAuthUser{
+		ProviderUserID: "1122334455",
+		Username:       "new-github-conflict",
+		Email:          "TAKEN-NEW@example.com",
+		CreatedAt:      time.Now().AddDate(-1, 0, 0),
+	}, session)
+	var emailConflict *OAuthEmailAlreadyTakenError
+	if !errors.As(err, &emailConflict) {
+		t.Fatalf("error = %T %v, want OAuthEmailAlreadyTakenError", err, err)
+	}
+	if got != nil {
+		t.Fatalf("user = %#v, want nil", got)
+	}
+	if isRecoverableGitHubEmailConflict(&oauth.GitHubProvider{}, got, err) {
+		t.Fatal("new GitHub registration email conflict must not be recoverable")
 	}
 }
 
