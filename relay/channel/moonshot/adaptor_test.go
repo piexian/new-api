@@ -5,12 +5,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -145,6 +147,7 @@ func TestSetupRequestHeaderKeepsBearerAuthForKimiCodingPlan(t *testing.T) {
 	err := adaptor.SetupRequestHeader(c, &headers, &relaycommon.RelayInfo{
 		RelayMode:   relayconstant.RelayModeChatCompletions,
 		RelayFormat: types.RelayFormatOpenAI,
+		IsStream:    true,
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ApiKey:         "kimi-key",
 			ChannelBaseUrl: "kimi-coding-plan",
@@ -155,6 +158,12 @@ func TestSetupRequestHeaderKeepsBearerAuthForKimiCodingPlan(t *testing.T) {
 	}
 	if headers.Get("Authorization") != "Bearer kimi-key" {
 		t.Fatalf("Authorization = %q, want Bearer kimi-key", headers.Get("Authorization"))
+	}
+	if got := headers.Get("Content-Type"); got != gin.MIMEJSON {
+		t.Fatalf("Content-Type = %q, want %q", got, gin.MIMEJSON)
+	}
+	if got := headers.Get("Accept"); got != "text/event-stream" {
+		t.Fatalf("Accept = %q, want text/event-stream", got)
 	}
 }
 
@@ -181,9 +190,20 @@ func TestSetupRequestHeaderAppliesKimiCLICompatibilityHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Request.Header.Set("User-Agent", "client-kimi-agent")
+	c.Request.Header.Set("X-Msh-Platform", "client-platform")
+	c.Request.Header.Set("X-Msh-Version", "client-version")
+	c.Request.Header.Set("anthropic-version", "client-version")
 	c.Request.Header.Set("anthropic-beta", "client-beta")
+	c.Request.Header.Set("anthropic-dangerous-direct-browser-access", "false")
+	c.Request.Header.Set("x-app", "client")
+	c.Request.Header.Set("Content-Type", "text/plain")
+	c.Request.Header.Set("Accept", "application/x-client")
+	c.Request.Header.Set("Cookie", "session=client-cookie")
+	c.Request.Header.Set("X-Client-Only", "do-not-forward")
+	c.Request.Header.Set("X-Claude-Code-Session-Id", "session-123")
 
-	headers := make(http.Header)
+	headers := c.Request.Header.Clone()
 	err := (&Adaptor{}).SetupRequestHeader(c, &headers, &relaycommon.RelayInfo{
 		RelayMode:   relayconstant.RelayModeChatCompletions,
 		RelayFormat: types.RelayFormatOpenAI,
@@ -198,11 +218,12 @@ func TestSetupRequestHeaderAppliesKimiCLICompatibilityHeaders(t *testing.T) {
 
 	wantHeaders := map[string]string{
 		"Authorization":     "Bearer kimi-key",
+		"Content-Type":      gin.MIMEJSON,
+		"Accept":            gin.MIMEJSON,
 		"User-Agent":        "kimi-code-cli/0.27.0",
 		"X-Msh-Platform":    "kimi_code_cli",
 		"X-Msh-Version":     "0.27.0",
 		"anthropic-version": "2023-06-01",
-		"anthropic-beta":    "client-beta",
 		"anthropic-dangerous-direct-browser-access": "true",
 		"x-app": "cli",
 	}
@@ -215,6 +236,113 @@ func TestSetupRequestHeaderAppliesKimiCLICompatibilityHeaders(t *testing.T) {
 		if headers.Get(name) == "" {
 			t.Errorf("%s should not be empty", name)
 		}
+	}
+	if got := headers.Get("anthropic-beta"); got != "" {
+		t.Fatalf("anthropic-beta = %q, want client value removed in non-pass-through mode", got)
+	}
+	for _, name := range []string{"Cookie", "X-Client-Only", "X-Claude-Code-Session-Id"} {
+		if got := headers.Get(name); got != "" {
+			t.Errorf("%s = %q, want client header removed from upstream request", name, got)
+		}
+	}
+	if got := c.Request.Header.Get("X-Claude-Code-Session-Id"); got != "session-123" {
+		t.Fatalf("incoming session header = %q, want it preserved for local affinity/cache lookup", got)
+	}
+}
+
+func TestDoRequestAppliesKimiCodingHeaderPolicy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+
+	testCases := []struct {
+		name              string
+		headerOverride    map[string]interface{}
+		wantUserAgent     string
+		wantAnthropicBeta string
+		wantConfigured    string
+	}{
+		{
+			name:              "empty override uses built-in headers",
+			headerOverride:    map[string]interface{}{},
+			wantUserAgent:     "kimi-code-cli/0.27.0",
+			wantAnthropicBeta: "",
+		},
+		{
+			name: "explicit override wins",
+			headerOverride: map[string]interface{}{
+				"User-Agent":     "configured-agent",
+				"anthropic-beta": "configured-beta",
+				"X-Configured":   "configured-value",
+			},
+			wantUserAgent:     "configured-agent",
+			wantAnthropicBeta: "configured-beta",
+			wantConfigured:    "configured-value",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var upstreamHeaders http.Header
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				upstreamHeaders = r.Header.Clone()
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{}`))
+			}))
+			defer server.Close()
+
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{}`))
+			c.Request.Header.Set("User-Agent", "client-kimi-agent")
+			c.Request.Header.Set("anthropic-beta", "client-beta")
+			c.Request.Header.Set("Content-Type", "text/plain")
+			c.Request.Header.Set("Accept", "application/x-client")
+			c.Request.Header.Set("Cookie", "session=client-cookie")
+			c.Request.Header.Set("X-Client-Only", "do-not-forward")
+			c.Request.Header.Set("X-Claude-Code-Session-Id", "session-123")
+
+			result, err := (&Adaptor{}).DoRequest(c, &relaycommon.RelayInfo{
+				RelayMode:   relayconstant.RelayModeChatCompletions,
+				RelayFormat: types.RelayFormatOpenAI,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ApiKey:          "kimi-key",
+					ChannelBaseUrl:  server.URL + "/coding",
+					HeadersOverride: testCase.headerOverride,
+				},
+			}, strings.NewReader(`{}`))
+			if err != nil {
+				t.Fatalf("DoRequest returned error: %v", err)
+			}
+			resp, ok := result.(*http.Response)
+			if !ok {
+				t.Fatalf("DoRequest returned %T, want *http.Response", result)
+			}
+			defer resp.Body.Close()
+
+			if got := upstreamHeaders.Get("User-Agent"); got != testCase.wantUserAgent {
+				t.Fatalf("User-Agent = %q, want %q", got, testCase.wantUserAgent)
+			}
+			if got := upstreamHeaders.Get("anthropic-beta"); got != testCase.wantAnthropicBeta {
+				t.Fatalf("anthropic-beta = %q, want %q", got, testCase.wantAnthropicBeta)
+			}
+			if got := upstreamHeaders.Get("X-Configured"); got != testCase.wantConfigured {
+				t.Fatalf("X-Configured = %q, want %q", got, testCase.wantConfigured)
+			}
+			if got := upstreamHeaders.Get("Content-Type"); got != gin.MIMEJSON {
+				t.Fatalf("Content-Type = %q, want %q", got, gin.MIMEJSON)
+			}
+			if got := upstreamHeaders.Get("Accept"); got != gin.MIMEJSON {
+				t.Fatalf("Accept = %q, want %q", got, gin.MIMEJSON)
+			}
+			for _, name := range []string{"Cookie", "X-Client-Only", "X-Claude-Code-Session-Id"} {
+				if got := upstreamHeaders.Get(name); got != "" {
+					t.Errorf("%s = %q, want client header removed from upstream request", name, got)
+				}
+			}
+			if got := c.Request.Header.Get("X-Claude-Code-Session-Id"); got != "session-123" {
+				t.Fatalf("incoming session header = %q, want it preserved for local affinity/cache lookup", got)
+			}
+		})
 	}
 }
 

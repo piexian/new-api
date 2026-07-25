@@ -55,6 +55,15 @@ func setupKimiCodingHeaders(c *gin.Context, req *http.Header, info *relaycommon.
 		return
 	}
 
+	clear(*req)
+	req.Set("Content-Type", gin.MIMEJSON)
+	req.Set("Accept", gin.MIMEJSON)
+	if info != nil {
+		req.Set("Authorization", fmt.Sprintf("Bearer %s", info.ApiKey))
+		if info.IsStream {
+			req.Set("Accept", "text/event-stream")
+		}
+	}
 	for name, value := range getKimiCLIHeaders() {
 		req.Set(name, value)
 	}
@@ -63,7 +72,6 @@ func setupKimiCodingHeaders(c *gin.Context, req *http.Header, info *relaycommon.
 		req.Set("anthropic-version", "2023-06-01")
 		req.Set("anthropic-dangerous-direct-browser-access", "true")
 		req.Set("x-app", "cli")
-		copyIncomingMoonshotHeaders(c, req, []string{"anthropic-beta"})
 	}
 }
 
