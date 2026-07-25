@@ -42,6 +42,7 @@ type OAuthProvidersProps = {
   requireInvitationCode?: boolean
   hasInvitationCode?: boolean
   onMissingInvitationCode?: () => void
+  affiliateCode?: string
 }
 
 type ProviderButton = {
@@ -61,6 +62,7 @@ export function OAuthProviders({
   requireInvitationCode = false,
   hasInvitationCode = false,
   onMissingInvitationCode,
+  affiliateCode = '',
 }: OAuthProvidersProps) {
   const { t } = useTranslation()
   const {
@@ -74,7 +76,7 @@ export function OAuthProviders({
     handleTelegramLogin,
     handleQQLogin,
     handleCustomOAuthLogin,
-  } = useOAuthLogin(status)
+  } = useOAuthLogin(status, affiliateCode)
 
   const providerButtons: ProviderButton[] = []
   const guardInvitationCode = (handler: () => void) => () => {
@@ -152,7 +154,7 @@ export function OAuthProviders({
     providerButtons.push({
       key: 'steam',
       label: t('Continue with Steam'),
-      onClick: guardInvitationCode(handleSteamOAuth),
+      onClick: guardInvitationCode(() => handleSteamOAuth(affiliateCode)),
       icon: <SiSteam className='h-4 w-4' />,
     })
   }

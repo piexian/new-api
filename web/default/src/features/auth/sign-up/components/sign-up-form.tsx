@@ -458,6 +458,7 @@ export function SignUpForm({
         {showOAuthRegisterOptions && (
           <OAuthProviders
             status={status}
+            affiliateCode={form.watch('affCode')}
             disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
             requireInvitationCode={inviteCodeRequired}
             hasInvitationCode={Boolean(form.watch('affCode')?.trim())}

@@ -121,6 +121,10 @@ const RegisterForm = () => {
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
   const githubTimeoutRef = useRef(null);
   const githubButtonText = t(githubButtonTextKeyByState[githubButtonState]);
+  const getOAuthRegistrationOptions = (affiliateCode) => ({
+    shouldLogout: true,
+    affiliateCode,
+  });
 
   const logo = getLogo();
   const systemName = getSystemName();
@@ -377,7 +381,10 @@ const RegisterForm = () => {
       setGithubButtonDisabled(true);
     }, 20000);
     try {
-      onGitHubOAuthClicked(status.github_client_id, { shouldLogout: true });
+      onGitHubOAuthClicked(
+        status.github_client_id,
+        getOAuthRegistrationOptions(inviteCode),
+      );
     } finally {
       setTimeout(() => setGithubLoading(false), 3000);
     }
@@ -398,7 +405,10 @@ const RegisterForm = () => {
     }
     setDiscordLoading(true);
     try {
-      onDiscordOAuthClicked(status.discord_client_id, { shouldLogout: true });
+      onDiscordOAuthClicked(
+        status.discord_client_id,
+        getOAuthRegistrationOptions(inviteCode),
+      );
     } finally {
       setTimeout(() => setDiscordLoading(false), 3000);
     }
@@ -419,7 +429,7 @@ const RegisterForm = () => {
     }
     setSteamLoading(true);
     try {
-      onSteamOAuthClicked({ shouldLogout: true });
+      onSteamOAuthClicked(getOAuthRegistrationOptions(inviteCode));
     } finally {
       setTimeout(() => setSteamLoading(false), 3000);
     }
@@ -444,7 +454,7 @@ const RegisterForm = () => {
         status.oidc_authorization_endpoint,
         status.oidc_client_id,
         false,
-        { shouldLogout: true },
+        getOAuthRegistrationOptions(inviteCode),
       );
     } finally {
       setTimeout(() => setOidcLoading(false), 3000);
@@ -466,7 +476,10 @@ const RegisterForm = () => {
     }
     setLinuxdoLoading(true);
     try {
-      onLinuxDOOAuthClicked(status.linuxdo_client_id, { shouldLogout: true });
+      onLinuxDOOAuthClicked(
+        status.linuxdo_client_id,
+        getOAuthRegistrationOptions(inviteCode),
+      );
     } finally {
       setTimeout(() => setLinuxdoLoading(false), 3000);
     }
@@ -487,7 +500,10 @@ const RegisterForm = () => {
     }
     setQqLoading(true);
     try {
-      onQQOAuthClicked(status.qq_client_id, { shouldLogout: true });
+      onQQOAuthClicked(
+        status.qq_client_id,
+        getOAuthRegistrationOptions(inviteCode),
+      );
     } finally {
       setTimeout(() => setQqLoading(false), 3000);
     }
@@ -508,7 +524,7 @@ const RegisterForm = () => {
     }
     setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: true }));
     try {
-      onCustomOAuthClicked(provider, { shouldLogout: true });
+      onCustomOAuthClicked(provider, getOAuthRegistrationOptions(inviteCode));
     } finally {
       setTimeout(() => {
         setCustomOAuthLoading((prev) => ({ ...prev, [provider.slug]: false }));

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -25,9 +26,11 @@ func providerParams(name string) map[string]any {
 func GenerateOAuthCode(c *gin.Context) {
 	session := sessions.Default(c)
 	state := common.GetRandomString(12)
-	affCode := c.Query("aff")
+	affCode := strings.TrimSpace(c.Query("aff"))
 	if affCode != "" {
 		session.Set("aff", affCode)
+	} else {
+		session.Delete("aff")
 	}
 	session.Set("oauth_state", state)
 	err := session.Save()
@@ -45,7 +48,7 @@ func GenerateOAuthCode(c *gin.Context) {
 func getOAuthRegistrationCredential(c *gin.Context) string {
 	session := sessions.Default(c)
 	credential, _ := session.Get("aff").(string)
-	return credential
+	return strings.TrimSpace(credential)
 }
 
 func isOAuthRegistrationEnabled() bool {

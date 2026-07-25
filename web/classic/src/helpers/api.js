@@ -248,11 +248,11 @@ export const processGroupsData = (data, userGroup) => {
 
 // 原来components中的utils.js
 
-export async function getOAuthState() {
+export async function getOAuthState(affiliateCode = '') {
   let path = '/api/oauth/state';
-  let affCode = localStorage.getItem('aff');
+  const affCode = affiliateCode.trim();
   if (affCode && affCode.length > 0) {
-    path += `?aff=${affCode}`;
+    path += `?aff=${encodeURIComponent(affCode)}`;
   }
   const res = await API.get(path);
   const { success, message, data } = res.data;
@@ -265,7 +265,7 @@ export async function getOAuthState() {
 }
 
 async function prepareOAuthState(options = {}) {
-  const { shouldLogout = false } = options;
+  const { shouldLogout = false, affiliateCode = '' } = options;
   if (shouldLogout) {
     try {
       await API.get('/api/user/logout', { skipErrorHandler: true });
@@ -273,7 +273,7 @@ async function prepareOAuthState(options = {}) {
     localStorage.removeItem('user');
     updateAPI();
   }
-  return await getOAuthState();
+  return await getOAuthState(affiliateCode);
 }
 
 export async function onDiscordOAuthClicked(client_id, options = {}) {

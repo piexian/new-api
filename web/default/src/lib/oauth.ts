@@ -107,16 +107,16 @@ export function buildSteamOpenIDUrl(state: string): string {
 
 /**
  * Get OAuth state token
- * Includes affiliate code from localStorage if available
+ * Includes affiliate code only when the caller explicitly supplies one
  */
-export async function getOAuthState(): Promise<string | null> {
+export async function getOAuthState(
+  affiliateCode = ''
+): Promise<string | null> {
   try {
-    let path = '/api/oauth/state'
-    const affCode = localStorage.getItem('aff')
-    if (affCode && affCode.length > 0) {
-      path += `?aff=${affCode}`
-    }
-    const res = await api.get(path)
+    const affCode = affiliateCode.trim()
+    const res = await api.get('/api/oauth/state', {
+      params: affCode ? { aff: affCode } : undefined,
+    })
     if (res.data.success) {
       return res.data.data
     }
@@ -189,8 +189,8 @@ export async function handleQQOAuth(clientId: string): Promise<void> {
 /**
  * Handle Steam OpenID binding/login
  */
-export async function handleSteamOAuth(): Promise<void> {
-  const state = await getOAuthState()
+export async function handleSteamOAuth(affiliateCode = ''): Promise<void> {
+  const state = await getOAuthState(affiliateCode)
   if (!state) return
 
   const url = buildSteamOpenIDUrl(state)
