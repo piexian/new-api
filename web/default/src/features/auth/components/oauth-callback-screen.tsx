@@ -16,16 +16,47 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Loader2, Send, Shield, UserRound, type LucideIcon } from 'lucide-react'
-import { useMemo } from 'react'
+import {
+  Loader2,
+  Send,
+  Shield,
+  ShieldAlert,
+  UserRound,
+  type LucideIcon,
+} from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SiGithub, SiLinux, SiSteam, SiWechat } from 'react-icons/si'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field'
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSeparator,
+  InputOTPSlot,
+} from '@/components/ui/input-otp'
+import { Spinner } from '@/components/ui/spinner'
+
+import type { OAuthOwnershipTransferView } from '../api'
 import { AuthLayout } from '../auth-layout'
 
 type OAuthCallbackScreenProps = {
   provider: string
   mode: 'login' | 'bind'
+  ownershipTransfer?: OAuthOwnershipTransferView | null
+  ownershipError?: string
+  isSendingCode?: boolean
+  isConfirming?: boolean
+  onSendCode?: () => Promise<void>
+  onConfirm?: (code: string) => Promise<void>
+  onReturn?: () => void
 }
 
 type ProviderMeta = {
@@ -65,8 +96,17 @@ const providerDictionary: Record<string, ProviderMeta> = {
 export function OAuthCallbackScreen({
   provider,
   mode,
+  ownershipTransfer,
+  ownershipError,
+  isSendingCode = false,
+  isConfirming = false,
+  onSendCode,
+  onConfirm,
+  onReturn,
 }: OAuthCallbackScreenProps) {
   const { t } = useTranslation()
+  const [verificationCode, setVerificationCode] = useState('')
+  const [remainingSeconds, setRemainingSeconds] = useState(0)
   const { label, Icon } = useMemo(() => {
     const normalized = provider?.toLowerCase() ?? ''
     return (
@@ -79,6 +119,171 @@ export function OAuthCallbackScreen({
 
   const providerLabel = t(label)
   const isBindMode = mode === 'bind'
+
+  useEffect(() => {
+    if (!ownershipTransfer?.code_sent || !ownershipTransfer.expires_at) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRemainingSeconds(0)
+      return
+    }
+    const updateRemaining = () => {
+      setRemainingSeconds(
+        Math.max(
+          0,
+          ownershipTransfer.expires_at - Math.floor(Date.now() / 1000)
+        )
+      )
+    }
+    updateRemaining()
+    const timer = window.setInterval(updateRemaining, 1000)
+    return () => window.clearInterval(timer)
+  }, [ownershipTransfer?.code_sent, ownershipTransfer?.expires_at])
+
+  if (ownershipTransfer) {
+    const transferProvider = ownershipTransfer.provider || providerLabel
+    const minutes = Math.floor(remainingSeconds / 60)
+    const seconds = remainingSeconds % 60
+    const countdown = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    const isExpired =
+      ownershipTransfer.code_sent &&
+      ownershipTransfer.expires_at > 0 &&
+      Math.floor(Date.now() / 1000) >= ownershipTransfer.expires_at
+    const isClosed = ownershipTransfer.closed || isExpired
+    const canConfirm =
+      ownershipTransfer.code_sent &&
+      !isClosed &&
+      verificationCode.length === 6 &&
+      !isConfirming
+
+    return (
+      <AuthLayout>
+        <div className='w-full space-y-6'>
+          <div className='flex flex-col items-center space-y-3 text-center'>
+            <div className='bg-destructive/10 text-destructive flex h-14 w-14 items-center justify-center rounded-lg'>
+              <ShieldAlert className='h-7 w-7' />
+            </div>
+            <div className='space-y-1.5'>
+              <h2 className='text-xl font-semibold'>
+                {t('OAuth email ownership verification')}
+              </h2>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'The email {{email}} is already attached to another account.',
+                  {
+                    email: ownershipTransfer.email || '***',
+                  }
+                )}
+              </p>
+            </div>
+          </div>
+
+          <Alert>
+            <ShieldAlert />
+            <AlertTitle>{t('Permanent account action')}</AlertTitle>
+            <AlertDescription>
+              {t(
+                'This is the only verification opportunity for this {{provider}} account and email. Success permanently disables the previous account and moves the email here. The code is sent once, expires with the countdown, and five incorrect entries close this opportunity forever.',
+                { provider: transferProvider }
+              )}
+            </AlertDescription>
+          </Alert>
+
+          {ownershipError ? (
+            <Alert variant='destructive'>
+              <ShieldAlert />
+              <AlertTitle>{t('Verification failed')}</AlertTitle>
+              <AlertDescription>{ownershipError}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {isClosed && (
+            <div className='space-y-4 text-center'>
+              <p className='text-destructive text-sm font-medium'>
+                {t(
+                  'This ownership verification is permanently closed and will not reopen.'
+                )}
+              </p>
+              <Button
+                type='button'
+                variant='outline'
+                className='w-full'
+                onClick={onReturn}
+              >
+                {t('Return to sign in')}
+              </Button>
+            </div>
+          )}
+          {!isClosed && ownershipTransfer.code_sent && (
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor='oauth-ownership-code'>
+                  {t('Verification Code')}
+                </FieldLabel>
+                <InputOTP
+                  id='oauth-ownership-code'
+                  maxLength={6}
+                  value={verificationCode}
+                  onChange={setVerificationCode}
+                  disabled={isConfirming}
+                  containerClassName='justify-between sm:[&>[data-slot="input-otp-group"]>div]:w-12'
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                  </InputOTPGroup>
+                  <InputOTPSeparator />
+                  <InputOTPGroup>
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                  </InputOTPGroup>
+                  <InputOTPSeparator />
+                  <InputOTPGroup>
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
+                <FieldDescription>
+                  {t(
+                    'Time remaining: {{countdown}}. Incorrect attempts remaining: {{remaining}}.',
+                    {
+                      countdown,
+                      remaining: ownershipTransfer.attempts_remaining,
+                    }
+                  )}
+                </FieldDescription>
+              </Field>
+              <Button
+                type='button'
+                variant='destructive'
+                className='w-full'
+                disabled={!canConfirm}
+                onClick={() => onConfirm?.(verificationCode)}
+              >
+                {isConfirming ? <Spinner data-icon='inline-start' /> : null}
+                {t('Confirm transfer and permanently disable previous account')}
+              </Button>
+            </FieldGroup>
+          )}
+          {!isClosed && !ownershipTransfer.code_sent && (
+            <Button
+              type='button'
+              variant='destructive'
+              className='w-full'
+              disabled={isSendingCode}
+              onClick={onSendCode}
+            >
+              {isSendingCode ? (
+                <Spinner data-icon='inline-start' />
+              ) : (
+                <Send data-icon='inline-start' />
+              )}
+              {t('I understand, send the only verification code')}
+            </Button>
+          )}
+        </div>
+      </AuthLayout>
+    )
+  }
 
   const headline = isBindMode
     ? t('Binding your {{provider}} account', { provider: providerLabel })

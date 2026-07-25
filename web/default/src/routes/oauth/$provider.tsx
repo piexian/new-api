@@ -24,9 +24,15 @@ import {
 } from '@tanstack/react-router'
 import type { AxiosRequestConfig } from 'axios'
 import i18next from 'i18next'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import {
+  confirmOAuthOwnershipTransfer,
+  getOAuthOwnershipTransferStatus,
+  sendOAuthOwnershipTransferCode,
+  type OAuthOwnershipTransferView,
+} from '@/features/auth/api'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 import { api, getSelf } from '@/lib/api'
@@ -50,6 +56,12 @@ function OAuthCallback() {
     if (typeof window === 'undefined') return 'login'
     return window.opener ? 'bind' : 'login'
   })
+  const [ownershipTransfer, setOwnershipTransfer] =
+    useState<OAuthOwnershipTransferView | null>(null)
+  const [ownershipError, setOwnershipError] = useState('')
+  const [isSendingCode, setIsSendingCode] = useState(false)
+  const [isConfirming, setIsConfirming] = useState(false)
+  const hasExecuted = useRef(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -58,6 +70,8 @@ function OAuthCallback() {
   }, [])
 
   useEffect(() => {
+    if (hasExecuted.current) return
+    hasExecuted.current = true
     ;(async () => {
       const safeNavigate = (target: string) => {
         navigate({ to: target as never, replace: true })
@@ -165,6 +179,15 @@ function OAuthCallback() {
       }
 
       try {
+        const pendingTransfer = await getOAuthOwnershipTransferStatus()
+        if (pendingTransfer?.data?.active || pendingTransfer?.data?.closed) {
+          setOwnershipTransfer(pendingTransfer.data)
+          setOwnershipError(pendingTransfer.message || '')
+          if (pendingTransfer.data.mode && pendingTransfer.data.mode !== mode) {
+            setMode(pendingTransfer.data.mode)
+          }
+          return
+        }
         const config: OAuthRequestConfig = isSteam
           ? { skipBusinessError: true }
           : {
@@ -215,6 +238,16 @@ function OAuthCallback() {
           safeNavigate('/sign-in')
           return
         }
+        if (
+          res?.data?.code === 'oauth_ownership_transfer_required' &&
+          res?.data?.data
+        ) {
+          const transfer = res.data.data as OAuthOwnershipTransferView
+          setOwnershipTransfer(transfer)
+          setOwnershipError('')
+          if (transfer.mode && transfer.mode !== mode) setMode(transfer.mode)
+          return
+        }
         const message = res?.data?.message || 'OAuth failed'
         if (!res?.data?.success && !isBindingFlow) {
           // When logging in with an already bound GitHub account, backend may return this message
@@ -250,7 +283,92 @@ function OAuthCallback() {
     })()
   }, [mode, navigate, provider, search])
 
-  return <OAuthCallbackScreen provider={provider} mode={mode} />
+  const sendOwnershipCode = async () => {
+    setIsSendingCode(true)
+    setOwnershipError('')
+    try {
+      const response = await sendOAuthOwnershipTransferCode()
+      if (response.data) setOwnershipTransfer(response.data)
+      if (!response.success) setOwnershipError(response.message)
+    } catch (error) {
+      setOwnershipError(
+        error instanceof Error ? error.message : i18next.t('OAuth failed')
+      )
+    } finally {
+      setIsSendingCode(false)
+    }
+  }
+
+  const confirmOwnership = async (verificationCode: string) => {
+    setIsConfirming(true)
+    setOwnershipError('')
+    try {
+      const response = await confirmOAuthOwnershipTransfer(verificationCode)
+      if (!response?.success) {
+        if (response?.data) {
+          setOwnershipTransfer(response.data as OAuthOwnershipTransferView)
+        }
+        setOwnershipError(response?.message || i18next.t('Verification failed'))
+        return
+      }
+
+      const data = response?.data as
+        | (AuthUser & { action?: string })
+        | undefined
+      if (data?.action === 'bind') {
+        try {
+          window.localStorage.setItem(
+            OAUTH_BIND_STORAGE_KEY,
+            JSON.stringify({
+              provider,
+              status: 'success',
+              timestamp: Date.now(),
+            })
+          )
+        } catch (_error) {
+          void _error
+        }
+        toast.success(i18next.t('Ownership transfer completed'))
+        window.close()
+        setTimeout(() => {
+          if (!window.closed) {
+            window.location.replace('/_authenticated/profile/')
+          }
+        }, 200)
+        return
+      }
+
+      if (data?.id != null) {
+        useAuthStore.getState().auth.setUser(data)
+        window.localStorage.setItem('uid', String(data.id))
+      }
+      toast.success(i18next.t('Ownership transfer completed'))
+      navigate({
+        to: (search?.redirect || '/dashboard') as never,
+        replace: true,
+      })
+    } catch (error) {
+      setOwnershipError(
+        error instanceof Error ? error.message : i18next.t('OAuth failed')
+      )
+    } finally {
+      setIsConfirming(false)
+    }
+  }
+
+  return (
+    <OAuthCallbackScreen
+      provider={provider}
+      mode={mode}
+      ownershipTransfer={ownershipTransfer}
+      ownershipError={ownershipError}
+      isSendingCode={isSendingCode}
+      isConfirming={isConfirming}
+      onSendCode={sendOwnershipCode}
+      onConfirm={confirmOwnership}
+      onReturn={() => navigate({ to: '/sign-in', replace: true })}
+    />
+  )
 }
 
 export const Route = createFileRoute('/oauth/$provider')({

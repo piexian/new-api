@@ -44,6 +44,9 @@ func SetApiRouter(router *gin.Engine) {
 		// OAuth routes - specific routes must come before :provider wildcard
 		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), controller.GenerateOAuthCode)
 		apiRouter.POST("/oauth/email/bind", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.EmailBind)
+		apiRouter.GET("/oauth/ownership/status", middleware.CriticalRateLimit(), controller.GetOAuthOwnershipTransferStatus)
+		apiRouter.POST("/oauth/ownership/send", middleware.CriticalRateLimit(), controller.SendOAuthOwnershipTransferVerification)
+		apiRouter.POST("/oauth/ownership/confirm", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ConfirmOAuthOwnershipTransfer)
 		// Non-standard OAuth (WeChat, Telegram) - keep original routes
 		apiRouter.GET("/oauth/wechat", middleware.CriticalRateLimit(), controller.WeChatAuth)
 		apiRouter.POST("/oauth/wechat/bind", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.WeChatBind)
@@ -359,6 +362,9 @@ func SetApiRouter(router *gin.Engine) {
 			riskGroup.GET("/ban-logs", controller.ListRiskBanLogs)
 			riskGroup.GET("/ban-logs/stats", controller.RiskBanLogStats)
 			riskGroup.GET("/ban-logs/:id", controller.GetRiskBanLog)
+			// 多开账号证据排行与管理员人工封禁
+			riskGroup.GET("/multi-account", controller.ListMultiAccountClusters)
+			riskGroup.POST("/multi-account/users/:id/ban", controller.BanMultiAccountUser)
 		}
 
 		prefillGroupRoute := apiRouter.Group("/prefill_group")

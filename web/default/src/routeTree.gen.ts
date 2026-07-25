@@ -68,6 +68,7 @@ import { Route as AuthenticatedSystemSettingsBillingIndexRouteImport } from './r
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
 import { Route as AuthenticatedRiskStatesIndexRouteImport } from './routes/_authenticated/risk/states/index'
 import { Route as AuthenticatedRiskProbeGuardIndexRouteImport } from './routes/_authenticated/risk/probe-guard/index'
+import { Route as AuthenticatedRiskMultiAccountIndexRouteImport } from './routes/_authenticated/risk/multi-account/index'
 import { Route as AuthenticatedRiskLiveProgressIndexRouteImport } from './routes/_authenticated/risk/live-progress/index'
 import { Route as AuthenticatedRiskErrorBanIndexRouteImport } from './routes/_authenticated/risk/error-ban/index'
 import { Route as AuthenticatedRiskBanLogsIndexRouteImport } from './routes/_authenticated/risk/ban-logs/index'
@@ -399,6 +400,12 @@ const AuthenticatedRiskProbeGuardIndexRoute =
     path: '/probe-guard/',
     getParentRoute: () => AuthenticatedRiskRouteRoute,
   } as any)
+const AuthenticatedRiskMultiAccountIndexRoute =
+  AuthenticatedRiskMultiAccountIndexRouteImport.update({
+    id: '/multi-account/',
+    path: '/multi-account/',
+    getParentRoute: () => AuthenticatedRiskRouteRoute,
+  } as any)
 const AuthenticatedRiskLiveProgressIndexRoute =
   AuthenticatedRiskLiveProgressIndexRouteImport.update({
     id: '/live-progress/',
@@ -519,6 +526,7 @@ export interface FileRoutesByFullPath {
   '/risk/ban-logs/': typeof AuthenticatedRiskBanLogsIndexRoute
   '/risk/error-ban/': typeof AuthenticatedRiskErrorBanIndexRoute
   '/risk/live-progress/': typeof AuthenticatedRiskLiveProgressIndexRoute
+  '/risk/multi-account/': typeof AuthenticatedRiskMultiAccountIndexRoute
   '/risk/probe-guard/': typeof AuthenticatedRiskProbeGuardIndexRoute
   '/risk/states/': typeof AuthenticatedRiskStatesIndexRoute
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
@@ -586,6 +594,7 @@ export interface FileRoutesByTo {
   '/risk/ban-logs': typeof AuthenticatedRiskBanLogsIndexRoute
   '/risk/error-ban': typeof AuthenticatedRiskErrorBanIndexRoute
   '/risk/live-progress': typeof AuthenticatedRiskLiveProgressIndexRoute
+  '/risk/multi-account': typeof AuthenticatedRiskMultiAccountIndexRoute
   '/risk/probe-guard': typeof AuthenticatedRiskProbeGuardIndexRoute
   '/risk/states': typeof AuthenticatedRiskStatesIndexRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
@@ -658,6 +667,7 @@ export interface FileRoutesById {
   '/_authenticated/risk/ban-logs/': typeof AuthenticatedRiskBanLogsIndexRoute
   '/_authenticated/risk/error-ban/': typeof AuthenticatedRiskErrorBanIndexRoute
   '/_authenticated/risk/live-progress/': typeof AuthenticatedRiskLiveProgressIndexRoute
+  '/_authenticated/risk/multi-account/': typeof AuthenticatedRiskMultiAccountIndexRoute
   '/_authenticated/risk/probe-guard/': typeof AuthenticatedRiskProbeGuardIndexRoute
   '/_authenticated/risk/states/': typeof AuthenticatedRiskStatesIndexRoute
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
@@ -729,6 +739,7 @@ export interface FileRouteTypes {
     | '/risk/ban-logs/'
     | '/risk/error-ban/'
     | '/risk/live-progress/'
+    | '/risk/multi-account/'
     | '/risk/probe-guard/'
     | '/risk/states/'
     | '/system-settings/auth/'
@@ -796,6 +807,7 @@ export interface FileRouteTypes {
     | '/risk/ban-logs'
     | '/risk/error-ban'
     | '/risk/live-progress'
+    | '/risk/multi-account'
     | '/risk/probe-guard'
     | '/risk/states'
     | '/system-settings/auth'
@@ -867,6 +879,7 @@ export interface FileRouteTypes {
     | '/_authenticated/risk/ban-logs/'
     | '/_authenticated/risk/error-ban/'
     | '/_authenticated/risk/live-progress/'
+    | '/_authenticated/risk/multi-account/'
     | '/_authenticated/risk/probe-guard/'
     | '/_authenticated/risk/states/'
     | '/_authenticated/system-settings/auth/'
@@ -1314,6 +1327,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRiskProbeGuardIndexRouteImport
       parentRoute: typeof AuthenticatedRiskRouteRoute
     }
+    '/_authenticated/risk/multi-account/': {
+      id: '/_authenticated/risk/multi-account/'
+      path: '/multi-account'
+      fullPath: '/risk/multi-account/'
+      preLoaderRoute: typeof AuthenticatedRiskMultiAccountIndexRouteImport
+      parentRoute: typeof AuthenticatedRiskRouteRoute
+    }
     '/_authenticated/risk/live-progress/': {
       id: '/_authenticated/risk/live-progress/'
       path: '/live-progress'
@@ -1418,6 +1438,7 @@ interface AuthenticatedRiskRouteRouteChildren {
   AuthenticatedRiskBanLogsIndexRoute: typeof AuthenticatedRiskBanLogsIndexRoute
   AuthenticatedRiskErrorBanIndexRoute: typeof AuthenticatedRiskErrorBanIndexRoute
   AuthenticatedRiskLiveProgressIndexRoute: typeof AuthenticatedRiskLiveProgressIndexRoute
+  AuthenticatedRiskMultiAccountIndexRoute: typeof AuthenticatedRiskMultiAccountIndexRoute
   AuthenticatedRiskProbeGuardIndexRoute: typeof AuthenticatedRiskProbeGuardIndexRoute
   AuthenticatedRiskStatesIndexRoute: typeof AuthenticatedRiskStatesIndexRoute
 }
@@ -1429,6 +1450,8 @@ const AuthenticatedRiskRouteRouteChildren: AuthenticatedRiskRouteRouteChildren =
     AuthenticatedRiskErrorBanIndexRoute: AuthenticatedRiskErrorBanIndexRoute,
     AuthenticatedRiskLiveProgressIndexRoute:
       AuthenticatedRiskLiveProgressIndexRoute,
+    AuthenticatedRiskMultiAccountIndexRoute:
+      AuthenticatedRiskMultiAccountIndexRoute,
     AuthenticatedRiskProbeGuardIndexRoute:
       AuthenticatedRiskProbeGuardIndexRoute,
     AuthenticatedRiskStatesIndexRoute: AuthenticatedRiskStatesIndexRoute,

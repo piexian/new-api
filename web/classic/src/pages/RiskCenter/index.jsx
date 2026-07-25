@@ -21,13 +21,21 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { TabPane, Tabs, Layout } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import { Activity, Ban, Gauge, ScrollText, ShieldAlert } from 'lucide-react';
+import {
+  Activity,
+  Ban,
+  Gauge,
+  ScrollText,
+  ShieldAlert,
+  UsersRound,
+} from 'lucide-react';
 import { isRoot } from '../../helpers';
 import ProbeGuardTab from './ProbeGuardTab';
 import ErrorBanTab from './ErrorBanTab';
 import RiskStatesTab from './RiskStatesTab';
 import BanLogsTab from './BanLogsTab';
 import LiveProgressTab from './LiveProgressTab';
+import MultiAccountTab from './MultiAccountTab';
 
 const RiskCenter = () => {
   const { t } = useTranslation();
@@ -38,6 +46,16 @@ const RiskCenter = () => {
   }
 
   const panes = [
+    {
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <UsersRound size={18} />
+          {t('Multi-account Detection')}
+        </span>
+      ),
+      content: <MultiAccountTab />,
+      itemKey: 'multi-account',
+    },
     {
       tab: (
         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>

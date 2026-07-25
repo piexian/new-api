@@ -259,6 +259,56 @@ export type BanLogFilters = {
   end_at?: number
 }
 
+export type MultiAccountRiskLevel = 'high' | 'medium' | 'low'
+
+export type MultiAccountUser = {
+  id: number
+  username: string
+  email: string
+  github_id: string
+  role: number
+  status: number
+  disable_reason: string
+  disabled_until: number
+  deleted: boolean
+  created_at: number
+  last_login_at: number
+  can_ban: boolean
+}
+
+export type MultiAccountEvidence = {
+  type: 'github_email_conflict' | 'shared_ip_user_agent'
+  email: string
+  ip: string
+  user_agent: string
+  user_ids: number[]
+  hit_count: number
+  first_seen_at: number
+  last_seen_at: number
+}
+
+export type MultiAccountCluster = {
+  id: string
+  rank: number
+  risk_score: number
+  risk_level: MultiAccountRiskLevel
+  accounts: MultiAccountUser[]
+  evidence: MultiAccountEvidence[]
+  last_seen_at: number
+}
+
+export type MultiAccountStats = {
+  total_clusters: number
+  high_risk_clusters: number
+  related_accounts: number
+  email_conflicts: number
+  shared_environments: number
+}
+
+export type MultiAccountPageData = PageData<MultiAccountCluster> & {
+  stats: MultiAccountStats
+}
+
 const skipBusinessErrorConfig = {
   skipBusinessError: true,
 } as Record<string, unknown>
@@ -617,4 +667,67 @@ export async function getRiskBanLogStats(): Promise<ApiResponse<BanLogStats>> {
         },
       }
     : response
+}
+
+// ============================================================================
+// Multi-account API
+// ============================================================================
+
+function normalizeMultiAccountCluster(
+  cluster: MultiAccountCluster
+): MultiAccountCluster {
+  return {
+    ...cluster,
+    accounts: (cluster.accounts ?? []).map((account) => ({
+      ...account,
+      username: account.username ?? '',
+      email: account.email ?? '',
+      github_id: account.github_id ?? '',
+      disable_reason: account.disable_reason ?? '',
+    })),
+    evidence: (cluster.evidence ?? []).map((item) => ({
+      ...item,
+      email: item.email ?? '',
+      ip: item.ip ?? '',
+      user_agent: item.user_agent ?? '',
+      user_ids: item.user_ids ?? [],
+    })),
+  }
+}
+
+export async function getMultiAccountClusters(
+  params: { p?: number; page_size?: number; keyword?: string } = {}
+): Promise<ApiResponse<MultiAccountPageData>> {
+  const { p = 1, page_size = 10, keyword = '' } = params
+  const res = await api.get('/api/risk/multi-account', {
+    params: { p, page_size, keyword: keyword || undefined },
+  })
+  const response = res.data as ApiResponse<MultiAccountPageData>
+  if (!response.data) return response
+  return {
+    ...response,
+    data: {
+      ...response.data,
+      items: (response.data.items ?? []).map(normalizeMultiAccountCluster),
+      stats: response.data.stats ?? {
+        total_clusters: 0,
+        high_risk_clusters: 0,
+        related_accounts: 0,
+        email_conflicts: 0,
+        shared_environments: 0,
+      },
+    },
+  }
+}
+
+export async function banMultiAccountUser(
+  id: number,
+  data: { reason: string; duration_minutes: number }
+): Promise<ApiResponse<MultiAccountUser>> {
+  const res = await api.post(
+    `/api/risk/multi-account/users/${id}/ban`,
+    data,
+    skipBusinessErrorConfig
+  )
+  return res.data
 }

@@ -184,7 +184,7 @@ func HandleOAuth(c *gin.Context) {
 	// 2. Check if user is already logged in (bind flow)
 	username := session.Get("username")
 	if username != nil {
-		handleOAuthBind(c, provider)
+		handleOAuthBind(c, providerName, provider)
 		return
 	}
 
@@ -222,8 +222,11 @@ func HandleOAuth(c *gin.Context) {
 
 	// 7. Find or create user
 	user, err := findOrCreateOAuthUser(c, provider, oauthUser, session)
-	recoverableEmailConflict := isRecoverableGitHubEmailConflict(provider, user, err)
-	if err != nil && !recoverableEmailConflict {
+	if err != nil {
+		var emailConflict *OAuthEmailAlreadyTakenError
+		if errors.As(err, &emailConflict) && prepareOAuthOwnershipTransfer(c, providerName, provider, oauthUser, user, emailConflict, model.OAuthOwnershipTransferModeLogin) {
+			return
+		}
 		switch e := err.(type) {
 		case *OAuthUserDeletedError:
 			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
@@ -249,16 +252,11 @@ func HandleOAuth(c *gin.Context) {
 	}
 
 	// 9. Setup login
-	if recoverableEmailConflict {
-		common.SysLog(fmt.Sprintf("[OAuth] Allowing GitHub login for user %d without changing conflicting email ownership", user.Id))
-		setupLoginSession(user, c)
-		return
-	}
 	setupLogin(user, c)
 }
 
 // handleOAuthBind handles binding OAuth account to existing user
-func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
+func handleOAuthBind(c *gin.Context, providerKey string, provider oauth.Provider) {
 	if !provider.IsEnabled() {
 		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName()))
 		return
@@ -319,7 +317,11 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 			return
 		}
 	}
-	if err := fillGitHubEmailIfEmpty(provider, &user, oauthUser); err != nil {
+	if err := fillOAuthEmailIfEmpty(provider, &user, oauthUser); err != nil {
+		var emailConflict *OAuthEmailAlreadyTakenError
+		if errors.As(err, &emailConflict) && prepareOAuthOwnershipTransfer(c, providerKey, provider, oauthUser, &user, emailConflict, model.OAuthOwnershipTransferModeBind) {
+			return
+		}
 		handleOAuthError(c, err)
 		return
 	}
@@ -343,7 +345,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		if user.Id == 0 {
 			return nil, &OAuthUserDeletedError{}
 		}
-		if err := fillGitHubEmailIfEmpty(provider, user, oauthUser); err != nil {
+		if err := fillOAuthEmailIfEmpty(provider, user, oauthUser); err != nil {
 			var emailConflict *OAuthEmailAlreadyTakenError
 			if errors.As(err, &emailConflict) {
 				return user, err
@@ -368,7 +370,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 					common.SysError(fmt.Sprintf("[OAuth] Failed to migrate user %d: %s", user.Id, err.Error()))
 					// Continue with login even if migration fails
 				}
-				if err := fillGitHubEmailIfEmpty(provider, user, oauthUser); err != nil {
+				if err := fillOAuthEmailIfEmpty(provider, user, oauthUser); err != nil {
 					var emailConflict *OAuthEmailAlreadyTakenError
 					if errors.As(err, &emailConflict) {
 						return user, err
@@ -412,13 +414,16 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	} else {
 		user.DisplayName = provider.GetName() + " User"
 	}
+	var emailConflict *OAuthEmailAlreadyTakenError
 	if oauthUser.Email != "" {
 		user.Email = model.NormalizeEmail(oauthUser.Email)
 		if err := model.EnsureEmailAvailable(user.Email, 0); err != nil {
 			if errors.Is(err, model.ErrEmailAlreadyTaken) {
-				return nil, &OAuthEmailAlreadyTakenError{}
+				emailConflict = newOAuthEmailAlreadyTakenError(provider, user.Email)
+				user.Email = ""
+			} else {
+				return nil, err
 			}
-			return nil, err
 		}
 	}
 	user.Role = common.RoleCommonUser
@@ -499,22 +504,58 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		user.FinalizeOAuthUserCreation(inviterId)
 	}
 
+	if emailConflict != nil {
+		recordOAuthEmailConflict(provider, user, emailConflict.Email)
+		return user, emailConflict
+	}
 	return user, nil
 }
 
-func fillGitHubEmailIfEmpty(provider oauth.Provider, user *model.User, oauthUser *oauth.OAuthUser) error {
-	if _, ok := provider.(*oauth.GitHubProvider); !ok || user == nil || model.NormalizeEmail(user.Email) != "" {
+func fillOAuthEmailIfEmpty(provider oauth.Provider, user *model.User, oauthUser *oauth.OAuthUser) error {
+	if user == nil || model.NormalizeEmail(user.Email) != "" {
 		return nil
 	}
 	if err := requireGitHubOAuthEmail(provider, oauthUser); err != nil {
 		return err
 	}
+	if oauthUser == nil || model.NormalizeEmail(oauthUser.Email) == "" {
+		return nil
+	}
 	_, err := model.BindEmailToUserIfEmpty(user, oauthUser.Email)
 	if errors.Is(err, model.ErrEmailAlreadyTaken) {
-		common.SysLog(fmt.Sprintf("[OAuth] GitHub email for user %d is already bound to another account", user.Id))
-		return &OAuthEmailAlreadyTakenError{}
+		email := model.NormalizeEmail(oauthUser.Email)
+		recordOAuthEmailConflict(provider, user, email)
+		return newOAuthEmailAlreadyTakenError(provider, email)
 	}
 	return err
+}
+
+func recordOAuthEmailConflict(provider oauth.Provider, user *model.User, email string) {
+	if user == nil || user.Id <= 0 {
+		return
+	}
+	providerName := "OAuth"
+	if provider != nil && strings.TrimSpace(provider.GetName()) != "" {
+		providerName = strings.TrimSpace(provider.GetName())
+	}
+	owners, ownerErr := model.GetUsersByNormalizedEmailUnscoped(email, user.Id)
+	if ownerErr != nil {
+		common.SysLog(fmt.Sprintf("[OAuth] failed to resolve email conflict owner: provider=%q oauth_user_id=%d oauth_username=%q email=%q error=%q", providerName, user.Id, user.Username, email, ownerErr.Error()))
+		return
+	}
+	if len(owners) == 0 {
+		common.SysLog(fmt.Sprintf("[OAuth] email conflict: provider=%q oauth_user_id=%d oauth_username=%q owner_user_id=unknown email=%q", providerName, user.Id, user.Username, email))
+		return
+	}
+	_, isGitHub := provider.(*oauth.GitHubProvider)
+	for _, owner := range owners {
+		if isGitHub {
+			if evidenceErr := model.UpsertGitHubEmailConflictEvidence(user.Id, owner.Id, email, common.GetTimestamp()); evidenceErr != nil {
+				common.SysLog(fmt.Sprintf("[OAuth] failed to record GitHub email conflict evidence: oauth_user_id=%d owner_user_id=%d email=%q error=%q", user.Id, owner.Id, email, evidenceErr.Error()))
+			}
+		}
+		common.SysLog(fmt.Sprintf("[OAuth] email conflict: provider=%q oauth_user_id=%d oauth_username=%q owner_user_id=%d owner_username=%q email=%q", providerName, user.Id, user.Username, owner.Id, owner.Username, email))
+	}
 }
 
 func requireGitHubOAuthEmail(provider oauth.Provider, oauthUser *oauth.OAuthUser) error {
@@ -540,18 +581,25 @@ func (e *OAuthRegistrationDisabledError) Error() string {
 	return "registration is disabled"
 }
 
-type OAuthEmailAlreadyTakenError struct{}
+type OAuthEmailAlreadyTakenError struct {
+	Provider               string
+	Email                  string
+	OpportunityUnavailable bool
+}
 
 func (e *OAuthEmailAlreadyTakenError) Error() string {
 	return "email is already in use"
 }
 
-func isRecoverableGitHubEmailConflict(provider oauth.Provider, user *model.User, err error) bool {
-	if _, ok := provider.(*oauth.GitHubProvider); !ok || user == nil || user.Id == 0 {
-		return false
+func newOAuthEmailAlreadyTakenError(provider oauth.Provider, email string) *OAuthEmailAlreadyTakenError {
+	providerName := "OAuth"
+	if provider != nil && strings.TrimSpace(provider.GetName()) != "" {
+		providerName = strings.TrimSpace(provider.GetName())
 	}
-	var emailConflict *OAuthEmailAlreadyTakenError
-	return errors.As(err, &emailConflict)
+	return &OAuthEmailAlreadyTakenError{
+		Provider: providerName,
+		Email:    model.NormalizeEmail(email),
+	}
 }
 
 // handleOAuthError handles OAuth errors and returns translated message
@@ -571,7 +619,11 @@ func handleOAuthError(c *gin.Context, err error) {
 	case *oauth.TrustLevelError:
 		common.ApiErrorI18n(c, i18n.MsgOAuthTrustLevelLow)
 	case *OAuthEmailAlreadyTakenError:
-		common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+		if e.OpportunityUnavailable {
+			common.ApiErrorI18n(c, i18n.MsgOAuthOwnershipTransferUnavailable, providerParams(e.Provider))
+		} else {
+			common.ApiErrorI18n(c, i18n.MsgOAuthEmailAlreadyBound, providerParams(e.Provider))
+		}
 	default:
 		common.ApiError(c, err)
 	}

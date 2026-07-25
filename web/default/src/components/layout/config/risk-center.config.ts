@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
-import { Activity, Gauge, Gavel, ListChecks, ShieldAlert } from 'lucide-react'
+import {
+  Activity,
+  Gauge,
+  Gavel,
+  ListChecks,
+  ShieldAlert,
+  UsersRound,
+} from 'lucide-react'
 
 import type { NavGroup, SidebarView } from '../types'
 
@@ -52,6 +59,11 @@ function getRiskCenterNavGroups(t: TFunction): NavGroup[] {
           title: t('Risk States'),
           icon: Activity,
           url: '/risk/states',
+        },
+        {
+          title: t('Multi-account Detection'),
+          icon: UsersRound,
+          url: '/risk/multi-account',
         },
         {
           title: t('Ban Logs'),

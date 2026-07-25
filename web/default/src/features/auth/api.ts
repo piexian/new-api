@@ -139,3 +139,44 @@ export async function bindEmail(
   })
   return res.data
 }
+
+export type OAuthOwnershipTransferView = {
+  active: boolean
+  provider?: string
+  email?: string
+  code_sent: boolean
+  expires_at: number
+  failed_attempts: number
+  attempts_remaining: number
+  max_attempts: number
+  mode?: 'login' | 'bind'
+  closed: boolean
+}
+
+export type OAuthOwnershipTransferResponse = {
+  success: boolean
+  code?: string
+  message: string
+  data?: OAuthOwnershipTransferView
+}
+
+export async function getOAuthOwnershipTransferStatus(): Promise<OAuthOwnershipTransferResponse> {
+  const res = await api.get('/api/oauth/ownership/status', {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function sendOAuthOwnershipTransferCode(): Promise<OAuthOwnershipTransferResponse> {
+  const res = await api.post('/api/oauth/ownership/send', {}, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function confirmOAuthOwnershipTransfer(code: string) {
+  const res = await api.post('/api/oauth/ownership/confirm', { code }, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}

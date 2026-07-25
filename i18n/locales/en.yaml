@@ -259,6 +259,15 @@ oauth.token_failed: "Failed to get token from {{.Provider}}, please check settin
 oauth.user_info_empty: "{{.Provider}} returned empty user info, please check settings"
 oauth.trust_level_low: "Linux DO trust level does not meet the minimum required by administrator"
 oauth.github_account_too_young: "GitHub account must be at least {{.Count}} {{.Unit}} old to register"
+oauth.email_already_bound: "An account is already bound to the email from {{.Provider}}. Please sign in with that account."
+oauth.ownership_transfer_required: "The email from {{.Provider}} belongs to another account. You have one ownership-transfer opportunity; success permanently disables the previous account."
+oauth.ownership_transfer_unavailable: "The email from {{.Provider}} belongs to another account, and the one-time verification opportunity for this OAuth identity and email has already been used. It will not reopen."
+oauth.ownership_code_sent: "The only verification code has been sent."
+oauth.ownership_code_send_limited: "The code cannot be sent right now. Try again later; the opportunity has not been consumed."
+oauth.ownership_code_invalid: "Incorrect code. {{.Remaining}} attempts remain; the fifth error permanently closes this opportunity."
+oauth.ownership_transfer_closed: "The code was entered incorrectly five times. This ownership verification is permanently closed and will not reopen."
+oauth.ownership_code_expired: "The code expired. This ownership verification is permanently closed and will not reopen."
+oauth.ownership_transfer_success: "Email ownership transferred and the previous account was permanently disabled."
 
 # Model layer error messages
 redeem.failed: "Redemption failed, please try again later"

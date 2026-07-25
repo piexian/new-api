@@ -11,10 +11,14 @@ const (
 	RiskBanDimensionIP   = "ip"
 	RiskBanDimensionUser = "user"
 
-	RiskBanSourceProbeGuard   = "probe_guard"
-	RiskBanSourceErrorBan     = "error_ban"
-	RiskBanSourceIPMiddleware = "ip_middleware"
-	RiskBanSourceManual       = "manual"
+	RiskBanSourceProbeGuard    = "probe_guard"
+	RiskBanSourceErrorBan      = "error_ban"
+	RiskBanSourceIPMiddleware  = "ip_middleware"
+	RiskBanSourceManual        = "manual"
+	RiskBanSourceOAuthTransfer = "oauth_transfer"
+
+	OAuthOwnershipTransferRuleID   = "oauth_ownership_transfer"
+	OAuthOwnershipTransferRuleName = "OAuth ownership transfer"
 )
 
 // RiskBanLog 统一记录风控中心产生的所有封禁/处罚事件，供审计与解封查询。

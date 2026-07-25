@@ -30,7 +30,132 @@ func setupRiskModels(t *testing.T) {
 		&model.ErrorBanIPState{},
 		&model.ErrorBanUserState{},
 		&model.RiskBanLog{},
+		&model.MultiAccountEvidence{},
 	))
+}
+
+func cleanupMultiAccountTestData(t *testing.T, userIds ...int) {
+	t.Helper()
+	t.Cleanup(func() {
+		model.DB.Where("primary_user_id IN ? OR related_user_id IN ?", userIds, userIds).Delete(&model.MultiAccountEvidence{})
+		model.DB.Where("user_id IN ?", userIds).Delete(&model.RiskBanLog{})
+		model.LOG_DB.Where("user_id IN ?", userIds).Delete(&model.Log{})
+		model.DB.Unscoped().Where("id IN ?", userIds).Delete(&model.User{})
+	})
+}
+
+func TestMultiAccountEmailConflictEvidenceIsRanked(t *testing.T) {
+	setupRiskModels(t)
+	userIds := []int{98901, 98902}
+	cleanupMultiAccountTestData(t, userIds...)
+	now := common.GetTimestamp()
+	users := []model.User{
+		{Id: userIds[0], Username: "multi_github", GitHubId: "267706534", AffCode: "MULTIGA", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 120},
+		{Id: userIds[1], Username: "multi_email", Email: "owner@example.com", AffCode: "MULTIEA", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 60},
+	}
+	for index := range users {
+		require.NoError(t, model.DB.Create(&users[index]).Error)
+	}
+	require.NoError(t, model.UpsertGitHubEmailConflictEvidence(userIds[0], userIds[1], "Owner@Example.com", now-30))
+	require.NoError(t, model.UpsertGitHubEmailConflictEvidence(userIds[0], userIds[1], "owner@example.com", now))
+
+	page, err := ListMultiAccountClusters(1, 10, "owner@example.com")
+	require.NoError(t, err)
+	require.Equal(t, 1, page.Total)
+	require.Equal(t, 1, page.Stats.EmailConflicts)
+	require.Equal(t, "high", page.Items[0].RiskLevel)
+	require.Equal(t, "owner@example.com", page.Items[0].Evidence[0].Email)
+	require.Equal(t, 2, page.Items[0].Evidence[0].HitCount)
+	require.Len(t, page.Items[0].Accounts, 2)
+	require.Equal(t, "267706534", page.Items[0].Accounts[0].GitHubId)
+}
+
+func TestMultiAccountSharedEnvironmentDoesNotAutoBan(t *testing.T) {
+	setupRiskModels(t)
+	userIds := []int{98911, 98912}
+	cleanupMultiAccountTestData(t, userIds...)
+	now := common.GetTimestamp()
+	users := []model.User{
+		{Id: userIds[0], Username: "shared_env_a", AffCode: "MULTISA", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 183},
+		{Id: userIds[1], Username: "shared_env_b", AffCode: "MULTISB", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 100},
+	}
+	for index := range users {
+		require.NoError(t, model.DB.Create(&users[index]).Error)
+	}
+	userAgent := "Mozilla/5.0 MultiAccountTest/1.0"
+	require.NoError(t, model.LOG_DB.Create(&model.Log{
+		UserId:    userIds[0],
+		Username:  users[0].Username,
+		CreatedAt: now - 50,
+		Type:      model.LogTypeLogin,
+		Ip:        "198.51.100.220",
+		Other:     common.MapToJsonStr(map[string]interface{}{"user_agent": userAgent}),
+	}).Error)
+	require.NoError(t, model.LOG_DB.Create(&model.Log{
+		UserId:    userIds[1],
+		Username:  users[1].Username,
+		CreatedAt: now - 40,
+		Type:      model.LogTypeLogin,
+		Ip:        "198.51.100.220",
+		UserAgent: userAgent,
+	}).Error)
+
+	page, err := ListMultiAccountClusters(1, 10, "198.51.100.220")
+	require.NoError(t, err)
+	require.Equal(t, 1, page.Total)
+	require.Equal(t, "high", page.Items[0].RiskLevel)
+	require.Equal(t, "198.51.100.220", page.Items[0].Evidence[0].IP)
+	require.Equal(t, userAgent, page.Items[0].Evidence[0].UserAgent)
+	for _, userId := range userIds {
+		user, getErr := model.GetUserById(userId, false)
+		require.NoError(t, getErr)
+		require.Equal(t, common.UserStatusEnabled, user.Status, "风险查询不得自动封禁账号")
+	}
+}
+
+func TestRecordLoginLogStoresUserAgentColumn(t *testing.T) {
+	setupRiskModels(t)
+	userId := 98913
+	cleanupMultiAccountTestData(t, userId)
+	userAgent := "Mozilla/5.0 LoginAuditTest/1.0"
+	model.RecordLoginLog(
+		userId,
+		"login_audit_user",
+		"登录成功",
+		"198.51.100.221",
+		"login.success",
+		nil,
+		map[string]interface{}{"user_agent": userAgent},
+	)
+	var loginLog model.Log
+	require.NoError(t, model.LOG_DB.Where("user_id = ? AND type = ?", userId, model.LogTypeLogin).Order("created_at DESC").First(&loginLog).Error)
+	require.Equal(t, userAgent, loginLog.UserAgent)
+}
+
+func TestBanMultiAccountUserRequiresExplicitAction(t *testing.T) {
+	setupRiskModels(t)
+	userId := 98921
+	cleanupMultiAccountTestData(t, userId)
+	user := model.User{
+		Id:       userId,
+		Username: "manual_multi_ban",
+		Email:    "manual-multi@example.com",
+		AffCode:  "MULTIMA",
+		Role:     common.RoleCommonUser,
+		Status:   common.UserStatusEnabled,
+	}
+	require.NoError(t, model.DB.Create(&user).Error)
+
+	result, err := BanMultiAccountUser(userId, 1, 0, "管理员确认多开账号")
+	require.NoError(t, err)
+	require.False(t, result.CanBan)
+	require.Equal(t, common.UserStatusDisabled, result.Status)
+
+	var banLog model.RiskBanLog
+	require.NoError(t, model.DB.Where("user_id = ? AND rule_id = ?", userId, model.MultiAccountRuleID).First(&banLog).Error)
+	require.Equal(t, 1, banLog.OperatorId)
+	require.True(t, banLog.IsPermanent)
+	require.Equal(t, "管理员确认多开账号", banLog.Reason)
 }
 
 // setProbeGuardConfig 通过真实配置管线写入探测防护配置。

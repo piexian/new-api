@@ -204,6 +204,7 @@ func RecordLoginLog(userId int, username string, content string, ip string, acti
 	for key, value := range extra {
 		other[key] = value
 	}
+	userAgent, _ := extra["user_agent"].(string)
 	other["op"] = buildOpField(action, params)
 	log := &Log{
 		UserId:    userId,
@@ -212,6 +213,7 @@ func RecordLoginLog(userId int, username string, content string, ip string, acti
 		Type:      LogTypeLogin,
 		Content:   content,
 		Ip:        ip,
+		UserAgent: strings.TrimSpace(userAgent),
 		Other:     common.MapToJsonStr(other),
 	}
 	if err := createLog(log); err != nil {
