@@ -265,7 +265,7 @@ func TestClaimQuotaForRefund_OnlyOneClaimSucceeds(t *testing.T) {
 		TaskID: "task_refund_claim",
 		Status: TaskStatusFailure,
 		Quota:  1000,
-		Data:   json.RawMessage(`{}`),
+		Data:   JSONValue(`{}`),
 	}
 	insertTask(t, task)
 
@@ -286,11 +286,11 @@ func TestGetUnrefundedFailedTasks_FiltersAndLimits(t *testing.T) {
 	truncateTables(t)
 
 	tasks := []*Task{
-		{TaskID: "failed_refundable_1", Status: TaskStatusFailure, Quota: 100, SubmitTime: TaskRefundLegacyCutoff, Data: json.RawMessage(`{}`)},
-		{TaskID: "failed_refundable_2", Status: TaskStatusFailure, Quota: 200, SubmitTime: TaskRefundLegacyCutoff + 1, Data: json.RawMessage(`{}`)},
-		{TaskID: "legacy_failed", Status: TaskStatusFailure, Quota: 400, SubmitTime: TaskRefundLegacyCutoff - 1, Data: json.RawMessage(`{}`)},
-		{TaskID: "failed_without_quota", Status: TaskStatusFailure, Quota: 0, Data: json.RawMessage(`{}`)},
-		{TaskID: "successful_with_quota", Status: TaskStatusSuccess, Quota: 300, Data: json.RawMessage(`{}`)},
+		{TaskID: "failed_refundable_1", Status: TaskStatusFailure, Quota: 100, SubmitTime: TaskRefundLegacyCutoff, Data: JSONValue(`{}`)},
+		{TaskID: "failed_refundable_2", Status: TaskStatusFailure, Quota: 200, SubmitTime: TaskRefundLegacyCutoff + 1, Data: JSONValue(`{}`)},
+		{TaskID: "legacy_failed", Status: TaskStatusFailure, Quota: 400, SubmitTime: TaskRefundLegacyCutoff - 1, Data: JSONValue(`{}`)},
+		{TaskID: "failed_without_quota", Status: TaskStatusFailure, Quota: 0, Data: JSONValue(`{}`)},
+		{TaskID: "successful_with_quota", Status: TaskStatusSuccess, Quota: 300, Data: JSONValue(`{}`)},
 	}
 	for _, task := range tasks {
 		insertTask(t, task)
@@ -315,7 +315,7 @@ func TestRestoreQuotaAfterFailedRefund_OnlyRestoresClaimedMarker(t *testing.T) {
 		TaskID: "task_refund_restore",
 		Status: TaskStatusFailure,
 		Quota:  750,
-		Data:   json.RawMessage(`{}`),
+		Data:   JSONValue(`{}`),
 	}
 	insertTask(t, task)
 
@@ -346,7 +346,7 @@ func TestHasTaskPollingWork_IncludesOnlyRefundableFailedTasks(t *testing.T) {
 		Progress:   "100%",
 		Quota:      500,
 		SubmitTime: TaskRefundLegacyCutoff - 1,
-		Data:       json.RawMessage(`{}`),
+		Data:       JSONValue(`{}`),
 	}
 	insertTask(t, legacy)
 	assert.False(t, HasTaskPollingWork())
@@ -357,7 +357,7 @@ func TestHasTaskPollingWork_IncludesOnlyRefundableFailedTasks(t *testing.T) {
 		Progress:   "100%",
 		Quota:      500,
 		SubmitTime: TaskRefundLegacyCutoff,
-		Data:       json.RawMessage(`{}`),
+		Data:       JSONValue(`{}`),
 	}
 	insertTask(t, refundable)
 	assert.True(t, HasTaskPollingWork())
