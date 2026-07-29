@@ -16,6 +16,13 @@ type UserOAuthBinding struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
+type UserOAuthBindingDetail struct {
+	UserId         int    `json:"user_id"`
+	ProviderId     int    `json:"provider_id"`
+	ProviderName   string `json:"provider_name"`
+	ProviderUserId string `json:"provider_user_id"`
+}
+
 func (UserOAuthBinding) TableName() string {
 	return "user_oauth_bindings"
 }
@@ -25,6 +32,20 @@ func GetUserOAuthBindingsByUserId(userId int) ([]*UserOAuthBinding, error) {
 	var bindings []*UserOAuthBinding
 	err := DB.Where("user_id = ?", userId).Find(&bindings).Error
 	return bindings, err
+}
+
+func GetUserOAuthBindingDetailsByUserIds(userIds []int) ([]UserOAuthBindingDetail, error) {
+	details := make([]UserOAuthBindingDetail, 0)
+	if len(userIds) == 0 {
+		return details, nil
+	}
+	err := DB.Table("user_oauth_bindings AS binding").
+		Select("binding.user_id, binding.provider_id, binding.provider_user_id, provider.name AS provider_name").
+		Joins("LEFT JOIN custom_oauth_providers AS provider ON provider.id = binding.provider_id").
+		Where("binding.user_id IN ?", userIds).
+		Order("binding.user_id ASC, binding.provider_id ASC").
+		Scan(&details).Error
+	return details, err
 }
 
 // GetUserOAuthBinding returns a specific binding for a user and provider

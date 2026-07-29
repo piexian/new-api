@@ -25,18 +25,25 @@ type MultiAccountStats struct {
 }
 
 type MultiAccountUser struct {
-	Id            int    `json:"id"`
-	Username      string `json:"username"`
-	Email         string `json:"email"`
-	GitHubId      string `json:"github_id"`
-	Role          int    `json:"role"`
-	Status        int    `json:"status"`
-	DisableReason string `json:"disable_reason"`
-	DisabledUntil int64  `json:"disabled_until"`
-	Deleted       bool   `json:"deleted"`
-	CreatedAt     int64  `json:"created_at"`
-	LastLoginAt   int64  `json:"last_login_at"`
-	CanBan        bool   `json:"can_ban"`
+	Id              int                         `json:"id"`
+	Username        string                      `json:"username"`
+	Email           string                      `json:"email"`
+	GitHubId        string                      `json:"github_id"`
+	OAuthIdentities []MultiAccountOAuthIdentity `json:"oauth_identities"`
+	Role            int                         `json:"role"`
+	Status          int                         `json:"status"`
+	DisableReason   string                      `json:"disable_reason"`
+	DisabledUntil   int64                       `json:"disabled_until"`
+	Deleted         bool                        `json:"deleted"`
+	CreatedAt       int64                       `json:"created_at"`
+	LastLoginAt     int64                       `json:"last_login_at"`
+	CanBan          bool                        `json:"can_ban"`
+}
+
+type MultiAccountOAuthIdentity struct {
+	ProviderKey    string `json:"provider_key"`
+	ProviderName   string `json:"provider_name"`
+	ProviderUserId string `json:"provider_user_id"`
 }
 
 type MultiAccountEvidence struct {
@@ -201,20 +208,56 @@ func collectMultiAccountEvidence() ([]MultiAccountEvidence, error) {
 	return evidence, nil
 }
 
-func multiAccountUserFromModel(user model.User) MultiAccountUser {
+func multiAccountOAuthIdentities(user model.User, customBindings []model.UserOAuthBindingDetail) []MultiAccountOAuthIdentity {
+	identities := make([]MultiAccountOAuthIdentity, 0, 8+len(customBindings))
+	appendIdentity := func(providerKey, providerName, providerUserId string) {
+		providerUserId = strings.TrimSpace(providerUserId)
+		if providerUserId == "" {
+			return
+		}
+		identities = append(identities, MultiAccountOAuthIdentity{
+			ProviderKey:    providerKey,
+			ProviderName:   providerName,
+			ProviderUserId: providerUserId,
+		})
+	}
+	appendIdentity("github", "GitHub", user.GitHubId)
+	appendIdentity("discord", "Discord", user.DiscordId)
+	appendIdentity("oidc", "OIDC", user.OidcId)
+	appendIdentity("wechat", "WeChat", user.WeChatId)
+	appendIdentity("telegram", "Telegram", user.TelegramId)
+	appendIdentity("qq", "QQ", user.QQId)
+	appendIdentity("steam", "Steam", user.SteamId)
+	appendIdentity("linux_do", "Linux DO", user.LinuxDOId)
+	for _, binding := range customBindings {
+		providerName := strings.TrimSpace(binding.ProviderName)
+		if providerName == "" {
+			providerName = fmt.Sprintf("Custom OAuth #%d", binding.ProviderId)
+		}
+		appendIdentity(
+			fmt.Sprintf("custom:%d", binding.ProviderId),
+			providerName,
+			binding.ProviderUserId,
+		)
+	}
+	return identities
+}
+
+func multiAccountUserFromModel(user model.User, customBindings []model.UserOAuthBindingDetail) MultiAccountUser {
 	return MultiAccountUser{
-		Id:            user.Id,
-		Username:      user.Username,
-		Email:         user.Email,
-		GitHubId:      user.GitHubId,
-		Role:          user.Role,
-		Status:        user.Status,
-		DisableReason: user.DisableReason,
-		DisabledUntil: user.DisabledUntil,
-		Deleted:       user.DeletedAt.Valid,
-		CreatedAt:     user.CreatedAt,
-		LastLoginAt:   user.LastLoginAt,
-		CanBan:        !user.DeletedAt.Valid && user.Role == common.RoleCommonUser && user.Status == common.UserStatusEnabled,
+		Id:              user.Id,
+		Username:        user.Username,
+		Email:           user.Email,
+		GitHubId:        user.GitHubId,
+		OAuthIdentities: multiAccountOAuthIdentities(user, customBindings),
+		Role:            user.Role,
+		Status:          user.Status,
+		DisableReason:   user.DisableReason,
+		DisabledUntil:   user.DisabledUntil,
+		Deleted:         user.DeletedAt.Valid,
+		CreatedAt:       user.CreatedAt,
+		LastLoginAt:     user.LastLoginAt,
+		CanBan:          !user.DeletedAt.Valid && user.Role == common.RoleCommonUser && user.Status == common.UserStatusEnabled,
 	}
 }
 
@@ -297,6 +340,14 @@ func buildMultiAccountClusters(evidence []MultiAccountEvidence) ([]MultiAccountC
 	for _, user := range users {
 		usersById[user.Id] = user
 	}
+	customBindings, err := model.GetUserOAuthBindingDetailsByUserIds(allIds)
+	if err != nil {
+		return nil, MultiAccountStats{}, err
+	}
+	customBindingsByUserId := make(map[int][]model.UserOAuthBindingDetail)
+	for _, binding := range customBindings {
+		customBindingsByUserId[binding.UserId] = append(customBindingsByUserId[binding.UserId], binding)
+	}
 
 	evidenceByRoot := make(map[int][]MultiAccountEvidence)
 	for _, item := range evidence {
@@ -334,7 +385,7 @@ func buildMultiAccountClusters(evidence []MultiAccountEvidence) ([]MultiAccountC
 		sort.Ints(userIds)
 		accounts := make([]MultiAccountUser, 0, len(userIds))
 		for _, id := range userIds {
-			accounts = append(accounts, multiAccountUserFromModel(usersById[id]))
+			accounts = append(accounts, multiAccountUserFromModel(usersById[id], customBindingsByUserId[id]))
 			relatedAccounts[id] = struct{}{}
 		}
 		clusterEvidence := evidenceByRoot[root]
@@ -387,6 +438,9 @@ func multiAccountClusterMatches(cluster MultiAccountCluster, keyword string) boo
 	}
 	for _, account := range cluster.Accounts {
 		values := []string{strconv.Itoa(account.Id), account.Username, account.Email, account.GitHubId, account.DisableReason}
+		for _, identity := range account.OAuthIdentities {
+			values = append(values, identity.ProviderKey, identity.ProviderName, identity.ProviderUserId)
+		}
 		for _, value := range values {
 			if strings.Contains(strings.ToLower(value), keyword) {
 				return true
@@ -442,6 +496,11 @@ func ListMultiAccountClusters(page, pageSize int, keyword string) (*MultiAccount
 }
 
 func BanMultiAccountUser(userId, operatorId, durationMinutes int, reason string) (*MultiAccountUser, error) {
+	customBindings, err := model.GetUserOAuthBindingDetailsByUserIds([]int{userId})
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to load custom OAuth bindings for user %d: %s", userId, err.Error()))
+		customBindings = nil
+	}
 	user, err := model.DisableUserByMultiAccountReview(userId, reason, durationMinutes, operatorId, common.GetTimestamp())
 	if err != nil {
 		return nil, err
@@ -453,6 +512,6 @@ func BanMultiAccountUser(userId, operatorId, durationMinutes int, reason string)
 		common.SysLog(fmt.Sprintf("failed to invalidate multi-account token cache for user %d: %s", user.Id, err.Error()))
 	}
 	NotifyAccountDisabled(*user)
-	result := multiAccountUserFromModel(*user)
+	result := multiAccountUserFromModel(*user, customBindings)
 	return &result, nil
 }

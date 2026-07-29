@@ -32,12 +32,14 @@ import { Ban, Eye, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import CardTable from '../../components/common/ui/CardTable';
 import { API, showError, showSuccess, timestamp2string } from '../../helpers';
+import { useIsMobile } from '../../hooks/common/useIsMobile';
 
 const { Text, Title } = Typography;
 const PAGE_SIZE = 10;
 
 const MultiAccountTab = () => {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const [items, setItems] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -112,6 +114,36 @@ const MultiAccountTab = () => {
     return t('Common User');
   };
 
+  const accountDetailFields = (account) => [
+    [t('Email'), account.email || '-', 'email'],
+    [t('GitHub ID'), account.github_id || '-', 'github'],
+    ...(account.oauth_identities || [])
+      .filter((identity) => identity.provider_key !== 'github')
+      .map((identity) => [
+        `${identity.provider_name} ID`,
+        identity.provider_user_id,
+        identity.provider_key,
+      ]),
+    [t('Role'), roleLabel(account.role), 'role'],
+    [t('Status'), accountStatus(account), 'status'],
+    [
+      t('Created At'),
+      account.created_at ? timestamp2string(account.created_at) : '-',
+      'created_at',
+    ],
+    [
+      t('Last Login'),
+      account.last_login_at ? timestamp2string(account.last_login_at) : '-',
+      'last_login_at',
+    ],
+    [
+      t('Disabled Until'),
+      account.disabled_until ? timestamp2string(account.disabled_until) : '-',
+      'disabled_until',
+    ],
+    [t('Ban Reason'), account.disable_reason || '-', 'disable_reason'],
+  ];
+
   const applySearch = () => {
     const value = keywordInput.trim();
     setKeyword(value);
@@ -139,9 +171,21 @@ const MultiAccountTab = () => {
         showError(response.data.message);
         return;
       }
+      const updatedAccount = response.data.data;
       showSuccess(t('Account banned successfully'));
+      if (updatedAccount) {
+        setSelectedCluster((current) =>
+          current
+            ? {
+                ...current,
+                accounts: current.accounts.map((account) =>
+                  account.id === updatedAccount.id ? updatedAccount : account,
+                ),
+              }
+            : null,
+        );
+      }
       setBanTarget(null);
-      setSelectedCluster(null);
       fetchClusters(page, keyword);
     } catch (error) {
       showError(error);
@@ -173,10 +217,16 @@ const MultiAccountTab = () => {
       {
         title: t('Related Accounts'),
         render: (_, record) => (
-          <Space vertical align='start' spacing={4}>
+          <Space
+            vertical
+            align='end'
+            spacing={4}
+            className='min-w-0 max-w-full'
+            style={{ width: '100%' }}
+          >
             {(record.accounts || []).map((account) => (
-              <div key={account.id}>
-                <Text strong>
+              <div key={account.id} className='min-w-0 max-w-full text-right'>
+                <Text strong style={{ wordBreak: 'break-all' }}>
                   #{account.id} {account.username}
                 </Text>
                 <br />
@@ -192,7 +242,7 @@ const MultiAccountTab = () => {
         title: t('Evidence'),
         width: 240,
         render: (_, record) => (
-          <Space wrap>
+          <Space wrap className='max-w-full justify-end'>
             {(record.evidence || []).map((evidence, index) => (
               <Tag key={`${evidence.type}-${evidence.last_seen_at}-${index}`}>
                 {evidenceLabel(evidence)} x{evidence.hit_count}
@@ -224,8 +274,91 @@ const MultiAccountTab = () => {
     [t],
   );
 
+  const mobileColumns = useMemo(
+    () => [
+      {
+        key: 'mobile-summary',
+        title: null,
+        render: (_, record) => (
+          <div className='flex w-full min-w-0 flex-col gap-4'>
+            <div className='flex min-w-0 items-start justify-between gap-3'>
+              <div className='min-w-0'>
+                <Text type='tertiary' size='small'>
+                  {t('Rank')}
+                </Text>
+                <div className='mt-1 text-base font-semibold'>
+                  #{record.rank}
+                </div>
+              </div>
+              <div className='flex shrink-0 flex-col items-end gap-1'>
+                <span className='text-lg font-semibold'>
+                  {record.risk_score}
+                </span>
+                <Tag color={riskColor(record.risk_level)}>
+                  {riskLabel(record.risk_level)}
+                </Tag>
+              </div>
+            </div>
+
+            <div className='min-w-0'>
+              <Text type='tertiary' size='small'>
+                {t('Related Accounts')}
+              </Text>
+              <div className='mt-2 flex min-w-0 flex-col gap-2'>
+                {(record.accounts || []).map((account) => (
+                  <div key={account.id} className='min-w-0'>
+                    <div className='break-all font-medium'>
+                      #{account.id} {account.username}
+                    </div>
+                    <div className='break-all text-sm text-semi-color-text-2'>
+                      {account.email || '-'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className='min-w-0'>
+              <Text type='tertiary' size='small'>
+                {t('Evidence')}
+              </Text>
+              <div className='mt-2 flex min-w-0 flex-wrap gap-1.5'>
+                {(record.evidence || []).map((evidence, index) => (
+                  <Tag
+                    key={`${evidence.type}-${evidence.last_seen_at}-${index}`}
+                    className='!h-auto max-w-full !whitespace-normal'
+                  >
+                    {evidenceLabel(evidence)} x{evidence.hit_count}
+                  </Tag>
+                ))}
+              </div>
+            </div>
+
+            <div className='flex min-w-0 items-start justify-between gap-3 text-sm'>
+              <Text type='tertiary'>{t('Last Seen')}</Text>
+              <span className='min-w-0 text-right break-words'>
+                {record.last_seen_at
+                  ? timestamp2string(record.last_seen_at)
+                  : '-'}
+              </span>
+            </div>
+
+            <Button
+              block
+              icon={<Eye size={16} />}
+              onClick={() => setSelectedCluster(record)}
+            >
+              {t('Review')}
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [t],
+  );
+
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex min-w-0 flex-col gap-4'>
       <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3'>
         {[
           [t('Multi-account Clusters'), stats?.total_clusters],
@@ -234,7 +367,7 @@ const MultiAccountTab = () => {
           [t('GitHub Email Conflicts'), stats?.email_conflicts],
           [t('Shared Environments'), stats?.shared_environments],
         ].map(([label, value]) => (
-          <Card key={label} bodyStyle={{ padding: 16 }}>
+          <Card key={label} className='min-w-0' bodyStyle={{ padding: 16 }}>
             <Text type='tertiary'>{label}</Text>
             <Title heading={3} style={{ marginTop: 6 }}>
               {value ?? '-'}
@@ -243,32 +376,35 @@ const MultiAccountTab = () => {
         ))}
       </div>
 
-      <Card>
-        <Space>
+      <Card className='min-w-0' bodyStyle={{ padding: 16 }}>
+        <div className='flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center'>
           <Input
+            className='min-w-0 flex-1 sm:max-w-[360px]'
             prefix={<Search size={16} />}
             value={keywordInput}
             onChange={setKeywordInput}
             onEnterPress={applySearch}
             placeholder={t('Search account, email, IP, or browser')}
-            style={{ width: 360 }}
+            style={{ width: '100%' }}
           />
           <Button
             type='primary'
+            className='w-full sm:w-auto'
             icon={<Search size={16} />}
             onClick={applySearch}
           >
             {t('Search')}
           </Button>
-        </Space>
+        </div>
       </Card>
 
-      <Card>
+      <Card className='min-w-0 overflow-hidden'>
         <CardTable
-          columns={columns}
+          columns={isMobile ? mobileColumns : columns}
           dataSource={items}
           loading={loading}
           rowKey='id'
+          scroll={{ x: 'max-content' }}
           pagination={{
             currentPage: page,
             pageSize: PAGE_SIZE,
@@ -285,11 +421,13 @@ const MultiAccountTab = () => {
         footer={
           <Button onClick={() => setSelectedCluster(null)}>{t('Close')}</Button>
         }
-        style={{ width: 920 }}
+        width={920}
+        style={{ maxWidth: 'calc(100vw - 24px)' }}
+        bodyStyle={{ overflowX: 'hidden' }}
       >
         {selectedCluster && (
-          <div className='flex flex-col gap-5 max-h-[70vh] overflow-y-auto pr-2'>
-            <Space>
+          <div className='flex min-w-0 max-h-[70vh] flex-col gap-5 overflow-x-hidden overflow-y-auto pr-1 sm:pr-2'>
+            <div className='flex min-w-0 flex-wrap items-center gap-2'>
               <Tag color={riskColor(selectedCluster.risk_level)}>
                 {riskLabel(selectedCluster.risk_level)}
               </Tag>
@@ -297,7 +435,7 @@ const MultiAccountTab = () => {
                 {t('Risk Score')}: {selectedCluster.risk_score}
               </Text>
               <Text type='tertiary'>ID: {selectedCluster.id}</Text>
-            </Space>
+            </div>
 
             <div>
               <Title heading={5} className='mb-3'>
@@ -307,59 +445,40 @@ const MultiAccountTab = () => {
                 {selectedCluster.accounts.map((account) => (
                   <div
                     key={account.id}
-                    className='border border-solid rounded-md p-4'
+                    className='min-w-0 rounded-md border border-solid p-3 sm:p-4'
                     style={{ borderColor: 'var(--semi-color-border)' }}
                   >
-                    <div className='flex items-center justify-between mb-3'>
-                      <Text strong>
+                    <div className='mb-3 flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                      <Text strong style={{ wordBreak: 'break-all' }}>
                         #{account.id} {account.username}
                       </Text>
-                      <Space>
+                      <div className='flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center'>
                         <Tag>{accountStatus(account)}</Tag>
                         <Button
                           type='danger'
                           size='small'
+                          className='w-full sm:w-auto'
                           icon={<Ban size={16} />}
                           disabled={!account.can_ban}
                           onClick={() => openBan(account)}
                         >
                           {t('Ban Account')}
                         </Button>
-                      </Space>
+                      </div>
                     </div>
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-                      {[
-                        [t('Email'), account.email || '-'],
-                        [t('GitHub ID'), account.github_id || '-'],
-                        [t('Role'), roleLabel(account.role)],
-                        [t('Status'), accountStatus(account)],
-                        [
-                          t('Created At'),
-                          account.created_at
-                            ? timestamp2string(account.created_at)
-                            : '-',
-                        ],
-                        [
-                          t('Last Login'),
-                          account.last_login_at
-                            ? timestamp2string(account.last_login_at)
-                            : '-',
-                        ],
-                        [
-                          t('Disabled Until'),
-                          account.disabled_until
-                            ? timestamp2string(account.disabled_until)
-                            : '-',
-                        ],
-                        [t('Ban Reason'), account.disable_reason || '-'],
-                      ].map(([label, value]) => (
-                        <div key={label}>
-                          <Text type='tertiary' size='small'>
-                            {label}
-                          </Text>
-                          <div style={{ wordBreak: 'break-all' }}>{value}</div>
-                        </div>
-                      ))}
+                      {accountDetailFields(account).map(
+                        ([label, value, fieldKey]) => (
+                          <div key={fieldKey} className='min-w-0'>
+                            <Text type='tertiary' size='small'>
+                              {label}
+                            </Text>
+                            <div style={{ wordBreak: 'break-all' }}>
+                              {value}
+                            </div>
+                          </div>
+                        ),
+                      )}
                     </div>
                   </div>
                 ))}
@@ -374,18 +493,18 @@ const MultiAccountTab = () => {
                 {selectedCluster.evidence.map((evidence, index) => (
                   <div
                     key={`${evidence.type}-${evidence.last_seen_at}-${index}`}
-                    className='border border-solid rounded-md p-4'
+                    className='min-w-0 rounded-md border border-solid p-3 sm:p-4'
                     style={{ borderColor: 'var(--semi-color-border)' }}
                   >
-                    <Space className='mb-3'>
+                    <div className='mb-3 flex min-w-0 flex-wrap items-center gap-2'>
                       <Tag>{evidenceLabel(evidence)}</Tag>
                       <Text type='tertiary'>
                         {t('Hit Count')}: {evidence.hit_count}
                       </Text>
-                    </Space>
+                    </div>
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
                       {evidence.email && (
-                        <div>
+                        <div className='min-w-0'>
                           <Text type='tertiary' size='small'>
                             {t('Full Email')}
                           </Text>
@@ -395,7 +514,7 @@ const MultiAccountTab = () => {
                         </div>
                       )}
                       {evidence.ip && (
-                        <div>
+                        <div className='min-w-0'>
                           <Text type='tertiary' size='small'>
                             {t('IP Address')}
                           </Text>
@@ -405,7 +524,7 @@ const MultiAccountTab = () => {
                         </div>
                       )}
                       {evidence.user_agent && (
-                        <div className='md:col-span-2'>
+                        <div className='min-w-0 md:col-span-2'>
                           <Text type='tertiary' size='small'>
                             {t('Browser / User Agent')}
                           </Text>
@@ -419,13 +538,13 @@ const MultiAccountTab = () => {
                           </div>
                         </div>
                       )}
-                      <div>
+                      <div className='min-w-0'>
                         <Text type='tertiary' size='small'>
                           {t('Related User IDs')}
                         </Text>
                         <div>{evidence.user_ids.join(', ')}</div>
                       </div>
-                      <div>
+                      <div className='min-w-0'>
                         <Text type='tertiary' size='small'>
                           {t('Observed At')}
                         </Text>
@@ -452,10 +571,13 @@ const MultiAccountTab = () => {
         okButtonProps={{ disabled: !banReason.trim(), type: 'danger' }}
         okText={t('Confirm Ban')}
         cancelText={t('Cancel')}
+        width={520}
+        style={{ maxWidth: 'calc(100vw - 24px)' }}
+        bodyStyle={{ overflowX: 'hidden' }}
       >
         {banTarget && (
           <div className='flex flex-col gap-4'>
-            <Text>
+            <Text style={{ wordBreak: 'break-word' }}>
               {t('Ban account confirmation', {
                 id: banTarget.id,
                 username: banTarget.username,

@@ -261,11 +261,18 @@ export type BanLogFilters = {
 
 export type MultiAccountRiskLevel = 'high' | 'medium' | 'low'
 
+export type MultiAccountOAuthIdentity = {
+  provider_key: string
+  provider_name: string
+  provider_user_id: string
+}
+
 export type MultiAccountUser = {
   id: number
   username: string
   email: string
   github_id: string
+  oauth_identities: MultiAccountOAuthIdentity[]
   role: number
   status: number
   disable_reason: string
@@ -678,13 +685,7 @@ function normalizeMultiAccountCluster(
 ): MultiAccountCluster {
   return {
     ...cluster,
-    accounts: (cluster.accounts ?? []).map((account) => ({
-      ...account,
-      username: account.username ?? '',
-      email: account.email ?? '',
-      github_id: account.github_id ?? '',
-      disable_reason: account.disable_reason ?? '',
-    })),
+    accounts: (cluster.accounts ?? []).map(normalizeMultiAccountUser),
     evidence: (cluster.evidence ?? []).map((item) => ({
       ...item,
       email: item.email ?? '',
@@ -692,6 +693,19 @@ function normalizeMultiAccountCluster(
       user_agent: item.user_agent ?? '',
       user_ids: item.user_ids ?? [],
     })),
+  }
+}
+
+function normalizeMultiAccountUser(
+  account: MultiAccountUser
+): MultiAccountUser {
+  return {
+    ...account,
+    username: account.username ?? '',
+    email: account.email ?? '',
+    github_id: account.github_id ?? '',
+    oauth_identities: account.oauth_identities ?? [],
+    disable_reason: account.disable_reason ?? '',
   }
 }
 
@@ -729,5 +743,8 @@ export async function banMultiAccountUser(
     data,
     skipBusinessErrorConfig
   )
-  return res.data
+  const response = res.data as ApiResponse<MultiAccountUser>
+  return response.data
+    ? { ...response, data: normalizeMultiAccountUser(response.data) }
+    : response
 }

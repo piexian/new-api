@@ -31,12 +31,15 @@ func setupRiskModels(t *testing.T) {
 		&model.ErrorBanUserState{},
 		&model.RiskBanLog{},
 		&model.MultiAccountEvidence{},
+		&model.CustomOAuthProvider{},
+		&model.UserOAuthBinding{},
 	))
 }
 
 func cleanupMultiAccountTestData(t *testing.T, userIds ...int) {
 	t.Helper()
 	t.Cleanup(func() {
+		model.DB.Where("user_id IN ?", userIds).Delete(&model.UserOAuthBinding{})
 		model.DB.Where("primary_user_id IN ? OR related_user_id IN ?", userIds, userIds).Delete(&model.MultiAccountEvidence{})
 		model.DB.Where("user_id IN ?", userIds).Delete(&model.RiskBanLog{})
 		model.LOG_DB.Where("user_id IN ?", userIds).Delete(&model.Log{})
@@ -49,13 +52,31 @@ func TestMultiAccountEmailConflictEvidenceIsRanked(t *testing.T) {
 	userIds := []int{98901, 98902}
 	cleanupMultiAccountTestData(t, userIds...)
 	now := common.GetTimestamp()
+	providerId := 98931
+	model.DB.Where("provider_id = ?", providerId).Delete(&model.UserOAuthBinding{})
+	model.DB.Unscoped().Where("id = ?", providerId).Delete(&model.CustomOAuthProvider{})
+	t.Cleanup(func() {
+		model.DB.Where("provider_id = ?", providerId).Delete(&model.UserOAuthBinding{})
+		model.DB.Unscoped().Where("id = ?", providerId).Delete(&model.CustomOAuthProvider{})
+	})
 	users := []model.User{
-		{Id: userIds[0], Username: "multi_github", GitHubId: "267706534", AffCode: "MULTIGA", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 120},
+		{
+			Id: userIds[0], Username: "multi_github", GitHubId: "267706534", DiscordId: "discord-98901",
+			OidcId: "oidc-98901", WeChatId: "wechat-98901", TelegramId: "telegram-98901",
+			QQId: "qq-98901", SteamId: "steam-98901", LinuxDOId: "linux-do-98901",
+			AffCode: "MULTIGA", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 120,
+		},
 		{Id: userIds[1], Username: "multi_email", Email: "owner@example.com", AffCode: "MULTIEA", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 60},
 	}
 	for index := range users {
 		require.NoError(t, model.DB.Create(&users[index]).Error)
 	}
+	require.NoError(t, model.DB.Create(&model.CustomOAuthProvider{
+		Id: providerId, Name: "Enterprise SSO", Slug: "multi-account-enterprise-sso",
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.UserOAuthBinding{
+		UserId: userIds[0], ProviderId: providerId, ProviderUserId: "enterprise-subject-98901",
+	}).Error)
 	require.NoError(t, model.UpsertGitHubEmailConflictEvidence(userIds[0], userIds[1], "Owner@Example.com", now-30))
 	require.NoError(t, model.UpsertGitHubEmailConflictEvidence(userIds[0], userIds[1], "owner@example.com", now))
 
@@ -68,6 +89,20 @@ func TestMultiAccountEmailConflictEvidenceIsRanked(t *testing.T) {
 	require.Equal(t, 2, page.Items[0].Evidence[0].HitCount)
 	require.Len(t, page.Items[0].Accounts, 2)
 	require.Equal(t, "267706534", page.Items[0].Accounts[0].GitHubId)
+	require.Equal(t, []MultiAccountOAuthIdentity{
+		{ProviderKey: "github", ProviderName: "GitHub", ProviderUserId: "267706534"},
+		{ProviderKey: "discord", ProviderName: "Discord", ProviderUserId: "discord-98901"},
+		{ProviderKey: "oidc", ProviderName: "OIDC", ProviderUserId: "oidc-98901"},
+		{ProviderKey: "wechat", ProviderName: "WeChat", ProviderUserId: "wechat-98901"},
+		{ProviderKey: "telegram", ProviderName: "Telegram", ProviderUserId: "telegram-98901"},
+		{ProviderKey: "qq", ProviderName: "QQ", ProviderUserId: "qq-98901"},
+		{ProviderKey: "steam", ProviderName: "Steam", ProviderUserId: "steam-98901"},
+		{ProviderKey: "linux_do", ProviderName: "Linux DO", ProviderUserId: "linux-do-98901"},
+		{ProviderKey: "custom:98931", ProviderName: "Enterprise SSO", ProviderUserId: "enterprise-subject-98901"},
+	}, page.Items[0].Accounts[0].OAuthIdentities)
+	customPage, err := ListMultiAccountClusters(1, 10, "enterprise-subject-98901")
+	require.NoError(t, err)
+	require.Equal(t, 1, customPage.Total)
 }
 
 func TestMultiAccountSharedEnvironmentDoesNotAutoBan(t *testing.T) {
