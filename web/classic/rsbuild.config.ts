@@ -6,6 +6,9 @@ import { pluginReact } from '@rsbuild/plugin-react';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
+const classicVisactorRequire = createRequire(
+  require.resolve('@visactor/vchart'),
+);
 const semiUiDir = path.resolve(
   path.dirname(require.resolve('@douyinfe/semi-ui')),
   '../..',
@@ -19,7 +22,10 @@ const classicVisactorPackages = [
 const classicVisactorAliases = Object.fromEntries(
   classicVisactorPackages.map((packageName) => [
     packageName,
-    path.resolve(path.dirname(require.resolve(packageName)), '..'),
+    path.resolve(
+      path.dirname(classicVisactorRequire.resolve(packageName)),
+      '..',
+    ),
   ]),
 );
 

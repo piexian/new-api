@@ -65,7 +65,8 @@ import TelegramLoginButton from 'react-telegram-login/src';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useTranslation } from 'react-i18next';
-import { SiDiscord, SiSteam, SiTencentqq } from 'react-icons/si';
+import { FaQq } from 'react-icons/fa';
+import { SiDiscord, SiSteam } from 'react-icons/si';
 
 const RegisterForm = () => {
   let navigate = useNavigate();
@@ -726,7 +727,7 @@ const RegisterForm = () => {
                     className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
                     type='tertiary'
                     icon={
-                      <SiTencentqq
+                      <FaQq
                         style={{
                           color: '#12B7F5',
                           width: '20px',

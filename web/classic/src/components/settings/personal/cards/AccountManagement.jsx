@@ -39,13 +39,8 @@ import {
   IconDelete,
   IconEdit,
 } from '@douyinfe/semi-icons';
-import {
-  SiTelegram,
-  SiWechat,
-  SiLinux,
-  SiDiscord,
-  SiTencentqq,
-} from 'react-icons/si';
+import { SiTelegram, SiWechat, SiLinux, SiDiscord } from 'react-icons/si';
+import { FaQq } from 'react-icons/fa';
 import { UserPlus, ShieldCheck } from 'lucide-react';
 import TelegramLoginButton from 'react-telegram-login';
 import {
@@ -751,7 +746,7 @@ const AccountManagement = ({
                 <div className='flex items-center justify-between gap-3'>
                   <div className='flex items-center flex-1 min-w-0'>
                     <div className='w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mr-3 flex-shrink-0'>
-                      <SiTencentqq
+                      <FaQq
                         size={20}
                         className='text-slate-600 dark:text-slate-300'
                       />

@@ -40,13 +40,8 @@ import {
   IconDelete,
   IconGithubLogo,
 } from '@douyinfe/semi-icons';
-import {
-  SiDiscord,
-  SiTelegram,
-  SiWechat,
-  SiLinux,
-  SiTencentqq,
-} from 'react-icons/si';
+import { SiDiscord, SiTelegram, SiWechat, SiLinux } from 'react-icons/si';
+import { FaQq } from 'react-icons/fa';
 
 const { Text } = Typography;
 
@@ -286,9 +281,7 @@ const UserBindingManagementModal = ({
       name: 'QQ',
       enabled: Boolean(statusInfo.qq_oauth),
       value: getBuiltInBindingValue('qq_id'),
-      icon: (
-        <SiTencentqq size={20} className='text-slate-600 dark:text-slate-300' />
-      ),
+      icon: <FaQq size={20} className='text-slate-600 dark:text-slate-300' />,
     },
     {
       key: 'steam',
