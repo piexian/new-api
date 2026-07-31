@@ -4,39 +4,21 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"sync"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/go-redis/redis/v8"
 )
 
 //go:embed lua/rate_limit.lua
 var rateLimitScript string
 
+var limitScript = redis.NewScript(rateLimitScript)
+
 type RedisLimiter struct {
-	client         *redis.Client
-	limitScriptSHA string
+	client *redis.Client
 }
 
-var (
-	instance *RedisLimiter
-	once     sync.Once
-)
-
-func New(ctx context.Context, r *redis.Client) *RedisLimiter {
-	once.Do(func() {
-		// 预加载脚本
-		limitSHA, err := r.ScriptLoad(ctx, rateLimitScript).Result()
-		if err != nil {
-			common.SysLog(fmt.Sprintf("Failed to load rate limit script: %v", err))
-		}
-		instance = &RedisLimiter{
-			client:         r,
-			limitScriptSHA: limitSHA,
-		}
-	})
-
-	return instance
+func New(_ context.Context, r *redis.Client) *RedisLimiter {
+	return &RedisLimiter{client: r}
 }
 
 func (rl *RedisLimiter) Allow(ctx context.Context, key string, opts ...Option) (bool, error) {
@@ -53,9 +35,9 @@ func (rl *RedisLimiter) Allow(ctx context.Context, key string, opts ...Option) (
 	}
 
 	// 执行限流
-	result, err := rl.client.EvalSha(
+	result, err := limitScript.Run(
 		ctx,
-		rl.limitScriptSHA,
+		rl.client,
 		[]string{key},
 		config.Requested,
 		config.Rate,
