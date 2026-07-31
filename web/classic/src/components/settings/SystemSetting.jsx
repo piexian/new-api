@@ -31,6 +31,7 @@ import {
   Card,
   Radio,
   Select,
+  TextArea,
 } from '@douyinfe/semi-ui';
 const { Text } = Typography;
 import {
@@ -44,6 +45,18 @@ import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import CustomOAuthSetting from './CustomOAuthSetting';
 import EmailTemplateSetting from './EmailTemplateSetting';
+
+const parseSSRFList = (value) =>
+  value
+    .split(/[\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const formatSSRFList = (value, separator = '\n') =>
+  (Array.isArray(value) ? value : [])
+    .map((item) => String(item).trim())
+    .filter(Boolean)
+    .join(separator);
 
 const SystemSetting = () => {
   const { t } = useTranslation();
@@ -154,9 +167,9 @@ const SystemSetting = () => {
   const [emailToAdd, setEmailToAdd] = useState('');
   const [domainFilterMode, setDomainFilterMode] = useState(true);
   const [ipFilterMode, setIpFilterMode] = useState(true);
-  const [domainList, setDomainList] = useState([]);
-  const [ipList, setIpList] = useState([]);
-  const [allowedPorts, setAllowedPorts] = useState([]);
+  const [domainListInput, setDomainListInput] = useState('');
+  const [ipListInput, setIpListInput] = useState('');
+  const [allowedPortsInput, setAllowedPortsInput] = useState('');
   const [groupNames, setGroupNames] = useState([]);
 
   const getOptions = async () => {
@@ -183,25 +196,25 @@ const SystemSetting = () => {
           case 'fetch_setting.domain_list':
             try {
               const domains = item.value ? JSON.parse(item.value) : [];
-              setDomainList(Array.isArray(domains) ? domains : []);
+              setDomainListInput(formatSSRFList(domains));
             } catch (e) {
-              setDomainList([]);
+              setDomainListInput('');
             }
             break;
           case 'fetch_setting.ip_list':
             try {
               const ips = item.value ? JSON.parse(item.value) : [];
-              setIpList(Array.isArray(ips) ? ips : []);
+              setIpListInput(formatSSRFList(ips));
             } catch (e) {
-              setIpList([]);
+              setIpListInput('');
             }
             break;
           case 'fetch_setting.allowed_ports':
             try {
               const ports = item.value ? JSON.parse(item.value) : [];
-              setAllowedPorts(Array.isArray(ports) ? ports : []);
+              setAllowedPortsInput(formatSSRFList(ports, ', '));
             } catch (e) {
-              setAllowedPorts(['80', '443', '8080', '8443']);
+              setAllowedPortsInput('80, 443, 8080, 8443');
             }
             break;
           case 'PasswordLoginEnabled':
@@ -521,32 +534,26 @@ const SystemSetting = () => {
       key: 'fetch_setting.domain_filter_mode',
       value: domainFilterMode,
     });
-    if (Array.isArray(domainList)) {
-      options.push({
-        key: 'fetch_setting.domain_list',
-        value: JSON.stringify(domainList),
-      });
-    }
+    options.push({
+      key: 'fetch_setting.domain_list',
+      value: JSON.stringify(parseSSRFList(domainListInput)),
+    });
 
     // 处理IP过滤模式与列表
     options.push({
       key: 'fetch_setting.ip_filter_mode',
       value: ipFilterMode,
     });
-    if (Array.isArray(ipList)) {
-      options.push({
-        key: 'fetch_setting.ip_list',
-        value: JSON.stringify(ipList),
-      });
-    }
+    options.push({
+      key: 'fetch_setting.ip_list',
+      value: JSON.stringify(parseSSRFList(ipListInput)),
+    });
 
     // 处理端口配置
-    if (Array.isArray(allowedPorts)) {
-      options.push({
-        key: 'fetch_setting.allowed_ports',
-        value: JSON.stringify(allowedPorts),
-      });
-    }
+    options.push({
+      key: 'fetch_setting.allowed_ports',
+      value: JSON.stringify(parseSSRFList(allowedPortsInput)),
+    });
 
     if (options.length > 0) {
       await updateOptions(options);
@@ -1110,18 +1117,12 @@ const SystemSetting = () => {
                         <Radio value='whitelist'>{t('白名单')}</Radio>
                         <Radio value='blacklist'>{t('黑名单')}</Radio>
                       </Radio.Group>
-                      <TagInput
-                        value={domainList}
-                        onChange={(value) => {
-                          setDomainList(value);
-                          // 触发Form的onChange事件
-                          setInputs((prev) => ({
-                            ...prev,
-                            'fetch_setting.domain_list': value,
-                          }));
-                        }}
+                      <TextArea
+                        value={domainListInput}
+                        onChange={setDomainListInput}
                         placeholder={t('输入域名后回车，如：example.com')}
                         style={{ width: '100%' }}
+                        rows={3}
                       />
                     </Col>
                   </Row>
@@ -1158,18 +1159,12 @@ const SystemSetting = () => {
                         <Radio value='whitelist'>{t('白名单')}</Radio>
                         <Radio value='blacklist'>{t('黑名单')}</Radio>
                       </Radio.Group>
-                      <TagInput
-                        value={ipList}
-                        onChange={(value) => {
-                          setIpList(value);
-                          // 触发Form的onChange事件
-                          setInputs((prev) => ({
-                            ...prev,
-                            'fetch_setting.ip_list': value,
-                          }));
-                        }}
+                      <TextArea
+                        value={ipListInput}
+                        onChange={setIpListInput}
                         placeholder={t('输入IP地址后回车，如：8.8.8.8')}
                         style={{ width: '100%' }}
+                        rows={3}
                       />
                     </Col>
                   </Row>
@@ -1186,18 +1181,12 @@ const SystemSetting = () => {
                       >
                         {t('支持单个端口和端口范围，如：80, 443, 8000-8999')}
                       </Text>
-                      <TagInput
-                        value={allowedPorts}
-                        onChange={(value) => {
-                          setAllowedPorts(value);
-                          // 触发Form的onChange事件
-                          setInputs((prev) => ({
-                            ...prev,
-                            'fetch_setting.allowed_ports': value,
-                          }));
-                        }}
+                      <TextArea
+                        value={allowedPortsInput}
+                        onChange={setAllowedPortsInput}
                         placeholder={t('输入端口后回车，如：80 或 8000-8999')}
                         style={{ width: '100%' }}
+                        rows={2}
                       />
                       <Text
                         type='secondary'
