@@ -5973,7 +5973,16 @@
     "Time remaining: {{countdown}}. Incorrect attempts remaining: {{remaining}}.": "Осталось времени: {{countdown}}. Допустимых ошибок: {{remaining}}.",
     "Confirm transfer and permanently disable previous account": "Перенести и навсегда отключить прежнюю учетную запись",
     "I understand, send the only verification code": "Я понимаю, отправить единственный код",
-    "Ownership transfer completed": "Перенос владения завершен"
+    "Ownership transfer completed": "Перенос владения завершен",
+    "Protect server-initiated outbound requests from unsafe destinations. This does not restrict inbound API clients.": "Защищает исходящие запросы сервера от небезопасных назначений. Эта настройка не ограничивает входящих API-клиентов.",
+    "Outbound Destination Domain Filter Mode": "Режим фильтрации доменов исходящего назначения",
+    "Outbound Destination Domain": "Домен исходящего назначения",
+    "One outbound destination domain per line": "Один домен исходящего назначения на строку",
+    "Outbound Destination IP Filter Mode": "Режим фильтрации IP исходящего назначения",
+    "Outbound Destination IP": "IP исходящего назначения",
+    "One outbound destination IP or CIDR range per line": "Один IP или диапазон CIDR исходящего назначения на строку",
+    "Allowed Outbound Destination Ports": "Разрешённые порты исходящего назначения",
+    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "Разрешённые порты исходящего назначения через запятую (пусто = все порты)"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

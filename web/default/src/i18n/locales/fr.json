@@ -5973,7 +5973,16 @@
     "Time remaining: {{countdown}}. Incorrect attempts remaining: {{remaining}}.": "Temps restant : {{countdown}}. Erreurs encore autorisees : {{remaining}}.",
     "Confirm transfer and permanently disable previous account": "Confirmer le transfert et desactiver definitivement l'ancien compte",
     "I understand, send the only verification code": "J'ai compris, envoyer l'unique code",
-    "Ownership transfer completed": "Transfert de propriete termine"
+    "Ownership transfer completed": "Transfert de propriete termine",
+    "Protect server-initiated outbound requests from unsafe destinations. This does not restrict inbound API clients.": "Protège les requêtes sortantes initiées par le serveur contre les destinations non sûres. Ce réglage ne limite pas les clients API entrants.",
+    "Outbound Destination Domain Filter Mode": "Mode de filtrage des domaines de destination sortants",
+    "Outbound Destination Domain": "Domaine de destination sortant",
+    "One outbound destination domain per line": "Un domaine de destination sortant par ligne",
+    "Outbound Destination IP Filter Mode": "Mode de filtrage des IP de destination sortantes",
+    "Outbound Destination IP": "IP de destination sortante",
+    "One outbound destination IP or CIDR range per line": "Une IP de destination sortante ou une plage CIDR par ligne",
+    "Allowed Outbound Destination Ports": "Ports de destination sortants autorisés",
+    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "Liste des ports de destination sortants autorisés, séparés par des virgules (vide = tous les ports)"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

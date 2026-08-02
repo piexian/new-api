@@ -5973,7 +5973,16 @@
     "Time remaining: {{countdown}}. Incorrect attempts remaining: {{remaining}}.": "Thoi gian con lai: {{countdown}}. So lan duoc phep nhap sai: {{remaining}}.",
     "Confirm transfer and permanently disable previous account": "Xac nhan chuyen va vo hieu hoa vinh vien tai khoan cu",
     "I understand, send the only verification code": "Toi da hieu, gui ma xac minh duy nhat",
-    "Ownership transfer completed": "Da hoan tat chuyen quyen so huu"
+    "Ownership transfer completed": "Da hoan tat chuyen quyen so huu",
+    "Protect server-initiated outbound requests from unsafe destinations. This does not restrict inbound API clients.": "Bảo vệ các yêu cầu đi do máy chủ khởi tạo khỏi đích không an toàn. Thiết lập này không giới hạn máy khách API gửi đến.",
+    "Outbound Destination Domain Filter Mode": "Chế độ lọc tên miền đích đi",
+    "Outbound Destination Domain": "Tên miền đích đi",
+    "One outbound destination domain per line": "Mỗi dòng một tên miền đích đi",
+    "Outbound Destination IP Filter Mode": "Chế độ lọc IP đích đi",
+    "Outbound Destination IP": "IP đích đi",
+    "One outbound destination IP or CIDR range per line": "Mỗi dòng một IP đích đi hoặc dải CIDR",
+    "Allowed Outbound Destination Ports": "Cổng đích đi được phép",
+    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "Danh sách cổng đích đi được phép, phân tách bằng dấu phẩy (để trống = tất cả cổng)"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

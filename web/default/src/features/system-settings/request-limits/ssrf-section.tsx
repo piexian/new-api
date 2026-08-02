@@ -221,7 +221,9 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                 <SettingsSwitchContent>
                   <FormLabel>{t('Enable SSRF Protection')}</FormLabel>
                   <FormDescription>
-                    {t('Prevent server-side request forgery attacks')}
+                    {t(
+                      'Protect server-initiated outbound requests from unsafe destinations. This does not restrict inbound API clients.'
+                    )}
                   </FormDescription>
                 </SettingsSwitchContent>
                 <FormControl>
@@ -262,7 +264,9 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             name='fetch_setting.domain_filter_mode'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Domain Filter Mode')}</FormLabel>
+                <FormLabel>
+                  {t('Outbound Destination Domain Filter Mode')}
+                </FormLabel>
                 <Select
                   items={[
                     {
@@ -294,7 +298,9 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                   </SelectContent>
                 </Select>
                 <FormDescription>
-                  {t('Choose how to filter domains')}
+                  {t(
+                    'Protect server-initiated outbound requests from unsafe destinations. This does not restrict inbound API clients.'
+                  )}
                 </FormDescription>
               </FormItem>
             )}
@@ -306,7 +312,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  {t('Domain')}{' '}
+                  {t('Outbound Destination Domain')}{' '}
                   {domainFilterMode ? t('Whitelist') : t('Blacklist')}
                 </FormLabel>
                 <FormControl>
@@ -316,7 +322,9 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                     {...field}
                   />
                 </FormControl>
-                <FormDescription>{t('One domain per line')}</FormDescription>
+                <FormDescription>
+                  {t('One outbound destination domain per line')}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -327,7 +335,9 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             name='fetch_setting.ip_filter_mode'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('IP Filter Mode')}</FormLabel>
+                <FormLabel>
+                  {t('Outbound Destination IP Filter Mode')}
+                </FormLabel>
                 <Select
                   items={[
                     {
@@ -359,7 +369,9 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                   </SelectContent>
                 </Select>
                 <FormDescription>
-                  {t('Choose how to filter IP addresses')}
+                  {t(
+                    'Protect server-initiated outbound requests from unsafe destinations. This does not restrict inbound API clients.'
+                  )}
                 </FormDescription>
               </FormItem>
             )}
@@ -371,7 +383,8 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  {t('IP')} {ipFilterMode ? t('Whitelist') : t('Blacklist')}
+                  {t('Outbound Destination IP')}{' '}
+                  {ipFilterMode ? t('Whitelist') : t('Blacklist')}
                 </FormLabel>
                 <FormControl>
                   <Textarea
@@ -381,7 +394,7 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
                   />
                 </FormControl>
                 <FormDescription>
-                  {t('One IP or CIDR range per line')}
+                  {t('One outbound destination IP or CIDR range per line')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -393,13 +406,13 @@ export function SSRFSection({ defaultValues }: SSRFSectionProps) {
             name='fetch_setting.allowed_ports'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Allowed Ports')}</FormLabel>
+                <FormLabel>{t('Allowed Outbound Destination Ports')}</FormLabel>
                 <FormControl>
                   <Input placeholder={t('80,443,8080')} {...field} />
                 </FormControl>
                 <FormDescription>
                   {t(
-                    'Comma-separated list of allowed ports (empty = all ports)'
+                    'Comma-separated list of allowed outbound destination ports (empty = all ports)'
                   )}
                 </FormDescription>
                 <FormMessage />

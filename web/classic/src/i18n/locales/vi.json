@@ -5030,6 +5030,12 @@
     "剩余时间：{{countdown}}；还可错误 {{remaining}} 次。": "Thoi gian con lai: {{countdown}}; so lan duoc phep nhap sai: {{remaining}}.",
     "确认迁移并永久封禁旧账号": "Xac nhan chuyen va vo hieu hoa vinh vien tai khoan cu",
     "我已了解，发送唯一验证码": "Toi da hieu, gui ma xac minh duy nhat",
-    "邮箱归属迁移完成": "Da hoan tat chuyen quyen so huu"
+    "邮箱归属迁移完成": "Da hoan tat chuyen quyen so huu",
+    "配置服务器出站请求目标的SSRF防护，不限制访问New API的客户端来源": "Cấu hình bảo vệ SSRF cho các đích đi của máy chủ. Thiết lập này không giới hạn máy khách truy cập New API.",
+    "出站目标域名白名单": "Danh sách cho phép tên miền đích đi",
+    "出站目标域名黑名单": "Danh sách chặn tên miền đích đi",
+    "出站目标IP白名单": "Danh sách cho phép IP đích đi",
+    "出站目标IP黑名单": "Danh sách chặn IP đích đi",
+    "允许的出站目标端口": "Cổng đích đi được phép"
   }
 }

@@ -4609,6 +4609,12 @@
     "剩余时间：{{countdown}}；还可错误 {{remaining}} 次。": "Time remaining: {{countdown}}; incorrect attempts remaining: {{remaining}}.",
     "确认迁移并永久封禁旧账号": "Confirm transfer and permanently disable previous account",
     "我已了解，发送唯一验证码": "I understand, send the only verification code",
-    "邮箱归属迁移完成": "Ownership transfer completed"
+    "邮箱归属迁移完成": "Ownership transfer completed",
+    "配置服务器出站请求目标的SSRF防护，不限制访问New API的客户端来源": "Configure SSRF protection for server outbound destinations. This does not restrict clients accessing New API.",
+    "出站目标域名白名单": "Outbound destination domain whitelist",
+    "出站目标域名黑名单": "Outbound destination domain blacklist",
+    "出站目标IP白名单": "Outbound destination IP whitelist",
+    "出站目标IP黑名单": "Outbound destination IP blacklist",
+    "允许的出站目标端口": "Allowed outbound destination ports"
   }
 }

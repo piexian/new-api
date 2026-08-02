@@ -4508,6 +4508,12 @@
     "剩余时间：{{countdown}}；还可错误 {{remaining}} 次。": "Temps restant : {{countdown}} ; erreurs encore autorisees : {{remaining}}.",
     "确认迁移并永久封禁旧账号": "Confirmer le transfert et desactiver definitivement l'ancien compte",
     "我已了解，发送唯一验证码": "J'ai compris, envoyer l'unique code",
-    "邮箱归属迁移完成": "Transfert de propriete termine"
+    "邮箱归属迁移完成": "Transfert de propriete termine",
+    "配置服务器出站请求目标的SSRF防护，不限制访问New API的客户端来源": "Configurez la protection SSRF des destinations sortantes du serveur. Cela ne limite pas les clients accédant à New API.",
+    "出站目标域名白名单": "Liste blanche des domaines de destination sortants",
+    "出站目标域名黑名单": "Liste noire des domaines de destination sortants",
+    "出站目标IP白名单": "Liste blanche des IP de destination sortantes",
+    "出站目标IP黑名单": "Liste noire des IP de destination sortantes",
+    "允许的出站目标端口": "Ports de destination sortants autorisés"
   }
 }

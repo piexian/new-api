@@ -5973,7 +5973,16 @@
     "Time remaining: {{countdown}}. Incorrect attempts remaining: {{remaining}}.": "残り時間: {{countdown}}。入力ミス可能回数: {{remaining}}。",
     "Confirm transfer and permanently disable previous account": "移行して旧アカウントを永久停止する",
     "I understand, send the only verification code": "内容を確認し、唯一の確認コードを送信",
-    "Ownership transfer completed": "所有権の移行が完了しました"
+    "Ownership transfer completed": "所有権の移行が完了しました",
+    "Protect server-initiated outbound requests from unsafe destinations. This does not restrict inbound API clients.": "サーバーが開始する外向きリクエストを危険な宛先から保護します。この設定は受信 API クライアントを制限しません。",
+    "Outbound Destination Domain Filter Mode": "外向き宛先ドメインのフィルターモード",
+    "Outbound Destination Domain": "外向き宛先ドメイン",
+    "One outbound destination domain per line": "外向き宛先ドメインを1行に1つ入力",
+    "Outbound Destination IP Filter Mode": "外向き宛先 IP のフィルターモード",
+    "Outbound Destination IP": "外向き宛先 IP",
+    "One outbound destination IP or CIDR range per line": "外向き宛先 IP または CIDR 範囲を1行に1つ入力",
+    "Allowed Outbound Destination Ports": "許可する外向き宛先ポート",
+    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "許可する外向き宛先ポートをカンマ区切りで入力（空欄 = すべてのポート）"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

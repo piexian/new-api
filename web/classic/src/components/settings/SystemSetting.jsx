@@ -1024,7 +1024,9 @@ const SystemSetting = () => {
               <Card>
                 <Form.Section text={t('SSRF防护设置')}>
                   <Text extraText={t('SSRF防护详细说明')}>
-                    {t('配置服务器端请求伪造(SSRF)防护，用于保护内网资源安全')}
+                    {t(
+                      '配置服务器出站请求目标的SSRF防护，不限制访问New API的客户端来源',
+                    )}
                   </Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
@@ -1089,7 +1091,11 @@ const SystemSetting = () => {
                         {t('对域名启用 IP 过滤（推荐开启）')}
                       </Form.Checkbox>
                       <Text strong>
-                        {t(domainFilterMode ? '域名白名单' : '域名黑名单')}
+                        {t(
+                          domainFilterMode
+                            ? '出站目标域名白名单'
+                            : '出站目标域名黑名单',
+                        )}
                       </Text>
                       <Text
                         type='secondary'
@@ -1133,7 +1139,11 @@ const SystemSetting = () => {
                   >
                     <Col xs={24} sm={24} md={24} lg={24} xl={24}>
                       <Text strong>
-                        {t(ipFilterMode ? 'IP白名单' : 'IP黑名单')}
+                        {t(
+                          ipFilterMode
+                            ? '出站目标IP白名单'
+                            : '出站目标IP黑名单',
+                        )}
                       </Text>
                       <Text
                         type='secondary'
@@ -1174,7 +1184,7 @@ const SystemSetting = () => {
                     style={{ marginTop: 16 }}
                   >
                     <Col xs={24} sm={24} md={24} lg={24} xl={24}>
-                      <Text strong>{t('允许的端口')}</Text>
+                      <Text strong>{t('允许的出站目标端口')}</Text>
                       <Text
                         type='secondary'
                         style={{ display: 'block', marginBottom: 8 }}

@@ -5973,7 +5973,16 @@
     "Time remaining: {{countdown}}. Incorrect attempts remaining: {{remaining}}.": "Time remaining: {{countdown}}. Incorrect attempts remaining: {{remaining}}.",
     "Confirm transfer and permanently disable previous account": "Confirm transfer and permanently disable previous account",
     "I understand, send the only verification code": "I understand, send the only verification code",
-    "Ownership transfer completed": "Ownership transfer completed"
+    "Ownership transfer completed": "Ownership transfer completed",
+    "Protect server-initiated outbound requests from unsafe destinations. This does not restrict inbound API clients.": "Protect server-initiated outbound requests from unsafe destinations. This does not restrict inbound API clients.",
+    "Outbound Destination Domain Filter Mode": "Outbound Destination Domain Filter Mode",
+    "Outbound Destination Domain": "Outbound Destination Domain",
+    "One outbound destination domain per line": "One outbound destination domain per line",
+    "Outbound Destination IP Filter Mode": "Outbound Destination IP Filter Mode",
+    "Outbound Destination IP": "Outbound Destination IP",
+    "One outbound destination IP or CIDR range per line": "One outbound destination IP or CIDR range per line",
+    "Allowed Outbound Destination Ports": "Allowed Outbound Destination Ports",
+    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "Comma-separated list of allowed outbound destination ports (empty = all ports)"
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

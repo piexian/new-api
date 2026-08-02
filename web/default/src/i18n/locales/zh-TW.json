@@ -5973,7 +5973,16 @@
     "Time remaining: {{countdown}}. Incorrect attempts remaining: {{remaining}}.": "剩餘時間：{{countdown}}。尚可錯誤 {{remaining}} 次。",
     "Confirm transfer and permanently disable previous account": "確認移轉並永久封禁舊帳號",
     "I understand, send the only verification code": "我已了解，寄送唯一驗證碼",
-    "Ownership transfer completed": "信箱歸屬移轉完成"
+    "Ownership transfer completed": "信箱歸屬移轉完成",
+    "Protect server-initiated outbound requests from unsafe destinations. This does not restrict inbound API clients.": "防止伺服器發起的出站請求存取不安全目標；此設定不會限制入站 API 用戶端來源。",
+    "Outbound Destination Domain Filter Mode": "出站目標網域篩選模式",
+    "Outbound Destination Domain": "出站目標網域",
+    "One outbound destination domain per line": "每行一個出站目標網域",
+    "Outbound Destination IP Filter Mode": "出站目標 IP 篩選模式",
+    "Outbound Destination IP": "出站目標 IP",
+    "One outbound destination IP or CIDR range per line": "每行一個出站目標 IP 或 CIDR 網段",
+    "Allowed Outbound Destination Ports": "允許的出站目標連接埠",
+    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "允許存取的出站目標連接埠，以逗號分隔（留空表示允許所有連接埠）"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",
