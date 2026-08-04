@@ -15,7 +15,6 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -28,7 +27,9 @@ func shouldUseDeepSeekClaudeCompatibleAPI(info *relaycommon.RelayInfo) bool {
 	if info == nil {
 		return false
 	}
-	return info.RelayFormat == types.RelayFormatClaude
+	return info.RelayFormat == types.RelayFormatClaude &&
+		info.RelayMode != relayconstant.RelayModeResponses &&
+		info.RelayMode != relayconstant.RelayModeResponsesCompact
 }
 
 func deepSeekRootBaseURL(info *relaycommon.RelayInfo) string {
@@ -99,6 +100,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	switch info.RelayMode {
 	case relayconstant.RelayModeCompletions:
 		return fmt.Sprintf("%s/beta/completions", baseURL), nil
+	case relayconstant.RelayModeResponses:
+		return fmt.Sprintf("%s/responses", baseURL), nil
 	default:
 		return fmt.Sprintf("%s/v1/chat/completions", baseURL), nil
 	}
@@ -198,6 +201,31 @@ func applyDeepSeekV4ClaudeThinkingSuffix(info *relaycommon.RelayInfo, request *d
 	return nil
 }
 
+func applyDeepSeekV4ResponsesThinkingSuffix(info *relaycommon.RelayInfo, request *dto.OpenAIResponsesRequest) {
+	modelName := request.Model
+	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
+		modelName = info.UpstreamModelName
+	}
+	baseModel, thinkingType, effort, ok := reasoning.ParseDeepSeekV4ThinkingSuffix(modelName)
+	if !ok {
+		return
+	}
+	if thinkingType == "disabled" {
+		effort = "none"
+	}
+	request.Model = baseModel
+	if request.Reasoning == nil {
+		request.Reasoning = &dto.Reasoning{}
+	}
+	request.Reasoning.Effort = effort
+	if info != nil {
+		if info.ChannelMeta != nil {
+			info.UpstreamModelName = baseModel
+		}
+		info.ReasoningEffort = effort
+	}
+}
+
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
 	return nil, nil
 }
@@ -208,17 +236,11 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
-	if err != nil {
-		return nil, err
-	}
-	if err := applyDeepSeekV4OpenAIThinkingSuffix(info, chatRequest); err != nil {
-		return nil, err
-	}
+	applyDeepSeekV4ResponsesThinkingSuffix(info, &request)
 	if info != nil {
-		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
 	}
-	return chatRequest, nil
+	return request, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -226,12 +248,6 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info != nil && info.RelayMode == relayconstant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
-		if info.IsStream {
-			return openai.ChatCompletionResponsesStreamHandler(c, info, resp)
-		}
-		return openai.ChatCompletionResponsesHandler(c, info, resp)
-	}
 	switch {
 	case shouldUseDeepSeekClaudeCompatibleAPI(info):
 		adaptor := claude.Adaptor{}

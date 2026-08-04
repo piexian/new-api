@@ -84,6 +84,30 @@ func TestGetRequestURLUsesBetaCompletionsEndpoint(t *testing.T) {
 	}
 }
 
+func TestGetRequestURLUsesNativeResponsesEndpoint(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatOpenAIResponses,
+		RelayMode:   relayconstant.RelayModeResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://api.deepseek.com/v1",
+			ChannelType:    constant.ChannelTypeDeepSeek,
+		},
+	}
+
+	got, err := adaptor.GetRequestURL(info)
+	if err != nil {
+		t.Fatalf("GetRequestURL returned error: %v", err)
+	}
+
+	want := "https://api.deepseek.com/responses"
+	if got != want {
+		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
+	}
+}
+
 func TestSetupRequestHeaderUsesClaudeCompatibleHeaders(t *testing.T) {
 	t.Parallel()
 

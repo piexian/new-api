@@ -1,9 +1,13 @@
 package deepseek
 
 import (
+	"io"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
+	globalconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -12,7 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestConvertOpenAIResponsesRequestUsesDirectChatCompat(t *testing.T) {
+func TestConvertOpenAIResponsesRequestUsesNativeResponsesPassthrough(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
@@ -21,30 +25,45 @@ func TestConvertOpenAIResponsesRequestUsesDirectChatCompat(t *testing.T) {
 		RelayMode:   relayconstant.RelayModeResponses,
 		RelayFormat: types.RelayFormatOpenAIResponses,
 		ChannelMeta: &relaycommon.ChannelMeta{
-			UpstreamModelName: "deepseek-chat",
+			UpstreamModelName: "deepseek-v4-flash",
 		},
 	}
+	stream := true
+	maxOutputTokens := uint(1024)
+	request := dto.OpenAIResponsesRequest{
+		Model:           "deepseek-v4-flash",
+		Input:           []byte(`[{"role":"user","content":"hello"}]`),
+		Instructions:    []byte(`"answer briefly"`),
+		MaxOutputTokens: &maxOutputTokens,
+		Reasoning:       &dto.Reasoning{Effort: "high"},
+		Stream:          &stream,
+		Text:            []byte(`{"format":{"type":"text"}}`),
+		Tools:           []byte(`[{"type":"function","name":"lookup","parameters":{"type":"object"}}]`),
+	}
 
-	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
-		Model: "deepseek-chat",
-		Input: []byte(`"hello"`),
-	})
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, request)
 	if err != nil {
 		t.Fatalf("ConvertOpenAIResponsesRequest returned error: %v", err)
 	}
 
-	chatReq, ok := converted.(*dto.GeneralOpenAIRequest)
+	responsesReq, ok := converted.(dto.OpenAIResponsesRequest)
 	if !ok {
-		t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want *dto.GeneralOpenAIRequest", converted)
+		t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want dto.OpenAIResponsesRequest", converted)
 	}
-	if info.FinalRequestRelayFormat != types.RelayFormatOpenAI {
-		t.Fatalf("FinalRequestRelayFormat = %q, want %q", info.FinalRequestRelayFormat, types.RelayFormatOpenAI)
+	if info.FinalRequestRelayFormat != types.RelayFormatOpenAIResponses {
+		t.Fatalf("FinalRequestRelayFormat = %q, want %q", info.FinalRequestRelayFormat, types.RelayFormatOpenAIResponses)
 	}
-	if chatReq.Model != "deepseek-chat" {
-		t.Fatalf("model = %q, want deepseek-chat", chatReq.Model)
+	if responsesReq.Model != request.Model || string(responsesReq.Input) != string(request.Input) {
+		t.Fatalf("model/input = %q/%s, want %q/%s", responsesReq.Model, responsesReq.Input, request.Model, request.Input)
 	}
-	if len(chatReq.Messages) != 1 || chatReq.Messages[0].Role != "user" || chatReq.Messages[0].Content != "hello" {
-		t.Fatalf("messages = %#v, want one user hello message", chatReq.Messages)
+	if string(responsesReq.Instructions) != string(request.Instructions) || string(responsesReq.Tools) != string(request.Tools) || string(responsesReq.Text) != string(request.Text) {
+		t.Fatalf("Responses fields were not preserved: %#v", responsesReq)
+	}
+	if responsesReq.MaxOutputTokens == nil || *responsesReq.MaxOutputTokens != maxOutputTokens || responsesReq.Stream == nil || !*responsesReq.Stream {
+		t.Fatalf("max_output_tokens/stream = %#v/%#v, want %d/true", responsesReq.MaxOutputTokens, responsesReq.Stream, maxOutputTokens)
+	}
+	if responsesReq.Reasoning == nil || responsesReq.Reasoning.Effort != "high" {
+		t.Fatalf("reasoning = %#v, want effort high", responsesReq.Reasoning)
 	}
 }
 
@@ -69,18 +88,15 @@ func TestConvertOpenAIResponsesRequestAppliesDeepSeekV4ThinkingSuffix(t *testing
 		t.Fatalf("ConvertOpenAIResponsesRequest returned error: %v", err)
 	}
 
-	chatReq, ok := converted.(*dto.GeneralOpenAIRequest)
+	responsesReq, ok := converted.(dto.OpenAIResponsesRequest)
 	if !ok {
-		t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want *dto.GeneralOpenAIRequest", converted)
+		t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want dto.OpenAIResponsesRequest", converted)
 	}
-	if chatReq.Model != "deepseek-v4-chat" {
-		t.Fatalf("model = %q, want deepseek-v4-chat", chatReq.Model)
+	if responsesReq.Model != "deepseek-v4-chat" {
+		t.Fatalf("model = %q, want deepseek-v4-chat", responsesReq.Model)
 	}
-	if string(chatReq.THINKING) != `{"type":"enabled"}` {
-		t.Fatalf("THINKING = %s, want enabled thinking", string(chatReq.THINKING))
-	}
-	if chatReq.ReasoningEffort != "max" || info.ReasoningEffort != "max" {
-		t.Fatalf("reasoning effort request/info = %q/%q, want max/max", chatReq.ReasoningEffort, info.ReasoningEffort)
+	if responsesReq.Reasoning == nil || responsesReq.Reasoning.Effort != "max" || info.ReasoningEffort != "max" {
+		t.Fatalf("reasoning effort request/info = %#v/%q, want max/max", responsesReq.Reasoning, info.ReasoningEffort)
 	}
 	if info.UpstreamModelName != "deepseek-v4-chat" {
 		t.Fatalf("UpstreamModelName = %q, want deepseek-v4-chat", info.UpstreamModelName)
@@ -102,11 +118,65 @@ func TestConvertOpenAIResponsesRequestAllowsStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConvertOpenAIResponsesRequest returned error: %v", err)
 	}
-	chatReq, ok := converted.(*dto.GeneralOpenAIRequest)
+	responsesReq, ok := converted.(dto.OpenAIResponsesRequest)
 	if !ok {
-		t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want *dto.GeneralOpenAIRequest", converted)
+		t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want dto.OpenAIResponsesRequest", converted)
 	}
-	if chatReq.Stream == nil || !*chatReq.Stream {
-		t.Fatalf("Stream = %#v, want true", chatReq.Stream)
+	if responsesReq.Stream == nil || !*responsesReq.Stream {
+		t.Fatalf("Stream = %#v, want true", responsesReq.Stream)
+	}
+}
+
+func TestDoResponsePassesThroughNativeResponsesStreamWithoutDoneSentinel(t *testing.T) {
+	oldStreamingTimeout := globalconstant.StreamingTimeout
+	globalconstant.StreamingTimeout = 30
+	t.Cleanup(func() { globalconstant.StreamingTimeout = oldStreamingTimeout })
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeResponses,
+		RelayFormat: types.RelayFormatOpenAIResponses,
+		IsStream:    true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "deepseek-v4-flash",
+		},
+	}
+	_, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		Model: "deepseek-v4-flash",
+		Input: []byte(`"hello"`),
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIResponsesRequest returned error: %v", err)
+	}
+
+	completed := `{"type":"response.completed","sequence_number":2,"response":{"id":"resp_1","status":"completed","usage":{"input_tokens":3,"output_tokens":5,"total_tokens":8}}}`
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body: io.NopCloser(strings.NewReader(
+			"event: response.created\n" +
+				`data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","status":"in_progress"}}` + "\n\n" +
+				"event: response.completed\n" +
+				"data: " + completed + "\n\n",
+		)),
+	}
+
+	usage, apiErr := (&Adaptor{}).DoResponse(c, resp, info)
+	if apiErr != nil {
+		t.Fatalf("DoResponse returned error: %v", apiErr)
+	}
+	usageDto, ok := usage.(*dto.Usage)
+	if !ok || usageDto.PromptTokens != 3 || usageDto.CompletionTokens != 5 || usageDto.TotalTokens != 8 {
+		t.Fatalf("usage = %#v, want 3/5/8", usage)
+	}
+	body := recorder.Body.String()
+	if !strings.Contains(body, "event: response.completed") || !strings.Contains(body, completed) {
+		t.Fatalf("response stream did not preserve terminal Responses event: %s", body)
+	}
+	if strings.Contains(body, "[DONE]") {
+		t.Fatalf("response stream unexpectedly contains [DONE]: %s", body)
 	}
 }
