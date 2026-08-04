@@ -5982,7 +5982,11 @@
     "Outbound Destination IP": "IP исходящего назначения",
     "One outbound destination IP or CIDR range per line": "Один IP или диапазон CIDR исходящего назначения на строку",
     "Allowed Outbound Destination Ports": "Разрешённые порты исходящего назначения",
-    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "Разрешённые порты исходящего назначения через запятую (пусто = все порты)"
+    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "Разрешённые порты исходящего назначения через запятую (пусто = все порты)",
+    "HTML": "HTML",
+    "Open external link?": "Открыть внешнюю ссылку?",
+    "This link cannot be opened from the preview.": "Эту ссылку нельзя открыть из предпросмотра.",
+    "This link will open in a new window. Do you want to continue?": "Эта ссылка откроется в новом окне. Продолжить?"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

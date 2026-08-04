@@ -5982,7 +5982,11 @@
     "Outbound Destination IP": "IP đích đi",
     "One outbound destination IP or CIDR range per line": "Mỗi dòng một IP đích đi hoặc dải CIDR",
     "Allowed Outbound Destination Ports": "Cổng đích đi được phép",
-    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "Danh sách cổng đích đi được phép, phân tách bằng dấu phẩy (để trống = tất cả cổng)"
+    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "Danh sách cổng đích đi được phép, phân tách bằng dấu phẩy (để trống = tất cả cổng)",
+    "HTML": "HTML",
+    "Open external link?": "Mở liên kết ngoài?",
+    "This link cannot be opened from the preview.": "Không thể mở liên kết này từ bản xem trước.",
+    "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

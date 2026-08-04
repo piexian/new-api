@@ -5982,7 +5982,11 @@
     "Outbound Destination IP": "外向き宛先 IP",
     "One outbound destination IP or CIDR range per line": "外向き宛先 IP または CIDR 範囲を1行に1つ入力",
     "Allowed Outbound Destination Ports": "許可する外向き宛先ポート",
-    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "許可する外向き宛先ポートをカンマ区切りで入力（空欄 = すべてのポート）"
+    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "許可する外向き宛先ポートをカンマ区切りで入力（空欄 = すべてのポート）",
+    "HTML": "HTML",
+    "Open external link?": "外部リンクを開きますか？",
+    "This link cannot be opened from the preview.": "このリンクはプレビューから開くことができません。",
+    "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

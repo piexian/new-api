@@ -5982,7 +5982,11 @@
     "Outbound Destination IP": "IP de destination sortante",
     "One outbound destination IP or CIDR range per line": "Une IP de destination sortante ou une plage CIDR par ligne",
     "Allowed Outbound Destination Ports": "Ports de destination sortants autorisés",
-    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "Liste des ports de destination sortants autorisés, séparés par des virgules (vide = tous les ports)"
+    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "Liste des ports de destination sortants autorisés, séparés par des virgules (vide = tous les ports)",
+    "HTML": "HTML",
+    "Open external link?": "Ouvrir le lien externe ?",
+    "This link cannot be opened from the preview.": "Ce lien ne peut pas être ouvert depuis l'aperçu.",
+    "This link will open in a new window. Do you want to continue?": "Ce lien s'ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

@@ -132,6 +132,9 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'new-api-key-tool',
   'price_xxx',
   'whsec_xxx',
+  'Qwen Token Plan',
+  'Token Plan API Key *',
+  'GitHub ID',
 ])
 
 function isPlainObject(v) {

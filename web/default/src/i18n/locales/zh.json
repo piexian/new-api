@@ -5982,7 +5982,11 @@
     "Outbound Destination IP": "出站目标 IP",
     "One outbound destination IP or CIDR range per line": "每行一个出站目标 IP 或 CIDR 网段",
     "Allowed Outbound Destination Ports": "允许的出站目标端口",
-    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "允许访问的出站目标端口，以逗号分隔（留空表示允许所有端口）"
+    "Comma-separated list of allowed outbound destination ports (empty = all ports)": "允许访问的出站目标端口，以逗号分隔（留空表示允许所有端口）",
+    "HTML": "HTML",
+    "Open external link?": "打开外部链接？",
+    "This link cannot be opened from the preview.": "此链接无法从预览中打开。",
+    "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",
