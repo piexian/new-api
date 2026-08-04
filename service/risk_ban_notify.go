@@ -2,7 +2,7 @@ package service
 
 import (
 	"fmt"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -58,7 +58,7 @@ func (info RiskBanInfo) banDurationText(language string) string {
 		case i18n.LangZhTW:
 			return "永久停用"
 		default:
-			return "Permanent"
+			return "永久封禁"
 		}
 	}
 	if info.DurationMinutes <= 0 {
@@ -69,51 +69,76 @@ func (info RiskBanInfo) banDurationText(language string) string {
 		return fmt.Sprintf("%d 分钟", info.DurationMinutes)
 	case i18n.LangZhTW:
 		return fmt.Sprintf("%d 分鐘", info.DurationMinutes)
-	default:
+	case i18n.LangEn:
 		return fmt.Sprintf("%d minutes", info.DurationMinutes)
+	default:
+		return fmt.Sprintf("%d 分钟", info.DurationMinutes)
 	}
 }
 
-// toEmailVariables 构造邮件模板变量。
-func (info RiskBanInfo) toEmailVariables(language string) map[string]string {
-	isPermanent := "no"
-	banType := "Temporary"
+func (info RiskBanInfo) banTypeText(language string) string {
+	banType := "临时封禁"
 	if info.IsPermanent {
-		isPermanent = "yes"
-		banType = "Permanent"
+		banType = "永久封禁"
 	}
-	if language == i18n.LangZhCN {
-		banType = "临时封禁"
-		if info.IsPermanent {
-			banType = "永久封禁"
-		}
-	} else if language == i18n.LangZhTW {
+	switch language {
+	case i18n.LangZhTW:
 		banType = "暫時停用"
 		if info.IsPermanent {
 			banType = "永久停用"
 		}
+	case i18n.LangEn:
+		banType = "Temporary"
+		if info.IsPermanent {
+			banType = "Permanent"
+		}
 	}
+	return banType
+}
+
+// toUserEmailVariables only exposes fields users need to understand the
+// restriction. Detailed risk context remains available to administrators.
+func (info RiskBanInfo) toUserEmailVariables(language string) map[string]string {
 	return map[string]string{
-		"user_id":          strconv.Itoa(info.UserId),
-		"username":         info.Username,
-		"display_name":     info.DisplayName,
-		"ban_source":       info.Source,
-		"ban_reason":       info.Reason,
-		"is_permanent":     isPermanent,
-		"ban_type":         banType,
-		"ban_duration":     info.banDurationText(language),
-		"banned_at":        formatRiskTime(info.BannedAt),
-		"unban_at":         formatRiskTime(info.UnbanAt),
-		"offense_count":    strconv.Itoa(info.OffenseCount),
-		"tier_level":       strconv.Itoa(info.TierLevel),
-		"tier_action":      info.TierAction,
-		"rule_id":          info.RuleId,
-		"rule_name":        info.RuleName,
-		"error_sample":     info.ErrorSample,
-		"triggered_models": info.TriggeredModels,
-		"trigger_ip":       info.TriggerIP,
-		"appeal_hint":      info.AppealHint,
+		"ban_type":     info.banTypeText(language),
+		"ban_duration": info.banDurationText(language),
+		"unban_at":     formatRiskTime(info.UnbanAt),
+		"appeal_hint":  strings.TrimSpace(info.AppealHint),
 	}
+}
+
+func (info RiskBanInfo) userNotification(language string) (string, string) {
+	var subject, content string
+	switch language {
+	case i18n.LangZhCN:
+		subject = fmt.Sprintf("[%s] 账号访问受限通知", common.SystemName)
+		content = fmt.Sprintf("您的账号访问已受到限制。限制类型：%s；限制时长：%s。", info.banTypeText(language), info.banDurationText(language))
+		if info.UnbanAt > 0 {
+			content += fmt.Sprintf("预计恢复时间：%s。", formatRiskTime(info.UnbanAt))
+		}
+	case i18n.LangZhTW:
+		subject = fmt.Sprintf("[%s] 帳號存取受限通知", common.SystemName)
+		content = fmt.Sprintf("您的帳號存取已受到限制。限制類型：%s；限制時長：%s。", info.banTypeText(language), info.banDurationText(language))
+		if info.UnbanAt > 0 {
+			content += fmt.Sprintf("預計恢復時間：%s。", formatRiskTime(info.UnbanAt))
+		}
+	case i18n.LangEn:
+		subject = fmt.Sprintf("[%s] Account access restriction notice", common.SystemName)
+		content = fmt.Sprintf("Access to your account has been restricted. Restriction type: %s. Duration: %s.", info.banTypeText(language), info.banDurationText(language))
+		if info.UnbanAt > 0 {
+			content += fmt.Sprintf(" Expected restoration time: %s.", formatRiskTime(info.UnbanAt))
+		}
+	default:
+		subject = fmt.Sprintf("[%s] 账号访问受限通知", common.SystemName)
+		content = fmt.Sprintf("您的账号访问已受到限制。限制类型：%s；限制时长：%s。", info.banTypeText(language), info.banDurationText(language))
+		if info.UnbanAt > 0 {
+			content += fmt.Sprintf("预计恢复时间：%s。", formatRiskTime(info.UnbanAt))
+		}
+	}
+	if appealHint := strings.TrimSpace(info.AppealHint); appealHint != "" {
+		content += " " + appealHint
+	}
+	return subject, content
 }
 
 // describeTarget 返回封禁对象的简短描述，用于管理员通知标题。
@@ -160,31 +185,9 @@ func NotifyUserAutoBanned(user *model.User, info RiskBanInfo) error {
 		return nil
 	}
 	userSetting := user.GetSetting()
-	variables := info.toEmailVariables(userSetting.Language)
-	var subject, content string
-	switch userSetting.Language {
-	case i18n.LangZhCN:
-		subject = fmt.Sprintf("[%s] 您的账号已被自动封禁", common.SystemName)
-		content = fmt.Sprintf("您的账号 %s 因风控规则被封禁，原因：%s。封禁时长：%s。", info.Username, info.Reason, info.banDurationText(userSetting.Language))
-		if info.UnbanAt > 0 {
-			content += fmt.Sprintf("自动解封时间：%s。", formatRiskTime(info.UnbanAt))
-		}
-	case i18n.LangZhTW:
-		subject = fmt.Sprintf("[%s] 您的帳號已被自動停用", common.SystemName)
-		content = fmt.Sprintf("您的帳號 %s 因風控規則被停用，原因：%s。停用時長：%s。", info.Username, info.Reason, info.banDurationText(userSetting.Language))
-		if info.UnbanAt > 0 {
-			content += fmt.Sprintf("自動恢復時間：%s。", formatRiskTime(info.UnbanAt))
-		}
-	default:
-		subject = fmt.Sprintf("[%s] Your account was automatically banned", common.SystemName)
-		content = fmt.Sprintf("Your account %s was banned by automated risk control. Reason: %s. Duration: %s. ", info.Username, info.Reason, info.banDurationText(userSetting.Language))
-		if info.UnbanAt > 0 {
-			content += fmt.Sprintf("It will be restored automatically at %s. ", formatRiskTime(info.UnbanAt))
-		}
-	}
-	content += info.AppealHint
+	subject, content := info.userNotification(userSetting.Language)
 	notification := dto.NewNotify(RiskNotifyTypeUser, subject, content, nil).
-		WithEmailTemplate(EmailTemplateEventAccountAutoBanned, userSetting.Language, variables)
+		WithEmailTemplate(EmailTemplateEventAccountAutoBanned, userSetting.Language, info.toUserEmailVariables(userSetting.Language))
 	return NotifyUser(user.Id, user.Email, userSetting, notification)
 }
 

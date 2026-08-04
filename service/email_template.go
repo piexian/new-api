@@ -93,7 +93,7 @@ var (
 		{Event: EmailTemplateEventSubscriptionSucceeded, Placeholders: emailTemplatePlaceholders("user_id", "subscription_id", "plan_id", "subscription_name", "amount_total", "start_at", "end_at", "next_reset_at", "reset_period", "payment_amount", "payment_method", "payment_provider", "subscription_source")},
 		{Event: EmailTemplateEventSubscriptionExpired, Placeholders: emailTemplatePlaceholders("user_id", "subscription_id", "plan_id", "subscription_name", "expired_at", "subscription_source", "allow_wallet_overflow")},
 		{Event: EmailTemplateEventUserDisabled, Placeholders: emailTemplatePlaceholders("user_id", "username", "display_name", "disable_reason", "disabled_at", "ban_type", "ban_duration", "unban_at")},
-		{Event: EmailTemplateEventAccountAutoBanned, Placeholders: emailTemplatePlaceholders("user_id", "username", "display_name", "ban_source", "ban_reason", "is_permanent", "ban_type", "ban_duration", "banned_at", "unban_at", "offense_count", "tier_level", "tier_action", "rule_id", "rule_name", "error_sample", "triggered_models", "trigger_ip", "appeal_hint")},
+		{Event: EmailTemplateEventAccountAutoBanned, Placeholders: emailTemplatePlaceholders("ban_type", "ban_duration", "unban_at", "appeal_hint")},
 		{Event: EmailTemplateEventChannelAutoDisabled, Placeholders: emailTemplatePlaceholders("channel_id", "channel_name", "channel_type", "reason")},
 		{Event: EmailTemplateEventChannelAutoEnabled, Placeholders: emailTemplatePlaceholders("channel_id", "channel_name", "channel_type")},
 		{Event: EmailTemplateEventChannelQuotaCooldown, Placeholders: emailTemplatePlaceholders("channel_id", "channel_name", "channel_type", "reason", "cooldown_until")},
@@ -205,10 +205,14 @@ func GetEmailTemplate(event, locale string) (EmailTemplate, error) {
 		Placeholders: slices.Clone(eventInfo.Placeholders),
 	}
 	if stored, exists := readEmailTemplateOverride(event, normalizedLocale); exists {
-		result.Subject = stored.Subject
-		result.HTML = stored.HTML
-		result.IsCustom = true
-		result.UpdatedAt = stored.UpdatedAt
+		if err := ValidateEmailTemplate(event, stored.Subject, stored.HTML); err != nil {
+			common.SysLog(fmt.Sprintf("ignored invalid email template override for %s/%s: %s", event, normalizedLocale, err.Error()))
+		} else {
+			result.Subject = stored.Subject
+			result.HTML = stored.HTML
+			result.IsCustom = true
+			result.UpdatedAt = stored.UpdatedAt
+		}
 	}
 	return result, nil
 }
@@ -1088,48 +1092,27 @@ func buildUserDisabledTemplates() map[string]defaultEmailTemplate {
 func buildAccountAutoBannedTemplates() map[string]defaultEmailTemplate {
 	return map[string]defaultEmailTemplate{
 		i18n.LangEn: {
-			Subject: "[{{ site_name }}] Your account was automatically banned",
-			HTML: emailHTMLLayout("Account automatically banned", "Automated risk control disabled your account after detecting suspicious activity.", emailDetailTable(
-				"Account", "{{ display_name }} ({{ username }}, #{{ user_id }})",
-				"Source", "{{ ban_source }}",
-				"Reason", "{{ ban_reason }}",
-				"Ban type", "{{ ban_type }}",
+			Subject: "[{{ site_name }}] Account access restriction notice",
+			HTML: emailHTMLLayout("Account access restricted", "Access to your account is currently restricted.", emailDetailTable(
+				"Restriction type", "{{ ban_type }}",
 				"Duration", "{{ ban_duration }}",
-				"Banned at", "{{ banned_at }}",
-				"Unban at", "{{ unban_at }}",
-				"Offense count", "{{ offense_count }}",
-				"Rule", "{{ rule_name }} ({{ rule_id }})",
-				"Trigger IP", "{{ trigger_ip }}",
+				"Expected restoration", "{{ unban_at }}",
 			)+"\n"+emailTextPanel("{{ appeal_hint }}")),
 		},
 		i18n.LangZhCN: {
-			Subject: "[{{ site_name }}] 您的账号已被自动封禁",
-			HTML: emailHTMLLayout("账号已被自动封禁", "风控系统检测到异常行为后自动封禁了您的账号。", emailDetailTable(
-				"账号", "{{ display_name }}（{{ username }}，#{{ user_id }}）",
-				"来源", "{{ ban_source }}",
-				"封禁理由", "{{ ban_reason }}",
-				"封禁类型", "{{ ban_type }}",
-				"封禁时长", "{{ ban_duration }}",
-				"封禁时间", "{{ banned_at }}",
-				"解封时间", "{{ unban_at }}",
-				"违规次数", "{{ offense_count }}",
-				"触发规则", "{{ rule_name }}（{{ rule_id }}）",
-				"触发 IP", "{{ trigger_ip }}",
+			Subject: "[{{ site_name }}] 账号访问受限通知",
+			HTML: emailHTMLLayout("账号访问已受限", "您的账号当前无法继续访问 {{ site_name }}。", emailDetailTable(
+				"限制类型", "{{ ban_type }}",
+				"限制时长", "{{ ban_duration }}",
+				"预计恢复时间", "{{ unban_at }}",
 			)+"\n"+emailTextPanel("{{ appeal_hint }}")),
 		},
 		i18n.LangZhTW: {
-			Subject: "[{{ site_name }}] 您的帳號已被自動封禁",
-			HTML: emailHTMLLayout("帳號已被自動封禁", "風控系統偵測到異常行為後自動封禁了您的帳號。", emailDetailTable(
-				"帳號", "{{ display_name }}（{{ username }}，#{{ user_id }}）",
-				"來源", "{{ ban_source }}",
-				"封禁理由", "{{ ban_reason }}",
-				"封禁類型", "{{ ban_type }}",
-				"封禁時長", "{{ ban_duration }}",
-				"封禁時間", "{{ banned_at }}",
-				"解封時間", "{{ unban_at }}",
-				"違規次數", "{{ offense_count }}",
-				"觸發規則", "{{ rule_name }}（{{ rule_id }}）",
-				"觸發 IP", "{{ trigger_ip }}",
+			Subject: "[{{ site_name }}] 帳號存取受限通知",
+			HTML: emailHTMLLayout("帳號存取已受限", "您的帳號目前無法繼續存取 {{ site_name }}。", emailDetailTable(
+				"限制類型", "{{ ban_type }}",
+				"限制時長", "{{ ban_duration }}",
+				"預計恢復時間", "{{ unban_at }}",
 			)+"\n"+emailTextPanel("{{ appeal_hint }}")),
 		},
 	}

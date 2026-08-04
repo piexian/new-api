@@ -113,41 +113,41 @@ func NotifyAccountDisabled(user model.User) {
 	}
 	reason := strings.TrimSpace(user.DisableReason)
 	if reason == "" {
-		reason = "Account disabled by an administrator"
+		reason = "账号已被管理员禁用"
 	}
 	displayName := strings.TrimSpace(user.DisplayName)
 	if displayName == "" {
 		displayName = user.Username
 	}
 	language := user.GetSetting().Language
-	banType := "Permanent"
-	banDuration := "Permanent"
+	banType := "永久封禁"
+	banDuration := "永久"
 	unbanAt := "-"
 	if user.DisabledUntil > 0 {
 		minutes := (user.DisabledUntil - time.Now().Unix() + 59) / 60
 		if minutes < 1 {
 			minutes = 1
 		}
-		banType = "Temporary"
-		banDuration = fmt.Sprintf("%d minutes", minutes)
+		banType = "临时封禁"
+		banDuration = fmt.Sprintf("%d 分钟", minutes)
 		unbanAt = formatEmailTimestamp(user.DisabledUntil)
 	}
 	switch language {
-	case i18n.LangZhCN:
-		if user.DisabledUntil > 0 {
-			banType = "临时封禁"
-			banDuration = strings.TrimSuffix(banDuration, " minutes") + " 分钟"
-		} else {
-			banType = "永久封禁"
-			banDuration = "永久"
-		}
 	case i18n.LangZhTW:
 		if user.DisabledUntil > 0 {
 			banType = "暫時停用"
-			banDuration = strings.TrimSuffix(banDuration, " minutes") + " 分鐘"
+			banDuration = strings.TrimSuffix(banDuration, " 分钟") + " 分鐘"
 		} else {
 			banType = "永久停用"
 			banDuration = "永久"
+		}
+	case i18n.LangEn:
+		if user.DisabledUntil > 0 {
+			banType = "Temporary"
+			banDuration = strings.TrimSuffix(banDuration, " 分钟") + " minutes"
+		} else {
+			banType = "Permanent"
+			banDuration = "Permanent"
 		}
 	}
 	queueTransactionalEmail(user.Id, EmailTemplateEventUserDisabled, map[string]string{

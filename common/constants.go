@@ -217,7 +217,7 @@ const (
 	EmailNotificationTemplateOptionPrefix = "EmailNotificationTemplate."
 	BalanceLowNotifyEnabledOptionKey      = "BalanceLowNotifyEnabled"
 	EmailDefaultLanguageOptionKey         = "EmailDefaultLanguage"
-	DefaultEmailLanguage                  = "en"
+	DefaultEmailLanguage                  = "zh-CN"
 )
 
 var ForceRecordIpLogEnabled = false

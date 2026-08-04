@@ -85,7 +85,7 @@ func TestNormalizeEmailTemplateLocaleUsesPreferenceAndConfiguredFallback(t *test
 	}
 }
 
-func TestNormalizeEmailTemplateLocaleFallsBackToEnglishForInvalidDefault(t *testing.T) {
+func TestNormalizeEmailTemplateLocaleFallsBackToDefaultForInvalidDefault(t *testing.T) {
 	common.OptionMapRWMutex.Lock()
 	wasNil := common.OptionMap == nil
 	if wasNil {
@@ -108,7 +108,7 @@ func TestNormalizeEmailTemplateLocaleFallsBackToEnglishForInvalidDefault(t *test
 		delete(common.OptionMap, common.EmailDefaultLanguageOptionKey)
 	})
 
-	assert.Equal(t, i18n.LangEn, NormalizeEmailTemplateLocale("vi"))
+	assert.Equal(t, i18n.DefaultLang, NormalizeEmailTemplateLocale("vi"))
 }
 
 func TestRenderEmailTemplateEscapesHTMLAndSanitizesSubject(t *testing.T) {
@@ -215,6 +215,87 @@ func TestUserDisabledTemplateIncludesReason(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, rendered.HTML, "封禁理由")
 	assert.Contains(t, rendered.HTML, "恶意请求导致上游风险")
+}
+
+func TestAccountAutoBannedTemplateIsNoticeOnly(t *testing.T) {
+	catalog := GetEmailTemplateCatalog()
+	var placeholders []string
+	for _, event := range catalog.Events {
+		if event.Event == EmailTemplateEventAccountAutoBanned {
+			placeholders = event.Placeholders
+			break
+		}
+	}
+	require.NotEmpty(t, placeholders)
+	for _, placeholder := range []string{"ban_type", "ban_duration", "unban_at", "appeal_hint"} {
+		assert.Contains(t, placeholders, placeholder)
+	}
+	for _, placeholder := range []string{
+		"user_id",
+		"username",
+		"display_name",
+		"ban_source",
+		"ban_reason",
+		"is_permanent",
+		"banned_at",
+		"offense_count",
+		"tier_level",
+		"tier_action",
+		"rule_id",
+		"rule_name",
+		"error_sample",
+		"triggered_models",
+		"trigger_ip",
+	} {
+		assert.NotContains(t, placeholders, placeholder)
+	}
+
+	for _, locale := range []string{i18n.LangEn, i18n.LangZhCN, i18n.LangZhTW} {
+		template, err := GetEmailTemplate(EmailTemplateEventAccountAutoBanned, locale)
+		require.NoError(t, err)
+		for _, token := range []string{
+			"{{ user_id }}",
+			"{{ username }}",
+			"{{ ban_source }}",
+			"{{ ban_reason }}",
+			"{{ offense_count }}",
+			"{{ rule_id }}",
+			"{{ error_sample }}",
+			"{{ trigger_ip }}",
+		} {
+			assert.NotContains(t, template.Subject+template.HTML, token)
+		}
+	}
+}
+
+func TestAccountAutoBannedTemplateIgnoresUnsafeLegacyOverride(t *testing.T) {
+	key := emailTemplateOptionKey(EmailTemplateEventAccountAutoBanned, i18n.LangEn)
+	common.OptionMapRWMutex.Lock()
+	wasNil := common.OptionMap == nil
+	if wasNil {
+		common.OptionMap = make(map[string]string)
+	}
+	previous, existed := common.OptionMap[key]
+	common.OptionMap[key] = `{"subject":"Legacy ban report","html":"<p>{{ error_sample }}</p>","updated_at":1}`
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		defer common.OptionMapRWMutex.Unlock()
+		if wasNil {
+			common.OptionMap = nil
+			return
+		}
+		if existed {
+			common.OptionMap[key] = previous
+			return
+		}
+		delete(common.OptionMap, key)
+	})
+
+	template, err := GetEmailTemplate(EmailTemplateEventAccountAutoBanned, i18n.LangEn)
+	require.NoError(t, err)
+	assert.False(t, template.IsCustom)
+	assert.NotContains(t, template.HTML, "error_sample")
 }
 
 func TestBalanceLowRechargeURLUsesServerAddress(t *testing.T) {

@@ -247,7 +247,11 @@ func buildErrorBanReason(setting risk_setting.ErrorBanSetting, rule risk_setting
 	case strings.TrimSpace(setting.DefaultReasonTemplate) != "":
 		reason = renderErrorBanTemplate(setting.DefaultReasonTemplate, rule, tier)
 	default:
-		reason = fmt.Sprintf("触发自动封禁规则 %s 被封禁", rule.Id)
+		ruleLabel := strings.TrimSpace(rule.Name)
+		if ruleLabel == "" {
+			ruleLabel = rule.Id
+		}
+		reason = fmt.Sprintf("触发自动封禁规则 %s 被封禁", ruleLabel)
 	}
 	if strings.TrimSpace(tier.ReasonSuffix) != "" {
 		reason = fmt.Sprintf("%s（%s）", reason, tier.ReasonSuffix)
