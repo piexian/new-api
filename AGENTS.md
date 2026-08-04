@@ -35,6 +35,18 @@ when the change is explicitly theme-specific, and state that in the PR.
 
 Use Bun for frontend dependency and script work.
 
+## Deployment
+
+The production instance on this server runs as a **systemd service** named `newapi.service`.
+
+- Build the binary with the version ldflag:
+  `go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api main.go`
+- Deploy / restart: `systemctl restart newapi.service`
+- Check status: `systemctl status newapi.service`
+- View logs: `journalctl -u newapi.service -f` or files under `/root/new-api/logs/`
+- **Never `kill` the process directly** — always use `systemctl` to manage the service.
+- The service unit file is at `/etc/systemd/system/newapi.service` (Restart=always, port 3000).
+
 ## Coding Style & Naming Conventions
 
 Format Go with `gofmt`; keep package names short and lowercase. Do not call
