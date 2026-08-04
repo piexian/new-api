@@ -348,6 +348,10 @@ func buildMultiAccountClusters(evidence []MultiAccountEvidence) ([]MultiAccountC
 	for _, binding := range customBindings {
 		customBindingsByUserId[binding.UserId] = append(customBindingsByUserId[binding.UserId], binding)
 	}
+	reviewTimes, err := model.ListMultiAccountReviewTimes()
+	if err != nil {
+		return nil, MultiAccountStats{}, err
+	}
 
 	evidenceByRoot := make(map[int][]MultiAccountEvidence)
 	for _, item := range evidence {
@@ -370,24 +374,11 @@ func buildMultiAccountClusters(evidence []MultiAccountEvidence) ([]MultiAccountC
 	clusters := make([]MultiAccountCluster, 0, len(idsByRoot))
 	stats := MultiAccountStats{}
 	relatedAccounts := make(map[int]struct{})
-	for _, item := range evidence {
-		switch item.Type {
-		case model.MultiAccountEvidenceGitHubEmailConflict:
-			stats.EmailConflicts++
-		case "shared_ip_user_agent":
-			stats.SharedEnvironments++
-		}
-	}
 	for root, userIds := range idsByRoot {
 		if len(userIds) < 2 {
 			continue
 		}
 		sort.Ints(userIds)
-		accounts := make([]MultiAccountUser, 0, len(userIds))
-		for _, id := range userIds {
-			accounts = append(accounts, multiAccountUserFromModel(usersById[id], customBindingsByUserId[id]))
-			relatedAccounts[id] = struct{}{}
-		}
 		clusterEvidence := evidenceByRoot[root]
 		sort.Slice(clusterEvidence, func(i, j int) bool {
 			return clusterEvidence[i].LastSeenAt > clusterEvidence[j].LastSeenAt
@@ -396,6 +387,29 @@ func buildMultiAccountClusters(evidence []MultiAccountEvidence) ([]MultiAccountC
 		for _, item := range clusterEvidence {
 			if item.LastSeenAt > lastSeenAt {
 				lastSeenAt = item.LastSeenAt
+			}
+		}
+		reviewedAt := int64(0)
+		for _, id := range userIds {
+			if reviewTimes[id] > reviewedAt {
+				reviewedAt = reviewTimes[id]
+			}
+		}
+		if reviewedAt > 0 && reviewedAt >= lastSeenAt {
+			continue
+		}
+
+		accounts := make([]MultiAccountUser, 0, len(userIds))
+		for _, id := range userIds {
+			accounts = append(accounts, multiAccountUserFromModel(usersById[id], customBindingsByUserId[id]))
+			relatedAccounts[id] = struct{}{}
+		}
+		for _, item := range clusterEvidence {
+			switch item.Type {
+			case model.MultiAccountEvidenceGitHubEmailConflict:
+				stats.EmailConflicts++
+			case "shared_ip_user_agent":
+				stats.SharedEnvironments++
 			}
 		}
 		score, level := scoreMultiAccountCluster(accounts, clusterEvidence)

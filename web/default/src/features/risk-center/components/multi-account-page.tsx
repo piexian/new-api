@@ -135,6 +135,15 @@ export function MultiAccountPage() {
     setBanDuration(0)
   }
 
+  const closeReviewDialog = () => {
+    if (banMutation.isPending) return
+    if (banTarget) {
+      setBanTarget(null)
+      return
+    }
+    setSelectedCluster(null)
+  }
+
   const riskLevelLabel = (level: MultiAccountRiskLevel) => {
     if (level === 'high') return t('High Risk')
     if (level === 'medium') return t('Medium Risk')
@@ -460,215 +469,224 @@ export function MultiAccountPage() {
 
         <Dialog
           open={selectedCluster !== null}
-          onOpenChange={(open) => !open && setSelectedCluster(null)}
+          onOpenChange={(open) => !open && closeReviewDialog()}
         >
-          <DialogContent className='max-h-[90vh] overflow-x-hidden overflow-y-auto sm:max-w-5xl'>
+          <DialogContent
+            className={`max-h-[90vh] overflow-x-hidden overflow-y-auto ${banTarget ? 'sm:max-w-lg' : 'sm:max-w-5xl'}`}
+          >
             <DialogHeader>
-              <DialogTitle className='flex min-w-0 items-start gap-2 pr-8'>
-                <UsersRound className='size-5 shrink-0' />
-                <span className='min-w-0 break-words'>
-                  {t('Multi-account Review')}
-                </span>
-              </DialogTitle>
-              <DialogDescription>
-                {selectedCluster && (
-                  <span className='flex flex-wrap items-center gap-2'>
-                    <Badge
-                      variant={riskBadgeVariant(selectedCluster.risk_level)}
-                    >
-                      {riskLevelLabel(selectedCluster.risk_level)}
-                    </Badge>
-                    <span>
-                      {t('Risk Score')}: {selectedCluster.risk_score}
-                    </span>
-                    <span>ID: {selectedCluster.id}</span>
+              {banTarget ? (
+                <DialogTitle className='pr-8'>{t('Confirm Ban')}</DialogTitle>
+              ) : (
+                <DialogTitle className='flex min-w-0 items-start gap-2 pr-8'>
+                  <UsersRound className='size-5 shrink-0' />
+                  <span className='min-w-0 break-words'>
+                    {t('Multi-account Review')}
                   </span>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-
-            {selectedCluster && (
-              <div className='min-w-0 space-y-6'>
-                <section className='space-y-3'>
-                  <h3 className='font-medium'>{t('Account Details')}</h3>
-                  {selectedCluster.accounts.map((account) => (
-                    <div
-                      key={account.id}
-                      className='border-border min-w-0 space-y-3 rounded-lg border p-3 sm:p-4'
-                    >
-                      <div className='flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between'>
-                        <div className='min-w-0 font-semibold break-all'>
-                          #{account.id} {account.username}
-                        </div>
-                        <div className='flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center'>
-                          <Badge
-                            className='self-start'
-                            variant={account.can_ban ? 'outline' : 'secondary'}
-                          >
-                            {accountStatus(account)}
-                          </Badge>
-                          <Button
-                            variant='destructive'
-                            size='sm'
-                            className='w-full sm:w-auto'
-                            disabled={!account.can_ban}
-                            onClick={() => openBanDialog(account)}
-                          >
-                            <Ban data-icon='inline-start' className='size-4' />
-                            {t('Ban Account')}
-                          </Button>
-                        </div>
-                      </div>
-                      <div className='grid gap-x-6 gap-y-3 md:grid-cols-2'>
-                        {accountDetailFields(account).map(
-                          ([label, value, fieldKey]) => (
-                            <div key={fieldKey} className='min-w-0'>
-                              <div className='text-muted-foreground text-xs font-medium'>
-                                {label}
-                              </div>
-                              <div className='mt-1 break-all'>{value}</div>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </section>
-
-                <section className='space-y-3'>
-                  <h3 className='font-medium'>{t('Evidence Details')}</h3>
-                  {selectedCluster.evidence.map((item) => (
-                    <div
-                      key={`${item.type}-${item.user_ids.join('-')}-${item.email}-${item.ip}-${item.user_agent}-${item.last_seen_at}`}
-                      className='border-border min-w-0 space-y-3 rounded-lg border p-3 sm:p-4'
-                    >
-                      <div className='flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                        <Badge
-                          variant='outline'
-                          className='h-auto max-w-full text-left whitespace-normal'
-                        >
-                          {evidenceLabel(item)}
-                        </Badge>
-                        <span className='text-muted-foreground text-xs'>
-                          {t('Hit Count')}: {item.hit_count}
-                        </span>
-                      </div>
-                      <div className='grid gap-x-6 gap-y-3 md:grid-cols-2'>
-                        {item.email && (
-                          <div>
-                            <div className='text-muted-foreground text-xs font-medium'>
-                              {t('Full Email')}
-                            </div>
-                            <div className='mt-1 break-all'>{item.email}</div>
-                          </div>
-                        )}
-                        {item.ip && (
-                          <div>
-                            <div className='text-muted-foreground text-xs font-medium'>
-                              {t('IP Address')}
-                            </div>
-                            <div className='mt-1 font-mono break-all'>
-                              {item.ip}
-                            </div>
-                          </div>
-                        )}
-                        {item.user_agent && (
-                          <div className='md:col-span-2'>
-                            <div className='text-muted-foreground text-xs font-medium'>
-                              {t('Browser / User Agent')}
-                            </div>
-                            <div className='mt-1 font-mono text-xs break-all'>
-                              {item.user_agent}
-                            </div>
-                          </div>
-                        )}
-                        <div>
-                          <div className='text-muted-foreground text-xs font-medium'>
-                            {t('Related User IDs')}
-                          </div>
-                          <div className='mt-1'>{item.user_ids.join(', ')}</div>
-                        </div>
-                        <div>
-                          <div className='text-muted-foreground text-xs font-medium'>
-                            {t('Observed At')}
-                          </div>
-                          <div className='mt-1'>
-                            {formatTime(item.first_seen_at)} -{' '}
-                            {formatTime(item.last_seen_at)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </section>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-
-        <Dialog
-          open={banTarget !== null}
-          onOpenChange={(open) => !open && setBanTarget(null)}
-        >
-          <DialogContent className='sm:max-w-lg'>
-            <DialogHeader>
-              <DialogTitle>{t('Confirm Ban')}</DialogTitle>
+                </DialogTitle>
+              )}
               <DialogDescription className='break-words'>
-                {t('Ban account confirmation', {
-                  id: banTarget?.id ?? '',
-                  username: banTarget?.username ?? '',
-                })}
+                {banTarget
+                  ? t('Ban account confirmation', {
+                      id: banTarget.id,
+                      username: banTarget.username,
+                    })
+                  : selectedCluster && (
+                      <span className='flex flex-wrap items-center gap-2'>
+                        <Badge
+                          variant={riskBadgeVariant(selectedCluster.risk_level)}
+                        >
+                          {riskLevelLabel(selectedCluster.risk_level)}
+                        </Badge>
+                        <span>
+                          {t('Risk Score')}: {selectedCluster.risk_score}
+                        </span>
+                        <span>ID: {selectedCluster.id}</span>
+                      </span>
+                    )}
               </DialogDescription>
             </DialogHeader>
-            <div className='space-y-4'>
-              <div className='space-y-2'>
-                <Label htmlFor='multi-account-ban-reason'>
-                  {t('Ban Reason')}
-                </Label>
-                <Input
-                  id='multi-account-ban-reason'
-                  value={banReason}
-                  maxLength={5000}
-                  onChange={(event) => setBanReason(event.target.value)}
-                />
-              </div>
-              <div className='space-y-2'>
-                <Label htmlFor='multi-account-ban-duration'>
-                  {t('Ban Duration')}
-                </Label>
-                <select
-                  id='multi-account-ban-duration'
-                  className='border-input bg-background h-9 w-full rounded-lg border px-3 text-sm shadow-xs'
-                  value={banDuration}
-                  onChange={(event) =>
-                    setBanDuration(Number(event.target.value))
-                  }
-                >
-                  <option value={0}>{t('Permanent Ban')}</option>
-                  <option value={1440}>{t('1 Day')}</option>
-                  <option value={10080}>{t('7 Days')}</option>
-                  <option value={43200}>{t('30 Days')}</option>
-                </select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant='outline'
-                className='w-full sm:w-auto'
-                onClick={() => setBanTarget(null)}
-              >
-                {t('Cancel')}
-              </Button>
-              <Button
-                variant='destructive'
-                className='w-full sm:w-auto'
-                disabled={!banReason.trim() || banMutation.isPending}
-                onClick={() => banMutation.mutate()}
-              >
-                <Ban data-icon='inline-start' className='size-4' />
-                {banMutation.isPending ? t('Processing...') : t('Confirm Ban')}
-              </Button>
-            </DialogFooter>
+
+            {banTarget ? (
+              <>
+                <div className='grid gap-4'>
+                  <div className='grid gap-2'>
+                    <Label htmlFor='multi-account-ban-reason'>
+                      {t('Ban Reason')}
+                    </Label>
+                    <Input
+                      id='multi-account-ban-reason'
+                      value={banReason}
+                      maxLength={5000}
+                      onChange={(event) => setBanReason(event.target.value)}
+                    />
+                  </div>
+                  <div className='grid gap-2'>
+                    <Label htmlFor='multi-account-ban-duration'>
+                      {t('Ban Duration')}
+                    </Label>
+                    <select
+                      id='multi-account-ban-duration'
+                      className='border-input bg-background h-9 w-full rounded-lg border px-3 text-sm shadow-xs'
+                      value={banDuration}
+                      onChange={(event) =>
+                        setBanDuration(Number(event.target.value))
+                      }
+                    >
+                      <option value={0}>{t('Permanent Ban')}</option>
+                      <option value={1440}>{t('1 Day')}</option>
+                      <option value={10080}>{t('7 Days')}</option>
+                      <option value={43200}>{t('30 Days')}</option>
+                    </select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant='outline'
+                    className='w-full sm:w-auto'
+                    disabled={banMutation.isPending}
+                    onClick={() => setBanTarget(null)}
+                  >
+                    {t('Cancel')}
+                  </Button>
+                  <Button
+                    variant='destructive'
+                    className='w-full sm:w-auto'
+                    disabled={!banReason.trim() || banMutation.isPending}
+                    onClick={() => banMutation.mutate()}
+                  >
+                    <Ban data-icon='inline-start' className='size-4' />
+                    {banMutation.isPending
+                      ? t('Processing...')
+                      : t('Confirm Ban')}
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              selectedCluster && (
+                <div className='min-w-0 space-y-6'>
+                  <section className='space-y-3'>
+                    <h3 className='font-medium'>{t('Account Details')}</h3>
+                    {selectedCluster.accounts.map((account) => (
+                      <div
+                        key={account.id}
+                        className='border-border min-w-0 space-y-3 rounded-lg border p-3 sm:p-4'
+                      >
+                        <div className='flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                          <div className='min-w-0 font-semibold break-all'>
+                            #{account.id} {account.username}
+                          </div>
+                          <div className='flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center'>
+                            <Badge
+                              className='self-start'
+                              variant={
+                                account.can_ban ? 'outline' : 'secondary'
+                              }
+                            >
+                              {accountStatus(account)}
+                            </Badge>
+                            <Button
+                              variant='destructive'
+                              size='sm'
+                              className='w-full sm:w-auto'
+                              disabled={!account.can_ban}
+                              onClick={() => openBanDialog(account)}
+                            >
+                              <Ban
+                                data-icon='inline-start'
+                                className='size-4'
+                              />
+                              {t('Ban Account')}
+                            </Button>
+                          </div>
+                        </div>
+                        <div className='grid gap-x-6 gap-y-3 md:grid-cols-2'>
+                          {accountDetailFields(account).map(
+                            ([label, value, fieldKey]) => (
+                              <div key={fieldKey} className='min-w-0'>
+                                <div className='text-muted-foreground text-xs font-medium'>
+                                  {label}
+                                </div>
+                                <div className='mt-1 break-all'>{value}</div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </section>
+
+                  <section className='space-y-3'>
+                    <h3 className='font-medium'>{t('Evidence Details')}</h3>
+                    {selectedCluster.evidence.map((item) => (
+                      <div
+                        key={`${item.type}-${item.user_ids.join('-')}-${item.email}-${item.ip}-${item.user_agent}-${item.last_seen_at}`}
+                        className='border-border min-w-0 space-y-3 rounded-lg border p-3 sm:p-4'
+                      >
+                        <div className='flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                          <Badge
+                            variant='outline'
+                            className='h-auto max-w-full text-left whitespace-normal'
+                          >
+                            {evidenceLabel(item)}
+                          </Badge>
+                          <span className='text-muted-foreground text-xs'>
+                            {t('Hit Count')}: {item.hit_count}
+                          </span>
+                        </div>
+                        <div className='grid gap-x-6 gap-y-3 md:grid-cols-2'>
+                          {item.email && (
+                            <div>
+                              <div className='text-muted-foreground text-xs font-medium'>
+                                {t('Full Email')}
+                              </div>
+                              <div className='mt-1 break-all'>{item.email}</div>
+                            </div>
+                          )}
+                          {item.ip && (
+                            <div>
+                              <div className='text-muted-foreground text-xs font-medium'>
+                                {t('IP Address')}
+                              </div>
+                              <div className='mt-1 font-mono break-all'>
+                                {item.ip}
+                              </div>
+                            </div>
+                          )}
+                          {item.user_agent && (
+                            <div className='md:col-span-2'>
+                              <div className='text-muted-foreground text-xs font-medium'>
+                                {t('Browser / User Agent')}
+                              </div>
+                              <div className='mt-1 font-mono text-xs break-all'>
+                                {item.user_agent}
+                              </div>
+                            </div>
+                          )}
+                          <div>
+                            <div className='text-muted-foreground text-xs font-medium'>
+                              {t('Related User IDs')}
+                            </div>
+                            <div className='mt-1'>
+                              {item.user_ids.join(', ')}
+                            </div>
+                          </div>
+                          <div>
+                            <div className='text-muted-foreground text-xs font-medium'>
+                              {t('Observed At')}
+                            </div>
+                            <div className='mt-1'>
+                              {formatTime(item.first_seen_at)} -{' '}
+                              {formatTime(item.last_seen_at)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </section>
+                </div>
+              )
+            )}
           </DialogContent>
         </Dialog>
       </SectionPageLayout.Content>

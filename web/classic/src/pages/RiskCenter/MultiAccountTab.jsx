@@ -156,6 +156,15 @@ const MultiAccountTab = () => {
     setBanDuration(0);
   };
 
+  const closeReviewStep = () => {
+    if (banLoading) return;
+    if (banTarget) {
+      setBanTarget(null);
+      return;
+    }
+    setSelectedCluster(null);
+  };
+
   const confirmBan = async () => {
     if (!banTarget || !banReason.trim()) return;
     setBanLoading(true);
@@ -186,7 +195,7 @@ const MultiAccountTab = () => {
         );
       }
       setBanTarget(null);
-      fetchClusters(page, keyword);
+      await fetchClusters(page, keyword);
     } catch (error) {
       showError(error);
     } finally {
@@ -415,18 +424,79 @@ const MultiAccountTab = () => {
       </Card>
 
       <Modal
-        title={t('Multi-account Review')}
+        title={banTarget ? t('Confirm Ban') : t('Multi-account Review')}
         visible={selectedCluster !== null}
-        onCancel={() => setSelectedCluster(null)}
+        onCancel={closeReviewStep}
         footer={
-          <Button onClick={() => setSelectedCluster(null)}>{t('Close')}</Button>
+          banTarget ? (
+            <div className='flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
+              <Button
+                block={isMobile}
+                disabled={banLoading}
+                onClick={() => setBanTarget(null)}
+              >
+                {t('Cancel')}
+              </Button>
+              <Button
+                block={isMobile}
+                type='danger'
+                icon={<Ban size={16} />}
+                loading={banLoading}
+                disabled={!banReason.trim()}
+                onClick={confirmBan}
+              >
+                {t('Confirm Ban')}
+              </Button>
+            </div>
+          ) : (
+            <Button block={isMobile} onClick={() => setSelectedCluster(null)}>
+              {t('Close')}
+            </Button>
+          )
         }
-        width={920}
-        style={{ maxWidth: 'calc(100vw - 24px)' }}
-        bodyStyle={{ overflowX: 'hidden' }}
+        width={banTarget ? 520 : 920}
+        fullScreen={isMobile}
+        footerFill={isMobile}
+        style={isMobile ? undefined : { maxWidth: 'calc(100vw - 24px)' }}
+        bodyStyle={{
+          overflowX: 'hidden',
+          overflowY: isMobile ? 'auto' : undefined,
+          padding: isMobile ? '12px 16px' : undefined,
+        }}
       >
-        {selectedCluster && (
-          <div className='flex min-w-0 max-h-[70vh] flex-col gap-5 overflow-x-hidden overflow-y-auto pr-1 sm:pr-2'>
+        {banTarget ? (
+          <div className='flex min-w-0 flex-col gap-4'>
+            <Text style={{ wordBreak: 'break-word' }}>
+              {t('Ban account confirmation', {
+                id: banTarget.id,
+                username: banTarget.username,
+              })}
+            </Text>
+            <div className='flex min-w-0 flex-col gap-1.5'>
+              <Text type='tertiary'>{t('Ban Reason')}</Text>
+              <Input
+                value={banReason}
+                maxLength={5000}
+                onChange={setBanReason}
+              />
+            </div>
+            <div className='flex min-w-0 flex-col gap-1.5'>
+              <Text type='tertiary'>{t('Ban Duration')}</Text>
+              <Select
+                value={banDuration}
+                onChange={setBanDuration}
+                style={{ width: '100%' }}
+                optionList={[
+                  { value: 0, label: t('Permanent Ban') },
+                  { value: 1440, label: t('1 Day') },
+                  { value: 10080, label: t('7 Days') },
+                  { value: 43200, label: t('30 Days') },
+                ]}
+              />
+            </div>
+          </div>
+        ) : selectedCluster ? (
+          <div className='flex min-w-0 flex-col gap-5 overflow-x-hidden pr-1 sm:max-h-[70vh] sm:overflow-y-auto sm:pr-2'>
             <div className='flex min-w-0 flex-wrap items-center gap-2'>
               <Tag color={riskColor(selectedCluster.risk_level)}>
                 {riskLabel(selectedCluster.risk_level)}
@@ -559,54 +629,7 @@ const MultiAccountTab = () => {
               </div>
             </div>
           </div>
-        )}
-      </Modal>
-
-      <Modal
-        title={t('Confirm Ban')}
-        visible={banTarget !== null}
-        onCancel={() => setBanTarget(null)}
-        onOk={confirmBan}
-        confirmLoading={banLoading}
-        okButtonProps={{ disabled: !banReason.trim(), type: 'danger' }}
-        okText={t('Confirm Ban')}
-        cancelText={t('Cancel')}
-        width={520}
-        style={{ maxWidth: 'calc(100vw - 24px)' }}
-        bodyStyle={{ overflowX: 'hidden' }}
-      >
-        {banTarget && (
-          <div className='flex flex-col gap-4'>
-            <Text style={{ wordBreak: 'break-word' }}>
-              {t('Ban account confirmation', {
-                id: banTarget.id,
-                username: banTarget.username,
-              })}
-            </Text>
-            <div>
-              <Text type='tertiary'>{t('Ban Reason')}</Text>
-              <Input
-                value={banReason}
-                maxLength={5000}
-                onChange={setBanReason}
-              />
-            </div>
-            <div>
-              <Text type='tertiary'>{t('Ban Duration')}</Text>
-              <Select
-                value={banDuration}
-                onChange={setBanDuration}
-                style={{ width: '100%' }}
-                optionList={[
-                  { value: 0, label: t('Permanent Ban') },
-                  { value: 1440, label: t('1 Day') },
-                  { value: 10080, label: t('7 Days') },
-                  { value: 43200, label: t('30 Days') },
-                ]}
-              />
-            </div>
-          </div>
-        )}
+        ) : null}
       </Modal>
     </div>
   );

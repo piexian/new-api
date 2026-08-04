@@ -82,6 +82,26 @@ func ListMultiAccountEvidence(limit int) ([]MultiAccountEvidence, error) {
 	return evidence, err
 }
 
+func ListMultiAccountReviewTimes() (map[int]int64, error) {
+	var rows []struct {
+		UserId     int
+		ReviewedAt int64
+	}
+	err := DB.Model(&RiskBanLog{}).
+		Select("user_id, MAX(created_at) AS reviewed_at").
+		Where("rule_id = ? AND user_id > 0 AND dry_run = ?", MultiAccountRuleID, false).
+		Group("user_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	reviewTimes := make(map[int]int64, len(rows))
+	for _, row := range rows {
+		reviewTimes[row.UserId] = row.ReviewedAt
+	}
+	return reviewTimes, nil
+}
+
 func GetUsersByNormalizedEmailUnscoped(email string, excludeUserId int) ([]User, error) {
 	email = NormalizeEmail(email)
 	if email == "" {

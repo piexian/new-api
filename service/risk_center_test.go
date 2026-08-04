@@ -193,6 +193,48 @@ func TestBanMultiAccountUserRequiresExplicitAction(t *testing.T) {
 	require.Equal(t, "管理员确认多开账号", banLog.Reason)
 }
 
+func TestReviewedMultiAccountClusterClearsUntilNewEvidence(t *testing.T) {
+	setupRiskModels(t)
+	userIds := []int{98941, 98942}
+	cleanupMultiAccountTestData(t, userIds...)
+	now := common.GetTimestamp()
+	users := []model.User{
+		{Id: userIds[0], Username: "reviewed_multi_a", AffCode: "MULTIRA", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 120},
+		{Id: userIds[1], Username: "reviewed_multi_b", AffCode: "MULTIRB", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 60},
+	}
+	for index := range users {
+		require.NoError(t, model.DB.Create(&users[index]).Error)
+	}
+	require.NoError(t, model.UpsertGitHubEmailConflictEvidence(userIds[0], userIds[1], "reviewed-multi@example.com", now-30))
+
+	pending, err := ListMultiAccountClusters(1, 10, "reviewed-multi@example.com")
+	require.NoError(t, err)
+	require.Equal(t, 1, pending.Total)
+	require.Equal(t, 1, pending.Stats.TotalClusters)
+	require.Equal(t, 1, pending.Stats.EmailConflicts)
+	require.Equal(t, 2, pending.Stats.RelatedAccounts)
+
+	_, err = BanMultiAccountUser(userIds[0], 1, 0, "管理员已审核多开账号")
+	require.NoError(t, err)
+
+	var reviewLog model.RiskBanLog
+	require.NoError(t, model.DB.Where("user_id = ? AND rule_id = ?", userIds[0], model.MultiAccountRuleID).Order("created_at DESC").First(&reviewLog).Error)
+	reviewed, err := ListMultiAccountClusters(1, 10, "reviewed-multi@example.com")
+	require.NoError(t, err)
+	require.Empty(t, reviewed.Items)
+	require.Zero(t, reviewed.Total)
+	require.Zero(t, reviewed.Stats.TotalClusters)
+	require.Zero(t, reviewed.Stats.EmailConflicts)
+	require.Zero(t, reviewed.Stats.RelatedAccounts)
+
+	require.NoError(t, model.UpsertGitHubEmailConflictEvidence(userIds[0], userIds[1], "reviewed-multi@example.com", reviewLog.CreatedAt+1))
+	reopened, err := ListMultiAccountClusters(1, 10, "reviewed-multi@example.com")
+	require.NoError(t, err)
+	require.Equal(t, 1, reopened.Total)
+	require.Equal(t, 1, reopened.Stats.TotalClusters)
+	require.Equal(t, 1, reopened.Stats.EmailConflicts)
+}
+
 // setProbeGuardConfig 通过真实配置管线写入探测防护配置。
 func setProbeGuardConfig(t *testing.T, values map[string]string) {
 	t.Helper()
