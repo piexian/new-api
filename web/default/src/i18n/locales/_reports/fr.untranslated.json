@@ -1,0 +1,17 @@
+{
+  "Failed to load IP states": "Failed to load IP states",
+  "Failed to load ban logs": "Failed to load ban logs",
+  "Failed to load config": "Failed to load config",
+  "Failed to load stats": "Failed to load stats",
+  "Failed to load user offenses": "Failed to load user offenses",
+  "Failed to load user states": "Failed to load user states",
+  "Failed to reset IP offense": "Failed to reset IP offense",
+  "Failed to reset IP state": "Failed to reset IP state",
+  "Failed to reset user state": "Failed to reset user state",
+  "Failed to save settings": "Failed to save settings",
+  "Failed to unban user": "Failed to unban user",
+  "Pattern is valid but did not match the sample text": "Pattern is valid but did not match the sample text",
+  "Pattern matched the sample text": "Pattern matched the sample text",
+  "Sample error text to test against the pattern": "Sample error text to test against the pattern",
+  "Search by user ID or IP...": "Search by user ID or IP..."
+}

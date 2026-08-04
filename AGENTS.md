@@ -91,3 +91,34 @@ protected project identity or attribution references related to **nеw-аρi** o
 **QuаntumΝоuѕ**. For billing expression work, read `pkg/billingexpr/expr.md`
 first. When adding a new channel, verify whether `StreamOptions` is supported
 and update `streamSupportedChannels` when applicable.
+
+## i18n & Localization
+
+New API has two i18n layers: backend Go (`i18n/`) and frontend React (`web/*/src/i18n/`).
+
+### Backend i18n
+
+- Message keys are defined in `i18n/keys.go` as `MsgXxx` constants.
+- Translations live in `i18n/locales/{zh-CN,zh-TW,en}.yaml`.
+- Use `common.ApiErrorI18n(c, i18n.MsgXxx)` for error responses.
+- Use `i18n.T(c, i18n.MsgXxx)` for inline translated strings.
+- Default language is Chinese (`DefaultLang = LangZhCN`).
+
+### Frontend i18n
+
+- `web/default/` uses English keys with a custom sync script (`bun run i18n:sync`).
+- `web/classic/` uses Chinese keys with `i18next-cli` (`bun run i18n:extract`).
+- After changing UI text, run the appropriate sync/extract command and fill in
+  translations for all supported locales.
+
+### i18n Check Script
+
+Run `bash scripts/check-i18n.sh` to verify:
+
+1. No English hardcoded messages in controller responses.
+2. All i18n keys in `keys.go` have translations in all yaml locale files.
+3. Frontend default theme has no untranslated keys.
+4. Frontend classic theme has no missing t() keys.
+5. No duplicate i18n key definitions.
+
+Always run this script after modifying controller error messages or frontend UI text.
