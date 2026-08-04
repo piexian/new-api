@@ -280,7 +280,7 @@ func validateEmailDomainPolicy(email string, restrictDomain bool) error {
 	localPart := parts[0]
 	domainPart := parts[1]
 	if restrictDomain && !isEmailDomainAllowed(domainPart, common.EmailDomainWhitelist) {
-		return errors.New("The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.")
+		return errors.New("管理员已启用邮箱域名白名单，您的邮箱地址因包含特殊符号或不在白名单中而被拒绝。")
 	}
 	if common.EmailAliasRestrictionEnabled {
 		containsSpecialSymbols := strings.Contains(localPart, "+") || strings.Contains(localPart, ".")

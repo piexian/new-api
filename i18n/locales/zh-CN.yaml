@@ -299,3 +299,40 @@ custom_oauth.name_empty: "提供商名称不能为空"
 custom_oauth.has_bindings: "无法删除已有用户绑定的提供商"
 custom_oauth.binding_not_found: "OAuth 绑定不存在"
 custom_oauth.provider_id_field_invalid: "无法从提供商响应中提取用户 ID"
+
+# Channel provider usage messages
+channel.type_not_matched: "渠道类型不匹配"
+channel.multi_key_unsupported: "多密钥渠道不支持此操作"
+channel.credential_missing: "渠道凭证缺失"
+channel.ollama_only: "此操作仅支持 Ollama 渠道"
+channel.coding_plan_only: "渠道不是 Coding Plan 基础地址"
+channel.qwen_single_key_only: "Qwen Token Plan 仅支持单密钥模式"
+channel.qwen_single_cred_only: "Qwen Token Plan 仅支持单个绑定凭证"
+
+# System task messages
+task.target_timestamp_required: "目标时间戳不能为空"
+task.type_required: "任务类型不能为空"
+task.id_required: "任务ID不能为空"
+task.not_found: "任务不存在"
+
+# OAuth flow messages
+oauth.flow_not_started: "OAuth 授权流程未启动或会话已过期"
+oauth.state_mismatch: "OAuth state 不匹配"
+oauth.missing_code: "缺少授权码"
+oauth.missing_state: "缺少 state 参数"
+oauth.token_extract_fail: "从 access_token 提取信息失败"
+
+# Model messages (extended)
+model.required: "模型名称不能为空"
+model.get_group_failed: "获取用户分组失败"
+
+# Token auth messages
+token.no_auth_header: "缺少 Authorization 请求头"
+token.invalid_bearer: "无效的 Bearer 令牌"
+
+# Payment compliance messages
+payment.session_required: "此操作需要控制台会话认证，不允许使用 API 访问令牌"
+
+# Channel affinity cache messages
+affinity.missing_rule_name: "缺少参数：rule_name"
+affinity.missing_key_fp: "缺少参数：key_fp"

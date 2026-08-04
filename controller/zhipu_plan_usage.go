@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 
@@ -34,7 +35,7 @@ type zhipuCodingPlanEnvelope struct {
 func GetZhipuCodingPlanUsage(c *gin.Context) {
 	channelID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
+		common.ApiErrorI18n(c, i18n.MsgChannelIdFormatError)
 		return
 	}
 
@@ -44,11 +45,11 @@ func GetZhipuCodingPlanUsage(c *gin.Context) {
 		return
 	}
 	if ch == nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelNotExists)})
 		return
 	}
 	if ch.Type != constant.ChannelTypeZhipu_v4 && ch.Type != constant.ChannelTypeZhipu {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Zhipu"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelTypeNotMatched)})
 		return
 	}
 
@@ -58,7 +59,7 @@ func GetZhipuCodingPlanUsage(c *gin.Context) {
 		return
 	}
 	if _, ok := zhipuCodingPlanAPIBase(ch.GetBaseURL()); !ok {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel is not a Zhipu Coding Plan base"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelCodingPlanOnly)})
 		return
 	}
 

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 
@@ -17,7 +18,7 @@ func CreateLogCleanupSystemTask(c *gin.Context) {
 	if targetTimestamp == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "target timestamp is required",
+			"message": i18n.T(c, i18n.MsgTaskTargetTimestampRequired),
 		})
 		return
 	}
@@ -41,7 +42,7 @@ func GetCurrentSystemTask(c *gin.Context) {
 	if taskType == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "type is required",
+			"message": i18n.T(c, i18n.MsgTaskTypeRequired),
 		})
 		return
 	}
@@ -95,7 +96,7 @@ func GetSystemTask(c *gin.Context) {
 	if taskID == "" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "task id is required",
+			"message": i18n.T(c, i18n.MsgTaskIdRequired),
 		})
 		return
 	}
@@ -108,7 +109,7 @@ func GetSystemTask(c *gin.Context) {
 	if task == nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"message": "task not found",
+			"message": i18n.T(c, i18n.MsgTaskNotFound),
 		})
 		return
 	}

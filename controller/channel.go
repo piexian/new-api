@@ -553,7 +553,7 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 func RefreshCodexChannelCredential(c *gin.Context) {
 	channelId, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
+		common.ApiErrorI18n(c, i18n.MsgChannelIdFormatError)
 		return
 	}
 
@@ -633,7 +633,7 @@ func AddChannel(c *gin.Context) {
 		addChannelRequest.Mode != "single" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "Qwen Token Plan only supports single-key mode",
+			"message": i18n.T(c, i18n.MsgChannelQwenSingleKeyOnly),
 		})
 		return
 	}
@@ -1020,7 +1020,7 @@ func UpdateChannel(c *gin.Context) {
 	if channel.Type == constant.ChannelTypeQwenTokenPlan && channel.ChannelInfo.IsMultiKey {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "Qwen Token Plan only supports a single bound credential",
+			"message": i18n.T(c, i18n.MsgChannelQwenSingleCredOnly),
 		})
 		return
 	}
@@ -1282,7 +1282,7 @@ func FetchModels(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "Invalid request",
+			"message": i18n.T(c, i18n.MsgInvalidParams),
 		})
 		return
 	}
@@ -2205,7 +2205,7 @@ func OllamaPullModel(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "Invalid request parameters",
+			"message": i18n.T(c, i18n.MsgInvalidParams),
 		})
 		return
 	}
@@ -2213,7 +2213,7 @@ func OllamaPullModel(c *gin.Context) {
 	if req.ChannelID == 0 || req.ModelName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "Channel ID and model name are required",
+			"message": i18n.T(c, i18n.MsgInvalidParams),
 		})
 		return
 	}
@@ -2223,7 +2223,7 @@ func OllamaPullModel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"message": "Channel not found",
+			"message": i18n.T(c, i18n.MsgChannelNotExists),
 		})
 		return
 	}
@@ -2232,7 +2232,7 @@ func OllamaPullModel(c *gin.Context) {
 	if channel.Type != constant.ChannelTypeOllama {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "This operation is only supported for Ollama channels",
+			"message": i18n.T(c, i18n.MsgChannelOllamaOnly),
 		})
 		return
 	}
@@ -2268,7 +2268,7 @@ func OllamaPullModelStream(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "Invalid request parameters",
+			"message": i18n.T(c, i18n.MsgInvalidParams),
 		})
 		return
 	}
@@ -2276,7 +2276,7 @@ func OllamaPullModelStream(c *gin.Context) {
 	if req.ChannelID == 0 || req.ModelName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "Channel ID and model name are required",
+			"message": i18n.T(c, i18n.MsgInvalidParams),
 		})
 		return
 	}
@@ -2286,7 +2286,7 @@ func OllamaPullModelStream(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"message": "Channel not found",
+			"message": i18n.T(c, i18n.MsgChannelNotExists),
 		})
 		return
 	}
@@ -2295,7 +2295,7 @@ func OllamaPullModelStream(c *gin.Context) {
 	if channel.Type != constant.ChannelTypeOllama {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "This operation is only supported for Ollama channels",
+			"message": i18n.T(c, i18n.MsgChannelOllamaOnly),
 		})
 		return
 	}
@@ -2350,7 +2350,7 @@ func OllamaDeleteModel(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "Invalid request parameters",
+			"message": i18n.T(c, i18n.MsgInvalidParams),
 		})
 		return
 	}
@@ -2358,7 +2358,7 @@ func OllamaDeleteModel(c *gin.Context) {
 	if req.ChannelID == 0 || req.ModelName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "Channel ID and model name are required",
+			"message": i18n.T(c, i18n.MsgInvalidParams),
 		})
 		return
 	}
@@ -2368,7 +2368,7 @@ func OllamaDeleteModel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"message": "Channel not found",
+			"message": i18n.T(c, i18n.MsgChannelNotExists),
 		})
 		return
 	}
@@ -2377,7 +2377,7 @@ func OllamaDeleteModel(c *gin.Context) {
 	if channel.Type != constant.ChannelTypeOllama {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "This operation is only supported for Ollama channels",
+			"message": i18n.T(c, i18n.MsgChannelOllamaOnly),
 		})
 		return
 	}
@@ -2409,7 +2409,7 @@ func OllamaVersion(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "Invalid channel id",
+			"message": i18n.T(c, i18n.MsgChannelIdFormatError),
 		})
 		return
 	}
@@ -2418,7 +2418,7 @@ func OllamaVersion(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"message": "Channel not found",
+			"message": i18n.T(c, i18n.MsgChannelNotExists),
 		})
 		return
 	}
@@ -2426,7 +2426,7 @@ func OllamaVersion(c *gin.Context) {
 	if channel.Type != constant.ChannelTypeOllama {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "This operation is only supported for Ollama channels",
+			"message": i18n.T(c, i18n.MsgChannelOllamaOnly),
 		})
 		return
 	}

@@ -298,3 +298,40 @@ custom_oauth.name_empty: "Provider name cannot be empty"
 custom_oauth.has_bindings: "Cannot delete provider with existing user bindings"
 custom_oauth.binding_not_found: "OAuth binding not found"
 custom_oauth.provider_id_field_invalid: "Could not extract user ID from provider response"
+
+# Channel provider usage messages
+channel.type_not_matched: "Channel type mismatch"
+channel.multi_key_unsupported: "Multi-key channel is not supported for this operation"
+channel.credential_missing: "Channel credential is missing"
+channel.ollama_only: "This operation is only supported for Ollama channels"
+channel.coding_plan_only: "Channel is not a Coding Plan base"
+channel.qwen_single_key_only: "Qwen Token Plan only supports single-key mode"
+channel.qwen_single_cred_only: "Qwen Token Plan only supports a single bound credential"
+
+# System task messages
+task.target_timestamp_required: "Target timestamp is required"
+task.type_required: "Task type is required"
+task.id_required: "Task ID is required"
+task.not_found: "Task not found"
+
+# OAuth flow messages
+oauth.flow_not_started: "OAuth flow not started or session expired"
+oauth.state_mismatch: "OAuth state mismatch"
+oauth.missing_code: "Missing authorization code"
+oauth.missing_state: "Missing state parameter"
+oauth.token_extract_fail: "Failed to extract info from access_token"
+
+# Model messages (extended)
+model.required: "Model name is required"
+model.get_group_failed: "Failed to get user group"
+
+# Token auth messages
+token.no_auth_header: "Missing Authorization header"
+token.invalid_bearer: "Invalid Bearer token"
+
+# Payment compliance messages
+payment.session_required: "This operation requires dashboard session authentication. API access token is not allowed."
+
+# Channel affinity cache messages
+affinity.missing_rule_name: "Missing param: rule_name"
+affinity.missing_key_fp: "Missing param: key_fp"

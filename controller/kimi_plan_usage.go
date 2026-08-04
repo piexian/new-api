@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 
@@ -101,7 +102,7 @@ func (value *kimiCodingPlanInteger) UnmarshalJSON(data []byte) error {
 func GetKimiCodingPlanUsage(c *gin.Context) {
 	channelID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
+		common.ApiErrorI18n(c, i18n.MsgChannelIdFormatError)
 		return
 	}
 
@@ -111,11 +112,11 @@ func GetKimiCodingPlanUsage(c *gin.Context) {
 		return
 	}
 	if ch == nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel not found"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelNotExists)})
 		return
 	}
 	if ch.Type != constant.ChannelTypeMoonshot {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "channel type is not Moonshot"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelTypeNotMatched)})
 		return
 	}
 
@@ -128,7 +129,7 @@ func GetKimiCodingPlanUsage(c *gin.Context) {
 	if _, ok := kimiCodingPlanAPIBase(ch.GetBaseURL()); !ok {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "channel is not a Kimi Coding Plan base",
+			"message": i18n.T(c, i18n.MsgChannelCodingPlanOnly),
 		})
 		return
 	}

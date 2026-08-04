@@ -178,7 +178,7 @@ func GetTokenUsage(c *gin.Context) {
 	if authHeader == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
-			"message": "No Authorization header",
+			"message": i18n.T(c, i18n.MsgTokenNoAuthHeader),
 		})
 		return
 	}
@@ -187,7 +187,7 @@ func GetTokenUsage(c *gin.Context) {
 	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
-			"message": "Invalid Bearer token",
+			"message": i18n.T(c, i18n.MsgTokenInvalidBearer),
 		})
 		return
 	}

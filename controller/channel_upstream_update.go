@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/cohere"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
@@ -851,7 +852,7 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 	if req.ID <= 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "invalid channel id",
+			"message": i18n.T(c, i18n.MsgChannelIdFormatError),
 		})
 		return
 	}
@@ -907,7 +908,7 @@ func DetectChannelUpstreamModelUpdates(c *gin.Context) {
 	if req.ID <= 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "invalid channel id",
+			"message": i18n.T(c, i18n.MsgChannelIdFormatError),
 		})
 		return
 	}

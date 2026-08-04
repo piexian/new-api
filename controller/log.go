@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
@@ -178,7 +179,7 @@ func DeleteHistoryLogs(c *gin.Context) {
 	if targetTimestamp == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": "target timestamp is required",
+			"message": i18n.T(c, i18n.MsgTaskTargetTimestampRequired),
 		})
 		return
 	}

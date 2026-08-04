@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/QuantumNous/new-api/i18n"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -40,7 +41,7 @@ func GetPerfMetrics(c *gin.Context) {
 	if modelName == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "model is required",
+			"message": i18n.T(c, i18n.MsgModelRequired),
 		})
 		return
 	}

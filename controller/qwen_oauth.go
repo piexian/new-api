@@ -12,6 +12,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/qwentokenplan"
 	"github.com/QuantumNous/new-api/service"
@@ -44,7 +45,7 @@ func StartQwenOAuth(c *gin.Context) {
 func StartQwenOAuthForChannel(c *gin.Context) {
 	channelID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
+		common.ApiErrorI18n(c, i18n.MsgChannelIdFormatError)
 		return
 	}
 	startQwenOAuthWithChannelID(c, channelID)
@@ -69,7 +70,7 @@ func startQwenOAuthWithChannelID(c *gin.Context, channelID int) {
 		proxyURL = channel.GetSetting().Proxy
 	}
 	if _, err := resolveQwenOAuthAPIKey(channel, request.APIKey); err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "a valid sk-sp- API key is required before OAuth authorization"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelCredentialMissing)})
 		return
 	}
 
@@ -112,7 +113,7 @@ func CompleteQwenOAuth(c *gin.Context) {
 func CompleteQwenOAuthForChannel(c *gin.Context) {
 	channelID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		common.ApiError(c, fmt.Errorf("invalid channel id: %w", err))
+		common.ApiErrorI18n(c, i18n.MsgChannelIdFormatError)
 		return
 	}
 	completeQwenOAuthWithChannelID(c, channelID)
@@ -138,7 +139,7 @@ func completeQwenOAuthWithChannelID(c *gin.Context, channelID int) {
 	}
 	apiKey, err := resolveQwenOAuthAPIKey(channel, request.APIKey)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "a valid sk-sp- API key is required before OAuth authorization"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelCredentialMissing)})
 		return
 	}
 
@@ -148,7 +149,7 @@ func completeQwenOAuthWithChannelID(c *gin.Context, channelID int) {
 	verifier, _ := session.Get(qwenOAuthSessionKey(channelID, "verifier")).(string)
 	expiresAt, _ := session.Get(qwenOAuthSessionKey(channelID, "expires_at")).(int64)
 	if clientID == "" || token == "" || verifier == "" || (expiresAt > 0 && time.Now().Unix() >= expiresAt) {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "qwen oauth flow not started or expired"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthFlowNotStarted)})
 		return
 	}
 
@@ -172,7 +173,7 @@ func completeQwenOAuthWithChannelID(c *gin.Context, channelID int) {
 		return
 	}
 	if result.Credentials == nil {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "qwen oauth completed without credentials"})
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthTokenExtractFail)})
 		return
 	}
 

@@ -31,7 +31,7 @@ func ConfirmPaymentCompliance(c *gin.Context) {
 	if c.GetBool("use_access_token") {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
-			"message": "This operation requires dashboard session authentication. API access token is not allowed.",
+			"message": i18n.T(c, i18n.MsgPaymentSessionRequired),
 		})
 		return
 	}

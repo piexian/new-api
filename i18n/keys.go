@@ -351,3 +351,54 @@ const (
 	MsgCustomOAuthBindingNotFound   = "custom_oauth.binding_not_found"
 	MsgCustomOAuthProviderIdInvalid = "custom_oauth.provider_id_field_invalid"
 )
+
+// Channel provider usage related messages
+const (
+	MsgChannelTypeNotMatched      = "channel.type_not_matched"
+	MsgChannelMultiKeyUnsupported = "channel.multi_key_unsupported"
+	MsgChannelCredentialMissing   = "channel.credential_missing"
+	MsgChannelOllamaOnly          = "channel.ollama_only"
+	MsgChannelCodingPlanOnly      = "channel.coding_plan_only"
+	MsgChannelQwenSingleKeyOnly   = "channel.qwen_single_key_only"
+	MsgChannelQwenSingleCredOnly  = "channel.qwen_single_cred_only"
+)
+
+// System task related messages
+const (
+	MsgTaskTargetTimestampRequired = "task.target_timestamp_required"
+	MsgTaskTypeRequired            = "task.type_required"
+	MsgTaskIdRequired              = "task.id_required"
+	MsgTaskNotFound                = "task.not_found"
+)
+
+// OAuth flow related messages
+const (
+	MsgOAuthFlowNotStarted   = "oauth.flow_not_started"
+	MsgOAuthStateMismatch    = "oauth.state_mismatch"
+	MsgOAuthMissingCode      = "oauth.missing_code"
+	MsgOAuthMissingState     = "oauth.missing_state"
+	MsgOAuthTokenExtractFail = "oauth.token_extract_fail"
+)
+
+// Model related messages (extended)
+const (
+	MsgModelRequired        = "model.required"
+	MsgModelGetGroupFailed  = "model.get_group_failed"
+)
+
+// Token auth related messages
+const (
+	MsgTokenNoAuthHeader    = "token.no_auth_header"
+	MsgTokenInvalidBearer   = "token.invalid_bearer"
+)
+
+// Payment compliance related messages
+const (
+	MsgPaymentSessionRequired = "payment.session_required"
+)
+
+// Channel affinity cache related messages
+const (
+	MsgAffinityMissingRuleName = "affinity.missing_rule_name"
+	MsgAffinityMissingKeyFp    = "affinity.missing_key_fp"
+)
