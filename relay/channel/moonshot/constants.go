@@ -3,6 +3,7 @@ package moonshot
 var ModelList = []string{
 	"kimi-k3",
 	"k3",
+	"k3-256k",
 	"kimi-k2.7-code",
 	"kimi-k2.7-code-highspeed",
 	"kimi-for-coding",

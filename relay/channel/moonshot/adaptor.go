@@ -1,6 +1,7 @@
 package moonshot
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -29,6 +30,10 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
+	if req != nil && shouldUseKimiK3ShortContext(info, getUpstreamModelName(info, req.Model)) {
+		req.Model = kimiK3ShortContextModel
+		markKimiK3ShortContextFallback(c, info)
+	}
 	adaptor := claude.Adaptor{}
 	return adaptor.ConvertClaudeRequest(c, info, req)
 }
@@ -48,20 +53,21 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseURL := info.ChannelBaseUrl
+	requestFormat := info.GetFinalRequestRelayFormat()
 	if shouldUseKimiCodingClaudeEndpoint(info) {
 		return fmt.Sprintf("%s/v1/messages", kimiCodingClaudeBaseURL(baseURL)), nil
 	}
 	if specialPlan, ok := channelconstant.ChannelSpecialBases[baseURL]; ok {
-		if info.RelayFormat == types.RelayFormatClaude {
+		if requestFormat == types.RelayFormatClaude {
 			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
 		}
-		if info.RelayFormat == types.RelayFormatOpenAI {
+		if requestFormat == types.RelayFormatOpenAI {
 			return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
 		}
 	}
 	baseURL = normalizeMoonshotBaseURL(baseURL)
 
-	switch info.RelayFormat {
+	switch requestFormat {
 	case types.RelayFormatClaude:
 		return fmt.Sprintf("%s/anthropic/v1/messages", baseURL), nil
 	default:
@@ -81,7 +87,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
 	req.Set("Authorization", fmt.Sprintf("Bearer %s", info.ApiKey))
-	if isKimiCodingBaseURL(info.ChannelBaseUrl) {
+	if isKimiCodingBaseURL(info.ChannelBaseUrl) && info.GetFinalRequestRelayFormat() == types.RelayFormatClaude {
+		claude.CommonClaudeHeadersOperation(c, req, info)
+	} else if isKimiCodingBaseURL(info.ChannelBaseUrl) {
 		setupKimiCodingHeaders(c, req, info)
 	} else if info.RelayFormat == types.RelayFormatClaude {
 		claude.CommonClaudeHeadersOperation(c, req, info)
@@ -97,20 +105,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		return request, nil
 	}
 	family := normalizeKimiOpenAIRequest(info, request)
-	if shouldUseKimiCodingClaudeEndpoint(info) {
-		adaptor := claude.Adaptor{}
-		converted, err := adaptor.ConvertOpenAIRequest(c, info, request)
-		if err != nil {
-			return nil, err
-		}
-		claudeRequest, ok := converted.(*dto.ClaudeRequest)
-		if !ok {
-			return converted, nil
-		}
-		if err := applyKimiCodingClaudeCompatibility(family, claudeRequest); err != nil {
-			return nil, err
-		}
-		return claudeRequest, nil
+	if family == kimiModelK3 && shouldUseKimiK3ShortContext(info, getUpstreamModelName(info, request.Model)) {
+		request.Model = kimiK3ShortContextModel
+		markKimiK3ShortContextFallback(c, info)
 	}
 	return request, nil
 }
@@ -128,6 +125,10 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		return nil, err
 	}
 	normalizeKimiOpenAIRequest(info, chatRequest)
+	if shouldUseKimiK3ShortContext(info, getUpstreamModelName(info, chatRequest.Model)) {
+		chatRequest.Model = kimiK3ShortContextModel
+		markKimiK3ShortContextFallback(c, info)
+	}
 	if info != nil {
 		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
 	}
@@ -135,7 +136,24 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	return channel.DoApiRequest(a, c, info, requestBody)
+	if !shouldRetryKimiK3WithFullContext(c, info) {
+		return channel.DoApiRequest(a, c, info, requestBody)
+	}
+	body, err := io.ReadAll(requestBody)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := channel.DoApiRequest(a, c, info, bytes.NewReader(body))
+	if err != nil || !isKimiK3ShortContextOverflow(resp) {
+		return resp, err
+	}
+	fullBody, replaced, replaceErr := replaceKimiModelInRequestBody(body, kimiK3FullContextModel)
+	if replaceErr != nil || !replaced {
+		return resp, err
+	}
+	_ = resp.Body.Close()
+	info.AppendRequestModelRouting(kimiK3FullContextFallbackRouteLabel)
+	return channel.DoApiRequest(a, c, info, bytes.NewReader(fullBody))
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -179,13 +197,7 @@ func shouldUseKimiCodingClaudeEndpoint(info *relaycommon.RelayInfo) bool {
 	if info == nil {
 		return false
 	}
-	if info.RelayFormat == types.RelayFormatClaude {
-		return isKimiCodingBaseURL(info.ChannelBaseUrl)
-	}
-	if relaycommon.IsRequestPassThroughEnabled(info) {
-		return false
-	}
-	return info.RelayMode == constant.RelayModeChatCompletions &&
+	return info.GetFinalRequestRelayFormat() == types.RelayFormatClaude &&
 		isKimiCodingBaseURL(info.ChannelBaseUrl)
 }
 

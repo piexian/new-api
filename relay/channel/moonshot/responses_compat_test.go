@@ -68,3 +68,38 @@ func TestConvertOpenAIResponsesRequestAllowsStream(t *testing.T) {
 		t.Fatalf("Stream = %#v, want true", chatReq.Stream)
 	}
 }
+
+func TestConvertOpenAIResponsesRequestUsesKimiK3ShortContextByDefault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeResponses,
+		RelayFormat:     types.RelayFormatOpenAIResponses,
+		OriginModelName: "k3",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "kimi-coding-plan",
+			UpstreamModelName: "k3",
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		Model: "k3",
+		Input: []byte(`"hello"`),
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIResponsesRequest returned error: %v", err)
+	}
+	request, ok := converted.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want *dto.GeneralOpenAIRequest", converted)
+	}
+	if request.Model != kimiK3ShortContextModel {
+		t.Fatalf("upstream model = %q, want %q", request.Model, kimiK3ShortContextModel)
+	}
+	if value, ok := c.Get(kimiK3FallbackContextKey); !ok || value != true {
+		t.Fatalf("K3 fallback marker = %#v, want true", value)
+	}
+	if len(info.RequestModelRoutingChain) != 1 || info.RequestModelRoutingChain[0] != kimiK3ShortContextRouteLabel {
+		t.Fatalf("model routing chain = %#v, want automatic 256K route", info.RequestModelRoutingChain)
+	}
+}

@@ -1,6 +1,7 @@
 package moonshot
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,28 +23,50 @@ func moonshotPointer[T any](value T) *T {
 	return &value
 }
 
-func TestGetRequestURLUsesMessagesForKimiCodingPlan(t *testing.T) {
+func TestGetRequestURLUsesInputProtocolForKimiCoding(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		name    string
-		baseURL string
-		want    string
+		name        string
+		baseURL     string
+		relayFormat types.RelayFormat
+		want        string
 	}{
 		{
-			name:    "special base",
-			baseURL: "kimi-coding-plan",
-			want:    "https://api.kimi.com/coding/v1/messages",
+			name:        "special base OpenAI",
+			baseURL:     "kimi-coding-plan",
+			relayFormat: types.RelayFormatOpenAI,
+			want:        "https://api.kimi.com/coding/v1/chat/completions",
 		},
 		{
-			name:    "custom coding base",
-			baseURL: "https://example.com/coding",
-			want:    "https://example.com/coding/v1/messages",
+			name:        "special base Claude",
+			baseURL:     "kimi-coding-plan",
+			relayFormat: types.RelayFormatClaude,
+			want:        "https://api.kimi.com/coding/v1/messages",
 		},
 		{
-			name:    "custom coding v1 base",
-			baseURL: "https://example.com/coding/v1",
-			want:    "https://example.com/coding/v1/messages",
+			name:        "custom coding base OpenAI",
+			baseURL:     "https://example.com/coding",
+			relayFormat: types.RelayFormatOpenAI,
+			want:        "https://example.com/coding/v1/chat/completions",
+		},
+		{
+			name:        "custom coding base Claude",
+			baseURL:     "https://example.com/coding",
+			relayFormat: types.RelayFormatClaude,
+			want:        "https://example.com/coding/v1/messages",
+		},
+		{
+			name:        "custom coding v1 base OpenAI",
+			baseURL:     "https://example.com/coding/v1",
+			relayFormat: types.RelayFormatOpenAI,
+			want:        "https://example.com/coding/v1/chat/completions",
+		},
+		{
+			name:        "custom coding v1 base Claude",
+			baseURL:     "https://example.com/coding/v1",
+			relayFormat: types.RelayFormatClaude,
+			want:        "https://example.com/coding/v1/messages",
 		},
 	}
 
@@ -55,7 +78,7 @@ func TestGetRequestURLUsesMessagesForKimiCodingPlan(t *testing.T) {
 			adaptor := &Adaptor{}
 			got, err := adaptor.GetRequestURL(&relaycommon.RelayInfo{
 				RelayMode:   relayconstant.RelayModeChatCompletions,
-				RelayFormat: types.RelayFormatOpenAI,
+				RelayFormat: testCase.relayFormat,
 				ChannelMeta: &relaycommon.ChannelMeta{
 					ChannelBaseUrl: testCase.baseURL,
 				},
@@ -103,12 +126,41 @@ func TestGetRequestURLKeepsOpenAIEndpointForRegularMoonshot(t *testing.T) {
 	}
 }
 
-func TestConvertOpenAIRequestReturnsClaudeRequestForKimiCodingPlan(t *testing.T) {
+func TestGetRequestURLUsesConvertedOpenAIEndpointForKimiCodingResponses(t *testing.T) {
+	t.Parallel()
+
+	got, err := (&Adaptor{}).GetRequestURL(&relaycommon.RelayInfo{
+		RelayMode:               relayconstant.RelayModeResponses,
+		RelayFormat:             types.RelayFormatOpenAIResponses,
+		FinalRequestRelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "kimi-coding-plan",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetRequestURL returned error: %v", err)
+	}
+	const want = "https://api.kimi.com/coding/v1/chat/completions"
+	if got != want {
+		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
+	}
+}
+
+func TestConvertOpenAIRequestKeepsOpenAIRequestForKimiCodingPlan(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
 	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
 	adaptor := &Adaptor{}
+	request := &dto.GeneralOpenAIRequest{
+		Model: "kimi-k2.5",
+		Messages: []dto.Message{
+			{
+				Role:    "user",
+				Content: "hi",
+			},
+		},
+	}
 	converted, err := adaptor.ConvertOpenAIRequest(c, &relaycommon.RelayInfo{
 		RelayMode:       relayconstant.RelayModeChatCompletions,
 		RelayFormat:     types.RelayFormatOpenAI,
@@ -117,20 +169,12 @@ func TestConvertOpenAIRequestReturnsClaudeRequestForKimiCodingPlan(t *testing.T)
 			ChannelBaseUrl:    "kimi-coding-plan",
 			UpstreamModelName: "kimi-k2.5",
 		},
-	}, &dto.GeneralOpenAIRequest{
-		Model: "kimi-k2.5",
-		Messages: []dto.Message{
-			{
-				Role:    "user",
-				Content: "hi",
-			},
-		},
-	})
+	}, request)
 	if err != nil {
 		t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
 	}
-	if _, ok := converted.(*dto.ClaudeRequest); !ok {
-		t.Fatalf("ConvertOpenAIRequest returned %T, want *dto.ClaudeRequest", converted)
+	if converted != request {
+		t.Fatalf("ConvertOpenAIRequest returned %T, want the original OpenAI request", converted)
 	}
 }
 
@@ -217,15 +261,12 @@ func TestSetupRequestHeaderAppliesKimiCLICompatibilityHeaders(t *testing.T) {
 	}
 
 	wantHeaders := map[string]string{
-		"Authorization":     "Bearer kimi-key",
-		"Content-Type":      gin.MIMEJSON,
-		"Accept":            gin.MIMEJSON,
-		"User-Agent":        "kimi-code-cli/0.27.0",
-		"X-Msh-Platform":    "kimi_code_cli",
-		"X-Msh-Version":     "0.27.0",
-		"anthropic-version": "2023-06-01",
-		"anthropic-dangerous-direct-browser-access": "true",
-		"x-app": "cli",
+		"Authorization":  "Bearer kimi-key",
+		"Content-Type":   gin.MIMEJSON,
+		"Accept":         gin.MIMEJSON,
+		"User-Agent":     "kimi-code-cli/0.34.0",
+		"X-Msh-Platform": "kimi_code_cli",
+		"X-Msh-Version":  "0.34.0",
 	}
 	for name, want := range wantHeaders {
 		if got := headers.Get(name); got != want {
@@ -237,8 +278,10 @@ func TestSetupRequestHeaderAppliesKimiCLICompatibilityHeaders(t *testing.T) {
 			t.Errorf("%s should not be empty", name)
 		}
 	}
-	if got := headers.Get("anthropic-beta"); got != "" {
-		t.Fatalf("anthropic-beta = %q, want client value removed in non-pass-through mode", got)
+	for _, name := range []string{"anthropic-version", "anthropic-beta", "anthropic-dangerous-direct-browser-access", "x-app"} {
+		if got := headers.Get(name); got != "" {
+			t.Errorf("%s = %q, want no Anthropic header on OpenAI request", name, got)
+		}
 	}
 	for _, name := range []string{"Cookie", "X-Client-Only", "X-Claude-Code-Session-Id"} {
 		if got := headers.Get(name); got != "" {
@@ -247,6 +290,44 @@ func TestSetupRequestHeaderAppliesKimiCLICompatibilityHeaders(t *testing.T) {
 	}
 	if got := c.Request.Header.Get("X-Claude-Code-Session-Id"); got != "session-123" {
 		t.Fatalf("incoming session header = %q, want it preserved for local affinity/cache lookup", got)
+	}
+}
+
+func TestSetupRequestHeaderUsesClaudeHeadersForKimiCodingClaudeRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Set("anthropic-beta", "client-beta")
+
+	headers := make(http.Header)
+	err := (&Adaptor{}).SetupRequestHeader(c, &headers, &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeChatCompletions,
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:         "kimi-key",
+			ChannelBaseUrl: "kimi-coding-plan",
+		},
+	})
+	if err != nil {
+		t.Fatalf("SetupRequestHeader returned error: %v", err)
+	}
+
+	if got := headers.Get("Authorization"); got != "Bearer kimi-key" {
+		t.Fatalf("Authorization = %q, want Bearer kimi-key", got)
+	}
+	if got := headers.Get("User-Agent"); !strings.HasPrefix(got, "claude-cli/") {
+		t.Fatalf("User-Agent = %q, want Claude Code fingerprint", got)
+	}
+	if got := headers.Get("anthropic-version"); got != "2023-06-01" {
+		t.Fatalf("anthropic-version = %q, want 2023-06-01", got)
+	}
+	if got := headers.Get("anthropic-beta"); got != "client-beta" {
+		t.Fatalf("anthropic-beta = %q, want client-beta", got)
+	}
+	for _, name := range kimiCLIHeaderNames[1:] {
+		if got := headers.Get(name); got != "" {
+			t.Errorf("%s = %q, want no Kimi Code header on Claude request", name, got)
+		}
 	}
 }
 
@@ -264,7 +345,7 @@ func TestDoRequestAppliesKimiCodingHeaderPolicy(t *testing.T) {
 		{
 			name:              "empty override uses built-in headers",
 			headerOverride:    map[string]interface{}{},
-			wantUserAgent:     "kimi-code-cli/0.27.0",
+			wantUserAgent:     "kimi-code-cli/0.34.0",
 			wantAnthropicBeta: "",
 		},
 		{
@@ -561,24 +642,28 @@ func TestConvertOpenAIRequestPassThroughSkipsKimiNormalizationAndConversion(t *t
 	}
 }
 
-func TestConvertOpenAIRequestAdaptsKimiCodingModelsToClaudeThinking(t *testing.T) {
+func TestConvertOpenAIRequestKeepsKimiCodingModelsInOpenAIFormat(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	testCases := []struct {
-		name       string
-		model      string
-		wantType   string
-		wantEffort string
-		wantBudget bool
-		toolChoice any
-		maxTokens  *uint
-		reasoning  string
+		name      string
+		model     string
+		wantModel string
+		maxTokens *uint
+		reasoning string
 	}{
-		{name: "K3 adaptive", model: "k3", wantType: "adaptive", wantEffort: "max", toolChoice: "required", reasoning: "max"},
-		{name: "K2.7 enabled", model: "kimi-for-coding", wantType: "enabled", wantBudget: true, toolChoice: "auto", maxTokens: moonshotPointer[uint](2048)},
+		{name: "K3", model: "k3", wantModel: kimiK3ShortContextModel, reasoning: "max"},
+		{name: "K2.7", model: "kimi-for-coding", wantModel: "kimi-for-coding", maxTokens: moonshotPointer[uint](2048)},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+			request := &dto.GeneralOpenAIRequest{
+				Model:           testCase.model,
+				Messages:        []dto.Message{{Role: "user", Content: "hi"}},
+				MaxTokens:       testCase.maxTokens,
+				ReasoningEffort: testCase.reasoning,
+				Temperature:     moonshotPointer(0.5),
+			}
 			converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, &relaycommon.RelayInfo{
 				RelayMode:       relayconstant.RelayModeChatCompletions,
 				RelayFormat:     types.RelayFormatOpenAI,
@@ -587,38 +672,21 @@ func TestConvertOpenAIRequestAdaptsKimiCodingModelsToClaudeThinking(t *testing.T
 					ChannelBaseUrl:    "kimi-coding-plan",
 					UpstreamModelName: testCase.model,
 				},
-			}, &dto.GeneralOpenAIRequest{
-				Model:           testCase.model,
-				Messages:        []dto.Message{{Role: "user", Content: "hi"}},
-				MaxTokens:       testCase.maxTokens,
-				ReasoningEffort: testCase.reasoning,
-				Temperature:     moonshotPointer(0.5),
-				ToolChoice:      testCase.toolChoice,
-			})
+			}, request)
 			if err != nil {
 				t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
 			}
-			got, ok := converted.(*dto.ClaudeRequest)
-			if !ok {
-				t.Fatalf("ConvertOpenAIRequest returned %T, want *dto.ClaudeRequest", converted)
+			if converted != request {
+				t.Fatalf("ConvertOpenAIRequest returned %T, want the original OpenAI request", converted)
 			}
-			if got.Thinking == nil || got.Thinking.Type != testCase.wantType {
-				t.Fatalf("thinking = %#v, want type %q", got.Thinking, testCase.wantType)
+			if request.Model != testCase.wantModel {
+				t.Fatalf("model = %q, want %q", request.Model, testCase.wantModel)
 			}
-			if testCase.wantBudget && got.Thinking.BudgetTokens == nil {
-				t.Fatal("K2.7 Claude thinking should include budget_tokens")
+			if request.Temperature != nil {
+				t.Fatal("Kimi Coding OpenAI normalization should omit conflicting temperature")
 			}
-			if got.Temperature != nil || got.TopP != nil || got.TopK != nil {
-				t.Fatal("Kimi Coding Claude thinking should omit sampling parameters")
-			}
-			if testCase.wantEffort != "" {
-				var outputConfig map[string]string
-				if err := common.Unmarshal(got.OutputConfig, &outputConfig); err != nil {
-					t.Fatalf("output_config is invalid: %v", err)
-				}
-				if outputConfig["effort"] != testCase.wantEffort {
-					t.Fatalf("output_config effort = %q, want %q", outputConfig["effort"], testCase.wantEffort)
-				}
+			if testCase.model == "k3" && request.ReasoningEffort != "max" {
+				t.Fatalf("reasoning_effort = %q, want max", request.ReasoningEffort)
 			}
 		})
 	}
@@ -651,4 +719,449 @@ func TestKimiK3MessageParametersSurviveTypedMarshal(t *testing.T) {
 	if _, exists := message["content"]; exists {
 		t.Fatalf("content should be omitted for dynamic tool declarations: %#v", message)
 	}
+}
+
+func TestConvertOpenAIRequestUsesKimiK3ShortContextByDefault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "k3",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "kimi-coding-plan",
+			UpstreamModelName: "k3",
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{
+		Model:    "k3",
+		Messages: []dto.Message{{Role: "user", Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
+	}
+	request, ok := converted.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		t.Fatalf("ConvertOpenAIRequest returned %T, want *dto.GeneralOpenAIRequest", converted)
+	}
+	if request.Model != kimiK3ShortContextModel {
+		t.Fatalf("upstream model = %q, want %q", request.Model, kimiK3ShortContextModel)
+	}
+	if value, ok := c.Get(kimiK3FallbackContextKey); !ok || value != true {
+		t.Fatalf("K3 fallback marker = %#v, want true", value)
+	}
+	if len(info.RequestModelRoutingChain) != 1 || info.RequestModelRoutingChain[0] != kimiK3ShortContextRouteLabel {
+		t.Fatalf("model routing chain = %#v, want automatic 256K route", info.RequestModelRoutingChain)
+	}
+}
+
+func TestConvertOpenAIRequestKeepsExplicitKimiK3ShortContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: kimiK3ShortContextModel,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "kimi-coding-plan",
+			UpstreamModelName: kimiK3ShortContextModel,
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{
+		Model:    kimiK3ShortContextModel,
+		Messages: []dto.Message{{Role: "user", Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
+	}
+	request, ok := converted.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		t.Fatalf("ConvertOpenAIRequest returned %T, want *dto.GeneralOpenAIRequest", converted)
+	}
+	if request.Model != kimiK3ShortContextModel {
+		t.Fatalf("upstream model = %q, want %q", request.Model, kimiK3ShortContextModel)
+	}
+	if _, ok := c.Get(kimiK3FallbackContextKey); ok {
+		t.Fatal("explicit k3-256k request should not enable full-context fallback")
+	}
+	if len(info.RequestModelRoutingChain) != 0 {
+		t.Fatalf("explicit k3-256k model routing chain = %#v, want empty", info.RequestModelRoutingChain)
+	}
+}
+
+func TestConvertOpenAIRequestDoesNotAutoRouteKimiK3OutsideKimiCoding(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	request := &dto.GeneralOpenAIRequest{
+		Model:    kimiK3FullContextModel,
+		Messages: []dto.Message{{Role: "user", Content: "hello"}},
+	}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: kimiK3FullContextModel,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "https://api.moonshot.cn",
+			UpstreamModelName: kimiK3FullContextModel,
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, info, request)
+	if err != nil {
+		t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
+	}
+	if converted != request {
+		t.Fatalf("ConvertOpenAIRequest returned %T, want the original request pointer", converted)
+	}
+	if request.Model != kimiK3FullContextModel {
+		t.Fatalf("upstream model = %q, want %q", request.Model, kimiK3FullContextModel)
+	}
+	if _, ok := c.Get(kimiK3FallbackContextKey); ok {
+		t.Fatal("regular Moonshot k3 request should not enable Kimi Coding fallback")
+	}
+}
+
+func TestConvertOpenAIRequestDoesNotAutoRouteKimiK3InPassThroughMode(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	request := &dto.GeneralOpenAIRequest{
+		Model:    kimiK3FullContextModel,
+		Messages: []dto.Message{{Role: "user", Content: "hello"}},
+	}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: kimiK3FullContextModel,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "kimi-coding-plan",
+			UpstreamModelName: kimiK3FullContextModel,
+			ChannelSetting:    dto.ChannelSettings{PassThroughBodyEnabled: true},
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, info, request)
+	if err != nil {
+		t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
+	}
+	if converted != request {
+		t.Fatalf("ConvertOpenAIRequest returned %T, want the original request pointer", converted)
+	}
+	if request.Model != kimiK3FullContextModel {
+		t.Fatalf("upstream model = %q, want %q", request.Model, kimiK3FullContextModel)
+	}
+	if _, ok := c.Get(kimiK3FallbackContextKey); ok {
+		t.Fatal("pass-through k3 request should not enable full-context fallback")
+	}
+}
+
+func TestConvertClaudeRequestUsesKimiK3ShortContextByDefault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatClaude,
+		OriginModelName: "k3",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "kimi-coding-plan",
+			UpstreamModelName: "k3",
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertClaudeRequest(c, info, &dto.ClaudeRequest{Model: "k3"})
+	if err != nil {
+		t.Fatalf("ConvertClaudeRequest returned error: %v", err)
+	}
+	request, ok := converted.(*dto.ClaudeRequest)
+	if !ok {
+		t.Fatalf("ConvertClaudeRequest returned %T, want *dto.ClaudeRequest", converted)
+	}
+	if request.Model != kimiK3ShortContextModel {
+		t.Fatalf("upstream model = %q, want %q", request.Model, kimiK3ShortContextModel)
+	}
+	if value, ok := c.Get(kimiK3FallbackContextKey); !ok || value != true {
+		t.Fatalf("K3 fallback marker = %#v, want true", value)
+	}
+	if len(info.RequestModelRoutingChain) != 1 || info.RequestModelRoutingChain[0] != kimiK3ShortContextRouteLabel {
+		t.Fatalf("model routing chain = %#v, want automatic 256K route", info.RequestModelRoutingChain)
+	}
+}
+
+func TestDoRequestFallsBackToKimiK3AfterShortContextOverflow(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+	var requestBodies [][]byte
+	var requestPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestPaths = append(requestPaths, r.URL.Path)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("ReadAll returned error: %v", err)
+		}
+		requestBodies = append(requestBodies, body)
+		w.Header().Set("Content-Type", "application/json")
+		if len(requestBodies) == 1 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"message":"Invalid request: Your request exceeded model token limit: 262144 (requested: 300000)"}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "k3",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "kimi-key",
+			ChannelBaseUrl:    server.URL + "/coding",
+			UpstreamModelName: "k3",
+		},
+	}
+	requestBody := convertKimiK3OpenAIRequestForDoRequest(t, c, info)
+	outboundBody, size, closer, err := relaycommon.NewOutboundJSONBody(requestBody)
+	if err != nil {
+		t.Fatalf("NewOutboundJSONBody returned error: %v", err)
+	}
+	defer closer.Close()
+	info.UpstreamRequestBodySize = size
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, outboundBody)
+	if err != nil {
+		t.Fatalf("DoRequest returned error: %v", err)
+	}
+	response, ok := resp.(*http.Response)
+	if !ok {
+		t.Fatalf("DoRequest returned %T, want *http.Response", resp)
+	}
+	defer response.Body.Close()
+	if len(requestBodies) != 2 {
+		t.Fatalf("upstream request count = %d, want 2", len(requestBodies))
+	}
+	for _, path := range requestPaths {
+		if path != "/coding/v1/chat/completions" {
+			t.Fatalf("upstream request path = %q, want /coding/v1/chat/completions", path)
+		}
+	}
+
+	var first, second map[string]any
+	if err := common.Unmarshal(requestBodies[0], &first); err != nil {
+		t.Fatalf("first request is invalid JSON: %v", err)
+	}
+	if err := common.Unmarshal(requestBodies[1], &second); err != nil {
+		t.Fatalf("second request is invalid JSON: %v", err)
+	}
+	if first["model"] != kimiK3ShortContextModel || second["model"] != kimiK3FullContextModel {
+		t.Fatalf("models = %q then %q, want %q then %q", first["model"], second["model"], kimiK3ShortContextModel, kimiK3FullContextModel)
+	}
+	wantRouting := []string{kimiK3ShortContextRouteLabel, kimiK3FullContextFallbackRouteLabel}
+	if len(info.RequestModelRoutingChain) != len(wantRouting) ||
+		info.RequestModelRoutingChain[0] != wantRouting[0] ||
+		info.RequestModelRoutingChain[1] != wantRouting[1] {
+		t.Fatalf("model routing chain = %#v, want %#v", info.RequestModelRoutingChain, wantRouting)
+	}
+}
+
+func TestDoRequestDoesNotFallbackForExplicitKimiK3ShortContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"Your request exceeded model token limit: 262144"}}`))
+	}))
+	defer server.Close()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: kimiK3ShortContextModel,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "kimi-key",
+			ChannelBaseUrl:    server.URL + "/coding",
+			UpstreamModelName: kimiK3ShortContextModel,
+		},
+	}
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{
+		Model:    kimiK3ShortContextModel,
+		Messages: []dto.Message{{Role: "user", Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
+	}
+	request, ok := converted.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		t.Fatalf("ConvertOpenAIRequest returned %T, want *dto.GeneralOpenAIRequest", converted)
+	}
+	if request.Model != kimiK3ShortContextModel {
+		t.Fatalf("converted model = %q, want %q", request.Model, kimiK3ShortContextModel)
+	}
+	requestBody, err := common.Marshal(converted)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+	outboundBody, size, closer, err := relaycommon.NewOutboundJSONBody(requestBody)
+	if err != nil {
+		t.Fatalf("NewOutboundJSONBody returned error: %v", err)
+	}
+	defer closer.Close()
+	info.UpstreamRequestBodySize = size
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, outboundBody)
+	if err != nil {
+		t.Fatalf("DoRequest returned error: %v", err)
+	}
+	response, ok := resp.(*http.Response)
+	if !ok {
+		t.Fatalf("DoRequest returned %T, want *http.Response", resp)
+	}
+	defer response.Body.Close()
+	if requestCount != 1 {
+		t.Fatalf("upstream request count = %d, want 1", requestCount)
+	}
+}
+
+func TestDoRequestDoesNotFallbackForOtherKimiError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"unsupported image url"}}`))
+	}))
+	defer server.Close()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeChatCompletions,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "kimi-key",
+			ChannelBaseUrl:    server.URL + "/coding",
+			UpstreamModelName: "k3",
+		},
+	}
+	requestBody := convertKimiK3OpenAIRequestForDoRequest(t, c, info)
+	outboundBody, size, closer, err := relaycommon.NewOutboundJSONBody(requestBody)
+	if err != nil {
+		t.Fatalf("NewOutboundJSONBody returned error: %v", err)
+	}
+	defer closer.Close()
+	info.UpstreamRequestBodySize = size
+	resp, err := (&Adaptor{}).DoRequest(c, info, outboundBody)
+	if err != nil {
+		t.Fatalf("DoRequest returned error: %v", err)
+	}
+	response, ok := resp.(*http.Response)
+	if !ok {
+		t.Fatalf("DoRequest returned %T, want *http.Response", resp)
+	}
+	defer response.Body.Close()
+	body, readErr := io.ReadAll(response.Body)
+	if readErr != nil {
+		t.Fatalf("ReadAll returned error: %v", readErr)
+	}
+	if !strings.Contains(string(body), "unsupported image url") {
+		t.Fatalf("response body = %q, want original upstream error", body)
+	}
+	if requestCount != 1 {
+		t.Fatalf("upstream request count = %d, want 1", requestCount)
+	}
+}
+
+func TestKimiK3ShortContextOverflowDetection(t *testing.T) {
+	testCases := []struct {
+		name       string
+		statusCode int
+		body       string
+		want       bool
+	}{
+		{
+			name:       "documented 256K token overflow",
+			statusCode: http.StatusBadRequest,
+			body:       `{"error":{"message":"Invalid request: Your request exceeded model token limit: 262144 (requested: 558009)"}}`,
+			want:       true,
+		},
+		{
+			name:       "two megabyte message size limit",
+			statusCode: http.StatusBadRequest,
+			body:       `{"error":{"message":"total message size 5943865 exceeds limit 2097152"}}`,
+		},
+		{
+			name:       "different token limit",
+			statusCode: http.StatusBadRequest,
+			body:       `{"error":{"message":"Your request exceeded model token limit: 131072"}}`,
+		},
+		{
+			name:       "requested tokens equal 256K but model limit differs",
+			statusCode: http.StatusBadRequest,
+			body:       `{"error":{"message":"Your request exceeded model token limit: 131072 (requested: 262144)"}}`,
+		},
+		{
+			name:       "unsupported media",
+			statusCode: http.StatusBadRequest,
+			body:       `{"error":{"message":"unsupported video input"}}`,
+		},
+		{
+			name:       "permission error",
+			statusCode: http.StatusUnauthorized,
+			body:       `{"error":{"message":"Your current plan supports only kimi-k3 up to 256K context"}}`,
+		},
+		{
+			name:       "same text with non-400 status",
+			statusCode: http.StatusInternalServerError,
+			body:       `{"error":{"message":"Your request exceeded model token limit: 262144"}}`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			resp := &http.Response{
+				StatusCode: testCase.statusCode,
+				Body:       io.NopCloser(strings.NewReader(testCase.body)),
+			}
+			if got := isKimiK3ShortContextOverflow(resp); got != testCase.want {
+				t.Fatalf("isKimiK3ShortContextOverflow() = %t, want %t", got, testCase.want)
+			}
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("ReadAll returned error: %v", err)
+			}
+			if string(body) != testCase.body {
+				t.Fatalf("response body = %q, want %q", body, testCase.body)
+			}
+		})
+	}
+}
+
+func convertKimiK3OpenAIRequestForDoRequest(t *testing.T, c *gin.Context, info *relaycommon.RelayInfo) []byte {
+	t.Helper()
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{
+		Model:    kimiK3FullContextModel,
+		Messages: []dto.Message{{Role: "user", Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
+	}
+	if request, ok := converted.(*dto.GeneralOpenAIRequest); !ok {
+		t.Fatalf("ConvertOpenAIRequest returned %T, want *dto.GeneralOpenAIRequest", converted)
+	} else if request.Model != kimiK3ShortContextModel {
+		t.Fatalf("converted model = %q, want %q", request.Model, kimiK3ShortContextModel)
+	}
+	body, err := common.Marshal(converted)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+	return body
 }

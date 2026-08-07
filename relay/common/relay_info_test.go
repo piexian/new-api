@@ -44,6 +44,19 @@ func TestRelayInfoGetFinalRequestRelayFormatNilReceiver(t *testing.T) {
 	require.Equal(t, types.RelayFormat(""), info.GetFinalRequestRelayFormat())
 }
 
+func TestRelayInfoAppendRequestModelRouting(t *testing.T) {
+	info := &RelayInfo{}
+
+	info.AppendRequestModelRouting("K3 Auto Route (k3 -> k3-256k)")
+	info.AppendRequestModelRouting("K3 Auto Route (k3 -> k3-256k)")
+	info.AppendRequestModelRouting("K3 Context Fallback (k3-256k -> k3)")
+
+	require.Equal(t, []string{
+		"K3 Auto Route (k3 -> k3-256k)",
+		"K3 Context Fallback (k3-256k -> k3)",
+	}, info.RequestModelRoutingChain)
+}
+
 func TestTaskSubmitReqUnmarshalPreservesNativeMediaFieldsInMetadata(t *testing.T) {
 	t.Parallel()
 

@@ -232,10 +232,10 @@ func appendRequestConversionChain(relayInfo *relaycommon.RelayInfo, other map[st
 	if relayInfo == nil || other == nil {
 		return
 	}
-	if len(relayInfo.RequestConversionChain) == 0 {
+	if len(relayInfo.RequestConversionChain) == 0 && len(relayInfo.RequestModelRoutingChain) == 0 {
 		return
 	}
-	chain := make([]string, 0, len(relayInfo.RequestConversionChain))
+	chain := make([]string, 0, len(relayInfo.RequestConversionChain)+len(relayInfo.RequestModelRoutingChain))
 	for _, f := range relayInfo.RequestConversionChain {
 		switch f {
 		case types.RelayFormatOpenAI:
@@ -250,6 +250,7 @@ func appendRequestConversionChain(relayInfo *relaycommon.RelayInfo, other map[st
 			chain = append(chain, string(f))
 		}
 	}
+	chain = append(chain, relayInfo.RequestModelRoutingChain...)
 	if len(chain) == 0 {
 		return
 	}

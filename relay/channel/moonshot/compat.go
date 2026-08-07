@@ -6,6 +6,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 )
 
 type kimiModelFamily int
@@ -44,7 +46,7 @@ func normalizeKimiOpenAIRequest(info *relaycommon.RelayInfo, request *dto.Genera
 func classifyKimiModel(model string, kimiCodingBase bool) kimiModelFamily {
 	model = strings.ToLower(strings.TrimSpace(model))
 	switch {
-	case model == "kimi-k3", strings.HasPrefix(model, "kimi-k3-"), kimiCodingBase && model == "k3":
+	case model == "kimi-k3", strings.HasPrefix(model, "kimi-k3-"), kimiCodingBase && (model == "k3" || model == "k3-256k"):
 		return kimiModelK3
 	case model == "kimi-for-coding", model == "kimi-for-coding-highspeed", strings.HasPrefix(model, "kimi-k2.7-code"):
 		return kimiModelK27
@@ -55,6 +57,18 @@ func classifyKimiModel(model string, kimiCodingBase bool) kimiModelFamily {
 	default:
 		return kimiModelUnknown
 	}
+}
+
+func shouldUseKimiK3ShortContext(info *relaycommon.RelayInfo, model string) bool {
+	if info == nil || info.ChannelMeta == nil || relaycommon.IsRequestPassThroughEnabled(info) || !isKimiCodingBaseURL(info.ChannelBaseUrl) {
+		return false
+	}
+	if info.RelayFormat != types.RelayFormatClaude &&
+		info.RelayMode != constant.RelayModeChatCompletions &&
+		info.RelayMode != constant.RelayModeResponses {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(model), "k3")
 }
 
 func removeConflictingKimiSamplingParameters(request *dto.GeneralOpenAIRequest) {
@@ -135,43 +149,4 @@ func normalizeKimiK27ToolChoice(toolChoice any) any {
 	default:
 		return nil
 	}
-}
-
-func applyKimiCodingClaudeCompatibility(family kimiModelFamily, request *dto.ClaudeRequest) error {
-	if request == nil {
-		return nil
-	}
-	switch family {
-	case kimiModelK3:
-		outputConfig, err := common.Marshal(map[string]string{"effort": "max"})
-		if err != nil {
-			return err
-		}
-		request.Thinking = &dto.Thinking{Type: "adaptive"}
-		request.OutputConfig = outputConfig
-		request.Temperature = nil
-		request.TopP = nil
-		request.TopK = nil
-	case kimiModelK27:
-		ensureKimiK27ClaudeThinking(request)
-		request.Temperature = nil
-		request.TopP = nil
-		request.TopK = nil
-	}
-	return nil
-}
-
-func ensureKimiK27ClaudeThinking(request *dto.ClaudeRequest) {
-	if request.MaxTokens == nil || *request.MaxTokens < 1280 {
-		minimum := uint(1280)
-		request.MaxTokens = &minimum
-	}
-	budget := 4096
-	if *request.MaxTokens <= uint(budget) {
-		budget = int(*request.MaxTokens) - 256
-	}
-	if budget < 1024 {
-		budget = 1024
-	}
-	request.Thinking = &dto.Thinking{Type: "enabled", BudgetTokens: &budget}
 }

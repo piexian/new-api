@@ -181,6 +181,9 @@ type RelayInfo struct {
 	// RequestConversionChain records request format conversions in order, e.g.
 	// ["openai", "openai_responses"] or ["openai", "claude"].
 	RequestConversionChain []types.RelayFormat
+	// RequestModelRoutingChain records upstream model routing decisions without
+	// changing the request format used for URL and response handling.
+	RequestModelRoutingChain []string
 	// 最终请求到上游的格式。可由 adaptor 显式设置；
 	// 若为空，调用 GetFinalRequestRelayFormat 会回退到 RequestConversionChain 的最后一项或 RelayFormat。
 	FinalRequestRelayFormat types.RelayFormat
@@ -678,6 +681,20 @@ func (info *RelayInfo) AppendRequestConversion(format types.RelayFormat) {
 		return
 	}
 	info.RequestConversionChain = append(info.RequestConversionChain, format)
+}
+
+func (info *RelayInfo) AppendRequestModelRouting(route string) {
+	if info == nil {
+		return
+	}
+	route = strings.TrimSpace(route)
+	if route == "" {
+		return
+	}
+	if len(info.RequestModelRoutingChain) > 0 && info.RequestModelRoutingChain[len(info.RequestModelRoutingChain)-1] == route {
+		return
+	}
+	info.RequestModelRoutingChain = append(info.RequestModelRoutingChain, route)
 }
 
 func (info *RelayInfo) GetFinalRequestRelayFormat() types.RelayFormat {

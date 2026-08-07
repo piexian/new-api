@@ -10,17 +10,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/QuantumNous/new-api/relay/channel/claude"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
 
 // Keep this aligned with the Kimi Code release used when building the service.
-// Source: MoonshotAI/kimi-code tag @moonshot-ai/kimi-code@0.27.0.
-const kimiCodeCLICompatibilityVersion = "0.27.0"
+// Source: locally installed Kimi Code CLI v0.34.0.
+const kimiCodeCLICompatibilityVersion = "0.34.0"
 
 var (
 	kimiCLIHeadersOnce sync.Once
@@ -37,21 +35,10 @@ var kimiCLIHeaderNames = []string{
 	"X-Msh-Device-Id",
 }
 
-var kimiCodingAnthropicHeaderNames = []string{
-	"anthropic-version",
-	"anthropic-beta",
-	"anthropic-dangerous-direct-browser-access",
-	"x-app",
-}
-
 func setupKimiCodingHeaders(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
 	if relaycommon.IsRequestPassThroughEnabled(info) {
 		clearMoonshotHeaders(req, kimiCLIHeaderNames)
-		clearMoonshotHeaders(req, kimiCodingAnthropicHeaderNames)
 		copyIncomingMoonshotHeaders(c, req, kimiCLIHeaderNames)
-		if info != nil && info.RelayFormat == types.RelayFormatClaude {
-			claude.CommonClaudeHeadersOperation(c, req, info)
-		}
 		return
 	}
 
@@ -66,12 +53,6 @@ func setupKimiCodingHeaders(c *gin.Context, req *http.Header, info *relaycommon.
 	}
 	for name, value := range getKimiCLIHeaders() {
 		req.Set(name, value)
-	}
-	if shouldUseKimiCodingClaudeEndpoint(info) {
-		// The official CLI also adds transport headers here; net/http owns those in this relay.
-		req.Set("anthropic-version", "2023-06-01")
-		req.Set("anthropic-dangerous-direct-browser-access", "true")
-		req.Set("x-app", "cli")
 	}
 }
 
