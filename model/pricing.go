@@ -284,24 +284,24 @@ func updatePricing() {
 		}
 		modelSupportEndpointsStr[ability.Model] = endpoints
 	}
-
-	// 再补充模型自定义端点：若配置有效则追加到已有推断，不再裁剪渠道真实能力
+	// 模型元数据端点是显式白名单：配置了有效端点时覆盖渠道推断，未配置时保留推断结果。
 	for modelName, meta := range metaMap {
 		if strings.TrimSpace(meta.Endpoints) == "" {
 			continue
 		}
 		var raw map[string]interface{}
-		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err == nil {
-			endpoints := modelSupportEndpointsStr[modelName]
-			for k, v := range raw {
-				switch v.(type) {
-				case string, map[string]interface{}:
-					endpoints = appendPricingEndpoint(endpoints, k)
-				}
+		if err := common.Unmarshal([]byte(meta.Endpoints), &raw); err != nil {
+			continue
+		}
+		configuredEndpoints := make([]string, 0, len(raw))
+		for k, v := range raw {
+			switch v.(type) {
+			case string, map[string]interface{}:
+				configuredEndpoints = appendPricingEndpoint(configuredEndpoints, k)
 			}
-			if len(endpoints) > 0 {
-				modelSupportEndpointsStr[modelName] = endpoints
-			}
+		}
+		if len(configuredEndpoints) > 0 {
+			modelSupportEndpointsStr[modelName] = configuredEndpoints
 		}
 	}
 
