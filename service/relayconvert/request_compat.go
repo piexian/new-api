@@ -52,6 +52,6 @@ func ShouldChatCompletionsUseResponsesPolicy(policy model_setting.ChatCompletion
 	return oaichat.ShouldChatCompletionsUseResponsesPolicy(policy, channelID, channelType, model)
 }
 
-func ShouldChatCompletionsUseResponsesGlobal(channelID int, channelType int, model string) bool {
-	return oaichat.ShouldChatCompletionsUseResponsesGlobal(channelID, channelType, model)
+func ShouldChatCompletionsUseResponsesGlobal(channelSetting dto.ChannelSettings, channelID int, channelType int, model string) bool {
+	return oaichat.ShouldChatCompletionsUseResponsesGlobal(channelSetting, channelID, channelType, model)
 }

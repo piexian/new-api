@@ -207,6 +207,10 @@ export const channelFormSchema = z
     // Channel extra settings (stored in setting JSON, not sent directly)
     force_format: z.boolean().optional(),
     use_responses_api: z.boolean().optional(),
+    chat_completions_to_responses_mode: z
+      .enum(['inherit', 'enabled', 'disabled'])
+      .optional(),
+    chat_completions_to_responses_models: z.array(z.string()).optional(),
     thinking_to_content: z.boolean().optional(),
     proxy: z.string().optional(),
     pass_through_body_enabled: z.boolean().optional(),
@@ -367,6 +371,8 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   // Channel extra settings
   force_format: false,
   use_responses_api: false,
+  chat_completions_to_responses_mode: 'inherit',
+  chat_completions_to_responses_models: [],
   thinking_to_content: false,
   proxy: '',
   pass_through_body_enabled: false,
@@ -408,6 +414,11 @@ export function transformChannelToFormDefaults(
   let extraSettings = {
     force_format: false,
     use_responses_api: false,
+    chat_completions_to_responses_mode: 'inherit' as
+      | 'inherit'
+      | 'enabled'
+      | 'disabled',
+    chat_completions_to_responses_models: [] as string[],
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
@@ -419,9 +430,30 @@ export function transformChannelToFormDefaults(
   if (channel.setting) {
     try {
       const parsed = JSON.parse(channel.setting)
+      let chatToResponsesMode: 'inherit' | 'enabled' | 'disabled' = 'inherit'
+      if (typeof parsed.chat_completions_to_responses_enabled === 'boolean') {
+        chatToResponsesMode = parsed.chat_completions_to_responses_enabled
+          ? 'enabled'
+          : 'disabled'
+      } else if (parsed.use_responses_api === true) {
+        chatToResponsesMode = 'enabled'
+      }
+
+      let chatToResponsesModels: string[] = []
+      if (Array.isArray(parsed.chat_completions_to_responses_models)) {
+        chatToResponsesModels =
+          parsed.chat_completions_to_responses_models.filter(
+            (pattern: unknown): pattern is string => typeof pattern === 'string'
+          )
+      } else if (parsed.use_responses_api === true) {
+        chatToResponsesModels = ['.*']
+      }
+
       extraSettings = {
         force_format: parsed.force_format || false,
         use_responses_api: parsed.use_responses_api === true,
+        chat_completions_to_responses_mode: chatToResponsesMode,
+        chat_completions_to_responses_models: chatToResponsesModels,
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
@@ -543,7 +575,18 @@ export function transformChannelToFormDefaults(
  * Build the setting JSON string from form extra settings
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
-  const settingObj = {
+  let settingObj: Record<string, unknown> = {}
+  if (formData.setting?.trim()) {
+    try {
+      const parsed = JSON.parse(formData.setting)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        settingObj = parsed
+      }
+    } catch {
+      settingObj = {}
+    }
+  }
+  Object.assign(settingObj, {
     force_format: formData.force_format || false,
     use_responses_api: formData.use_responses_api === true,
     thinking_to_content: formData.thinking_to_content || false,
@@ -552,7 +595,29 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
     plan_quota_cooldown_enabled: formData.plan_quota_cooldown_enabled === true,
+  })
+
+  const patterns = [
+    ...new Set(
+      (formData.chat_completions_to_responses_models || [])
+        .map((pattern) => pattern.trim())
+        .filter(Boolean)
+    ),
+  ]
+  if (formData.chat_completions_to_responses_mode === 'inherit') {
+    delete settingObj.chat_completions_to_responses_enabled
+  } else {
+    settingObj.chat_completions_to_responses_enabled =
+      formData.chat_completions_to_responses_mode === 'enabled'
   }
+  if (patterns.length > 0) {
+    settingObj.chat_completions_to_responses_models = patterns
+  } else {
+    delete settingObj.chat_completions_to_responses_models
+  }
+  // New policy fields carry the explicit behavior; keep the legacy field only
+  // as a false marker so old readers never bypass model matching after save.
+  settingObj.use_responses_api = false
   return JSON.stringify(settingObj)
 }
 
@@ -622,13 +687,18 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       formData.allow_include_obfuscation === true
     settingsObj.allow_inference_geo = formData.allow_inference_geo === true
   } else {
-    if ('disable_store' in settingsObj) delete settingsObj.disable_store
-    if ('allow_safety_identifier' in settingsObj)
+    if ('disable_store' in settingsObj) {
+      delete settingsObj.disable_store
+    }
+    if ('allow_safety_identifier' in settingsObj) {
       delete settingsObj.allow_safety_identifier
-    if ('allow_include_obfuscation' in settingsObj)
+    }
+    if ('allow_include_obfuscation' in settingsObj) {
       delete settingsObj.allow_include_obfuscation
-    if (formData.type !== 14 && 'allow_inference_geo' in settingsObj)
+    }
+    if (formData.type !== 14 && 'allow_inference_geo' in settingsObj) {
       delete settingsObj.allow_inference_geo
+    }
   }
 
   // Anthropic (type 14): claude_beta_query, allow_inference_geo, allow_speed
@@ -659,14 +729,14 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.upstream_model_update_auto_sync_enabled =
       settingsObj.upstream_model_update_check_enabled === true &&
       formData.upstream_model_update_auto_sync_enabled === true
-    settingsObj.upstream_model_update_ignored_models = Array.from(
-      new Set(
+    settingsObj.upstream_model_update_ignored_models = [
+      ...new Set(
         String(formData.upstream_model_update_ignored_models || '')
           .split(',')
           .map((model) => model.trim())
           .filter(Boolean)
-      )
-    )
+      ),
+    ]
     if (
       !Array.isArray(settingsObj.upstream_model_update_last_detected_models) ||
       settingsObj.upstream_model_update_check_enabled !== true

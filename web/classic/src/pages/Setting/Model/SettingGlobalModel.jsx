@@ -26,6 +26,9 @@ import {
   Spin,
   Banner,
   Tag,
+  TagInput,
+  Switch,
+  Typography,
   Divider,
 } from '@douyinfe/semi-ui';
 import {
@@ -38,30 +41,10 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
+const { Text } = Typography;
+
 const thinkingExample = JSON.stringify(
   ['moonshotai/kimi-k2-thinking', 'kimi-k2-thinking'],
-  null,
-  2,
-);
-
-const chatCompletionsToResponsesPolicyExample = JSON.stringify(
-  {
-    enabled: true,
-    all_channels: false,
-    channel_ids: [1, 2],
-    channel_types: [1],
-    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
-  },
-  null,
-  2,
-);
-
-const chatCompletionsToResponsesPolicyAllChannelsExample = JSON.stringify(
-  {
-    enabled: true,
-    all_channels: true,
-    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
-  },
   null,
   2,
 );
@@ -74,6 +57,42 @@ const defaultGlobalSettingInputs = {
   'general_setting.ping_interval_seconds': 60,
 };
 
+const parseChatCompletionsToResponsesPolicy = (value) => {
+  try {
+    const parsed = JSON.parse(String(value || '{}'));
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+      return { enabled: false, model_patterns: [] };
+    }
+    return {
+      ...parsed,
+      enabled: parsed.enabled === true,
+      model_patterns: Array.isArray(parsed.model_patterns)
+        ? parsed.model_patterns.filter((pattern) => typeof pattern === 'string')
+        : [],
+    };
+  } catch {
+    return { enabled: false, model_patterns: [] };
+  }
+};
+
+const serializeChatCompletionsToResponsesPolicy = (value, patch) => {
+  const policy = {
+    ...parseChatCompletionsToResponsesPolicy(value),
+    ...patch,
+  };
+  delete policy.channel_ids;
+  delete policy.channel_types;
+  policy.all_channels = true;
+  policy.model_patterns = Array.from(
+    new Set(
+      policy.model_patterns
+        .map((pattern) => String(pattern).trim())
+        .filter(Boolean),
+    ),
+  );
+  return JSON.stringify(policy);
+};
+
 export default function SettingGlobalModel(props) {
   const { t } = useTranslation();
 
@@ -84,7 +103,11 @@ export default function SettingGlobalModel(props) {
   const chatCompletionsToResponsesPolicyKey =
     'global.chat_completions_to_responses_policy';
 
-  const setChatCompletionsToResponsesPolicyValue = (value) => {
+  const updateChatCompletionsToResponsesPolicy = (patch) => {
+    const value = serializeChatCompletionsToResponsesPolicy(
+      inputs[chatCompletionsToResponsesPolicyKey],
+      patch,
+    );
     setInputs((prev) => ({
       ...prev,
       [chatCompletionsToResponsesPolicyKey]: value,
@@ -179,6 +202,11 @@ export default function SettingGlobalModel(props) {
     }
   }, [props.options]);
 
+  const chatCompletionsToResponsesPolicy =
+    parseChatCompletionsToResponsesPolicy(
+      inputs[chatCompletionsToResponsesPolicyKey],
+    );
+
   return (
     <>
       <Spin spinning={loading}>
@@ -248,7 +276,7 @@ export default function SettingGlobalModel(props) {
                 >
                   {t('ChatCompletions→Responses 兼容配置')}
                   <Tag color='orange' size='small'>
-                    测试版
+                    {t('测试版')}
                   </Tag>
                 </span>
               }
@@ -265,91 +293,47 @@ export default function SettingGlobalModel(props) {
               </Row>
 
               <Row style={{ marginTop: 10 }}>
-                <Col span={24}>
-                  <Form.TextArea
-                    label={t('参数配置')}
-                    field={chatCompletionsToResponsesPolicyKey}
-                    placeholder={
-                      t('例如（指定渠道）：') +
-                      '\n' +
-                      chatCompletionsToResponsesPolicyExample +
-                      '\n\n' +
-                      t('例如（全渠道）：') +
-                      '\n' +
-                      chatCompletionsToResponsesPolicyAllChannelsExample
-                    }
-                    rows={8}
-                    rules={[
-                      {
-                        validator: (rule, value) => {
-                          if (!value || value.trim() === '') return true;
-                          return verifyJSON(value);
-                        },
-                        message: t('不是合法的 JSON 字符串'),
-                      },
-                    ]}
-                    onChange={(value) =>
-                      setInputs((prev) => ({
-                        ...prev,
-                        [chatCompletionsToResponsesPolicyKey]: value,
-                      }))
-                    }
-                  />
+                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                  <div
+                    style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                  >
+                    <span>{t('全局兼容开关')}</span>
+                    <Switch
+                      checked={chatCompletionsToResponsesPolicy.enabled}
+                      onChange={(enabled) =>
+                        updateChatCompletionsToResponsesPolicy({ enabled })
+                      }
+                    />
+                    <Text type='tertiary' size='small'>
+                      {t('选择继承全局配置的渠道将使用此开关')}
+                    </Text>
+                  </div>
                 </Col>
               </Row>
 
-              <Row style={{ marginTop: 10, marginBottom: 16 }}>
+              <Row style={{ marginTop: 16, marginBottom: 16 }}>
                 <Col span={24}>
                   <div
-                    style={{
-                      display: 'flex',
-                      gap: 8,
-                      flexWrap: 'wrap',
-                      alignItems: 'center',
-                    }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
                   >
-                    <Button
-                      type='secondary'
-                      size='small'
-                      onClick={() =>
-                        setChatCompletionsToResponsesPolicyValue(
-                          chatCompletionsToResponsesPolicyExample,
-                        )
+                    <span>{t('全局模型匹配规则')}</span>
+                    <TagInput
+                      value={chatCompletionsToResponsesPolicy.model_patterns}
+                      onChange={(model_patterns) =>
+                        updateChatCompletionsToResponsesPolicy({
+                          model_patterns,
+                        })
                       }
-                    >
-                      {t('填充模板（指定渠道）')}
-                    </Button>
-                    <Button
-                      type='secondary'
-                      size='small'
-                      onClick={() =>
-                        setChatCompletionsToResponsesPolicyValue(
-                          chatCompletionsToResponsesPolicyAllChannelsExample,
-                        )
-                      }
-                    >
-                      {t('填充模板（全渠道）')}
-                    </Button>
-                    <Button
-                      type='secondary'
-                      size='small'
-                      onClick={() => {
-                        const raw = inputs[chatCompletionsToResponsesPolicyKey];
-                        if (!raw || String(raw).trim() === '') return;
-                        try {
-                          const formatted = JSON.stringify(
-                            JSON.parse(raw),
-                            null,
-                            2,
-                          );
-                          setChatCompletionsToResponsesPolicyValue(formatted);
-                        } catch (error) {
-                          showError(t('不是合法的 JSON 字符串'));
-                        }
-                      }}
-                    >
-                      {t('格式化 JSON')}
-                    </Button>
+                      placeholder={t('输入模型名或正则表达式，按回车添加')}
+                      addOnBlur
+                      showClear
+                      style={{ width: '100%' }}
+                    />
+                    <Text type='tertiary' size='small'>
+                      {t(
+                        '匹配任一规则的模型将进行转换，渠道可以继承或覆盖这些规则',
+                      )}
+                    </Text>
                   </div>
                 </Col>
               </Row>

@@ -5087,6 +5087,19 @@
     "默认测试模型": "Mô hình kiểm tra mặc định",
     "默认用户消息": "Xin chào",
     "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
-    "图像编辑": "Chỉnh sửa hình ảnh"
+    "图像编辑": "Chỉnh sửa hình ảnh",
+    "测试版": "Xem trước",
+    "全局兼容开关": "Công tắc tương thích toàn cục",
+    "选择继承全局配置的渠道将使用此开关": "Các kênh kế thừa cấu hình toàn cục sẽ sử dụng công tắc này",
+    "全局模型匹配规则": "Quy tắc khớp mô hình toàn cục",
+    "输入模型名或正则表达式，按回车添加": "Nhập tên mô hình hoặc biểu thức chính quy rồi nhấn Enter",
+    "匹配任一规则的模型将进行转换，渠道可以继承或覆盖这些规则": "Mô hình được chuyển đổi khi khớp bất kỳ quy tắc nào. Kênh có thể kế thừa hoặc thay thế các quy tắc này",
+    "ChatCompletions→Responses 模式": "Chế độ ChatCompletions→Responses",
+    "继承全局配置": "Kế thừa cấu hình toàn cục",
+    "为此渠道启用": "Bật cho kênh này",
+    "为此渠道禁用": "Tắt cho kênh này",
+    "选择继承时使用全局兼容开关": "Dùng công tắc toàn cục khi chọn kế thừa",
+    "渠道模型匹配规则": "Quy tắc khớp mô hình của kênh",
+    "留空时继承全局模型规则；填写后将覆盖此渠道的全局规则": "Để trống để kế thừa quy tắc toàn cục; các mục nhập sẽ thay thế chúng cho kênh này"
   }
 }

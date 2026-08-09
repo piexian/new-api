@@ -242,6 +242,8 @@ const EditChannelModal = (props) => {
     proxy: '',
     pass_through_body_enabled: false,
     use_responses_api: false,
+    chat_completions_to_responses_mode: 'inherit',
+    chat_completions_to_responses_models: [],
     system_prompt: '',
     system_prompt_override: false,
     settings: '',
@@ -574,6 +576,8 @@ const EditChannelModal = (props) => {
     proxy: '',
     pass_through_body_enabled: false,
     use_responses_api: false,
+    chat_completions_to_responses_mode: 'inherit',
+    chat_completions_to_responses_models: [],
     system_prompt: '',
     plan_quota_cooldown_enabled: false,
   });
@@ -998,6 +1002,24 @@ const EditChannelModal = (props) => {
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
           data.use_responses_api = parsedSettings.use_responses_api === true;
+          data.chat_completions_to_responses_mode =
+            typeof parsedSettings.chat_completions_to_responses_enabled ===
+            'boolean'
+              ? parsedSettings.chat_completions_to_responses_enabled
+                ? 'enabled'
+                : 'disabled'
+              : parsedSettings.use_responses_api === true
+                ? 'enabled'
+                : 'inherit';
+          data.chat_completions_to_responses_models = Array.isArray(
+            parsedSettings.chat_completions_to_responses_models,
+          )
+            ? parsedSettings.chat_completions_to_responses_models.filter(
+                (pattern) => typeof pattern === 'string',
+              )
+            : parsedSettings.use_responses_api === true
+              ? ['.*']
+              : [];
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
@@ -1010,6 +1032,8 @@ const EditChannelModal = (props) => {
           data.proxy = '';
           data.pass_through_body_enabled = false;
           data.use_responses_api = false;
+          data.chat_completions_to_responses_mode = 'inherit';
+          data.chat_completions_to_responses_models = [];
           data.system_prompt = '';
           data.system_prompt_override = false;
           data.plan_quota_cooldown_enabled = false;
@@ -1020,6 +1044,8 @@ const EditChannelModal = (props) => {
         data.proxy = '';
         data.pass_through_body_enabled = false;
         data.use_responses_api = false;
+        data.chat_completions_to_responses_mode = 'inherit';
+        data.chat_completions_to_responses_models = [];
         data.system_prompt = '';
         data.system_prompt_override = false;
         data.plan_quota_cooldown_enabled = false;
@@ -1149,6 +1175,10 @@ const EditChannelModal = (props) => {
         proxy: data.proxy,
         pass_through_body_enabled: data.pass_through_body_enabled,
         use_responses_api: data.use_responses_api || false,
+        chat_completions_to_responses_mode:
+          data.chat_completions_to_responses_mode || 'inherit',
+        chat_completions_to_responses_models:
+          data.chat_completions_to_responses_models || [],
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
@@ -1554,6 +1584,8 @@ const EditChannelModal = (props) => {
       proxy: '',
       pass_through_body_enabled: false,
       use_responses_api: false,
+      chat_completions_to_responses_mode: 'inherit',
+      chat_completions_to_responses_models: [],
       system_prompt: '',
       system_prompt_override: false,
     });
@@ -1963,12 +1995,27 @@ const EditChannelModal = (props) => {
       thinking_to_content: localInputs.thinking_to_content || false,
       proxy: localInputs.proxy || '',
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
-      use_responses_api: localInputs.use_responses_api === true,
+      use_responses_api: false,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
       plan_quota_cooldown_enabled:
         localInputs.plan_quota_cooldown_enabled === true,
     };
+    if (localInputs.chat_completions_to_responses_mode !== 'inherit') {
+      channelExtraSettings.chat_completions_to_responses_enabled =
+        localInputs.chat_completions_to_responses_mode === 'enabled';
+    }
+    const chatToResponsesModels = Array.from(
+      new Set(
+        (localInputs.chat_completions_to_responses_models || [])
+          .map((pattern) => String(pattern).trim())
+          .filter(Boolean),
+      ),
+    );
+    if (chatToResponsesModels.length > 0) {
+      channelExtraSettings.chat_completions_to_responses_models =
+        chatToResponsesModels;
+    }
     localInputs.setting = JSON.stringify(channelExtraSettings);
 
     // 处理 settings 字段（包括企业账户设置和字段透传控制）
@@ -2059,6 +2106,8 @@ const EditChannelModal = (props) => {
     delete localInputs.proxy;
     delete localInputs.pass_through_body_enabled;
     delete localInputs.use_responses_api;
+    delete localInputs.chat_completions_to_responses_mode;
+    delete localInputs.chat_completions_to_responses_models;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
     delete localInputs.plan_quota_cooldown_enabled;
@@ -2927,20 +2976,41 @@ const EditChannelModal = (props) => {
                     />
                   )}
 
-                  {inputs.type === 1 && (
-                    <Form.Switch
-                      field='use_responses_api'
-                      label={t('Responses API 模式')}
-                      checkedText={t('开')}
-                      uncheckedText={t('关')}
-                      onChange={(value) =>
-                        handleChannelSettingsChange('use_responses_api', value)
-                      }
-                      extraText={t(
-                        '开启后，该渠道的 /v1/chat/completions 请求将自动转换为 Responses API 处理',
-                      )}
-                    />
-                  )}
+                  <Form.Select
+                    field='chat_completions_to_responses_mode'
+                    label={t('ChatCompletions→Responses 模式')}
+                    optionList={[
+                      { value: 'inherit', label: t('继承全局配置') },
+                      { value: 'enabled', label: t('为此渠道启用') },
+                      { value: 'disabled', label: t('为此渠道禁用') },
+                    ]}
+                    style={{ width: '100%' }}
+                    onChange={(value) =>
+                      handleChannelSettingsChange(
+                        'chat_completions_to_responses_mode',
+                        value,
+                      )
+                    }
+                    extraText={t('选择继承时使用全局兼容开关')}
+                  />
+
+                  <Form.TagInput
+                    field='chat_completions_to_responses_models'
+                    label={t('渠道模型匹配规则')}
+                    placeholder={t('输入模型名或正则表达式，按回车添加')}
+                    addOnBlur
+                    showClear
+                    style={{ width: '100%' }}
+                    onChange={(value) =>
+                      handleChannelSettingsChange(
+                        'chat_completions_to_responses_models',
+                        value,
+                      )
+                    }
+                    extraText={t(
+                      '留空时继承全局模型规则；填写后将覆盖此渠道的全局规则',
+                    )}
+                  />
 
                   {inputs.type === 48 && (
                     <Form.Switch

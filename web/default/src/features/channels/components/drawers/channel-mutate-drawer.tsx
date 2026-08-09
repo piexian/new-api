@@ -65,6 +65,7 @@ import {
 } from '@/components/drawer-layout'
 import { JsonEditor } from '@/components/json-editor'
 import { MultiSelect } from '@/components/multi-select'
+import { TagInput } from '@/components/tag-input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -303,6 +304,8 @@ const SENSITIVE_FORM_FIELDS = [
   'aws_key_type',
   'azure_responses_version',
   'use_responses_api',
+  'chat_completions_to_responses_mode',
+  'chat_completions_to_responses_models',
   'force_format',
   'xai_codex_compatibility_enabled',
   'plan_quota_cooldown_enabled',
@@ -360,6 +363,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.proxy?.trim() ||
     values.system_prompt?.trim() ||
     values.use_responses_api ||
+    values.chat_completions_to_responses_mode !== 'inherit' ||
+    (values.chat_completions_to_responses_models?.length ?? 0) > 0 ||
     values.force_format ||
     values.xai_codex_compatibility_enabled ||
     values.plan_quota_cooldown_enabled ||
@@ -773,6 +778,12 @@ export function ChannelMutateDrawer({
   const currentParamOverride = form.watch('param_override')
   const currentHeaderOverride = form.watch('header_override')
   const currentUseResponsesApi = form.watch('use_responses_api')
+  const currentChatToResponsesMode = form.watch(
+    'chat_completions_to_responses_mode'
+  )
+  const currentChatToResponsesModels = form.watch(
+    'chat_completions_to_responses_models'
+  )
   const currentForceFormat = form.watch('force_format')
   const currentXaiCodexCompatibilityEnabled = form.watch(
     'xai_codex_compatibility_enabled'
@@ -1060,6 +1071,8 @@ export function ChannelMutateDrawer({
   )
   const extraSettingsConfigured = Boolean(
     currentUseResponsesApi ||
+    currentChatToResponsesMode !== 'inherit' ||
+    (currentChatToResponsesModels?.length ?? 0) > 0 ||
     currentForceFormat ||
     currentXaiCodexCompatibilityEnabled ||
     currentThinkingToContent ||
@@ -4692,58 +4705,115 @@ export function ChannelMutateDrawer({
                             )}
 
                             <div className='divide-border space-y-0 divide-y border-y'>
-                              {currentType === 1 && (
-                                <>
-                                  <FormField
-                                    control={form.control}
-                                    name='use_responses_api'
-                                    render={({ field }) => (
-                                      <FormItem className='flex items-center justify-between px-4 py-3'>
-                                        <div className='space-y-0.5'>
-                                          <FormLabel>
-                                            {t('Responses API Mode')}
-                                          </FormLabel>
-                                          <FormDescription>
-                                            {t(
-                                              'When enabled, /v1/chat/completions requests for this channel are automatically converted to Responses API.'
-                                            )}
-                                          </FormDescription>
-                                        </div>
-                                        <FormControl>
-                                          <Switch
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                          />
-                                        </FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
+                              <FormField
+                                control={form.control}
+                                name='chat_completions_to_responses_mode'
+                                render={({ field }) => (
+                                  <FormItem className='space-y-2 px-4 py-3'>
+                                    <FormLabel>
+                                      {t('ChatCompletions to Responses mode')}
+                                    </FormLabel>
+                                    <Select
+                                      items={[
+                                        {
+                                          value: 'inherit',
+                                          label: t('Inherit global setting'),
+                                        },
+                                        {
+                                          value: 'enabled',
+                                          label: t('Enable for this channel'),
+                                        },
+                                        {
+                                          value: 'disabled',
+                                          label: t('Disable for this channel'),
+                                        },
+                                      ]}
+                                      value={field.value}
+                                      onValueChange={field.onChange}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent
+                                        alignItemWithTrigger={false}
+                                      >
+                                        <SelectGroup>
+                                          <SelectItem value='inherit'>
+                                            {t('Inherit global setting')}
+                                          </SelectItem>
+                                          <SelectItem value='enabled'>
+                                            {t('Enable for this channel')}
+                                          </SelectItem>
+                                          <SelectItem value='disabled'>
+                                            {t('Disable for this channel')}
+                                          </SelectItem>
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormDescription>
+                                      {t(
+                                        'Leave this on inherit to use the global switch.'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
 
-                                  <FormField
-                                    control={form.control}
-                                    name='force_format'
-                                    render={({ field }) => (
-                                      <FormItem className='flex items-center justify-between px-4 py-3'>
-                                        <div className='space-y-0.5'>
-                                          <FormLabel>
-                                            {t('Force Format')}
-                                          </FormLabel>
-                                          <FormDescription>
-                                            {t(
-                                              'Force format response to OpenAI standard (OpenAI channel only)'
-                                            )}
-                                          </FormDescription>
-                                        </div>
-                                        <FormControl>
-                                          <Switch
-                                            checked={field.value}
-                                            onCheckedChange={field.onChange}
-                                          />
-                                        </FormControl>
-                                      </FormItem>
-                                    )}
-                                  />
-                                </>
+                              <FormField
+                                control={form.control}
+                                name='chat_completions_to_responses_models'
+                                render={({ field }) => (
+                                  <FormItem className='space-y-2 px-4 py-3'>
+                                    <FormLabel>
+                                      {t('Channel model matching rules')}
+                                    </FormLabel>
+                                    <FormControl>
+                                      <TagInput
+                                        value={field.value || []}
+                                        onChange={field.onChange}
+                                        placeholder={t(
+                                          'Enter a model name or regular expression and press Enter'
+                                        )}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Leave empty to inherit the global model rules; entries here replace them for this channel.'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              {currentType === 1 && (
+                                <FormField
+                                  control={form.control}
+                                  name='force_format'
+                                  render={({ field }) => (
+                                    <FormItem className='flex items-center justify-between px-4 py-3'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel>
+                                          {t('Force Format')}
+                                        </FormLabel>
+                                        <FormDescription>
+                                          {t(
+                                            'Force format response to OpenAI standard (OpenAI channel only)'
+                                          )}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value}
+                                          onCheckedChange={field.onChange}
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
                               )}
 
                               <FormField

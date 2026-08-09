@@ -4570,6 +4570,19 @@
     "默认测试模型": "Modèle de test par défaut",
     "默认用户消息": "Bonjour",
     "默认补全倍率": "Taux de complétion par défaut",
-    "图像编辑": "Edition d'image"
+    "图像编辑": "Edition d'image",
+    "测试版": "Aperçu",
+    "全局兼容开关": "Commutateur de compatibilité global",
+    "选择继承全局配置的渠道将使用此开关": "Les canaux qui héritent de la configuration globale utilisent ce commutateur",
+    "全局模型匹配规则": "Règles globales de correspondance des modèles",
+    "输入模型名或正则表达式，按回车添加": "Saisissez un nom de modèle ou une expression régulière, puis appuyez sur Entrée",
+    "匹配任一规则的模型将进行转换，渠道可以继承或覆盖这些规则": "Un modèle est converti s'il correspond à une règle. Les canaux peuvent hériter de ces règles ou les remplacer",
+    "ChatCompletions→Responses 模式": "Mode ChatCompletions→Responses",
+    "继承全局配置": "Hériter de la configuration globale",
+    "为此渠道启用": "Activer pour ce canal",
+    "为此渠道禁用": "Désactiver pour ce canal",
+    "选择继承时使用全局兼容开关": "Utiliser le commutateur global en mode héritage",
+    "渠道模型匹配规则": "Règles de correspondance des modèles du canal",
+    "留空时继承全局模型规则；填写后将覆盖此渠道的全局规则": "Laissez vide pour hériter des règles globales ; les entrées les remplacent pour ce canal"
   }
 }

@@ -4677,6 +4677,19 @@
     "已添加 {{count}} 个模板": "Added {{count}} templates",
     "已选择 {{count}} 个模型": "Selected {{count}} models",
     "输入标签或使用": "Enter tags or use",
-    "图像编辑": "Image Editing"
+    "图像编辑": "Image Editing",
+    "测试版": "Preview",
+    "全局兼容开关": "Global compatibility switch",
+    "选择继承全局配置的渠道将使用此开关": "Channels that inherit the global setting use this switch",
+    "全局模型匹配规则": "Global model matching rules",
+    "输入模型名或正则表达式，按回车添加": "Enter a model name or regular expression and press Enter",
+    "匹配任一规则的模型将进行转换，渠道可以继承或覆盖这些规则": "A model is converted when it matches any rule. Channels can inherit or replace these rules",
+    "ChatCompletions→Responses 模式": "ChatCompletions→Responses mode",
+    "继承全局配置": "Inherit global setting",
+    "为此渠道启用": "Enable for this channel",
+    "为此渠道禁用": "Disable for this channel",
+    "选择继承时使用全局兼容开关": "Use the global compatibility switch when inheriting",
+    "渠道模型匹配规则": "Channel model matching rules",
+    "留空时继承全局模型规则；填写后将覆盖此渠道的全局规则": "Leave empty to inherit the global model rules; entries here replace them for this channel"
   }
 }

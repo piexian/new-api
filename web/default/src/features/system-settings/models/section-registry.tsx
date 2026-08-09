@@ -36,6 +36,28 @@ function formatJsonForEditor(value: string, fallback: string) {
   }
 }
 
+function parseChatToResponsesPolicy(value: string) {
+  const raw = (value ?? '').toString().trim()
+  if (!raw) return { enabled: false, model_patterns: [] as string[] }
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+      return { enabled: false, model_patterns: [] as string[] }
+    }
+    return {
+      ...parsed,
+      enabled: parsed.enabled === true,
+      model_patterns: Array.isArray(parsed.model_patterns)
+        ? parsed.model_patterns.filter(
+            (pattern): pattern is string => typeof pattern === 'string'
+          )
+        : [],
+    }
+  } catch {
+    return { enabled: false, model_patterns: [] as string[] }
+  }
+}
+
 const MODELS_SECTIONS = [
   {
     id: 'global',
@@ -50,9 +72,8 @@ const MODELS_SECTIONS = [
               settings['global.thinking_model_blacklist'],
               '[]'
             ),
-            chat_completions_to_responses_policy: formatJsonForEditor(
-              settings['global.chat_completions_to_responses_policy'],
-              '{}'
+            chat_completions_to_responses_policy: parseChatToResponsesPolicy(
+              settings['global.chat_completions_to_responses_policy']
             ),
           },
           general_setting: {
