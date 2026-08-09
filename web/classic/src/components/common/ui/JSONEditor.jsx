@@ -21,6 +21,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
+  Checkbox,
+  Dropdown,
   Form,
   Typography,
   Banner,
@@ -57,6 +59,7 @@ const JSONEditor = ({
   showClear = true,
   template,
   templateLabel,
+  multiTemplate = false,
   editorType = 'keyValue',
   rules = [],
   formApi = null,
@@ -132,7 +135,7 @@ const JSONEditor = ({
   });
 
   const [jsonError, setJsonError] = useState('');
-
+  const [selectedTemplateKeys, setSelectedTemplateKeys] = useState([]);
   // 计算重复的键
   const duplicateKeys = useMemo(() => {
     const keyCount = {};
@@ -333,6 +336,51 @@ const JSONEditor = ({
     field,
     objectToKeyValueArray,
     keyValuePairs,
+  ]);
+
+  const applySelectedTemplates = useCallback(() => {
+    if (!template || selectedTemplateKeys.length === 0) return;
+
+    let currentObject = {};
+    const currentValue = formApi && field ? formApi.getValue(field) : value;
+    try {
+      if (typeof currentValue === 'string' && currentValue.trim()) {
+        currentObject = JSON.parse(currentValue);
+      } else if (currentValue && typeof currentValue === 'object') {
+        currentObject = currentValue;
+      }
+      if (
+        !currentObject ||
+        Array.isArray(currentObject) ||
+        typeof currentObject !== 'object'
+      ) {
+        throw new Error('JSON 必须是对象');
+      }
+    } catch (error) {
+      setJsonError(error.message);
+      return;
+    }
+
+    const mergedObject = { ...currentObject };
+    selectedTemplateKeys.forEach((key) => {
+      if (template[key]) mergedObject[key] = template[key];
+    });
+    const mergedString = JSON.stringify(mergedObject, null, 2);
+    if (formApi && field) formApi.setValue(field, mergedString);
+    setManualText(mergedString);
+    setKeyValuePairs(objectToKeyValueArray(mergedObject, keyValuePairs));
+    onChange?.(mergedString);
+    setJsonError('');
+    setSelectedTemplateKeys([]);
+  }, [
+    template,
+    selectedTemplateKeys,
+    formApi,
+    field,
+    value,
+    objectToKeyValueArray,
+    keyValuePairs,
+    onChange,
   ]);
 
   // 渲染值输入控件（支持嵌套）
@@ -646,11 +694,52 @@ const JSONEditor = ({
               <TabPane tab={t('手动编辑')} itemKey='manual' />
             </Tabs>
 
-            {template && templateLabel && (
-              <Button type='tertiary' onClick={fillTemplate} size='small'>
-                {templateLabel}
-              </Button>
-            )}
+            {template &&
+              templateLabel &&
+              (multiTemplate ? (
+                <Dropdown
+                  trigger='click'
+                  position='bottomRight'
+                  render={
+                    <Dropdown.Menu className='max-h-80 overflow-y-auto'>
+                      {Object.keys(template).map((key) => (
+                        <Dropdown.Item
+                          key={key}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <Checkbox
+                            checked={selectedTemplateKeys.includes(key)}
+                            onChange={(event) => {
+                              event.stopPropagation();
+                              setSelectedTemplateKeys((current) =>
+                                event.target.checked
+                                  ? [...new Set([...current, key])]
+                                  : current.filter((item) => item !== key),
+                              );
+                            }}
+                          >
+                            {key}
+                          </Checkbox>
+                        </Dropdown.Item>
+                      ))}
+                      <Dropdown.Item
+                        disabled={selectedTemplateKeys.length === 0}
+                        onClick={applySelectedTemplates}
+                      >
+                        {t('应用')}
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  }
+                >
+                  <Button type='tertiary' size='small'>
+                    {templateLabel}
+                  </Button>
+                </Dropdown>
+              ) : (
+                <Button type='tertiary' onClick={fillTemplate} size='small'>
+                  {templateLabel}
+                </Button>
+              ))}
           </div>
         }
         headerStyle={{ padding: '12px 16px' }}

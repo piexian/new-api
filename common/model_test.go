@@ -309,3 +309,24 @@ func TestGetEndpointTypesByChannelTypeForXunfeiMaaSImage(t *testing.T) {
 		t.Fatalf("expected Xunfei MaaS image channel endpoints %#v, got %#v", want, endpoints)
 	}
 }
+
+func TestDefaultEndpointInfoCoversGeneralTemplates(t *testing.T) {
+	t.Parallel()
+	tests := map[constant.EndpointType]string{
+		constant.EndpointTypeGemini:             "/v1beta/models/{model}:generateContent",
+		constant.EndpointTypeGeminiEmbeddings:   "/v1beta/models/{model}:embedContent",
+		constant.EndpointTypeImageEdit:          "/v1/images/edits",
+		constant.EndpointTypeVideoEdit:          "/v1/videos/edits",
+		constant.EndpointTypeVideoExtension:     "/v1/videos/extensions",
+		constant.EndpointTypeAudioSpeech:        "/v1/audio/speech",
+		constant.EndpointTypeAudioTranscription: "/v1/audio/transcriptions",
+		constant.EndpointTypeAudioTranslation:   "/v1/audio/translations",
+		constant.EndpointTypeModerations:        "/v1/moderations",
+	}
+	for endpointType, wantPath := range tests {
+		info, ok := GetDefaultEndpointInfo(endpointType)
+		if !ok || info.Path != wantPath || info.Method != "POST" {
+			t.Fatalf("unexpected default endpoint for %s: %#v (ok=%v)", endpointType, info, ok)
+		}
+	}
+}

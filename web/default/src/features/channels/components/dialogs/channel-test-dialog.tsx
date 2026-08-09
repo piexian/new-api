@@ -196,7 +196,28 @@ const endpointTypeOptions: Array<{ value: string; label: string }> = [
     value: 'image-generation',
     label: 'Image Generation (/v1/images/generations)',
   },
-  { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
+  { value: 'image-edit', label: 'Image Editing (/v1/images/edits)' },
+  { value: 'embeddings', label: 'OpenAI Embeddings (/v1/embeddings)' },
+  {
+    value: 'gemini-embeddings',
+    label: 'Gemini Embeddings (/v1beta/models/{model}:embedContent)',
+  },
+  { value: 'openai-video', label: 'Video Generation (/v1/videos)' },
+  { value: 'video-edit', label: 'Video Editing (/v1/videos/edits)' },
+  {
+    value: 'video-extension',
+    label: 'Video Extension (/v1/videos/extensions)',
+  },
+  { value: 'audio-speech', label: 'TTS (/v1/audio/speech)' },
+  {
+    value: 'audio-transcription',
+    label: 'STT / ASR (/v1/audio/transcriptions)',
+  },
+  {
+    value: 'audio-translation',
+    label: 'Audio Translation (/v1/audio/translations)',
+  },
+  { value: 'moderations', label: 'Safety Moderation (/v1/moderations)' },
 ]
 
 const endpointSelectContentClass = 'w-[460px] max-w-[calc(100vw-2rem)]'
@@ -205,9 +226,18 @@ const endpointSelectItemClass =
 
 const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
   'embeddings',
+  'gemini-embeddings',
   'image-generation',
+  'image-edit',
   'jina-rerank',
   'openai-response-compact',
+  'openai-video',
+  'video-edit',
+  'video-extension',
+  'audio-speech',
+  'audio-transcription',
+  'audio-translation',
+  'moderations',
 ])
 
 const MODEL_PRICE_ERROR_CODE = 'model_price_error'

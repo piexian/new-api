@@ -206,8 +206,14 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	if len(inputs) == 0 {
 		return nil, errors.New("input is empty")
 	}
-	// We always build a batch-style payload with `requests`, so ensure we call the
-	// batch endpoint upstream to avoid payload/endpoint mismatches.
+	// Use the single endpoint when the caller explicitly selected embedContent.
+	// Keep the batch payload for the legacy OpenAI-compatible embedding path.
+	if strings.Contains(info.RequestURLPath, ":embedContent") && !strings.Contains(info.RequestURLPath, ":batchEmbedContents") {
+		return map[string]interface{}{
+			"model":   fmt.Sprintf("models/%s", info.UpstreamModelName),
+			"content": dto.GeminiChatContent{Parts: []dto.GeminiPart{{Text: inputs[0]}}},
+		}, nil
+	}
 	info.IsGeminiBatchEmbedding = true
 	// process all inputs
 	geminiRequests := make([]map[string]interface{}, 0, len(inputs))

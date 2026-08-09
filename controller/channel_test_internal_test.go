@@ -105,3 +105,21 @@ func TestBuildTestVideoRequestVolcEngineModels(t *testing.T) {
 	require.NotEmpty(t, req.Image)
 	require.Contains(t, req.Prompt, "3D")
 }
+
+func TestBuildTestRequestGeneralEndpointTemplates(t *testing.T) {
+	for _, endpointType := range []string{
+		string(constant.EndpointTypeImageEdit),
+		string(constant.EndpointTypeVideoEdit),
+		string(constant.EndpointTypeVideoExtension),
+		string(constant.EndpointTypeAudioSpeech),
+		string(constant.EndpointTypeAudioTranscription),
+		string(constant.EndpointTypeAudioTranslation),
+		string(constant.EndpointTypeModerations),
+	} {
+		req := buildTestRequest("test-model", endpointType, nil, false)
+		require.NotNil(t, req, endpointType)
+	}
+
+	_, ok := buildTestRequest("test-model", string(constant.EndpointTypeGeminiEmbeddings), nil, false).(*dto.EmbeddingRequest)
+	require.True(t, ok)
+}

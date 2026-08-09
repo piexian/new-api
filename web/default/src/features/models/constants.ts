@@ -162,11 +162,24 @@ export const ENDPOINT_TEMPLATES: Record<
 > = {
   openai: { path: '/v1/chat/completions', method: 'POST' },
   'openai-response': { path: '/v1/responses', method: 'POST' },
+  'openai-response-compact': { path: '/v1/responses/compact', method: 'POST' },
   anthropic: { path: '/v1/messages', method: 'POST' },
   gemini: { path: '/v1beta/models/{model}:generateContent', method: 'POST' },
+  'gemini-embeddings': {
+    path: '/v1beta/models/{model}:embedContent',
+    method: 'POST',
+  },
   'jina-rerank': { path: '/rerank', method: 'POST' },
   'image-generation': { path: '/v1/images/generations', method: 'POST' },
+  'image-edit': { path: '/v1/images/edits', method: 'POST' },
   embeddings: { path: '/v1/embeddings', method: 'POST' },
+  'openai-video': { path: '/v1/videos', method: 'POST' },
+  'video-edit': { path: '/v1/videos/edits', method: 'POST' },
+  'video-extension': { path: '/v1/videos/extensions', method: 'POST' },
+  'audio-speech': { path: '/v1/audio/speech', method: 'POST' },
+  'audio-transcription': { path: '/v1/audio/transcriptions', method: 'POST' },
+  'audio-translation': { path: '/v1/audio/translations', method: 'POST' },
+  moderations: { path: '/v1/moderations', method: 'POST' },
 }
 
 // ============================================================================

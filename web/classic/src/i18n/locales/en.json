@@ -4676,6 +4676,7 @@
     "已新增 {{count}} 个模型：{{list}}": "Added {{count}} models: {{list}}",
     "已添加 {{count}} 个模板": "Added {{count}} templates",
     "已选择 {{count}} 个模型": "Selected {{count}} models",
-    "输入标签或使用": "Enter tags or use"
+    "输入标签或使用": "Enter tags or use",
+    "图像编辑": "Image Editing"
   }
 }

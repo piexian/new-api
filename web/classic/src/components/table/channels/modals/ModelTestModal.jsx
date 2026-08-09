@@ -97,7 +97,28 @@ const ModelTestModal = ({
       value: 'image-generation',
       label: t('图像生成') + ' (/v1/images/generations)',
     },
-    { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
+    { value: 'image-edit', label: t('图像编辑') + ' (/v1/images/edits)' },
+    { value: 'embeddings', label: 'OpenAI Embeddings (/v1/embeddings)' },
+    {
+      value: 'gemini-embeddings',
+      label: 'Gemini Embeddings (/v1beta/models/{model}:embedContent)',
+    },
+    { value: 'openai-video', label: 'Video Generation (/v1/videos)' },
+    { value: 'video-edit', label: 'Video Editing (/v1/videos/edits)' },
+    {
+      value: 'video-extension',
+      label: 'Video Extension (/v1/videos/extensions)',
+    },
+    { value: 'audio-speech', label: 'TTS (/v1/audio/speech)' },
+    {
+      value: 'audio-transcription',
+      label: 'STT / ASR (/v1/audio/transcriptions)',
+    },
+    {
+      value: 'audio-translation',
+      label: 'Audio Translation (/v1/audio/translations)',
+    },
+    { value: 'moderations', label: 'Safety Moderation (/v1/moderations)' },
   ];
 
   const handleCopySelected = () => {

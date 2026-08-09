@@ -42,6 +42,12 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Form,
   FormControl,
   FormDescription,
@@ -128,6 +134,9 @@ export function ModelMutateDrawer({
   const currentModelId = currentRow?.id
   const isEditing = Boolean(currentModelId)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedEndpointTemplates, setSelectedEndpointTemplates] = useState<
+    string[]
+  >([])
   const [pricingMode, setPricingMode] = useState<PricingMode>('per-token')
   const [pricingSubMode, setPricingSubMode] = useState<PricingSubMode>('ratio')
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -652,12 +661,41 @@ export function ModelMutateDrawer({
     ]
   )
 
-  const handleFillEndpointTemplate = (templateKey: string) => {
-    const template = ENDPOINT_TEMPLATES[templateKey]
-    if (template) {
-      const templateJson = JSON.stringify({ [templateKey]: template }, null, 2)
-      form.setValue('endpoints', templateJson)
+  const handleToggleEndpointTemplate = (
+    templateKey: string,
+    checked: boolean
+  ) => {
+    setSelectedEndpointTemplates((current) =>
+      checked
+        ? [...new Set([...current, templateKey])]
+        : current.filter((key) => key !== templateKey)
+    )
+  }
+
+  const handleApplyEndpointTemplates = () => {
+    if (selectedEndpointTemplates.length === 0) return
+    let endpoints: Record<string, { path: string; method: string }> = {}
+    const current = form.getValues('endpoints').trim()
+    if (current) {
+      try {
+        const parsed: unknown = JSON.parse(current)
+        if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+          throw new Error('invalid')
+        }
+        endpoints = parsed as Record<string, { path: string; method: string }>
+      } catch {
+        toast.error(t('Invalid JSON format'))
+        return
+      }
     }
+    for (const key of selectedEndpointTemplates) {
+      const template = ENDPOINT_TEMPLATES[key]
+      if (template) endpoints[key] = template
+    }
+    form.setValue('endpoints', JSON.stringify(endpoints, null, 2), {
+      shouldDirty: true,
+    })
+    setSelectedEndpointTemplates([])
   }
 
   return (
@@ -861,28 +899,38 @@ export function ModelMutateDrawer({
             <SideDrawerSection>
               <div className='flex items-center justify-between'>
                 <h3 className='text-sm font-semibold'>{t('Endpoints')}</h3>
-                <Select<string>
-                  items={Object.keys(ENDPOINT_TEMPLATES).map((key) => ({
-                    value: key,
-                    label: key,
-                  }))}
-                  onValueChange={(v) =>
-                    v !== null && handleFillEndpointTemplate(v)
-                  }
-                >
-                  <SelectTrigger size='sm' className='w-[200px]'>
-                    <SelectValue placeholder={t('Load template...')} />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectGroup>
+                <div className='flex items-center gap-2'>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className='inline-flex h-8 items-center justify-center rounded-md border px-3 text-sm'>
+                      {t('Load template...')}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align='end'
+                      className='max-h-80 w-72 overflow-y-auto'
+                    >
                       {Object.keys(ENDPOINT_TEMPLATES).map((key) => (
-                        <SelectItem key={key} value={key}>
+                        <DropdownMenuCheckboxItem
+                          key={key}
+                          checked={selectedEndpointTemplates.includes(key)}
+                          onCheckedChange={(checked) =>
+                            handleToggleEndpointTemplate(key, checked)
+                          }
+                          onSelect={(event) => event.preventDefault()}
+                        >
                           {key}
-                        </SelectItem>
+                        </DropdownMenuCheckboxItem>
                       ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    type='button'
+                    size='sm'
+                    disabled={selectedEndpointTemplates.length === 0}
+                    onClick={handleApplyEndpointTemplates}
+                  >
+                    {t('Apply')}
+                  </Button>
+                </div>
               </div>
 
               <FormField

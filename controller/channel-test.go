@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -194,6 +195,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 
 	c.Request = httptest.NewRequestWithContext(ctx, http.MethodPost, requestPath, nil)
+	if endpointType == string(constant.EndpointTypeAudioTranscription) || endpointType == string(constant.EndpointTypeAudioTranslation) {
+		c.Request = buildTestAudioRequest(ctx, requestPath, testModel)
+	}
 
 	cache, err := model.GetUserCache(testUserID)
 	if err != nil {
@@ -238,12 +242,16 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			relayFormat = types.RelayFormatGemini
 		case constant.EndpointTypeJinaRerank, constant.EndpointTypeCohereRerank:
 			relayFormat = types.RelayFormatRerank
-		case constant.EndpointTypeImageGeneration:
+		case constant.EndpointTypeImageGeneration, constant.EndpointTypeImageEdit:
 			relayFormat = types.RelayFormatOpenAIImage
 		case constant.EndpointTypeEmbeddings, constant.EndpointTypeCohereEmbeddings:
 			relayFormat = types.RelayFormatEmbedding
-		case constant.EndpointTypeOpenAIVideo:
+		case constant.EndpointTypeGeminiEmbeddings:
+			relayFormat = types.RelayFormatEmbedding
+		case constant.EndpointTypeOpenAIVideo, constant.EndpointTypeVideoEdit, constant.EndpointTypeVideoExtension:
 			relayFormat = types.RelayFormatTask
+		case constant.EndpointTypeAudioSpeech, constant.EndpointTypeAudioTranscription, constant.EndpointTypeAudioTranslation, constant.EndpointTypeModerations:
+			relayFormat = types.RelayFormatOpenAI
 		default:
 			relayFormat = types.RelayFormatOpenAI
 		}
@@ -259,7 +267,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		if c.Request.URL.Path == "/v1/messages" {
 			relayFormat = types.RelayFormatClaude
 		}
-		if strings.Contains(c.Request.URL.Path, "/v1beta/models") {
+		if strings.Contains(c.Request.URL.Path, ":embedContent") {
+			relayFormat = types.RelayFormatEmbedding
+		} else if strings.Contains(c.Request.URL.Path, "/v1beta/models") {
 			relayFormat = types.RelayFormatGemini
 		}
 		if c.Request.URL.Path == "/v1/rerank" || c.Request.URL.Path == "/rerank" {
@@ -367,7 +377,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				newAPIError: types.NewError(errors.New("invalid embedding request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
-	case relayconstant.RelayModeImagesGenerations:
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
 		// 图像生成请求 - request 已经是正确的类型
 		if imageReq, ok := request.(*dto.ImageRequest); ok {
 			convertedRequest, err = adaptor.ConvertImageRequest(c, info, *imageReq)
@@ -387,6 +397,16 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				context:     c,
 				localErr:    errors.New("invalid rerank request type"),
 				newAPIError: types.NewError(errors.New("invalid rerank request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
+	case relayconstant.RelayModeAudioSpeech, relayconstant.RelayModeAudioTranscription, relayconstant.RelayModeAudioTranslation:
+		if audioReq, ok := request.(*dto.AudioRequest); ok {
+			convertedRequest, err = adaptor.ConvertAudioRequest(c, info, *audioReq)
+		} else {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid audio request type"),
+				newAPIError: types.NewError(errors.New("invalid audio request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	case relayconstant.RelayModeResponses:
@@ -439,44 +459,31 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
 		}
 	}
-	jsonData, err := common.Marshal(convertedRequest)
-	if err != nil {
-		return testResult{
-			context:     c,
-			localErr:    err,
-			newAPIError: types.NewError(err, types.ErrorCodeJsonMarshalFailed),
-		}
-	}
-
-	//jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings)
-	//if err != nil {
-	//	return testResult{
-	//		context:     c,
-	//		localErr:    err,
-	//		newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
-	//	}
-	//}
-
-	if len(info.ParamOverride) > 0 {
-		jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+	var jsonData []byte
+	var requestBody io.Reader
+	if reader, ok := convertedRequest.(io.Reader); ok {
+		requestBody = reader
+	} else {
+		jsonData, err = common.Marshal(convertedRequest)
 		if err != nil {
-			if fixedErr, ok := relaycommon.AsParamOverrideReturnError(err); ok {
-				return testResult{
-					context:     c,
-					localErr:    fixedErr,
-					newAPIError: relaycommon.NewAPIErrorFromParamOverride(fixedErr),
-				}
-			}
 			return testResult{
 				context:     c,
 				localErr:    err,
-				newAPIError: types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid),
+				newAPIError: types.NewError(err, types.ErrorCodeJsonMarshalFailed),
 			}
 		}
+		if len(info.ParamOverride) > 0 {
+			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
+			if err != nil {
+				if fixedErr, ok := relaycommon.AsParamOverrideReturnError(err); ok {
+					return testResult{context: c, localErr: fixedErr, newAPIError: relaycommon.NewAPIErrorFromParamOverride(fixedErr)}
+				}
+				return testResult{context: c, localErr: err, newAPIError: types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid)}
+			}
+		}
+		requestBody = bytes.NewBuffer(jsonData)
+		c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
 	}
-
-	requestBody := bytes.NewBuffer(jsonData)
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
 		return testResult{
@@ -860,6 +867,22 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	return message
 }
 
+func buildTestAudioRequest(ctx context.Context, path, model string) *http.Request {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	_ = writer.WriteField("model", model)
+	file, err := writer.CreateFormFile("file", "channel-test.wav")
+	if err == nil {
+		// 写入短 PCM 静音 WAV，确保上游能解析渠道测试音频。
+		wavHeader := []byte("RIFF$\x06\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x44\xac\x00\x00\x88\x58\x01\x00\x02\x00\x10\x00data\x00\x06\x00\x00")
+		_, _ = file.Write(append(wavHeader, make([]byte, 1536)...))
+	}
+	_ = writer.Close()
+	request := httptest.NewRequestWithContext(ctx, http.MethodPost, path, &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	return request
+}
+
 func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
 
@@ -887,8 +910,29 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				}
 			}
 			return imageRequest
+		case constant.EndpointTypeImageEdit:
+			return &dto.ImageRequest{
+				Model:  model,
+				Prompt: "make the image brighter",
+				Images: json.RawMessage(`["https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/JPEG_example_flower.jpg/320px-JPEG_example_flower.jpg"]`),
+			}
+		case constant.EndpointTypeGeminiEmbeddings:
+			return &dto.EmbeddingRequest{Model: model, Input: []any{"hello world"}}
 		case constant.EndpointTypeOpenAIVideo:
 			return buildTestVideoRequest(model, channel)
+		case constant.EndpointTypeVideoEdit, constant.EndpointTypeVideoExtension:
+			return &relaycommon.TaskSubmitReq{
+				Model:          model,
+				Prompt:         "make a short edited test video",
+				InputReference: "https://example.com/test-video.mp4",
+				Seconds:        "5",
+			}
+		case constant.EndpointTypeAudioSpeech:
+			return &dto.AudioRequest{Model: model, Input: "This is a channel test.", Voice: "alloy", ResponseFormat: "mp3"}
+		case constant.EndpointTypeAudioTranscription, constant.EndpointTypeAudioTranslation:
+			return &dto.AudioRequest{Model: model, ResponseFormat: "json"}
+		case constant.EndpointTypeModerations:
+			return &dto.GeneralOpenAIRequest{Model: model, Input: json.RawMessage(`"This is a harmless channel test."`)}
 		case constant.EndpointTypeJinaRerank, constant.EndpointTypeCohereRerank:
 			// 返回 RerankRequest
 			return &dto.RerankRequest{
