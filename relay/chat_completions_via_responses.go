@@ -158,6 +158,31 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, newApiErr
 	}
 
+	if info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
+		info.RelayMode = savedRelayMode
+		info.RequestURLPath = savedRequestURLPath
+		usageValue, newApiErr := adaptor.DoResponse(c, httpResp, info)
+		if newApiErr != nil {
+			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
+			return nil, newApiErr
+		}
+		if usageValue == nil {
+			return nil, nil
+		}
+		switch usage := usageValue.(type) {
+		case *dto.Usage:
+			return usage, nil
+		case dto.Usage:
+			return &usage, nil
+		default:
+			return nil, types.NewOpenAIError(
+				fmt.Errorf("expected OpenAI usage, got %T", usageValue),
+				types.ErrorCodeBadResponse,
+				http.StatusInternalServerError,
+			)
+		}
+	}
+
 	if upstreamStream && clientStream {
 		usage, newApiErr := openaichannel.OaiResponsesToChatStreamHandler(c, info, httpResp)
 		if newApiErr != nil {

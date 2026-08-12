@@ -102,6 +102,12 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 }
 
 func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	return OaiStreamHandlerWithDataTransformer(c, info, resp, nil)
+}
+
+// OaiStreamHandlerWithDataTransformer optionally normalizes each decoded SSE payload
+// before the shared OpenAI stream handling and usage accounting run.
+func OaiStreamHandlerWithDataTransformer(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, transform func(string) (string, error)) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, "invalid response or response body")
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -124,6 +130,15 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if transform != nil && data != "" {
+			transformedData, err := transform(data)
+			if err != nil {
+				logger.LogError(c, "error transforming upstream stream data: "+err.Error())
+				sr.Error(err)
+			} else {
+				data = transformedData
+			}
+		}
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
@@ -188,12 +203,24 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 }
 
 func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	return OpenaiHandlerWithBodyTransformer(c, info, resp, nil)
+}
+
+// OpenaiHandlerWithBodyTransformer optionally normalizes the upstream body before
+// decoding it as an OpenAI response.
+func OpenaiHandlerWithBodyTransformer(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, transform func([]byte) ([]byte, error)) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
 	var simpleResponse dto.OpenAITextResponse
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+	if transform != nil {
+		responseBody, err = transform(responseBody)
+		if err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
 	}
 	logger.LogDebug(c, "upstream response body: %s", responseBody)
 	// Unmarshal to simpleResponse

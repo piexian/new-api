@@ -2,6 +2,7 @@ package mistral
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 
@@ -24,10 +26,16 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 	return nil, errors.New("not implemented")
 }
 
-func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
-	//TODO implement me
-	panic("implement me")
-	return nil, nil
+func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	result, err := service.ConvertRequest(c, info, types.RelayFormatOpenAI, request)
+	if err != nil {
+		return nil, err
+	}
+	chatRequest, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
+	}
+	return a.ConvertOpenAIRequest(c, info, chatRequest)
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -44,6 +52,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if info != nil && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/chat/completions", info.ChannelType), nil
+	}
 	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
 }
 
@@ -57,7 +68,12 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	return requestOpenAI2Mistral(request), nil
+	convertedRequest := requestOpenAI2Mistral(request)
+	if info != nil {
+		info.ReasoningEffort = convertedRequest.ReasoningEffort
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+	}
+	return convertedRequest, nil
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -87,14 +103,14 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info != nil && info.RelayMode == relayconstant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
 		if info.IsStream {
-			return openai.ChatCompletionResponsesStreamHandler(c, info, resp)
+			return openai.ChatCompletionResponsesStreamHandlerWithDataTransformer(c, info, resp, normalizeMistralStreamData)
 		}
-		return openai.ChatCompletionResponsesHandler(c, info, resp)
+		return openai.ChatCompletionResponsesHandlerWithBodyTransformer(c, info, resp, normalizeMistralResponseData)
 	}
 	if info.IsStream {
-		usage, err = openai.OaiStreamHandler(c, info, resp)
+		usage, err = openai.OaiStreamHandlerWithDataTransformer(c, info, resp, normalizeMistralStreamData)
 	} else {
-		usage, err = openai.OpenaiHandler(c, info, resp)
+		usage, err = openai.OpenaiHandlerWithBodyTransformer(c, info, resp, normalizeMistralResponseData)
 	}
 	return
 }

@@ -17,6 +17,10 @@ import (
 )
 
 func ChatCompletionResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	return ChatCompletionResponsesHandlerWithBodyTransformer(c, info, resp, nil)
+}
+
+func ChatCompletionResponsesHandlerWithBodyTransformer(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, transform func([]byte) ([]byte, error)) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
@@ -25,6 +29,12 @@ func ChatCompletionResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo,
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+	if transform != nil {
+		body, err = transform(body)
+		if err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
 	}
 
 	var chatResp dto.OpenAITextResponse
@@ -47,6 +57,10 @@ func ChatCompletionResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo,
 }
 
 func ChatCompletionResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	return ChatCompletionResponsesStreamHandlerWithDataTransformer(c, info, resp, nil)
+}
+
+func ChatCompletionResponsesStreamHandlerWithDataTransformer(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, transform func(string) (string, error)) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
@@ -59,6 +73,15 @@ func ChatCompletionResponsesStreamHandler(c *gin.Context, info *relaycommon.Rela
 		if streamErr != nil {
 			sr.Stop(streamErr)
 			return
+		}
+		if transform != nil && data != "" {
+			transformedData, err := transform(data)
+			if err != nil {
+				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+				sr.Stop(streamErr)
+				return
+			}
+			data = transformedData
 		}
 		var streamResp dto.ChatCompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResp); err != nil {
