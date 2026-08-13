@@ -47,6 +47,10 @@ func validateTokenInput(c *gin.Context, token *model.Token) bool {
 			return false
 		}
 	}
+	if token.RateLimit < 0 || token.IpRateLimit < 0 {
+		common.ApiErrorI18n(c, i18n.MsgTokenRateLimitNegative)
+		return false
+	}
 	return true
 }
 
@@ -265,6 +269,8 @@ func AddToken(c *gin.Context) {
 		AllowIps:           token.AllowIps,
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
+		RateLimit:          token.RateLimit,
+		IpRateLimit:        token.IpRateLimit,
 	}
 	err = cleanToken.Insert()
 	if err != nil {
@@ -323,6 +329,8 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		cleanToken.RateLimit = token.RateLimit
+		cleanToken.IpRateLimit = token.IpRateLimit
 	}
 	err = cleanToken.Update()
 	if err != nil {
@@ -468,6 +476,8 @@ func AdminUpdateUserToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		cleanToken.RateLimit = token.RateLimit
+		cleanToken.IpRateLimit = token.IpRateLimit
 	}
 	if err := cleanToken.Update(); err != nil {
 		common.ApiError(c, err)

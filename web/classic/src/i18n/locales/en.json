@@ -4690,6 +4690,10 @@
     "为此渠道禁用": "Disable for this channel",
     "选择继承时使用全局兼容开关": "Use the global compatibility switch when inheriting",
     "渠道模型匹配规则": "Channel model matching rules",
-    "留空时继承全局模型规则；填写后将覆盖此渠道的全局规则": "Leave empty to inherit the global model rules; entries here replace them for this channel"
+    "留空时继承全局模型规则；填写后将覆盖此渠道的全局规则": "Leave empty to inherit the global model rules; entries here replace them for this channel",
+    "自定义RPM": "Custom RPM",
+    "单IP每分钟请求数限制": "Per-IP RPM limit",
+    "该令牌每分钟最大请求数，0为不限制；不会超过用户或分组限流": "Maximum requests per minute for this token (0 for no limit); cannot exceed user or group rate limits",
+    "单个IP每分钟最大请求数，0为不限制；不会超过用户或分组限流": "Maximum requests per minute from a single IP (0 for no limit); cannot exceed user or group rate limits"
   }
 }

@@ -5998,7 +5998,12 @@
     "Disable for this channel": "Отключить для этого канала",
     "Leave this on inherit to use the global switch.": "Оставьте наследование, чтобы использовать глобальный переключатель.",
     "Channel model matching rules": "Правила сопоставления моделей канала",
-    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "Оставьте пустым для наследования глобальных правил; указанные значения заменят их для этого канала."
+    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "Оставьте пустым для наследования глобальных правил; указанные значения заменят их для этого канала.",
+    "Custom RPM": "Пользовательский RPM",
+    "Per-IP RPM": "RPM на IP",
+    "0 for no limit": "0 — без ограничений",
+    "Maximum requests per minute for this key (0 for no limit). Cannot exceed user or group rate limits.": "Максимальное число запросов в минуту для этого ключа (0 — без ограничений). Не может превышать лимиты пользователя или группы.",
+    "Maximum requests per minute from a single IP for this key (0 for no limit). Cannot exceed user or group rate limits.": "Максимальное число запросов в минуту с одного IP для этого ключа (0 — без ограничений). Не может превышать лимиты пользователя или группы."
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

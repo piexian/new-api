@@ -56,6 +56,7 @@ const (
 	MsgTokenExhausted            = "token.exhausted"
 	MsgTokenStatusUnavailable    = "token.status_unavailable"
 	MsgTokenDbError              = "token.db_error"
+	MsgTokenRateLimitNegative    = "token.rate_limit_negative"
 )
 
 // Redemption related messages
@@ -382,14 +383,14 @@ const (
 
 // Model related messages (extended)
 const (
-	MsgModelRequired        = "model.required"
-	MsgModelGetGroupFailed  = "model.get_group_failed"
+	MsgModelRequired       = "model.required"
+	MsgModelGetGroupFailed = "model.get_group_failed"
 )
 
 // Token auth related messages
 const (
-	MsgTokenNoAuthHeader    = "token.no_auth_header"
-	MsgTokenInvalidBearer   = "token.invalid_bearer"
+	MsgTokenNoAuthHeader  = "token.no_auth_header"
+	MsgTokenInvalidBearer = "token.invalid_bearer"
 )
 
 // Payment compliance related messages

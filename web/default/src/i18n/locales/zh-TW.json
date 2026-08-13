@@ -5998,7 +5998,12 @@
     "Disable for this channel": "為此管道停用",
     "Leave this on inherit to use the global switch.": "保持繼承以使用全域相容開關。",
     "Channel model matching rules": "管道模型比對規則",
-    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "留空時繼承全域模型規則；填寫後將覆蓋此管道的全域規則。"
+    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "留空時繼承全域模型規則；填寫後將覆蓋此管道的全域規則。",
+    "Custom RPM": "自訂 RPM",
+    "Per-IP RPM": "單 IP RPM",
+    "0 for no limit": "0 為不限制",
+    "Maximum requests per minute for this key (0 for no limit). Cannot exceed user or group rate limits.": "該令牌每分鐘最大請求數，0 為不限制；不會超過用戶或分組限流。",
+    "Maximum requests per minute from a single IP for this key (0 for no limit). Cannot exceed user or group rate limits.": "單個 IP 每分鐘最大請求數，0 為不限制；不會超過用戶或分組限流。"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

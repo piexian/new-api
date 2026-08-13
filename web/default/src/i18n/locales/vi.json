@@ -5998,7 +5998,12 @@
     "Disable for this channel": "Tắt cho kênh này",
     "Leave this on inherit to use the global switch.": "Giữ chế độ kế thừa để dùng công tắc toàn cục.",
     "Channel model matching rules": "Quy tắc khớp mô hình của kênh",
-    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "Để trống để kế thừa quy tắc toàn cục; các mục nhập sẽ thay thế chúng cho kênh này."
+    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "Để trống để kế thừa quy tắc toàn cục; các mục nhập sẽ thay thế chúng cho kênh này.",
+    "Custom RPM": "RPM tùy chỉnh",
+    "Per-IP RPM": "RPM mỗi IP",
+    "0 for no limit": "0 là không giới hạn",
+    "Maximum requests per minute for this key (0 for no limit). Cannot exceed user or group rate limits.": "Số yêu cầu tối đa mỗi phút cho khóa này (0 là không giới hạn). Không thể vượt quá giới hạn của người dùng hoặc nhóm.",
+    "Maximum requests per minute from a single IP for this key (0 for no limit). Cannot exceed user or group rate limits.": "Số yêu cầu tối đa mỗi phút từ một IP cho khóa này (0 là không giới hạn). Không thể vượt quá giới hạn của người dùng hoặc nhóm."
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

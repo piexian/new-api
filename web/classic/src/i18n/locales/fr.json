@@ -4583,6 +4583,10 @@
     "为此渠道禁用": "Désactiver pour ce canal",
     "选择继承时使用全局兼容开关": "Utiliser le commutateur global en mode héritage",
     "渠道模型匹配规则": "Règles de correspondance des modèles du canal",
-    "留空时继承全局模型规则；填写后将覆盖此渠道的全局规则": "Laissez vide pour hériter des règles globales ; les entrées les remplacent pour ce canal"
+    "留空时继承全局模型规则；填写后将覆盖此渠道的全局规则": "Laissez vide pour hériter des règles globales ; les entrées les remplacent pour ce canal",
+    "自定义RPM": "RPM personnalisé",
+    "单IP每分钟请求数限制": "Limite de RPM par IP",
+    "该令牌每分钟最大请求数，0为不限制；不会超过用户或分组限流": "Nombre maximal de requêtes par minute pour ce jeton (0 = illimité) ; ne peut pas dépasser les limites de l'utilisateur ou du groupe",
+    "单个IP每分钟最大请求数，0为不限制；不会超过用户或分组限流": "Nombre maximal de requêtes par minute depuis une même IP (0 = illimité) ; ne peut pas dépasser les limites de l'utilisateur ou du groupe"
   }
 }

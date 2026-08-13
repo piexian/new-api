@@ -5998,7 +5998,12 @@
     "Disable for this channel": "为此渠道禁用",
     "Leave this on inherit to use the global switch.": "选择继承时使用全局兼容开关。",
     "Channel model matching rules": "渠道模型匹配规则",
-    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "留空时继承全局模型规则；填写后将覆盖此渠道的全局规则。"
+    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "留空时继承全局模型规则；填写后将覆盖此渠道的全局规则。",
+    "Custom RPM": "自定义 RPM",
+    "Per-IP RPM": "单 IP RPM",
+    "0 for no limit": "0 为不限制",
+    "Maximum requests per minute for this key (0 for no limit). Cannot exceed user or group rate limits.": "该令牌每分钟最大请求数，0 为不限制；不会超过用户或分组限流。",
+    "Maximum requests per minute from a single IP for this key (0 for no limit). Cannot exceed user or group rate limits.": "单个 IP 每分钟最大请求数，0 为不限制；不会超过用户或分组限流。"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

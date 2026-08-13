@@ -5998,7 +5998,12 @@
     "Disable for this channel": "このチャネルで無効化",
     "Leave this on inherit to use the global switch.": "グローバルスイッチを使用するには継承のままにします。",
     "Channel model matching rules": "チャネルのモデルマッチングルール",
-    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "空欄の場合はグローバルルールを継承し、入力した場合はこのチャネルのルールとして置換します。"
+    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "空欄の場合はグローバルルールを継承し、入力した場合はこのチャネルのルールとして置換します。",
+    "Custom RPM": "カスタム RPM",
+    "Per-IP RPM": "IP ごとの RPM",
+    "0 for no limit": "0 で無制限",
+    "Maximum requests per minute for this key (0 for no limit). Cannot exceed user or group rate limits.": "このキーの1分あたりの最大リクエスト数（0で無制限）。ユーザーまたはグループのレート制限を超えることはできません。",
+    "Maximum requests per minute from a single IP for this key (0 for no limit). Cannot exceed user or group rate limits.": "このキーに対する単一IPからの1分あたりの最大リクエスト数（0で無制限）。ユーザーまたはグループのレート制限を超えることはできません。"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

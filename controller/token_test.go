@@ -687,3 +687,110 @@ func TestAdminUserTokenManagementRejectsSameLevelTarget(t *testing.T) {
 		t.Fatalf("expected same-level admin token access to fail")
 	}
 }
+
+func TestUpdateTokenPersistsRateLimits(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "rate-limited-token", "ratelimit1234567")
+
+	body := map[string]any{
+		"id":                   token.Id,
+		"name":                 "rate-limited-token",
+		"expired_time":         -1,
+		"remain_quota":         100,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "default",
+		"cross_group_retry":    false,
+		"rate_limit":           60,
+		"ip_rate_limit":        10,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+	UpdateToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var stored model.Token
+	if err := db.First(&stored, "id = ?", token.Id).Error; err != nil {
+		t.Fatalf("failed to load updated token: %v", err)
+	}
+	if stored.RateLimit != 60 {
+		t.Fatalf("expected rate_limit 60, got %d", stored.RateLimit)
+	}
+	if stored.IpRateLimit != 10 {
+		t.Fatalf("expected ip_rate_limit 10, got %d", stored.IpRateLimit)
+	}
+}
+
+func TestAddTokenRejectsNegativeRateLimit(t *testing.T) {
+	setupTokenControllerTestDB(t)
+
+	body := map[string]any{
+		"name":            "negative-rate-limit",
+		"expired_time":    -1,
+		"unlimited_quota": true,
+		"rate_limit":      -1,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 1)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected negative rate_limit to be rejected")
+	}
+}
+
+func TestAddTokenRejectsNegativeIpRateLimit(t *testing.T) {
+	setupTokenControllerTestDB(t)
+
+	body := map[string]any{
+		"name":            "negative-ip-rate-limit",
+		"expired_time":    -1,
+		"unlimited_quota": true,
+		"ip_rate_limit":   -1,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 1)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if response.Success {
+		t.Fatalf("expected negative ip_rate_limit to be rejected")
+	}
+}
+
+func TestAddTokenPersistsRateLimits(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+
+	body := map[string]any{
+		"name":            "rate-limited-create",
+		"expired_time":    -1,
+		"unlimited_quota": true,
+		"rate_limit":      30,
+		"ip_rate_limit":   5,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, 1)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected success response, got message: %s", response.Message)
+	}
+
+	var stored model.Token
+	if err := db.First(&stored, "name = ?", "rate-limited-create").Error; err != nil {
+		t.Fatalf("failed to load created token: %v", err)
+	}
+	if stored.RateLimit != 30 {
+		t.Fatalf("expected rate_limit 30, got %d", stored.RateLimit)
+	}
+	if stored.IpRateLimit != 5 {
+		t.Fatalf("expected ip_rate_limit 5, got %d", stored.IpRateLimit)
+	}
+}

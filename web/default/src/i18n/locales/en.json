@@ -5998,7 +5998,12 @@
     "Disable for this channel": "Disable for this channel",
     "Leave this on inherit to use the global switch.": "Leave this on inherit to use the global switch.",
     "Channel model matching rules": "Channel model matching rules",
-    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "Leave empty to inherit the global model rules; entries here replace them for this channel."
+    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "Leave empty to inherit the global model rules; entries here replace them for this channel.",
+    "Custom RPM": "Custom RPM",
+    "Per-IP RPM": "Per-IP RPM",
+    "0 for no limit": "0 for no limit",
+    "Maximum requests per minute for this key (0 for no limit). Cannot exceed user or group rate limits.": "Maximum requests per minute for this key (0 for no limit). Cannot exceed user or group rate limits.",
+    "Maximum requests per minute from a single IP for this key (0 for no limit). Cannot exceed user or group rate limits.": "Maximum requests per minute from a single IP for this key (0 for no limit). Cannot exceed user or group rate limits."
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

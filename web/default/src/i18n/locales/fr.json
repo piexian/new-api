@@ -5998,7 +5998,12 @@
     "Disable for this channel": "Désactiver pour ce canal",
     "Leave this on inherit to use the global switch.": "Conservez l'héritage pour utiliser le commutateur global.",
     "Channel model matching rules": "Règles de correspondance des modèles du canal",
-    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "Laissez vide pour hériter des règles globales ; les entrées les remplacent pour ce canal."
+    "Leave empty to inherit the global model rules; entries here replace them for this channel.": "Laissez vide pour hériter des règles globales ; les entrées les remplacent pour ce canal.",
+    "Custom RPM": "RPM personnalisé",
+    "Per-IP RPM": "RPM par IP",
+    "0 for no limit": "0 pour illimité",
+    "Maximum requests per minute for this key (0 for no limit). Cannot exceed user or group rate limits.": "Nombre maximal de requêtes par minute pour cette clé (0 = illimité). Ne peut pas dépasser les limites de l'utilisateur ou du groupe.",
+    "Maximum requests per minute from a single IP for this key (0 for no limit). Cannot exceed user or group rate limits.": "Nombre maximal de requêtes par minute depuis une même IP pour cette clé (0 = illimité). Ne peut pas dépasser les limites de l'utilisateur ou du groupe."
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

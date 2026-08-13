@@ -580,6 +580,72 @@ export function ApiKeysMutateDrawer({
                         </FormItem>
                       )}
                     />
+
+                    <FormField
+                      control={form.control}
+                      name='rate_limit'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Custom RPM')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type='number'
+                              min='0'
+                              step='1'
+                              placeholder={t('0 for no limit')}
+                              onChange={(e) =>
+                                field.onChange(
+                                  Math.max(
+                                    0,
+                                    Number.parseInt(e.target.value, 10) || 0
+                                  )
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Maximum requests per minute for this key (0 for no limit). Cannot exceed user or group rate limits.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name='ip_rate_limit'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Per-IP RPM')}</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              type='number'
+                              min='0'
+                              step='1'
+                              placeholder={t('0 for no limit')}
+                              onChange={(e) =>
+                                field.onChange(
+                                  Math.max(
+                                    0,
+                                    Number.parseInt(e.target.value, 10) || 0
+                                  )
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            {t(
+                              'Maximum requests per minute from a single IP for this key (0 for no limit). Cannot exceed user or group rate limits.'
+                            )}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 </CollapsibleContent>
               </SideDrawerSection>

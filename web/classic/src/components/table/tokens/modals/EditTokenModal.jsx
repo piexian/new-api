@@ -79,6 +79,8 @@ const EditTokenModal = (props) => {
     model_limits_enabled: false,
     model_limits: [],
     allow_ips: '',
+    rate_limit: 0,
+    ip_rate_limit: 0,
     group: '',
     cross_group_retry: false,
     tokenCount: 1,
@@ -652,6 +654,30 @@ const EditTokenModal = (props) => {
                         '请勿过度信任此功能，IP可能被伪造，请配合nginx和cdn等网关使用',
                       )}
                       showClear
+                      style={{ width: '100%' }}
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Form.InputNumber
+                      field='rate_limit'
+                      label={t('自定义RPM')}
+                      min={0}
+                      step={1}
+                      extraText={t(
+                        '该令牌每分钟最大请求数，0为不限制；不会超过用户或分组限流',
+                      )}
+                      style={{ width: '100%' }}
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Form.InputNumber
+                      field='ip_rate_limit'
+                      label={t('单IP每分钟请求数限制')}
+                      min={0}
+                      step={1}
+                      extraText={t(
+                        '单个IP每分钟最大请求数，0为不限制；不会超过用户或分组限流',
+                      )}
                       style={{ width: '100%' }}
                     />
                   </Col>

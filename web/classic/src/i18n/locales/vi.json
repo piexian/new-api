@@ -5100,6 +5100,10 @@
     "为此渠道禁用": "Tắt cho kênh này",
     "选择继承时使用全局兼容开关": "Dùng công tắc toàn cục khi chọn kế thừa",
     "渠道模型匹配规则": "Quy tắc khớp mô hình của kênh",
-    "留空时继承全局模型规则；填写后将覆盖此渠道的全局规则": "Để trống để kế thừa quy tắc toàn cục; các mục nhập sẽ thay thế chúng cho kênh này"
+    "留空时继承全局模型规则；填写后将覆盖此渠道的全局规则": "Để trống để kế thừa quy tắc toàn cục; các mục nhập sẽ thay thế chúng cho kênh này",
+    "自定义RPM": "RPM tùy chỉnh",
+    "单IP每分钟请求数限制": "Giới hạn số yêu cầu mỗi phút cho mỗi IP",
+    "该令牌每分钟最大请求数，0为不限制；不会超过用户或分组限流": "Số yêu cầu tối đa mỗi phút cho token này (0 là không giới hạn); không thể vượt quá giới hạn của người dùng hoặc nhóm",
+    "单个IP每分钟最大请求数，0为不限制；不会超过用户或分组限流": "Số yêu cầu tối đa mỗi phút từ một IP (0 là không giới hạn); không thể vượt quá giới hạn của người dùng hoặc nhóm"
   }
 }
