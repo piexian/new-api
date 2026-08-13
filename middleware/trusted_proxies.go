@@ -22,6 +22,10 @@ var defaultTrustedProxyCIDRs = []string{
 // ConfigureTrustedProxies controls which direct peers may supply client IP
 // forwarding headers used by Gin's ClientIP method.
 func ConfigureTrustedProxies(engine *gin.Engine) error {
+	// 优先读 EO-Connecting-IP：EdgeOne 回源经 CF 隧道时，XFF 最右侧是 EO 节点 IP，
+	// 真实客户端 IP 只在 EO-Connecting-IP 里；直连 CF 的流量无此头，自动回退 XFF
+	engine.RemoteIPHeaders = []string{"EO-Connecting-IP", "X-Forwarded-For", "X-Real-IP"}
+
 	rawTrustedProxies := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES"))
 	if rawTrustedProxies == "" {
 		log.Print("WARNING: TRUSTED_PROXIES is unset or blank; trusting loopback, RFC 1918, and IPv6 ULA proxy addresses for compatibility. Set TRUSTED_PROXIES=none to trust no proxies, or configure explicit proxy IPs/CIDRs to replace these defaults.")
