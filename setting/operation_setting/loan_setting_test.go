@@ -30,6 +30,17 @@ func TestLoanSettingDefaults(t *testing.T) {
 	assert.False(t, s.AiEnabled)
 }
 
+func TestLoanAiPromptMatchesSpec53(t *testing.T) {
+	// 默认 AI prompt 的结案 action 枚举必须与 spec 5.3 白名单一致（只认 "close"）
+	p := GetLoanSetting().AiPrompt
+	assert.Contains(t, p, `"action":"close"`)
+	assert.NotContains(t, p, "approve|reject")
+	// 硬边界占位符由 service 层注入
+	assert.Contains(t, p, "{{ai_max_limit}}")
+	assert.Contains(t, p, "{{ai_min_rate}}")
+	assert.Contains(t, p, "{{ai_max_grace_days}}")
+}
+
 func TestLoanSettingRegisteredInGlobalConfig(t *testing.T) {
 	// 注册后应可通过 GlobalConfig 读取
 	val := config.GlobalConfig.Get("loan_setting")
