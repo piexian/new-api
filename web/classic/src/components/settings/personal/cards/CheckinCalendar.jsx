@@ -132,9 +132,13 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
       const res = await postCheckin(token);
       const { success, data, message } = res.data;
       if (success) {
-        showSuccess(
-          t('签到成功！获得') + ' ' + renderQuota(data.quota_awarded),
-        );
+        let msg = t('签到成功！获得') + ' ' + renderQuota(data.quota_awarded);
+        // 签到自动还款：额度按毛额展示，部分已用于抵扣贷款
+        if (data.loan_repay) {
+          msg +=
+            ' · ' + t('已自动还款') + ' ' + renderQuota(data.loan_repay.amount);
+        }
+        showSuccess(msg);
         // 刷新签到状态
         fetchCheckinStatus(currentMonth);
         setTurnstileModalVisible(false);
