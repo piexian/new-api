@@ -21,7 +21,12 @@ import { getStatus } from '@/lib/api'
 export type ModuleAccess = { enabled: boolean; requireAuth: boolean }
 
 export type HeaderNavModule = 'rankings' | 'pricing'
-export type HeaderNavBooleanModule = 'home' | 'console' | 'docs' | 'about'
+export type HeaderNavBooleanModule =
+  | 'home'
+  | 'console'
+  | 'docs'
+  | 'about'
+  | 'loan'
 
 export type HeaderNavModules = {
   home: boolean
@@ -30,6 +35,7 @@ export type HeaderNavModules = {
   rankings: ModuleAccess
   docs: boolean
   about: boolean
+  loan: boolean
   [key: string]: boolean | ModuleAccess
 }
 
@@ -40,6 +46,7 @@ const DEFAULT_HEADER_NAV_MODULES: HeaderNavModules = {
   rankings: { enabled: true, requireAuth: false },
   docs: true,
   about: true,
+  loan: false,
 }
 
 const DEFAULTS: Record<HeaderNavModule, ModuleAccess> = {
@@ -372,6 +379,9 @@ export function isHeaderRouteEnabledFromStatus(
   }
   if (matchesPrefix(path, '/rankings')) {
     return getHeaderModuleEnabledFromStatus(status, 'rankings')
+  }
+  if (matchesPrefix(path, '/loan')) {
+    return getHeaderModuleEnabledFromStatus(status, 'loan')
   }
   if (matchesPrefix(path, '/dashboard') || matchesPrefix(path, '/console')) {
     return getHeaderModuleEnabledFromStatus(status, 'console')

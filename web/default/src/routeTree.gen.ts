@@ -48,6 +48,7 @@ import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
+import { Route as AuthenticatedLoanIndexRouteImport } from './routes/_authenticated/loan/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedIpBansIndexRouteImport } from './routes/_authenticated/ip-bans/index'
 import { Route as AuthenticatedInviteRewardsIndexRouteImport } from './routes/_authenticated/invite-rewards/index'
@@ -283,6 +284,11 @@ const AuthenticatedModelsIndexRoute =
     path: '/models/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedLoanIndexRoute = AuthenticatedLoanIndexRouteImport.update({
+  id: '/loan/',
+  path: '/loan/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedKeysIndexRoute = AuthenticatedKeysIndexRouteImport.update({
   id: '/keys/',
   path: '/keys/',
@@ -504,6 +510,7 @@ export interface FileRoutesByFullPath {
   '/invite-rewards/': typeof AuthenticatedInviteRewardsIndexRoute
   '/ip-bans/': typeof AuthenticatedIpBansIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
+  '/loan/': typeof AuthenticatedLoanIndexRoute
   '/models/': typeof AuthenticatedModelsIndexRoute
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
@@ -572,6 +579,7 @@ export interface FileRoutesByTo {
   '/invite-rewards': typeof AuthenticatedInviteRewardsIndexRoute
   '/ip-bans': typeof AuthenticatedIpBansIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
+  '/loan': typeof AuthenticatedLoanIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
@@ -645,6 +653,7 @@ export interface FileRoutesById {
   '/_authenticated/invite-rewards/': typeof AuthenticatedInviteRewardsIndexRoute
   '/_authenticated/ip-bans/': typeof AuthenticatedIpBansIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
+  '/_authenticated/loan/': typeof AuthenticatedLoanIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
@@ -717,6 +726,7 @@ export interface FileRouteTypes {
     | '/invite-rewards/'
     | '/ip-bans/'
     | '/keys/'
+    | '/loan/'
     | '/models/'
     | '/playground/'
     | '/profile/'
@@ -785,6 +795,7 @@ export interface FileRouteTypes {
     | '/invite-rewards'
     | '/ip-bans'
     | '/keys'
+    | '/loan'
     | '/models'
     | '/playground'
     | '/profile'
@@ -857,6 +868,7 @@ export interface FileRouteTypes {
     | '/_authenticated/invite-rewards/'
     | '/_authenticated/ip-bans/'
     | '/_authenticated/keys/'
+    | '/_authenticated/loan/'
     | '/_authenticated/models/'
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
@@ -1185,6 +1197,13 @@ declare module '@tanstack/react-router' {
       path: '/models'
       fullPath: '/models/'
       preLoaderRoute: typeof AuthenticatedModelsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/loan/': {
+      id: '/_authenticated/loan/'
+      path: '/loan'
+      fullPath: '/loan/'
+      preLoaderRoute: typeof AuthenticatedLoanIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/keys/': {
@@ -1533,6 +1552,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedInviteRewardsIndexRoute: typeof AuthenticatedInviteRewardsIndexRoute
   AuthenticatedIpBansIndexRoute: typeof AuthenticatedIpBansIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
+  AuthenticatedLoanIndexRoute: typeof AuthenticatedLoanIndexRoute
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
@@ -1559,6 +1579,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInviteRewardsIndexRoute: AuthenticatedInviteRewardsIndexRoute,
   AuthenticatedIpBansIndexRoute: AuthenticatedIpBansIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
+  AuthenticatedLoanIndexRoute: AuthenticatedLoanIndexRoute,
   AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,
   AuthenticatedPlaygroundIndexRoute: AuthenticatedPlaygroundIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,

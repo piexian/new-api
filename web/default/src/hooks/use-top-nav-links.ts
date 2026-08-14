@@ -86,6 +86,11 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('Rankings'), href: '/rankings', requiresAuth })
   }
 
+  // Token Loan (logged-in users only; hidden entirely when logged out)
+  if (isAuthed && modules?.loan === true) {
+    links.push({ title: t('Token Loan'), href: '/loan' })
+  }
+
   // Docs (supports external links)
   if (modules?.docs !== false) {
     if (docsLink) {
