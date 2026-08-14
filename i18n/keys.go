@@ -243,6 +243,7 @@ const (
 	MsgLoanNotFound           = "loan.not_found"
 	MsgLoanInvalidTopic       = "loan.invalid_topic"
 	MsgLoanApplicationNotOpen = "loan.not_open"
+	MsgLoanInternalError      = "loan.internal_error"
 )
 
 // Passkey related messages

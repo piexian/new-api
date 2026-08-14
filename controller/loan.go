@@ -59,8 +59,15 @@ func respondLoanError(c *gin.Context, err error) {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		common.ApiErrorI18n(c, i18n.MsgLoanNotFound)
 	default:
-		common.ApiError(c, err)
+		respondLoanInternalError(c, err)
 	}
+}
+
+// respondLoanInternalError 未知内部错误统一响应 i18n 兜底文案，原始错误只进服务端日志，
+// 避免把 gorm/数据库英文原文透出给用户
+func respondLoanInternalError(c *gin.Context, err error) {
+	common.SysError("loan api internal error: " + err.Error())
+	common.ApiErrorI18n(c, i18n.MsgLoanInternalError)
 }
 
 // buildLoanStatusData 组装 status 响应字段；acc 为 nil 时按无贷用户返回零值。
@@ -125,7 +132,7 @@ func GetLoanStatus(c *gin.Context) {
 	setting := operation_setting.GetLoanSetting()
 	acc, err := model.GetLoanAccountReadOnly(userId)
 	if err != nil {
-		common.ApiError(c, err)
+		respondLoanInternalError(c, err)
 		return
 	}
 	common.ApiSuccess(c, buildLoanStatusData(setting, acc, time.Now()))
@@ -172,7 +179,7 @@ func GetLoanRecords(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	records, total, err := model.GetUserLoanRecords(userId, pageInfo.GetPage(), pageInfo.GetPageSize())
 	if err != nil {
-		common.ApiError(c, err)
+		respondLoanInternalError(c, err)
 		return
 	}
 	pageInfo.SetTotal(int(total))
@@ -215,7 +222,7 @@ func CreateLoanApplication(c *gin.Context) {
 	if setting.TermsEnabled {
 		acc, err := model.GetLoanAccountReadOnly(userId)
 		if err != nil {
-			common.ApiError(c, err)
+			respondLoanInternalError(c, err)
 			return
 		}
 		if acc == nil || acc.TermsAgreedAt == 0 {
@@ -252,13 +259,13 @@ func GetLoanApplications(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	apps, err := model.GetUserLoanApplications(userId, pageInfo.GetPage(), pageInfo.GetPageSize())
 	if err != nil {
-		common.ApiError(c, err)
+		respondLoanInternalError(c, err)
 		return
 	}
 	var total int64
 	if err := model.DB.Model(&model.TokenLoanApplication{}).
 		Where("user_id = ?", userId).Count(&total).Error; err != nil {
-		common.ApiError(c, err)
+		respondLoanInternalError(c, err)
 		return
 	}
 	pageInfo.SetTotal(int(total))
@@ -280,7 +287,7 @@ func GetLoanApplicationDetail(c *gin.Context) {
 	}
 	msgs, err := model.GetLoanApplicationMessages(app.Id)
 	if err != nil {
-		common.ApiError(c, err)
+		respondLoanInternalError(c, err)
 		return
 	}
 	common.ApiSuccess(c, gin.H{

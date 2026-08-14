@@ -212,6 +212,7 @@ loan.invalid_rating: "评分需在 1 到 5 之间"
 loan.not_found: "申请不存在"
 loan.invalid_topic: "无效的申请类型"
 loan.not_open: "该申请已结案，无法继续回复"
+loan.internal_error: "操作失败，请稍后重试"
 
 # Passkey messages
 passkey.create_failed: "无法创建 Passkey 凭证"

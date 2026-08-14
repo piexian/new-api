@@ -368,9 +368,12 @@ func TestCreateLoanApplicationHappyPath(t *testing.T) {
 		t.Fatalf("failed to agree terms: %v", err)
 	}
 
-	// controller 包 init 接线的是真实上游直调，测试中替换为假实现
+	// controller 包 init 接线的是真实上游直调，测试中替换为假实现，结束后恢复
 	service.RegisterLoanOfficerModelCaller(func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
 		return "好的，我们聊聊", nil
+	})
+	t.Cleanup(func() {
+		service.RegisterLoanOfficerModelCaller(callLoanOfficerUpstream)
 	})
 
 	ctx, recorder := newLoanContext(t, http.MethodPost, "/api/user/loan/applications",
