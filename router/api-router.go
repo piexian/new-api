@@ -122,6 +122,17 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
 				selfRoute.POST("/checkin", middleware.TurnstileCheckForScope(middleware.TurnstileScopeCheckin), controller.DoCheckin)
 
+				// Token loan routes
+				selfRoute.GET("/loan/status", controller.GetLoanStatus)
+				selfRoute.POST("/loan/agree", controller.AgreeLoanTerms)
+				selfRoute.POST("/loan/borrow", controller.BorrowLoan)
+				selfRoute.GET("/loan/records", controller.GetLoanRecords)
+				selfRoute.POST("/loan/applications", controller.CreateLoanApplication)
+				selfRoute.GET("/loan/applications", controller.GetLoanApplications)
+				selfRoute.GET("/loan/applications/:id", controller.GetLoanApplicationDetail)
+				selfRoute.POST("/loan/applications/:id/reply", controller.ReplyLoanApplication)
+				selfRoute.POST("/loan/applications/:id/rate", controller.RateLoanApplication)
+
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)

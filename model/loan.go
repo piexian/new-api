@@ -104,6 +104,20 @@ func getLoanAccountTx(tx *gorm.DB, userId int) (*TokenLoanAccount, error) {
 	return &acc, nil
 }
 
+// GetLoanAccountReadOnly 只读查询用户贷款账户（GET status 投影用）：
+// 不加锁、不存在时返回 (nil, nil)，绝不建行或落盘
+func GetLoanAccountReadOnly(userId int) (*TokenLoanAccount, error) {
+	var acc TokenLoanAccount
+	err := DB.Where("user_id = ?", userId).First(&acc).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &acc, nil
+}
+
 // getOrCreateLoanAccountTx 在事务内读取（或创建）用户贷款账户，读路径经 lockForUpdate 加行锁
 func getOrCreateLoanAccountTx(tx *gorm.DB, userId int) (*TokenLoanAccount, error) {
 	acc, err := getLoanAccountTx(tx, userId)
@@ -328,6 +342,37 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 		return nil, err
 	}
 	return acc, nil
+}
+
+// GetUserLoanRecords 分页返回用户台账，id 倒序（最新在前），page 从 1 开始；附总数用于分页
+func GetUserLoanRecords(userId, page, pageSize int) ([]TokenLoanRecord, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	var total int64
+	if err := DB.Model(&TokenLoanRecord{}).Where("user_id = ?", userId).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var records []TokenLoanRecord
+	err := DB.Where("user_id = ?", userId).
+		Order("id DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&records).Error
+	return records, total, err
+}
+
+// GetLoanApplicationById 按 id + userId 查询工单（归属校验内置于 WHERE），
+// 不存在或非本人时透出 gorm.ErrRecordNotFound，由 controller 映射为 i18n 响应
+func GetLoanApplicationById(userId, appId int) (*TokenLoanApplication, error) {
+	var app TokenLoanApplication
+	if err := DB.Where("id = ? AND user_id = ?", appId, userId).First(&app).Error; err != nil {
+		return nil, err
+	}
+	return &app, nil
 }
 
 // rollbackBorrow 借款后 IncreaseUserQuota 失败时的补偿：回滚账户数值并删除台账。

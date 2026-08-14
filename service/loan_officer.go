@@ -248,6 +248,15 @@ func clearLoanModelFailure(appId int) {
 	loanModelFailCounts.Unlock()
 }
 
+// PickLoanOfficerModel 建单时从配置的可用模型中随机抽取一个；无可用模型返回 false。
+// 抽到后由调用方存入 model_used，后续轮次经 resolveLoanOfficerModel 稳定复用
+func PickLoanOfficerModel(setting *operation_setting.LoanSetting) (operation_setting.AiModelConfig, bool) {
+	if len(setting.AiModels) == 0 {
+		return operation_setting.AiModelConfig{}, false
+	}
+	return setting.AiModels[rand.Intn(len(setting.AiModels))], true
+}
+
 // resolveLoanOfficerModel 按 app.ModelUsed 匹配配置；未匹配时随机取一个可用模型并回写
 // model_used，保证后续轮次稳定使用同一模型（不每轮随机漂移）
 func resolveLoanOfficerModel(setting *operation_setting.LoanSetting, app *model.TokenLoanApplication) (operation_setting.AiModelConfig, bool) {

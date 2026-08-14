@@ -223,6 +223,28 @@ const (
 	MsgCheckinQuotaFailed  = "checkin.quota_failed"
 )
 
+// Loan related messages
+const (
+	MsgLoanDisabled           = "loan.disabled"
+	MsgLoanTermsRequired      = "loan.terms_required"
+	MsgLoanLimitExceeded      = "loan.limit_exceeded"
+	MsgLoanInvalidAmount      = "loan.invalid_amount"
+	MsgLoanRegisterTooNew     = "loan.register_too_new"
+	MsgLoanQuotaOverflow      = "loan.quota_overflow"
+	MsgLoanUserDisabled       = "loan.user_disabled"
+	MsgLoanOfficerDisabled    = "loan.officer_disabled"
+	MsgLoanOfficerNoModel     = "loan.officer_no_model"
+	MsgLoanApplicationLimit   = "loan.application_limit"
+	MsgLoanReplyInProgress    = "loan.reply_in_progress"
+	MsgLoanContentTooLong     = "loan.content_too_long"
+	MsgLoanOfficerUnavailable = "loan.officer_unavailable"
+	MsgLoanAlreadyRated       = "loan.already_rated"
+	MsgLoanInvalidRating      = "loan.invalid_rating"
+	MsgLoanNotFound           = "loan.not_found"
+	MsgLoanInvalidTopic       = "loan.invalid_topic"
+	MsgLoanApplicationNotOpen = "loan.not_open"
+)
+
 // Passkey related messages
 const (
 	MsgPasskeyCreateFailed  = "passkey.create_failed"
