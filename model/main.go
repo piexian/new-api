@@ -309,6 +309,8 @@ func migrateDB() error {
 		&RiskBanLog{},
 		&MultiAccountEvidence{},
 		&OAuthOwnershipTransfer{},
+		&TokenLoanAccount{},
+		&TokenLoanRecord{},
 	)
 	if err != nil {
 		return err
