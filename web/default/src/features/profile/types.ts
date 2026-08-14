@@ -246,9 +246,25 @@ export interface CheckinStatusResponse {
 }
 
 /**
+ * Check-in auto loan repayment result (present only when a repayment happened)
+ */
+export interface CheckinLoanRepay {
+  /** Total amount repaid (quota) */
+  amount: number
+  /** Interest part of the repayment (quota) */
+  interest_part: number
+  /** Principal part of the repayment (quota) */
+  principal_part: number
+  /** Debt after this repayment (quota) */
+  debt_after: number
+}
+
+/**
  * Check-in action response
  */
 export interface CheckinResponse {
   /** Quota awarded for this check-in */
   quota_awarded: number
+  /** Auto loan repayment deducted from the award, if any */
+  loan_repay?: CheckinLoanRepay
 }

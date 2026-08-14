@@ -144,9 +144,12 @@ export function CheckinCalendarCard({
       try {
         const res = await performCheckin(token)
         if (res.success && res.data) {
-          toast.success(
-            `${t('Check-in successful! Received')} ${formatQuotaWithCurrency(res.data.quota_awarded)}`
-          )
+          let message = `${t('Check-in successful! Received')} ${formatQuotaWithCurrency(res.data.quota_awarded)}`
+          // 签到自动还款：额度毛额不变，部分已用于抵扣贷款
+          if (res.data.loan_repay) {
+            message += ` · ${t('Auto-repaid')} ${formatQuotaWithCurrency(res.data.loan_repay.amount)}`
+          }
+          toast.success(message)
           refetch()
           setTurnstileModalVisible(false)
         } else {

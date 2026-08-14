@@ -16,20 +16,69 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
+import { Card, CardContent } from '@/components/ui/card'
 
-// 占位页面：词元贷功能入口，后续任务补充完整功能
+import { getLoanStatus } from './api'
+import { BorrowForm } from './components/borrow-form'
+import { LoanRecordsTable } from './components/loan-records-table'
+import { LoanStatusCard } from './components/loan-status-card'
+import { OfficerApplications } from './components/officer-applications'
+import { TermsDialog } from './components/terms-dialog'
+
 export function LoanPage() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+
+  const { data: status, isLoading } = useQuery({
+    queryKey: ['loan-status'],
+    queryFn: async () => {
+      const res = await getLoanStatus()
+      if (res.success && res.data) {
+        return res.data
+      }
+      throw new Error(res.message || 'Failed to fetch loan status')
+    },
+    staleTime: 10000,
+  })
+
+  const termsRequired =
+    !!status && status.terms_enabled && !status.terms_agreed
 
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Token Loan')}</SectionPageLayout.Title>
       <SectionPageLayout.Content>
-        <div className='text-muted-foreground text-sm'>{t('Token Loan')}</div>
+        <div className='mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-5'>
+          {!isLoading && status && !status.enabled ? (
+            <Card className='py-0'>
+              <CardContent className='text-muted-foreground p-6 text-center text-sm'>
+                {t('The token loan feature is not enabled')}
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className='grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'>
+                <LoanStatusCard status={status} loading={isLoading} />
+                <BorrowForm status={status} />
+              </div>
+              <LoanRecordsTable />
+              {status?.ai_enabled ? <OfficerApplications /> : null}
+            </>
+          )}
+        </div>
       </SectionPageLayout.Content>
+
+      <TermsDialog
+        open={termsRequired}
+        termsText={status?.terms_text ?? ''}
+        onAgreed={() =>
+          queryClient.invalidateQueries({ queryKey: ['loan-status'] })
+        }
+      />
     </SectionPageLayout>
   )
 }
