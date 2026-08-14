@@ -314,14 +314,15 @@ export default function SettingsLoan(props) {
             </Row>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Typography.Text strong>{t('借款总额度上限（美元）')}</Typography.Text>
-                {renderUsdInput(
-                  'max_total',
-                  t('用户未偿还借款的总额度上限'),
-                )}
+                <Typography.Text strong>
+                  {t('借款总额度上限（美元）')}
+                </Typography.Text>
+                {renderUsdInput('max_total', t('用户未偿还借款的总额度上限'))}
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Typography.Text strong>{t('单次借款上限（美元）')}</Typography.Text>
+                <Typography.Text strong>
+                  {t('单次借款上限（美元）')}
+                </Typography.Text>
                 {renderUsdInput(
                   'max_per_borrow',
                   t('单次借款额度上限，填 0 表示跟随借款总额度上限'),
@@ -354,7 +355,8 @@ export default function SettingsLoan(props) {
                 />
               </Col>
             </Row>
-            {termsEnabled && (
+            {/* 条件字段保持挂载、仅隐藏，否则异步选项加载后后挂载的字段拿不到表单值 */}
+            <div style={termsEnabled ? undefined : { display: 'none' }}>
               <Row gutter={16}>
                 <Col span={24}>
                   <Form.TextArea
@@ -366,7 +368,7 @@ export default function SettingsLoan(props) {
                   />
                 </Col>
               </Row>
-            )}
+            </div>
           </Form.Section>
 
           <Form.Section text={t('AI 信贷员')}>
@@ -389,176 +391,165 @@ export default function SettingsLoan(props) {
                 />
               </Col>
             </Row>
-            {aiEnabled && (
-              <>
-                <Row gutter={16} style={{ marginTop: 8 }}>
-                  <Col span={24}>
-                    <Typography.Text strong>
-                      {t('AI 信贷员模型')}
-                    </Typography.Text>
-                    <div style={{ marginTop: 8 }}>
-                      {aiModelRows.map((row, index) => (
-                        <div
-                          key={index}
-                          style={{
-                            display: 'flex',
-                            gap: 8,
-                            marginBottom: 8,
-                            alignItems: 'center',
-                          }}
-                        >
-                          <Input
-                            value={row.model}
-                            placeholder={t('模型名称')}
-                            style={{ flex: 1 }}
-                            onChange={(value) =>
-                              handleAiModelChange(index, 'model', value)
-                            }
-                          />
-                          <InputNumber
-                            value={row.context_window}
-                            placeholder={t('上下文窗口')}
-                            min={1}
-                            precision={0}
-                            style={{ width: 160 }}
-                            onChange={(value) =>
-                              handleAiModelChange(
-                                index,
-                                'context_window',
-                                value,
-                              )
-                            }
-                          />
-                          <Button
-                            type='danger'
-                            theme='borderless'
-                            icon={<IconDelete />}
-                            onClick={() =>
-                              syncAiModelRows(
-                                aiModelRows.filter((_, i) => i !== index),
-                              )
-                            }
-                          />
-                        </div>
-                      ))}
-                      <Button
-                        icon={<IconPlus />}
-                        onClick={() =>
-                          syncAiModelRows([
-                            ...aiModelRows,
-                            { model: '', context_window: 0 },
-                          ])
-                        }
+            {/* 同上：AI 字段保持挂载，仅按开关隐藏 */}
+            <div style={aiEnabled ? undefined : { display: 'none' }}>
+              <Row gutter={16} style={{ marginTop: 8 }}>
+                <Col span={24}>
+                  <Typography.Text strong>{t('AI 信贷员模型')}</Typography.Text>
+                  <div style={{ marginTop: 8 }}>
+                    {aiModelRows.map((row, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          display: 'flex',
+                          gap: 8,
+                          marginBottom: 8,
+                          alignItems: 'center',
+                        }}
                       >
-                        {t('添加模型')}
-                      </Button>
-                      <div style={{ marginTop: 4 }}>
-                        <Typography.Text type='tertiary' size='small'>
-                          {t(
-                            '可供 AI 信贷员使用的模型，上下文窗口单位为 tokens',
-                          )}
-                        </Typography.Text>
+                        <Input
+                          value={row.model}
+                          placeholder={t('模型名称')}
+                          style={{ flex: 1 }}
+                          onChange={(value) =>
+                            handleAiModelChange(index, 'model', value)
+                          }
+                        />
+                        <InputNumber
+                          value={row.context_window}
+                          placeholder={t('上下文窗口')}
+                          min={1}
+                          precision={0}
+                          style={{ width: 160 }}
+                          onChange={(value) =>
+                            handleAiModelChange(index, 'context_window', value)
+                          }
+                        />
+                        <Button
+                          type='danger'
+                          theme='borderless'
+                          icon={<IconDelete />}
+                          onClick={() =>
+                            syncAiModelRows(
+                              aiModelRows.filter((_, i) => i !== index),
+                            )
+                          }
+                        />
                       </div>
+                    ))}
+                    <Button
+                      icon={<IconPlus />}
+                      onClick={() =>
+                        syncAiModelRows([
+                          ...aiModelRows,
+                          { model: '', context_window: 0 },
+                        ])
+                      }
+                    >
+                      {t('添加模型')}
+                    </Button>
+                    <div style={{ marginTop: 4 }}>
+                      <Typography.Text type='tertiary' size='small'>
+                        {t('可供 AI 信贷员使用的模型，上下文窗口单位为 tokens')}
+                      </Typography.Text>
                     </div>
-                  </Col>
-                </Row>
-                <Row gutter={16} style={{ marginTop: 8 }}>
-                  <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                    <Typography.Text strong>
-                      {t('AI 可批准额度上限（美元）')}
-                    </Typography.Text>
-                    {renderUsdInput(
-                      'ai_max_limit',
-                      t('AI 信贷员可批准的最高额度'),
+                  </div>
+                </Col>
+              </Row>
+              <Row gutter={16} style={{ marginTop: 8 }}>
+                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                  <Typography.Text strong>
+                    {t('AI 可批准额度上限（美元）')}
+                  </Typography.Text>
+                  {renderUsdInput(
+                    'ai_max_limit',
+                    t('AI 信贷员可批准的最高额度'),
+                  )}
+                </Col>
+                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                  <Form.InputNumber
+                    field={'loan_setting.ai_min_rate'}
+                    label={t('AI 最低日利率')}
+                    placeholder={'0.0005'}
+                    onChange={handleFieldChange('loan_setting.ai_min_rate')}
+                    min={0}
+                    step={0.0001}
+                    extraText={t('AI 信贷员可批准的最低日利率')}
+                  />
+                </Col>
+                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                  <Form.InputNumber
+                    field={'loan_setting.ai_max_grace_days'}
+                    label={t('AI 最长免息天数')}
+                    placeholder={'30'}
+                    onChange={handleFieldChange(
+                      'loan_setting.ai_max_grace_days',
                     )}
-                  </Col>
-                  <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                    <Form.InputNumber
-                      field={'loan_setting.ai_min_rate'}
-                      label={t('AI 最低日利率')}
-                      placeholder={'0.0005'}
-                      onChange={handleFieldChange('loan_setting.ai_min_rate')}
-                      min={0}
-                      step={0.0001}
-                      extraText={t('AI 信贷员可批准的最低日利率')}
-                    />
-                  </Col>
-                  <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                    <Form.InputNumber
-                      field={'loan_setting.ai_max_grace_days'}
-                      label={t('AI 最长免息天数')}
-                      placeholder={'30'}
-                      onChange={handleFieldChange(
-                        'loan_setting.ai_max_grace_days',
-                      )}
-                      min={0}
-                      precision={0}
-                      extraText={t('AI 信贷员可授予的最长免息期')}
-                    />
-                  </Col>
-                </Row>
-                <Row gutter={16}>
-                  <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                    <Form.InputNumber
-                      field={'loan_setting.ai_max_active_applications'}
-                      label={t('每用户最大进行中申请数')}
-                      placeholder={'1'}
-                      onChange={handleFieldChange(
-                        'loan_setting.ai_max_active_applications',
-                      )}
-                      min={0}
-                      precision={0}
-                    />
-                  </Col>
-                  <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                    <Form.InputNumber
-                      field={'loan_setting.ai_daily_limit'}
-                      label={t('每用户每日申请上限')}
-                      placeholder={'3'}
-                      onChange={handleFieldChange('loan_setting.ai_daily_limit')}
-                      min={0}
-                      precision={0}
-                    />
-                  </Col>
-                  <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                    <Form.InputNumber
-                      field={'loan_setting.ai_max_rounds'}
-                      label={t('最大对话轮数')}
-                      placeholder={'10'}
-                      onChange={handleFieldChange('loan_setting.ai_max_rounds')}
-                      min={0}
-                      precision={0}
-                    />
-                  </Col>
-                </Row>
-                <Row gutter={16}>
-                  <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                    <Form.InputNumber
-                      field={'loan_setting.ai_max_output'}
-                      label={t('最大输出 Tokens')}
-                      placeholder={'2048'}
-                      onChange={handleFieldChange('loan_setting.ai_max_output')}
-                      min={0}
-                      precision={0}
-                      extraText={t('AI 信贷员单次回复的最大输出 tokens')}
-                    />
-                  </Col>
-                </Row>
-                <Row gutter={16}>
-                  <Col span={24}>
-                    <Form.TextArea
-                      field={'loan_setting.ai_prompt'}
-                      label={t('AI 信贷员系统提示词')}
-                      placeholder={t(
-                        '系统提示词模板，请保留硬性边界占位符',
-                      )}
-                      rows={8}
-                      onChange={handleFieldChange('loan_setting.ai_prompt')}
-                    />
-                  </Col>
-                </Row>
-              </>
-            )}
+                    min={0}
+                    precision={0}
+                    extraText={t('AI 信贷员可授予的最长免息期')}
+                  />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                  <Form.InputNumber
+                    field={'loan_setting.ai_max_active_applications'}
+                    label={t('每用户最大进行中申请数')}
+                    placeholder={'1'}
+                    onChange={handleFieldChange(
+                      'loan_setting.ai_max_active_applications',
+                    )}
+                    min={0}
+                    precision={0}
+                  />
+                </Col>
+                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                  <Form.InputNumber
+                    field={'loan_setting.ai_daily_limit'}
+                    label={t('每用户每日申请上限')}
+                    placeholder={'3'}
+                    onChange={handleFieldChange('loan_setting.ai_daily_limit')}
+                    min={0}
+                    precision={0}
+                  />
+                </Col>
+                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                  <Form.InputNumber
+                    field={'loan_setting.ai_max_rounds'}
+                    label={t('最大对话轮数')}
+                    placeholder={'10'}
+                    onChange={handleFieldChange('loan_setting.ai_max_rounds')}
+                    min={0}
+                    precision={0}
+                  />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                  <Form.InputNumber
+                    field={'loan_setting.ai_max_output'}
+                    label={t('最大输出 Tokens')}
+                    placeholder={'2048'}
+                    onChange={handleFieldChange('loan_setting.ai_max_output')}
+                    min={0}
+                    precision={0}
+                    extraText={t('AI 信贷员单次回复的最大输出 tokens')}
+                  />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Form.TextArea
+                    field={'loan_setting.ai_prompt'}
+                    label={t('AI 信贷员系统提示词')}
+                    placeholder={t('系统提示词模板，请保留硬性边界占位符')}
+                    rows={8}
+                    onChange={handleFieldChange('loan_setting.ai_prompt')}
+                  />
+                </Col>
+              </Row>
+            </div>
           </Form.Section>
 
           <Row>
