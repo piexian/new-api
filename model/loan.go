@@ -115,6 +115,38 @@ func ProjectLoanStatus(acc *TokenLoanAccount, now time.Time) (debt, interest int
 	return projected.DebtQuota, projected.DebtQuota - projected.PrincipalQuota
 }
 
+// ===== Task 4: 签到还款 =====
+
+// LoanRepayInfo 签到还款结果（供 controller 透出，nil = 无还款）
+type LoanRepayInfo struct {
+	Amount        int64 `json:"amount"`
+	InterestPart  int64 `json:"interest_part"`
+	PrincipalPart int64 `json:"principal_part"`
+	DebtAfter     int64 `json:"debt_after"`
+}
+
+// applyCheckinRepay 在已 settle 的账户上执行还款拆分（spec 4.2）：
+// repay = min(award, debt)，先息后本。仅修改内存中的 acc，落盘由调用方负责；
+// 无债务或 award<=0 时返回 nil，此时 acc 仅有 settle 造成的内存变动、无需落盘。
+func applyCheckinRepay(acc *TokenLoanAccount, award int64) *LoanRepayInfo {
+	if award <= 0 || acc.DebtQuota <= 0 {
+		return nil
+	}
+	repay := min(award, acc.DebtQuota)
+	interest := acc.DebtQuota - acc.PrincipalQuota
+	payInterest := min(repay, interest)
+	payPrincipal := repay - payInterest
+	acc.PrincipalQuota -= payPrincipal
+	acc.DebtQuota -= repay
+	acc.TotalRepaid += repay
+	return &LoanRepayInfo{
+		Amount:        repay,
+		InterestPart:  payInterest,
+		PrincipalPart: payPrincipal,
+		DebtAfter:     acc.DebtQuota,
+	}
+}
+
 // ===== Task 3: 同意声明与借款 =====
 
 // 词元贷哨兵错误，controller 层映射为 i18n 响应

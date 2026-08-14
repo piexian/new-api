@@ -53,7 +53,7 @@ func DoCheckin(c *gin.Context) {
 
 	userId := c.GetInt("id")
 
-	checkin, err := model.UserCheckin(userId)
+	checkin, loanRepay, err := model.UserCheckin(userId)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -62,11 +62,17 @@ func DoCheckin(c *gin.Context) {
 		return
 	}
 	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("用户签到，获得额度 %s", logger.LogQuota(checkin.QuotaAwarded)))
+	data := gin.H{
+		"quota_awarded": checkin.QuotaAwarded,
+		"checkin_date":  checkin.CheckinDate,
+	}
+	// 签到自动还款结果，无还款时不输出该 key
+	if loanRepay != nil {
+		data["loan_repay"] = loanRepay
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "签到成功",
-		"data": gin.H{
-			"quota_awarded": checkin.QuotaAwarded,
-			"checkin_date":  checkin.CheckinDate},
+		"data":    data,
 	})
 }

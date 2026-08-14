@@ -1,0 +1,173 @@
+package model
+
+import (
+	"testing"
+	"time"
+
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/stretchr/testify/require"
+)
+
+// withCheckinSetting 临时启用签到并固定奖励额度，测试结束后恢复
+func withCheckinSetting(t *testing.T, quota int) {
+	t.Helper()
+	setting := operation_setting.GetCheckinSetting()
+	old := *setting
+	setting.Enabled = true
+	setting.MinQuota = quota
+	setting.MaxQuota = quota
+	t.Cleanup(func() { *setting = old })
+}
+
+// setupCheckinLoanUser 迁移签到表并创建测试用户（贷款表由 createLoanTestUser 迁移）
+func setupCheckinLoanUser(t *testing.T) *User {
+	t.Helper()
+	require.NoError(t, DB.AutoMigrate(&Checkin{}))
+	return createLoanTestUser(t)
+}
+
+// createLoanDebtAccount 创建带指定本金/债务的贷款账户
+// LastSettledDay=今天，settle 当天不再计息，保证债务数值确定
+func createLoanDebtAccount(t *testing.T, userId int, principal, debt int64) {
+	t.Helper()
+	now := time.Now()
+	require.NoError(t, DB.Create(&TokenLoanAccount{
+		UserId:         userId,
+		PrincipalQuota: principal,
+		DebtQuota:      debt,
+		TotalBorrowed:  principal,
+		LastSettledDay: loanDay(now),
+		CreatedAt:      now.Unix(),
+		UpdatedAt:      now.Unix(),
+	}).Error)
+}
+
+func checkinUserQuota(t *testing.T, userId int) int {
+	t.Helper()
+	var u User
+	require.NoError(t, DB.Select("quota").First(&u, userId).Error)
+	return u.Quota
+}
+
+func countLoanRecords(t *testing.T, userId int, recordType string) int64 {
+	t.Helper()
+	var count int64
+	require.NoError(t, DB.Model(&TokenLoanRecord{}).
+		Where("user_id = ? AND type = ?", userId, recordType).Count(&count).Error)
+	return count
+}
+
+// debt=0（无贷款账户）时 loanRepay=nil 且旧行为不变：全额入账、无还款台账
+func TestUserCheckinNoDebtNoRepay(t *testing.T) {
+	withCheckinSetting(t, 5000)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CheckinRepayEnabled = true
+	})
+	user := setupCheckinLoanUser(t)
+
+	checkin, repay, err := UserCheckin(user.Id)
+	require.NoError(t, err)
+	require.Nil(t, repay)
+	require.Equal(t, 5000, checkin.QuotaAwarded)
+	require.Equal(t, 5000, checkinUserQuota(t, user.Id))
+	require.Equal(t, int64(0), countLoanRecords(t, user.Id, "repay"))
+}
+
+// 奖励 < 利息：全部抵息，本金不动，净额 0 入账
+func TestUserCheckinRepayCoversInterestOnly(t *testing.T) {
+	withCheckinSetting(t, 5000)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CheckinRepayEnabled = true
+	})
+	user := setupCheckinLoanUser(t)
+	// 本金 10000，债务 20000 → 利息 10000，奖励 5000 全部抵息
+	createLoanDebtAccount(t, user.Id, 10000, 20000)
+
+	checkin, repay, err := UserCheckin(user.Id)
+	require.NoError(t, err)
+	require.Equal(t, 5000, checkin.QuotaAwarded) // quota_awarded 保持 gross
+	require.NotNil(t, repay)
+	require.Equal(t, int64(5000), repay.Amount)
+	require.Equal(t, int64(5000), repay.InterestPart)
+	require.Equal(t, int64(0), repay.PrincipalPart)
+	require.Equal(t, int64(15000), repay.DebtAfter)
+
+	// 账户：利息被抵，本金不变
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&acc).Error)
+	require.Equal(t, int64(15000), acc.DebtQuota)
+	require.Equal(t, int64(10000), acc.PrincipalQuota)
+	require.Equal(t, int64(5000), acc.TotalRepaid)
+
+	// 净额 = 5000 - 5000 = 0，用户余额不变
+	require.Equal(t, 0, checkinUserQuota(t, user.Id))
+
+	// 台账拆分正确
+	var rec TokenLoanRecord
+	require.NoError(t, DB.Where("user_id = ? AND type = ?", user.Id, "repay").First(&rec).Error)
+	require.Equal(t, int64(5000), rec.Amount)
+	require.Equal(t, int64(5000), rec.InterestPart)
+	require.Equal(t, int64(0), rec.PrincipalPart)
+	require.Equal(t, int64(15000), rec.DebtAfter)
+	require.Equal(t, "checkin", rec.Source)
+}
+
+// 奖励 > 债务：清账后净额入账（DB quota 增量 = 净额）
+func TestUserCheckinRepayClearsDebt(t *testing.T) {
+	withCheckinSetting(t, 5000)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CheckinRepayEnabled = true
+	})
+	user := setupCheckinLoanUser(t)
+	// 本金 2500，债务 3000 → 利息 500，奖励 5000 清账后净额 2000
+	createLoanDebtAccount(t, user.Id, 2500, 3000)
+
+	_, repay, err := UserCheckin(user.Id)
+	require.NoError(t, err)
+	require.NotNil(t, repay)
+	require.Equal(t, int64(3000), repay.Amount)
+	require.Equal(t, int64(500), repay.InterestPart)
+	require.Equal(t, int64(2500), repay.PrincipalPart)
+	require.Equal(t, int64(0), repay.DebtAfter)
+
+	// 账户清账
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&acc).Error)
+	require.Equal(t, int64(0), acc.DebtQuota)
+	require.Equal(t, int64(0), acc.PrincipalQuota)
+	require.Equal(t, int64(3000), acc.TotalRepaid)
+
+	// DB quota 增量 = 净额 5000 - 3000 = 2000
+	require.Equal(t, 2000, checkinUserQuota(t, user.Id))
+
+	// 台账拆分正确
+	var rec TokenLoanRecord
+	require.NoError(t, DB.Where("user_id = ? AND type = ?", user.Id, "repay").First(&rec).Error)
+	require.Equal(t, int64(3000), rec.Amount)
+	require.Equal(t, int64(500), rec.InterestPart)
+	require.Equal(t, int64(2500), rec.PrincipalPart)
+	require.Equal(t, int64(0), rec.DebtAfter)
+	require.Equal(t, "checkin", rec.Source)
+}
+
+// CheckinRepayEnabled=false：不还款，全额入账，账户与台账不变
+func TestUserCheckinRepayDisabled(t *testing.T) {
+	withCheckinSetting(t, 5000)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CheckinRepayEnabled = false
+	})
+	user := setupCheckinLoanUser(t)
+	createLoanDebtAccount(t, user.Id, 10000, 20000)
+
+	_, repay, err := UserCheckin(user.Id)
+	require.NoError(t, err)
+	require.Nil(t, repay)
+	require.Equal(t, 5000, checkinUserQuota(t, user.Id))
+
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&acc).Error)
+	require.Equal(t, int64(20000), acc.DebtQuota)
+	require.Equal(t, int64(10000), acc.PrincipalQuota)
+	require.Equal(t, int64(0), acc.TotalRepaid)
+	require.Equal(t, int64(0), countLoanRecords(t, user.Id, "repay"))
+}

@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -49,22 +50,22 @@ func HasCheckedInToday(userId int) (bool, error) {
 	return count > 0, err
 }
 
-// UserCheckin 执行用户签到
+// UserCheckin 执行用户签到，返回签到记录与签到自动还款结果（无还款时 loanRepay 为 nil）
 // MySQL 和 PostgreSQL 使用事务保证原子性
 // SQLite 不支持嵌套事务，使用顺序操作 + 手动回滚
-func UserCheckin(userId int) (*Checkin, error) {
+func UserCheckin(userId int) (*Checkin, *LoanRepayInfo, error) {
 	setting := operation_setting.GetCheckinSetting()
 	if !setting.Enabled {
-		return nil, errors.New("签到功能未启用")
+		return nil, nil, errors.New("签到功能未启用")
 	}
 
 	// 检查今天是否已签到
 	hasChecked, err := HasCheckedInToday(userId)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if hasChecked {
-		return nil, errors.New("今日已签到")
+		return nil, nil, errors.New("今日已签到")
 	}
 
 	// 计算随机额度奖励
@@ -92,7 +93,9 @@ func UserCheckin(userId int) (*Checkin, error) {
 }
 
 // userCheckinWithTransaction 使用事务执行签到（适用于 MySQL 和 PostgreSQL）
-func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) (*Checkin, error) {
+func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) (*Checkin, *LoanRepayInfo, error) {
+	var repayInfo *LoanRepayInfo
+	netQuota := quotaAwarded
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		// 步骤1: 创建签到记录
 		// 数据库有唯一约束 (user_id, checkin_date)，可以防止并发重复签到
@@ -100,9 +103,40 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 			return errors.New("签到失败，请稍后重试")
 		}
 
-		// 步骤2: 在事务中增加用户额度
+		// 步骤2: 签到自动还款（spec 4.4）：开启且有债务时奖励优先抵债，仅净额入账
+		if operation_setting.GetLoanSetting().CheckinRepayEnabled {
+			now := time.Now()
+			acc, err := getOrCreateLoanAccountTx(tx, userId)
+			if err != nil {
+				return err
+			}
+			settle(acc, now)
+			if info := applyCheckinRepay(acc, int64(quotaAwarded)); info != nil {
+				repayInfo = info
+				netQuota = quotaAwarded - int(info.Amount)
+				// settle 会就地修改 acc，必须在同一事务内落盘
+				acc.UpdatedAt = now.Unix()
+				if err := tx.Save(acc).Error; err != nil {
+					return err
+				}
+				if err := tx.Create(&TokenLoanRecord{
+					UserId:        userId,
+					Type:          "repay",
+					Amount:        info.Amount,
+					InterestPart:  info.InterestPart,
+					PrincipalPart: info.PrincipalPart,
+					DebtAfter:     info.DebtAfter,
+					Source:        "checkin",
+					CreatedAt:     now.Unix(),
+				}).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		// 步骤3: 在事务中增加用户额度（净额 = 奖励 - 还款）
 		if err := tx.Model(&User{}).Where("id = ?", userId).
-			Update("quota", gorm.Expr("quota + ?", quotaAwarded)).Error; err != nil {
+			Update("quota", gorm.Expr("quota + ?", netQuota)).Error; err != nil {
 			return errors.New("签到失败：更新额度出错")
 		}
 
@@ -110,34 +144,97 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// 事务成功后，异步更新缓存
+	// 事务成功后，异步更新缓存（净额）
 	go func() {
-		_ = cacheIncrUserQuota(userId, int64(quotaAwarded))
+		_ = cacheIncrUserQuota(userId, int64(netQuota))
 	}()
 
-	return checkin, nil
+	return checkin, repayInfo, nil
 }
 
 // userCheckinWithoutTransaction 不使用事务执行签到（适用于 SQLite）
-func userCheckinWithoutTransaction(checkin *Checkin, userId int, quotaAwarded int) (*Checkin, error) {
+func userCheckinWithoutTransaction(checkin *Checkin, userId int, quotaAwarded int) (*Checkin, *LoanRepayInfo, error) {
 	// 步骤1: 创建签到记录
 	// 数据库有唯一约束 (user_id, checkin_date)，可以防止并发重复签到
 	if err := DB.Create(checkin).Error; err != nil {
-		return nil, errors.New("签到失败，请稍后重试")
+		return nil, nil, errors.New("签到失败，请稍后重试")
 	}
 
-	// 步骤2: 增加用户额度
+	var repayInfo *LoanRepayInfo
+	var repayRecord *TokenLoanRecord
+	netQuota := quotaAwarded
+
+	// 步骤2: 签到自动还款（spec 4.4）：与事务分支镜像，失败时手动回滚
+	if operation_setting.GetLoanSetting().CheckinRepayEnabled {
+		now := time.Now()
+		// SQLite 无 FOR UPDATE，lockForUpdate 退化为普通查询，直接用全局 DB
+		acc, err := getOrCreateLoanAccountTx(DB, userId)
+		if err != nil {
+			DB.Delete(checkin)
+			return nil, nil, errors.New("签到失败：更新额度出错")
+		}
+		settle(acc, now)
+		if info := applyCheckinRepay(acc, int64(quotaAwarded)); info != nil {
+			repayInfo = info
+			netQuota = quotaAwarded - int(info.Amount)
+			// settle 会就地修改 acc，必须立即落盘，否则台账与账户不一致
+			acc.UpdatedAt = now.Unix()
+			if err := DB.Save(acc).Error; err != nil {
+				DB.Delete(checkin)
+				return nil, nil, errors.New("签到失败：更新额度出错")
+			}
+			repayRecord = &TokenLoanRecord{
+				UserId:        userId,
+				Type:          "repay",
+				Amount:        info.Amount,
+				InterestPart:  info.InterestPart,
+				PrincipalPart: info.PrincipalPart,
+				DebtAfter:     info.DebtAfter,
+				Source:        "checkin",
+				CreatedAt:     now.Unix(),
+			}
+			if err := DB.Create(repayRecord).Error; err != nil {
+				// 台账写入失败：回滚账户与签到记录
+				rollbackCheckinRepay(acc, info)
+				DB.Delete(checkin)
+				return nil, nil, errors.New("签到失败：更新额度出错")
+			}
+		}
+	}
+
+	// 步骤3: 增加用户额度（净额 = 奖励 - 还款）
 	// 使用 db=true 强制直接写入数据库，不使用批量更新
-	if err := IncreaseUserQuota(userId, quotaAwarded, true); err != nil {
-		// 如果增加额度失败，需要回滚签到记录
+	if err := IncreaseUserQuota(userId, netQuota, true); err != nil {
+		// 如果增加额度失败，需要回滚台账、账户与签到记录
+		if repayRecord != nil {
+			DB.Delete(repayRecord)
+		}
+		if repayInfo != nil {
+			var acc TokenLoanAccount
+			if err := DB.Where("user_id = ?", userId).First(&acc).Error; err == nil {
+				rollbackCheckinRepay(&acc, repayInfo)
+			}
+		}
 		DB.Delete(checkin)
-		return nil, errors.New("签到失败：更新额度出错")
+		return nil, nil, errors.New("签到失败：更新额度出错")
 	}
 
-	return checkin, nil
+	return checkin, repayInfo, nil
+}
+
+// rollbackCheckinRepay SQLite 手动回滚：把账户恢复到还款前状态（台账由调用方删除）
+func rollbackCheckinRepay(acc *TokenLoanAccount, info *LoanRepayInfo) {
+	acc.PrincipalQuota += info.PrincipalPart
+	acc.DebtQuota += info.Amount
+	acc.TotalRepaid -= info.Amount
+	acc.UpdatedAt = time.Now().Unix()
+	if err := DB.Save(acc).Error; err != nil {
+		common.SysError(fmt.Sprintf("checkin repay rollback failed for user %d (amount %d): %v",
+			acc.UserId, info.Amount, err))
+	}
 }
 
 // GetUserCheckinStats 获取用户签到统计信息
