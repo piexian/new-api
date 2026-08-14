@@ -57,6 +57,7 @@ const headerNavSchema = z.object({
   rankingsRequireAuth: z.boolean(),
   docs: z.boolean(),
   about: z.boolean(),
+  loan: z.boolean(),
 })
 
 type HeaderNavFormValues = z.infer<typeof headerNavSchema>
@@ -95,6 +96,8 @@ const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
     config.about === undefined
       ? HEADER_NAV_DEFAULT.about
       : Boolean(config.about),
+  loan:
+    config.loan === undefined ? HEADER_NAV_DEFAULT.loan : Boolean(config.loan),
 })
 
 export function HeaderNavigationSection({
@@ -121,6 +124,7 @@ export function HeaderNavigationSection({
       console: values.console,
       docs: values.docs,
       about: values.about,
+      loan: values.loan,
       pricing: {
         ...(config.pricing ?? HEADER_NAV_DEFAULT.pricing),
         enabled: values.pricingEnabled,
@@ -172,6 +176,11 @@ export function HeaderNavigationSection({
       key: 'about',
       title: t('About'),
       description: t('Static page describing the platform.'),
+    },
+    {
+      key: 'loan',
+      title: t('Token Loan'),
+      description: t('Page where users borrow quota and manage repayment.'),
     },
   ]
 

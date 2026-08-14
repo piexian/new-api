@@ -28,6 +28,7 @@ export type HeaderNavModulesConfig = {
   rankings: HeaderNavAccessConfig
   docs: boolean
   about: boolean
+  loan: boolean
   [key: string]: boolean | HeaderNavAccessConfig
 }
 
@@ -51,6 +52,7 @@ export const HEADER_NAV_DEFAULT: HeaderNavModulesConfig = {
   },
   docs: true,
   about: true,
+  loan: false,
 }
 
 export const SIDEBAR_MODULES_DEFAULT: SidebarModulesAdminConfig = {

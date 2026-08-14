@@ -398,6 +398,24 @@ export type BillingSettings = {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  'loan_setting.enabled': boolean
+  'loan_setting.max_total': number
+  'loan_setting.daily_rate': number
+  'loan_setting.min_register_days': number
+  'loan_setting.max_per_borrow': number
+  'loan_setting.checkin_repay_enabled': boolean
+  'loan_setting.ai_enabled': boolean
+  'loan_setting.ai_models': string
+  'loan_setting.ai_max_limit': number
+  'loan_setting.ai_min_rate': number
+  'loan_setting.ai_max_grace_days': number
+  'loan_setting.ai_max_active_applications': number
+  'loan_setting.ai_daily_limit': number
+  'loan_setting.ai_max_rounds': number
+  'loan_setting.ai_max_output': number
+  'loan_setting.ai_prompt': string
+  'loan_setting.terms_enabled': boolean
+  'loan_setting.terms_text': string
 }
 
 export type OperationsSettings = {

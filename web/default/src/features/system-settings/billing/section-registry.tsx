@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { parseCurrencyDisplayType } from '@/lib/currency'
 
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
+import { LoanSettingsSection } from '../general/loan-settings-section'
 import { PricingSection } from '../general/pricing-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
@@ -196,6 +197,35 @@ const BILLING_SECTIONS = [
           enabled: settings['checkin_setting.enabled'],
           minQuota: settings['checkin_setting.min_quota'],
           maxQuota: settings['checkin_setting.max_quota'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'loan',
+    titleKey: 'Token Loan',
+    build: (settings: BillingSettings) => (
+      <LoanSettingsSection
+        defaultValues={{
+          enabled: settings['loan_setting.enabled'],
+          maxTotal: settings['loan_setting.max_total'],
+          dailyRate: settings['loan_setting.daily_rate'],
+          minRegisterDays: settings['loan_setting.min_register_days'],
+          maxPerBorrow: settings['loan_setting.max_per_borrow'],
+          checkinRepayEnabled: settings['loan_setting.checkin_repay_enabled'],
+          aiEnabled: settings['loan_setting.ai_enabled'],
+          aiModels: settings['loan_setting.ai_models'],
+          aiMaxLimit: settings['loan_setting.ai_max_limit'],
+          aiMinRate: settings['loan_setting.ai_min_rate'],
+          aiMaxGraceDays: settings['loan_setting.ai_max_grace_days'],
+          aiMaxActiveApplications:
+            settings['loan_setting.ai_max_active_applications'],
+          aiDailyLimit: settings['loan_setting.ai_daily_limit'],
+          aiMaxRounds: settings['loan_setting.ai_max_rounds'],
+          aiMaxOutput: settings['loan_setting.ai_max_output'],
+          aiPrompt: settings['loan_setting.ai_prompt'],
+          termsEnabled: settings['loan_setting.terms_enabled'],
+          termsText: settings['loan_setting.terms_text'],
         }}
       />
     ),
