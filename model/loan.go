@@ -2,7 +2,6 @@ package model
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -233,9 +232,10 @@ func AgreeLoanTerms(userId int) error {
 
 // BorrowLoan 借款主流程：
 //  1. 事务外无状态校验：功能开关、amount_usd 解析（decimal，最多两位小数）、int32 上界
-//  2. 事务内 lockForUpdate 锁定账户 → settle → 条款/注册天数/额度校验 → 更新账户 + 写台账
-//  3. 事务提交后 IncreaseUserQuota(userId, amount, true) 加余额：该函数走全局 DB
-//     独立写入（model/user.go:1434），无法并入事务；失败时用 rollbackBorrow 补偿回滚
+//  2. 事务内 lockForUpdate 锁定账户 → settle → 条款/注册天数/额度校验 →
+//     更新账户 + 写台账 + 用户 quota 入账（镜像签到模式，同事务保证原子性）
+//  3. 事务提交后异步同步 Redis 余额缓存，并重置额度提醒锁
+//     （对齐 IncreaseUserQuota 的副作用，model/user.go:1434）
 func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 	loanSetting := operation_setting.GetLoanSetting()
 	if !loanSetting.Enabled {
@@ -257,7 +257,6 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 
 	now := time.Now()
 	var acc *TokenLoanAccount
-	recordId := 0
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		// 事务内读用户当前值：状态、注册天数与余额 int32 上界校验
 		var user User
@@ -320,27 +319,24 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 		if err := tx.Create(record).Error; err != nil {
 			return err
 		}
-		recordId = record.Id
+
+		// quota 入账与账户/台账同一事务（镜像签到模式），失败整体回滚
+		if err := tx.Model(&User{}).Where("id = ?", userId).
+			Update("quota", gorm.Expr("quota + ?", int64(amount))).Error; err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if err := IncreaseUserQuota(userId, amount, true); err != nil {
-		if rbErr := rollbackBorrow(userId, recordId, int64(amount)); rbErr != nil {
-			// 补偿失败：账户台账与用户余额两侧可能不一致，大声告警便于人工对账
-			common.SysError(fmt.Sprintf("loan borrow rollback failed for user %d (amount %d quota, record %d): %v",
-				userId, amount, recordId, rbErr))
-		}
-		// IncreaseUserQuota 内部已异步加过 Redis quota 缓存（model/user.go:1438），
-		// DB 写失败时缓存仍在膨胀，补偿路径必须同步扣回
-		if cacheErr := cacheDecrUserQuota(userId, int64(amount)); cacheErr != nil {
-			common.SysError(fmt.Sprintf("loan borrow cache rollback failed for user %d (amount %d quota): %v",
-				userId, amount, cacheErr))
-		}
-		return nil, err
-	}
+	// 事务提交后异步同步 Redis 余额缓存；并重置额度提醒锁，
+	// 对齐 IncreaseUserQuota（model/user.go:1434）quota>0 时的副作用
+	go func() {
+		_ = cacheIncrUserQuota(userId, int64(amount))
+	}()
+	common.ResetQuotaNotificationSendLocks(userId, "wallet", 0)
 	return acc, nil
 }
 
@@ -373,33 +369,4 @@ func GetLoanApplicationById(userId, appId int) (*TokenLoanApplication, error) {
 		return nil, err
 	}
 	return &app, nil
-}
-
-// rollbackBorrow 借款后 IncreaseUserQuota 失败时的补偿：回滚账户数值并删除台账。
-// 采用钳制语义：扣减后任一字段为负则钳到 0 并 SysError 告警（说明与并行的
-// 还款/其他扣减交错，纯减法已失真）。若未来引入与借款并行扣减账户的路径
-// （如签到自动还款），应改为追加冲正台账而非原地减法。
-func rollbackBorrow(userId int, recordId int, amount int64) error {
-	return DB.Transaction(func(tx *gorm.DB) error {
-		var acc TokenLoanAccount
-		if err := lockForUpdate(tx).Where("user_id = ?", userId).First(&acc).Error; err != nil {
-			return err
-		}
-		acc.PrincipalQuota -= amount
-		acc.DebtQuota -= amount
-		acc.TotalBorrowed -= amount
-		if acc.PrincipalQuota < 0 || acc.DebtQuota < 0 || acc.TotalBorrowed < 0 {
-			common.SysError(fmt.Sprintf(
-				"loan borrow rollback underflow for user %d (amount %d quota): principal=%d debt=%d total_borrowed=%d, clamping to zero",
-				userId, amount, acc.PrincipalQuota, acc.DebtQuota, acc.TotalBorrowed))
-			acc.PrincipalQuota = max(acc.PrincipalQuota, 0)
-			acc.DebtQuota = max(acc.DebtQuota, 0)
-			acc.TotalBorrowed = max(acc.TotalBorrowed, 0)
-		}
-		acc.UpdatedAt = time.Now().Unix()
-		if err := tx.Save(&acc).Error; err != nil {
-			return err
-		}
-		return tx.Where("id = ?", recordId).Delete(&TokenLoanRecord{}).Error
-	})
 }

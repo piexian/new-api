@@ -469,32 +469,33 @@ func TestBorrowLoanUserDisabled(t *testing.T) {
 	require.Equal(t, 0, u.Quota)
 }
 
-func TestRollbackBorrowClampsUnderflow(t *testing.T) {
+func TestBorrowLoanQuotaCreditFailureRollsBackAll(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.TermsEnabled = false
+		s.MaxTotal = 500000
+	})
 	user := createLoanTestUser(t)
-	now := time.Now()
-	require.NoError(t, DB.Create(&TokenLoanAccount{
-		UserId:         user.Id,
-		PrincipalQuota: 1000,
-		DebtQuota:      1000,
-		TotalBorrowed:  1000,
-		LastSettledDay: loanDay(now),
-		CreatedAt:      now.Unix(),
-		UpdatedAt:      now.Unix(),
-	}).Error)
-	record := &TokenLoanRecord{
-		UserId: user.Id, Type: "borrow", Amount: 1000, PrincipalPart: 1000,
-		DebtAfter: 1000, Source: "manual", CreatedAt: now.Unix(),
-	}
-	require.NoError(t, DB.Create(record).Error)
 
-	// 补偿扣减额大于现有数值：钳到 0 且不留台账，不产生负值
-	require.NoError(t, rollbackBorrow(user.Id, record.Id, 5000))
-	var acc TokenLoanAccount
-	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&acc).Error)
-	require.Equal(t, int64(0), acc.PrincipalQuota)
-	require.Equal(t, int64(0), acc.DebtQuota)
-	require.Equal(t, int64(0), acc.TotalBorrowed)
-	var count int64
-	require.NoError(t, DB.Model(&TokenLoanRecord{}).Where("user_id = ?", user.Id).Count(&count).Error)
-	require.Equal(t, int64(0), count)
+	// 注入 quota 入账失败：SQLite 触发器拦截 users.quota 更新
+	require.NoError(t, DB.Exec(`CREATE TRIGGER loan_test_block_quota_update
+		BEFORE UPDATE OF quota ON users
+		BEGIN SELECT RAISE(ABORT, 'quota update blocked by test'); END`).Error)
+	t.Cleanup(func() {
+		_ = DB.Exec(`DROP TRIGGER IF EXISTS loan_test_block_quota_update`).Error
+	})
+
+	_, err := BorrowLoan(user.Id, "0.10")
+	require.Error(t, err)
+
+	// 入账与账户/台账在同一事务：失败后账户行与台账都不存在、用户 quota 不变
+	var accCount int64
+	require.NoError(t, DB.Model(&TokenLoanAccount{}).Where("user_id = ?", user.Id).Count(&accCount).Error)
+	require.Equal(t, int64(0), accCount)
+	var recCount int64
+	require.NoError(t, DB.Model(&TokenLoanRecord{}).Where("user_id = ?", user.Id).Count(&recCount).Error)
+	require.Equal(t, int64(0), recCount)
+	var u User
+	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
+	require.Equal(t, 0, u.Quota)
 }
