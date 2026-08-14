@@ -92,6 +92,11 @@ export const CHANNEL_OPTIONS = [
     label: 'Qwen Token Plan',
   },
   {
+    value: 70,
+    color: 'blue',
+    label: 'Mistral Console',
+  },
+  {
     value: 18,
     color: 'blue',
     label: '讯飞星火认知',

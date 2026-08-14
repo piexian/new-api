@@ -67,6 +67,7 @@ const (
 	ChannelTypeAdvancedCustom  = 67
 	ChannelTypeCerebras        = 68
 	ChannelTypeQwenTokenPlan   = 69
+	ChannelTypeMistralConsole  = 70
 	ChannelTypeDummy           // this one is only for count, do not add any channel after this
 
 )
@@ -142,6 +143,7 @@ var ChannelBaseURLs = []string{
 	"",                                               //67
 	"https://api.cerebras.ai",                        //68
 	QwenTokenPlanRootURL,                             //69
+	"https://console.mistral.ai",                     //70
 }
 
 var ChannelTypeNames = map[int]string{
@@ -211,6 +213,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeAdvancedCustom:  "Advanced Custom",
 	ChannelTypeCerebras:        "Cerebras",
 	ChannelTypeQwenTokenPlan:   "Qwen Token Plan",
+	ChannelTypeMistralConsole:  "Mistral Console",
 }
 
 func GetChannelTypeName(channelType int) string {

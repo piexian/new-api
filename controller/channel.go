@@ -1400,6 +1400,13 @@ func FetchModels(c *gin.Context) {
 	if req.Type == constant.ChannelTypeZenMux {
 		baseURL = zenmux.OpenAIBaseURL(baseURL)
 	}
+	if req.Type == constant.ChannelTypeMistralConsole {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    []string{"glm-5-2"},
+		})
+		return
+	}
 	if req.Type == constant.ChannelTypeOpenCode {
 		if staticModels := opencode.StaticModelListForBase(baseURL); len(staticModels) > 0 {
 			c.JSON(http.StatusOK, gin.H{
