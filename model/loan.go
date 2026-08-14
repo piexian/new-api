@@ -57,6 +57,11 @@ func loanDay(t time.Time) int {
 	return int(time.Date(y, m, d, 0, 0, 0, 0, time.Local).Unix() / 86400)
 }
 
+// LoanDayOf 导出 loanDay，供 service 层做宽限期剩余天数等只读判断
+func LoanDayOf(t time.Time) int {
+	return loanDay(t)
+}
+
 // effectiveRate 返回有效日利率：个人覆盖 (>0) 与全局利率取较小者
 func effectiveRate(acc *TokenLoanAccount) float64 {
 	global := operation_setting.GetLoanSetting().DailyRate

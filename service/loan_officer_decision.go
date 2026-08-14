@@ -1,0 +1,116 @@
+package service
+
+import (
+	"regexp"
+	"strings"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+)
+
+// LoanDecision AI 业务员的结案决定，金额字段单位为 USD（落库前由编排层换算为 quota）
+type LoanDecision struct {
+	CreditLimit      float64 `json:"credit_limit"`
+	DailyRate        float64 `json:"daily_rate"`
+	InterestFreeDays int     `json:"interest_free_days"`
+}
+
+// loanDecisionEnvelope 结案 json 块的整体结构；action 白名单只认 "close"
+type loanDecisionEnvelope struct {
+	Action   string        `json:"action"`
+	Reply    string        `json:"reply"`
+	Decision *LoanDecision `json:"decision"`
+}
+
+// 大小写不敏感匹配 fenced ```json 块（懒惰匹配到最近的闭合反引号）
+var loanDecisionBlockRe = regexp.MustCompile("(?s)```[ \\t]*(?i:json)[ \\t]*\\r?\\n(.*?)```")
+
+// ExtractLoanDecision 从 AI 回复中提取结案决定（spec 5.3）：
+// 恰好一个 fenced json 块且 action == "close" 且 JSON 合法时才 ok=true；
+// 多块 / 裸 JSON / 非法 JSON / action 非白名单一律 ok=false。
+// displayText 为剥离 json 块后的展示文本；块外为空时回退到块内 reply 字段。
+func ExtractLoanDecision(reply string) (displayText string, decision *LoanDecision, ok bool) {
+	matches := loanDecisionBlockRe.FindAllStringSubmatchIndex(reply, -1)
+	if len(matches) != 1 {
+		return strings.TrimSpace(reply), nil, false
+	}
+	stripped := strings.TrimSpace(reply[:matches[0][0]] + reply[matches[0][1]:])
+	content := strings.TrimSpace(reply[matches[0][2]:matches[0][3]])
+	var envelope loanDecisionEnvelope
+	if err := common.UnmarshalJsonStr(content, &envelope); err != nil {
+		return stripped, nil, false
+	}
+	if envelope.Action != "close" {
+		return stripped, nil, false
+	}
+	if envelope.Decision == nil {
+		envelope.Decision = &LoanDecision{}
+	}
+	if stripped == "" {
+		stripped = strings.TrimSpace(envelope.Reply)
+	}
+	return stripped, envelope.Decision, true
+}
+
+// ClampLoanDecision 按配置钳制决定数值：三字段 <0 一律置 0；
+// credit_limit 截断到 ai_max_limit（quota 换算为 USD）；
+// daily_rate 先夹 ai_min_rate 下限再夹全局 daily_rate 上限（先下限后上限，误配时落在全局上限），
+// 0 表示不调整、不参与钳制；interest_free_days 截断到 ai_max_grace_days。
+func ClampLoanDecision(d *LoanDecision, s *operation_setting.LoanSetting) *LoanDecision {
+	if d == nil {
+		return &LoanDecision{}
+	}
+	out := *d
+	if out.CreditLimit < 0 {
+		out.CreditLimit = 0
+	}
+	if out.DailyRate < 0 {
+		out.DailyRate = 0
+	}
+	if out.InterestFreeDays < 0 {
+		out.InterestFreeDays = 0
+	}
+	maxLimitUsd := float64(s.AiMaxLimit) / common.QuotaPerUnit
+	if out.CreditLimit > maxLimitUsd {
+		out.CreditLimit = maxLimitUsd
+	}
+	if out.DailyRate > 0 {
+		if out.DailyRate < s.AiMinRate {
+			out.DailyRate = s.AiMinRate
+		}
+		if out.DailyRate > s.DailyRate {
+			out.DailyRate = s.DailyRate
+		}
+	}
+	if out.InterestFreeDays > s.AiMaxGraceDays {
+		out.InterestFreeDays = s.AiMaxGraceDays
+	}
+	if out.InterestFreeDays < 0 {
+		out.InterestFreeDays = 0
+	}
+	return &out
+}
+
+// TrimLoanMessages 上下文裁剪：从最早的消息开始丢弃，直到估算 token 总量塞进预算。
+// 始终保留最新一条（即使单条已超预算），保证当前轮用户输入不丢。
+func TrimLoanMessages(msgs []model.TokenLoanApplicationMessage, budgetTokens int) []model.TokenLoanApplicationMessage {
+	if len(msgs) <= 1 {
+		return msgs
+	}
+	total := 0
+	for _, m := range msgs {
+		total += estimateLoanMessageTokens(m)
+	}
+	start := 0
+	for start < len(msgs)-1 && total > budgetTokens {
+		total -= estimateLoanMessageTokens(msgs[start])
+		start++
+	}
+	return msgs[start:]
+}
+
+// estimateLoanMessageTokens 单条消息的估算 token 数（正文 + 角色/分隔固定开销）
+func estimateLoanMessageTokens(m model.TokenLoanApplicationMessage) int {
+	return CountTextToken(m.Content, "") + 4
+}

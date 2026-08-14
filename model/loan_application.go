@@ -10,9 +10,10 @@ import (
 
 // AI 工单哨兵错误，controller 层映射为 i18n 响应
 var (
-	ErrLoanApplicationLimit = errors.New("loan application limit exceeded")
-	ErrLoanAlreadyRated     = errors.New("loan application already rated or not closed")
-	ErrLoanInvalidRating    = errors.New("loan application rating must be between 1 and 5")
+	ErrLoanApplicationLimit   = errors.New("loan application limit exceeded")
+	ErrLoanAlreadyRated       = errors.New("loan application already rated or not closed")
+	ErrLoanInvalidRating      = errors.New("loan application rating must be between 1 and 5")
+	ErrLoanApplicationNotOpen = errors.New("loan application is not open")
 )
 
 // AI 工单状态
@@ -120,6 +121,64 @@ func GetLoanApplicationMessages(appId int) ([]TokenLoanApplicationMessage, error
 	var msgs []TokenLoanApplicationMessage
 	err := DB.Where("application_id = ?", appId).Order("id ASC").Find(&msgs).Error
 	return msgs, err
+}
+
+// ApplyLoanOfficerDecision AI 结案决定的单事务落库（spec 5.3）：
+// 锁定工单校验 open → 锁定账户并先 settle → 写入非零个人覆盖字段
+// （interest_free_until = loanDay(now)+days，先结算再写，避免新利率回溯计息）→
+// 工单置 closed 并落 decision JSON。任一失败整体回滚，工单保持 open。
+// 决定字段为 0 表示该项不调整，不覆盖现有值。账户不存在时顺带创建（授予额度需要承载行）。
+func ApplyLoanOfficerDecision(appId int, decisionJSON string, customMaxTotal int64, customDailyRate float64, interestFreeDays int) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var app TokenLoanApplication
+		if err := lockForUpdate(tx).Where("id = ?", appId).First(&app).Error; err != nil {
+			return err
+		}
+		if app.Status != LoanAppStatusOpen {
+			return ErrLoanApplicationNotOpen
+		}
+		now := time.Now()
+		acc, err := getOrCreateLoanAccountTx(tx, app.UserId)
+		if err != nil {
+			return err
+		}
+		settle(acc, now)
+		if customMaxTotal > 0 {
+			acc.CustomMaxTotal = customMaxTotal
+		}
+		if customDailyRate > 0 {
+			acc.CustomDailyRate = customDailyRate
+		}
+		if interestFreeDays > 0 {
+			acc.InterestFreeUntil = loanDay(now) + interestFreeDays
+		}
+		acc.UpdatedAt = now.Unix()
+		if err := tx.Save(acc).Error; err != nil {
+			return err
+		}
+		app.Status = LoanAppStatusClosed
+		app.Decision = decisionJSON
+		app.UpdatedAt = now.Unix()
+		return tx.Save(&app).Error
+	})
+}
+
+// CloseLoanApplication 强制关闭工单（不执行任何决定，用于到轮未结案等路径），
+// 仅当当前为 open 时生效，否则返回 ErrLoanApplicationNotOpen
+func CloseLoanApplication(appId int) error {
+	res := DB.Model(&TokenLoanApplication{}).
+		Where("id = ? AND status = ?", appId, LoanAppStatusOpen).
+		Updates(map[string]interface{}{
+			"status":     LoanAppStatusClosed,
+			"updated_at": time.Now().Unix(),
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected != 1 {
+		return ErrLoanApplicationNotOpen
+	}
+	return nil
 }
 
 // GetUserLoanApplications 分页返回用户工单，id 倒序（最新在前），page 从 1 开始
