@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
+import { useMemo } from 'react'
 import { useFieldArray, useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -47,33 +48,56 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 
-const schema = z.object({
-  enabled: z.boolean(),
-  maxTotalUsd: z.coerce.number().min(0),
-  dailyRate: z.coerce.number().min(0),
-  minRegisterDays: z.coerce.number().int().min(0),
-  maxPerBorrowUsd: z.coerce.number().min(0),
-  checkinRepayEnabled: z.boolean(),
-  aiEnabled: z.boolean(),
-  aiModels: z.array(
-    z.object({
-      model: z.string(),
-      contextWindow: z.coerce.number().int().min(0),
+// schema 需要 t() 文案，在组件内构建
+function buildSchema(t: (key: string) => string) {
+  return z
+    .object({
+      enabled: z.boolean(),
+      maxTotalUsd: z.coerce.number().min(0),
+      dailyRate: z.coerce.number().min(0),
+      minRegisterDays: z.coerce.number().int().min(0),
+      maxPerBorrowUsd: z.coerce.number().min(0),
+      checkinRepayEnabled: z.boolean(),
+      aiEnabled: z.boolean(),
+      aiModels: z.array(
+        z.object({
+          model: z.string().trim().min(1, t('Model name is required')),
+          contextWindow: z.coerce
+            .number()
+            .int(t('Context window must be an integer'))
+            .positive(t('Context window must be greater than 0')),
+        })
+      ),
+      aiMaxLimitUsd: z.coerce.number().min(0),
+      aiMinRate: z.coerce.number().min(0),
+      aiMaxGraceDays: z.coerce.number().int().min(0),
+      aiMaxActiveApplications: z.coerce.number().int().min(0),
+      aiDailyLimit: z.coerce.number().int().min(0),
+      aiMaxRounds: z.coerce.number().int().min(0),
+      aiMaxOutput: z.coerce.number().int().min(0),
+      aiPrompt: z.string(),
+      termsEnabled: z.boolean(),
+      termsText: z.string(),
     })
-  ),
-  aiMaxLimitUsd: z.coerce.number().min(0),
-  aiMinRate: z.coerce.number().min(0),
-  aiMaxGraceDays: z.coerce.number().int().min(0),
-  aiMaxActiveApplications: z.coerce.number().int().min(0),
-  aiDailyLimit: z.coerce.number().int().min(0),
-  aiMaxRounds: z.coerce.number().int().min(0),
-  aiMaxOutput: z.coerce.number().int().min(0),
-  aiPrompt: z.string(),
-  termsEnabled: z.boolean(),
-  termsText: z.string(),
-})
+    .superRefine((values, ctx) => {
+      // AI 可批准的最低日利率不得高于全局日利率，否则审批边界自相矛盾
+      if (
+        values.enabled &&
+        values.aiEnabled &&
+        values.aiMinRate > values.dailyRate
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['aiMinRate'],
+          message: t(
+            'AI minimum daily rate cannot exceed the daily interest rate'
+          ),
+        })
+      }
+    })
+}
 
-type Values = z.infer<typeof schema>
+type Values = z.infer<ReturnType<typeof buildSchema>>
 
 type AiModelRow = Values['aiModels'][number]
 
@@ -158,6 +182,8 @@ export function LoanSettingsSection(props: {
     termsEnabled: defaults.termsEnabled,
     termsText: defaults.termsText,
   }
+
+  const schema = useMemo(() => buildSchema(t), [t])
 
   const form = useForm<Values>({
     resolver: zodResolver(schema) as unknown as Resolver<Values>,
