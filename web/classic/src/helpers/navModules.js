@@ -24,6 +24,7 @@ const DEFAULT_HEADER_NAV_MODULES = {
   rankings: { enabled: true, requireAuth: false },
   docs: true,
   about: true,
+  loan: false,
 };
 
 const DEFAULT_SIDEBAR_MODULES = {
@@ -201,6 +202,7 @@ export function isHeaderRouteEnabled(status, pathname) {
   }
   if (matchesPrefix(path, '/about')) return modules.about !== false;
   if (matchesPrefix(path, '/console')) return modules.console !== false;
+  if (matchesPrefix(path, '/loan')) return modules.loan !== false;
   return true;
 }
 

@@ -72,6 +72,7 @@ import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
 import Midjourney from './pages/Midjourney';
 import Pricing from './pages/Pricing';
+import Loan from './pages/Loan';
 import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
@@ -577,6 +578,20 @@ function App() {
                   <Rankings />
                 </Suspense>
               ),
+            )}
+          />
+          <Route
+            path='/loan'
+            element={routeGuard(
+              '/loan',
+              <PrivateRoute>
+                <Suspense
+                  fallback={<Loading></Loading>}
+                  key={location.pathname}
+                >
+                  <Loan />
+                </Suspense>
+              </PrivateRoute>,
             )}
           />
           <Route

@@ -38,6 +38,11 @@ const Navigation = ({
     const commonLinkClasses = `${baseClasses} ${spacingClasses} ${hoverClasses}`;
 
     return mainNavLinks.map((link) => {
+      // 词元贷仅登录用户可见，未登录时整体隐藏
+      if (link.itemKey === 'loan' && !userState.user) {
+        return null;
+      }
+
       const linkContent = <span>{link.text}</span>;
 
       if (link.isExternal) {

@@ -46,6 +46,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         to: '/console',
       },
       {
+        text: t('词元贷'),
+        itemKey: 'loan',
+        to: '/loan',
+      },
+      {
         text: t('模型广场'),
         itemKey: 'pricing',
         to: '/pricing',
