@@ -85,27 +85,37 @@ func settle(acc *TokenLoanAccount, now time.Time) {
 	acc.LastSettledDay = today
 }
 
-// getOrCreateLoanAccountTx 在事务内读取（或创建）用户贷款账户，读路径经 lockForUpdate 加行锁
-func getOrCreateLoanAccountTx(tx *gorm.DB, userId int) (*TokenLoanAccount, error) {
+// getLoanAccountTx 在事务内经 lockForUpdate 加行锁读取贷款账户；
+// 账户不存在时返回 (nil, nil)，不建行（签到还款等路径不得给无贷用户建行）
+func getLoanAccountTx(tx *gorm.DB, userId int) (*TokenLoanAccount, error) {
 	var acc TokenLoanAccount
 	err := lockForUpdate(tx).Where("user_id = ?", userId).First(&acc).Error
-	if err == nil {
-		return &acc, nil
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
 	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err != nil {
 		return nil, err
 	}
+	return &acc, nil
+}
+
+// getOrCreateLoanAccountTx 在事务内读取（或创建）用户贷款账户，读路径经 lockForUpdate 加行锁
+func getOrCreateLoanAccountTx(tx *gorm.DB, userId int) (*TokenLoanAccount, error) {
+	acc, err := getLoanAccountTx(tx, userId)
+	if err != nil || acc != nil {
+		return acc, err
+	}
 	now := time.Now()
-	acc = TokenLoanAccount{
+	acc = &TokenLoanAccount{
 		UserId:         userId,
 		LastSettledDay: loanDay(now),
 		CreatedAt:      now.Unix(),
 		UpdatedAt:      now.Unix(),
 	}
-	if err := tx.Create(&acc).Error; err != nil {
+	if err := tx.Create(acc).Error; err != nil {
 		return nil, err
 	}
-	return &acc, nil
+	return acc, nil
 }
 
 // ProjectLoanStatus 只读投影：返回 now 时刻的债务总额与其中利息部分，不修改 acc、不落盘

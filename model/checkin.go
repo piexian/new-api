@@ -103,33 +103,36 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 			return errors.New("签到失败，请稍后重试")
 		}
 
-		// 步骤2: 签到自动还款（spec 4.4）：开启且有债务时奖励优先抵债，仅净额入账
+		// 步骤2: 签到自动还款（spec 4.4）：仅已有账户才进入还款路径，不给无贷用户建行
 		if operation_setting.GetLoanSetting().CheckinRepayEnabled {
 			now := time.Now()
-			acc, err := getOrCreateLoanAccountTx(tx, userId)
+			acc, err := getLoanAccountTx(tx, userId)
 			if err != nil {
 				return err
 			}
-			settle(acc, now)
-			if info := applyCheckinRepay(acc, int64(quotaAwarded)); info != nil {
-				repayInfo = info
-				netQuota = quotaAwarded - int(info.Amount)
-				// settle 会就地修改 acc，必须在同一事务内落盘
+			if acc != nil {
+				settle(acc, now)
+				info := applyCheckinRepay(acc, int64(quotaAwarded))
+				// settle 就地推进 LastSettledDay，已存在账户的利息时钟必须在同一事务内落盘
 				acc.UpdatedAt = now.Unix()
 				if err := tx.Save(acc).Error; err != nil {
 					return err
 				}
-				if err := tx.Create(&TokenLoanRecord{
-					UserId:        userId,
-					Type:          "repay",
-					Amount:        info.Amount,
-					InterestPart:  info.InterestPart,
-					PrincipalPart: info.PrincipalPart,
-					DebtAfter:     info.DebtAfter,
-					Source:        "checkin",
-					CreatedAt:     now.Unix(),
-				}).Error; err != nil {
-					return err
+				if info != nil {
+					repayInfo = info
+					netQuota = quotaAwarded - int(info.Amount)
+					if err := tx.Create(&TokenLoanRecord{
+						UserId:        userId,
+						Type:          "repay",
+						Amount:        info.Amount,
+						InterestPart:  info.InterestPart,
+						PrincipalPart: info.PrincipalPart,
+						DebtAfter:     info.DebtAfter,
+						Source:        "checkin",
+						CreatedAt:     now.Unix(),
+					}).Error; err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -167,40 +170,43 @@ func userCheckinWithoutTransaction(checkin *Checkin, userId int, quotaAwarded in
 	var repayRecord *TokenLoanRecord
 	netQuota := quotaAwarded
 
-	// 步骤2: 签到自动还款（spec 4.4）：与事务分支镜像，失败时手动回滚
+	// 步骤2: 签到自动还款（spec 4.4）：与事务分支镜像，仅已有账户才进入，失败时手动回滚
 	if operation_setting.GetLoanSetting().CheckinRepayEnabled {
 		now := time.Now()
 		// SQLite 无 FOR UPDATE，lockForUpdate 退化为普通查询，直接用全局 DB
-		acc, err := getOrCreateLoanAccountTx(DB, userId)
+		acc, err := getLoanAccountTx(DB, userId)
 		if err != nil {
 			DB.Delete(checkin)
 			return nil, nil, errors.New("签到失败：更新额度出错")
 		}
-		settle(acc, now)
-		if info := applyCheckinRepay(acc, int64(quotaAwarded)); info != nil {
-			repayInfo = info
-			netQuota = quotaAwarded - int(info.Amount)
-			// settle 会就地修改 acc，必须立即落盘，否则台账与账户不一致
+		if acc != nil {
+			settle(acc, now)
+			info := applyCheckinRepay(acc, int64(quotaAwarded))
+			// settle 就地推进 LastSettledDay，已存在账户的利息时钟必须落盘
 			acc.UpdatedAt = now.Unix()
 			if err := DB.Save(acc).Error; err != nil {
 				DB.Delete(checkin)
 				return nil, nil, errors.New("签到失败：更新额度出错")
 			}
-			repayRecord = &TokenLoanRecord{
-				UserId:        userId,
-				Type:          "repay",
-				Amount:        info.Amount,
-				InterestPart:  info.InterestPart,
-				PrincipalPart: info.PrincipalPart,
-				DebtAfter:     info.DebtAfter,
-				Source:        "checkin",
-				CreatedAt:     now.Unix(),
-			}
-			if err := DB.Create(repayRecord).Error; err != nil {
-				// 台账写入失败：回滚账户与签到记录
-				rollbackCheckinRepay(acc, info)
-				DB.Delete(checkin)
-				return nil, nil, errors.New("签到失败：更新额度出错")
+			if info != nil {
+				repayInfo = info
+				netQuota = quotaAwarded - int(info.Amount)
+				repayRecord = &TokenLoanRecord{
+					UserId:        userId,
+					Type:          "repay",
+					Amount:        info.Amount,
+					InterestPart:  info.InterestPart,
+					PrincipalPart: info.PrincipalPart,
+					DebtAfter:     info.DebtAfter,
+					Source:        "checkin",
+					CreatedAt:     now.Unix(),
+				}
+				if err := DB.Create(repayRecord).Error; err != nil {
+					// 台账写入失败：回滚账户与签到记录
+					rollbackCheckinRepay(acc, info)
+					DB.Delete(checkin)
+					return nil, nil, errors.New("签到失败：更新额度出错")
+				}
 			}
 		}
 	}
@@ -225,7 +231,8 @@ func userCheckinWithoutTransaction(checkin *Checkin, userId int, quotaAwarded in
 	return checkin, repayInfo, nil
 }
 
-// rollbackCheckinRepay SQLite 手动回滚：把账户恢复到还款前状态（台账由调用方删除）
+// rollbackCheckinRepay SQLite 手动回滚：把账户恢复到还款前状态（台账由调用方删除）。
+// 有意不回滚 settle 推进的 LastSettledDay：利息本应累计到当天，回退利息时钟会少计息。
 func rollbackCheckinRepay(acc *TokenLoanAccount, info *LoanRepayInfo) {
 	acc.PrincipalQuota += info.PrincipalPart
 	acc.DebtQuota += info.Amount

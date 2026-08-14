@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -57,7 +58,7 @@ func countLoanRecords(t *testing.T, userId int, recordType string) int64 {
 	return count
 }
 
-// debt=0（无贷款账户）时 loanRepay=nil 且旧行为不变：全额入账、无还款台账
+// debt=0（无贷款账户）时 loanRepay=nil 且旧行为不变：全额入账、无还款台账、不给无贷用户建账户行
 func TestUserCheckinNoDebtNoRepay(t *testing.T) {
 	withCheckinSetting(t, 5000)
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
@@ -71,6 +72,11 @@ func TestUserCheckinNoDebtNoRepay(t *testing.T) {
 	require.Equal(t, 5000, checkin.QuotaAwarded)
 	require.Equal(t, 5000, checkinUserQuota(t, user.Id))
 	require.Equal(t, int64(0), countLoanRecords(t, user.Id, "repay"))
+
+	// 无贷用户签到后不产生 token_loan_accounts 行
+	var accCount int64
+	require.NoError(t, DB.Model(&TokenLoanAccount{}).Where("user_id = ?", user.Id).Count(&accCount).Error)
+	require.Equal(t, int64(0), accCount)
 }
 
 // 奖励 < 利息：全部抵息，本金不动，净额 0 入账
@@ -170,4 +176,70 @@ func TestUserCheckinRepayDisabled(t *testing.T) {
 	require.Equal(t, int64(10000), acc.PrincipalQuota)
 	require.Equal(t, int64(0), acc.TotalRepaid)
 	require.Equal(t, int64(0), countLoanRecords(t, user.Id, "repay"))
+}
+
+// renameTableForFailure 临时把表改名以注入写入失败，测试结束后恢复
+func renameTableForFailure(t *testing.T, table string) {
+	t.Helper()
+	require.NoError(t, DB.Exec(fmt.Sprintf("ALTER TABLE %s RENAME TO %s_bak", table, table)).Error)
+	t.Cleanup(func() {
+		DB.Exec(fmt.Sprintf("ALTER TABLE %s_bak RENAME TO %s", table, table))
+	})
+}
+
+// SQLite 回滚路径：台账写入失败 → 账户回滚（含 settle 落盘后的还款数值恢复）且签到记录被删
+func TestUserCheckinRepayLedgerFailureRollback(t *testing.T) {
+	withCheckinSetting(t, 5000)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CheckinRepayEnabled = true
+	})
+	user := setupCheckinLoanUser(t)
+	createLoanDebtAccount(t, user.Id, 10000, 20000)
+	renameTableForFailure(t, "token_loan_records")
+
+	_, repay, err := UserCheckin(user.Id)
+	require.Error(t, err)
+	require.Nil(t, repay)
+
+	// 账户回滚到还款前（LastSettledDay=今天，settle 无计息，数值与初始一致）
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&acc).Error)
+	require.Equal(t, int64(20000), acc.DebtQuota)
+	require.Equal(t, int64(10000), acc.PrincipalQuota)
+	require.Equal(t, int64(0), acc.TotalRepaid)
+
+	// 签到记录已删除，用户余额未变
+	hasChecked, err := HasCheckedInToday(user.Id)
+	require.NoError(t, err)
+	require.False(t, hasChecked)
+	require.Equal(t, 0, checkinUserQuota(t, user.Id))
+}
+
+// SQLite 回滚路径：IncreaseUserQuota 失败 → 台账删除 + 账户回滚 + 签到记录删除
+func TestUserCheckinRepayQuotaFailureRollback(t *testing.T) {
+	withCheckinSetting(t, 5000)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CheckinRepayEnabled = true
+	})
+	user := setupCheckinLoanUser(t)
+	// 奖励 5000 > 债务 3000：走到 IncreaseUserQuota(净额 2000) 才失败
+	createLoanDebtAccount(t, user.Id, 2500, 3000)
+	renameTableForFailure(t, "users")
+
+	_, repay, err := UserCheckin(user.Id)
+	require.Error(t, err)
+	require.Nil(t, repay)
+
+	// 台账已删除，账户回滚到还款前
+	require.Equal(t, int64(0), countLoanRecords(t, user.Id, "repay"))
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&acc).Error)
+	require.Equal(t, int64(3000), acc.DebtQuota)
+	require.Equal(t, int64(2500), acc.PrincipalQuota)
+	require.Equal(t, int64(0), acc.TotalRepaid)
+
+	// 签到记录已删除
+	hasChecked, err := HasCheckedInToday(user.Id)
+	require.NoError(t, err)
+	require.False(t, hasChecked)
 }
