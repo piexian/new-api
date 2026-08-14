@@ -33,7 +33,13 @@ export function LoanPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
-  const { data: status, isLoading } = useQuery({
+  const {
+    data: status,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['loan-status'],
     queryFn: async () => {
       const res = await getLoanStatus()
@@ -62,7 +68,12 @@ export function LoanPage() {
           ) : (
             <>
               <div className='grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'>
-                <LoanStatusCard status={status} loading={isLoading} />
+                <LoanStatusCard
+                  status={status}
+                  loading={isLoading}
+                  error={isError ? error.message : null}
+                  onRetry={() => refetch()}
+                />
                 <BorrowForm status={status} />
               </div>
               <LoanRecordsTable />

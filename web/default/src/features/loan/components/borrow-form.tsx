@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { HandCoins } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -48,18 +48,21 @@ interface BorrowFormProps {
   status?: LoanStatus
 }
 
-const schema = z.object({
-  amount: z
-    .string()
-    .trim()
-    .min(1)
-    .refine((v) => {
-      const n = Number(v)
-      return Number.isFinite(n) && n > 0
-    }, 'invalid'),
-})
+// schema 需要 t() 文案，在组件内构建
+function buildSchema(t: (key: string) => string) {
+  return z.object({
+    amount: z
+      .string()
+      .trim()
+      .min(1, t('Please enter an amount'))
+      .refine((v) => {
+        const n = Number(v)
+        return Number.isFinite(n) && n > 0
+      }, t('Please enter a valid positive amount')),
+  })
+}
 
-type Values = z.infer<typeof schema>
+type Values = z.infer<ReturnType<typeof buildSchema>>
 
 export function BorrowForm(props: BorrowFormProps) {
   const { t } = useTranslation()
@@ -68,6 +71,8 @@ export function BorrowForm(props: BorrowFormProps) {
     (state) => state.config.currency.quotaPerUnit
   )
   const [submitting, setSubmitting] = useState(false)
+
+  const schema = useMemo(() => buildSchema(t), [t])
 
   const form = useForm<Values>({
     resolver: zodResolver(schema) as unknown as Resolver<Values>,

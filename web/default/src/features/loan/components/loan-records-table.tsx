@@ -40,6 +40,8 @@ import { formatTimestamp } from '@/lib/format'
 import { getLoanRecords } from '../api'
 import type { LoanRecord } from '../types'
 
+import { QueryErrorState } from './query-error'
+
 const PAGE_SIZE = 10
 
 function useTypeLabel() {
@@ -63,7 +65,7 @@ export function LoanRecordsTable() {
   const typeLabel = useTypeLabel()
   const sourceLabel = useSourceLabel()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['loan-records', page, PAGE_SIZE],
     queryFn: async () => {
       const res = await getLoanRecords(page, PAGE_SIZE)
@@ -80,6 +82,15 @@ export function LoanRecordsTable() {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const content = (() => {
+    if (isError) {
+      return (
+        <QueryErrorState
+          message={error.message}
+          onRetry={() => refetch()}
+        />
+      )
+    }
+
     if (isLoading) {
       return (
         <div className='space-y-2'>
@@ -161,6 +172,7 @@ export function LoanRecordsTable() {
               onClick={() => setPage((p) => p - 1)}
               disabled={page <= 1}
               className='h-8 w-8 p-0'
+              aria-label={t('Previous page')}
             >
               <ChevronLeft className='h-4 w-4' />
             </Button>
@@ -175,6 +187,7 @@ export function LoanRecordsTable() {
               onClick={() => setPage((p) => p + 1)}
               disabled={page >= totalPages}
               className='h-8 w-8 p-0'
+              aria-label={t('Next page')}
             >
               <ChevronRight className='h-4 w-4' />
             </Button>

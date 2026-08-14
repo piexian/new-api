@@ -28,9 +28,13 @@ import { formatPercent } from '@/lib/format'
 
 import type { LoanStatus } from '../types'
 
+import { QueryErrorState } from './query-error'
+
 interface LoanStatusCardProps {
   status?: LoanStatus
   loading: boolean
+  error?: string | null
+  onRetry?: () => void
 }
 
 function StatusItem({
@@ -66,6 +70,72 @@ export function LoanStatusCard(props: LoanStatusCardProps) {
       : null
   const graceActive = graceUntil !== null && graceUntil.isAfter(dayjs())
 
+  const content = (() => {
+    if (props.error) {
+      return (
+        <QueryErrorState
+          message={props.error}
+          onRetry={props.onRetry ?? (() => {})}
+        />
+      )
+    }
+
+    if (props.loading || !status) {
+      return (
+        <div className='grid grid-cols-2 gap-4 sm:grid-cols-3'>
+          {['a', 'b', 'c', 'd', 'e', 'f'].map((slot) => (
+            <Skeleton key={slot} className='h-14 rounded-lg' />
+          ))}
+        </div>
+      )
+    }
+
+    return (
+      <div className='grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3'>
+        <StatusItem
+          label={t('Outstanding Principal')}
+          value={formatQuotaWithCurrency(status.principal)}
+        />
+        <StatusItem
+          label={t('Interest (as of now)')}
+          value={formatQuotaWithCurrency(status.interest)}
+        />
+        <StatusItem
+          label={t('Total Debt')}
+          value={formatQuotaWithCurrency(status.debt)}
+        />
+        <StatusItem
+          label={t('Available to Borrow')}
+          value={formatQuotaWithCurrency(status.available)}
+          hint={`${t('Credit Limit')}: ${formatQuotaWithCurrency(status.effective_max)}`}
+        />
+        <StatusItem
+          label={t('Daily Rate')}
+          value={formatPercent(status.daily_rate * 100)}
+        />
+        <StatusItem
+          label={t('Grace Period')}
+          value={
+            graceActive && graceUntil
+              ? graceUntil.format('YYYY-MM-DD')
+              : t('None')
+          }
+          hint={
+            graceActive ? t('No interest accrues before this date') : undefined
+          }
+        />
+        <StatusItem
+          label={t('Total Borrowed')}
+          value={formatQuotaWithCurrency(status.total_borrowed)}
+        />
+        <StatusItem
+          label={t('Total Repaid')}
+          value={formatQuotaWithCurrency(status.total_repaid)}
+        />
+      </div>
+    )
+  })()
+
   return (
     <Card className='gap-0 py-0'>
       <CardHeader className='border-b p-4 sm:p-5'>
@@ -81,60 +151,7 @@ export function LoanStatusCard(props: LoanStatusCardProps) {
           </div>
         </div>
       </CardHeader>
-      <CardContent className='p-4 sm:p-5'>
-        {props.loading || !status ? (
-          <div className='grid grid-cols-2 gap-4 sm:grid-cols-3'>
-            {['a', 'b', 'c', 'd', 'e', 'f'].map((slot) => (
-              <Skeleton key={slot} className='h-14 rounded-lg' />
-            ))}
-          </div>
-        ) : (
-          <div className='grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3'>
-            <StatusItem
-              label={t('Outstanding Principal')}
-              value={formatQuotaWithCurrency(status.principal)}
-            />
-            <StatusItem
-              label={t('Interest (as of now)')}
-              value={formatQuotaWithCurrency(status.interest)}
-            />
-            <StatusItem
-              label={t('Total Debt')}
-              value={formatQuotaWithCurrency(status.debt)}
-            />
-            <StatusItem
-              label={t('Available to Borrow')}
-              value={formatQuotaWithCurrency(status.available)}
-              hint={`${t('Credit Limit')}: ${formatQuotaWithCurrency(status.effective_max)}`}
-            />
-            <StatusItem
-              label={t('Daily Rate')}
-              value={formatPercent(status.daily_rate * 100)}
-            />
-            <StatusItem
-              label={t('Grace Period')}
-              value={
-                graceActive && graceUntil
-                  ? graceUntil.format('YYYY-MM-DD')
-                  : t('None')
-              }
-              hint={
-                graceActive
-                  ? t('No interest accrues before this date')
-                  : undefined
-              }
-            />
-            <StatusItem
-              label={t('Total Borrowed')}
-              value={formatQuotaWithCurrency(status.total_borrowed)}
-            />
-            <StatusItem
-              label={t('Total Repaid')}
-              value={formatQuotaWithCurrency(status.total_repaid)}
-            />
-          </div>
-        )}
-      </CardContent>
+      <CardContent className='p-4 sm:p-5'>{content}</CardContent>
     </Card>
   )
 }

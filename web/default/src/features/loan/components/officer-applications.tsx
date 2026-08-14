@@ -54,6 +54,8 @@ import {
   type LoanTopic,
 } from '../types'
 
+import { QueryErrorState } from './query-error'
+
 const PAGE_SIZE = 10
 
 function useTopicLabel() {
@@ -146,7 +148,13 @@ function NewApplicationDialog({
         )
       )
     } catch {
-      toast.error(t('Failed to submit application'))
+      // 网络异常同样无法确定工单是否已创建：刷新列表 + 中性引导
+      onCreated()
+      toast.info(
+        t(
+          'If the application was created, open it from the list to continue the conversation.'
+        )
+      )
     } finally {
       setSubmitting(false)
     }
@@ -225,7 +233,7 @@ function ApplicationDetailDialog({
   const [ratingComment, setRatingComment] = useState('')
   const [ratingSubmitting, setRatingSubmitting] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['loan-application-detail', applicationId],
     queryFn: async () => {
       const res = await getLoanApplicationDetail(applicationId as number)
@@ -291,6 +299,143 @@ function ApplicationDetailDialog({
     }
   }
 
+  const detailContent = (() => {
+    if (isError) {
+      return (
+        <QueryErrorState message={error.message} onRetry={() => refetch()} />
+      )
+    }
+
+    if (isLoading || !application) {
+      return (
+        <div className='space-y-2'>
+          {['a', 'b', 'c'].map((slot) => (
+            <Skeleton key={slot} className='h-14 rounded-lg' />
+          ))}
+        </div>
+      )
+    }
+
+    return (
+      <>
+        <div className='flex items-center gap-2'>
+          <Badge variant={isOpen ? 'default' : 'secondary'}>
+            {isOpen ? t('Open') : t('Closed')}
+          </Badge>
+          <span className='text-muted-foreground text-xs'>
+            {formatTimestamp(application.created_at)}
+          </span>
+        </div>
+
+        {/* 对话串 */}
+        <div className='max-h-[min(50vh,420px)] space-y-3 overflow-y-auto rounded-lg border p-3'>
+          {messages.length === 0 ? (
+            <p className='text-muted-foreground py-6 text-center text-sm'>
+              {t('No messages yet. Send a reply to start the conversation.')}
+            </p>
+          ) : (
+            messages.map((msg) => {
+              if (msg.role === 'system') {
+                return (
+                  <p
+                    key={msg.id}
+                    className='text-muted-foreground text-center text-xs'
+                  >
+                    {msg.content}
+                  </p>
+                )
+              }
+              const isUser = msg.role === 'user'
+              return (
+                <div
+                  key={msg.id}
+                  className={cn('flex', isUser ? 'justify-end' : 'justify-start')}
+                >
+                  <div
+                    className={cn(
+                      'max-w-[85%] rounded-lg px-3 py-2 text-sm break-words whitespace-pre-wrap',
+                      isUser ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                    )}
+                  >
+                    {msg.content}
+                    <div
+                      className={cn(
+                        'mt-1 text-[10px]',
+                        isUser
+                          ? 'text-primary-foreground/70'
+                          : 'text-muted-foreground'
+                      )}
+                    >
+                      {formatTimestamp(msg.created_at)}
+                    </div>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        {/* open 工单可继续回复 */}
+        {isOpen ? (
+          <div className='flex items-end gap-2'>
+            <Textarea
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              placeholder={t('Type your reply...')}
+              rows={2}
+              className='min-h-0 flex-1'
+            />
+            <Button
+              onClick={handleSend}
+              disabled={sending || !reply.trim()}
+              size='icon'
+              aria-label={t('Send')}
+            >
+              <Send className='h-4 w-4' />
+            </Button>
+          </div>
+        ) : null}
+
+        {/* closed 且未评分时显示评分组件 */}
+        {showRatingWidget ? (
+          <div className='space-y-3 rounded-lg border p-3'>
+            <p className='text-sm font-medium'>
+              {t('How would you rate this service?')}
+            </p>
+            <StarRating value={rating} onChange={setRating} />
+            <Textarea
+              value={ratingComment}
+              onChange={(e) => setRatingComment(e.target.value)}
+              placeholder={t('Optional comment...')}
+              rows={2}
+            />
+            <Button
+              onClick={handleRate}
+              disabled={ratingSubmitting || rating < 1}
+              size='sm'
+            >
+              {ratingSubmitting ? t('Submitting...') : t('Submit Rating')}
+            </Button>
+          </div>
+        ) : null}
+
+        {!isOpen && application.rating > 0 ? (
+          <div className='space-y-1 rounded-lg border p-3'>
+            <p className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+              {t('Your Rating')}
+            </p>
+            <StarRating value={application.rating} disabled />
+            {application.rating_comment ? (
+              <p className='text-muted-foreground text-sm'>
+                {application.rating_comment}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </>
+    )
+  })()
+
   return (
     <Dialog
       open={open}
@@ -303,135 +448,7 @@ function ApplicationDetailDialog({
       contentClassName='sm:max-w-2xl'
       bodyClassName='space-y-4'
     >
-      {isLoading || !application ? (
-        <div className='space-y-2'>
-          {['a', 'b', 'c'].map((slot) => (
-            <Skeleton key={slot} className='h-14 rounded-lg' />
-          ))}
-        </div>
-      ) : (
-        <>
-          <div className='flex items-center gap-2'>
-            <Badge variant={isOpen ? 'default' : 'secondary'}>
-              {isOpen ? t('Open') : t('Closed')}
-            </Badge>
-            <span className='text-muted-foreground text-xs'>
-              {formatTimestamp(application.created_at)}
-            </span>
-          </div>
-
-          {/* 对话串 */}
-          <div className='max-h-[min(50vh,420px)] space-y-3 overflow-y-auto rounded-lg border p-3'>
-            {messages.length === 0 ? (
-              <p className='text-muted-foreground py-6 text-center text-sm'>
-                {t('No messages yet. Send a reply to start the conversation.')}
-              </p>
-            ) : (
-              messages.map((msg) => {
-                if (msg.role === 'system') {
-                  return (
-                    <p
-                      key={msg.id}
-                      className='text-muted-foreground text-center text-xs'
-                    >
-                      {msg.content}
-                    </p>
-                  )
-                }
-                const isUser = msg.role === 'user'
-                return (
-                  <div
-                    key={msg.id}
-                    className={cn(
-                      'flex',
-                      isUser ? 'justify-end' : 'justify-start'
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        'max-w-[85%] rounded-lg px-3 py-2 text-sm break-words whitespace-pre-wrap',
-                        isUser
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted'
-                      )}
-                    >
-                      {msg.content}
-                      <div
-                        className={cn(
-                          'mt-1 text-[10px]',
-                          isUser
-                            ? 'text-primary-foreground/70'
-                            : 'text-muted-foreground'
-                        )}
-                      >
-                        {formatTimestamp(msg.created_at)}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </div>
-
-          {/* open 工单可继续回复 */}
-          {isOpen ? (
-            <div className='flex items-end gap-2'>
-              <Textarea
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                placeholder={t('Type your reply...')}
-                rows={2}
-                className='min-h-0 flex-1'
-              />
-              <Button
-                onClick={handleSend}
-                disabled={sending || !reply.trim()}
-                size='icon'
-                aria-label={t('Send')}
-              >
-                <Send className='h-4 w-4' />
-              </Button>
-            </div>
-          ) : null}
-
-          {/* closed 且未评分时显示评分组件 */}
-          {showRatingWidget ? (
-            <div className='space-y-3 rounded-lg border p-3'>
-              <p className='text-sm font-medium'>
-                {t('How would you rate this service?')}
-              </p>
-              <StarRating value={rating} onChange={setRating} />
-              <Textarea
-                value={ratingComment}
-                onChange={(e) => setRatingComment(e.target.value)}
-                placeholder={t('Optional comment...')}
-                rows={2}
-              />
-              <Button
-                onClick={handleRate}
-                disabled={ratingSubmitting || rating < 1}
-                size='sm'
-              >
-                {ratingSubmitting ? t('Submitting...') : t('Submit Rating')}
-              </Button>
-            </div>
-          ) : null}
-
-          {!isOpen && application.rating > 0 ? (
-            <div className='space-y-1 rounded-lg border p-3'>
-              <p className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-                {t('Your Rating')}
-              </p>
-              <StarRating value={application.rating} disabled />
-              {application.rating_comment ? (
-                <p className='text-muted-foreground text-sm'>
-                  {application.rating_comment}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </>
-      )}
+      {detailContent}
     </Dialog>
   )
 }
@@ -444,7 +461,7 @@ export function OfficerApplications() {
   const [newDialogOpen, setNewDialogOpen] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['loan-applications', page, PAGE_SIZE],
     queryFn: async () => {
       const res = await getLoanApplications(page, PAGE_SIZE)
@@ -465,6 +482,12 @@ export function OfficerApplications() {
   }
 
   const listContent = (() => {
+    if (isError) {
+      return (
+        <QueryErrorState message={error.message} onRetry={() => refetch()} />
+      )
+    }
+
     if (isLoading) {
       return (
         <div className='space-y-2'>
@@ -594,7 +617,9 @@ export function OfficerApplications() {
         onCreated={refreshList}
       />
 
+      {/* key 保证切换工单时回复/评分等本地状态重置，避免跨工单泄漏 */}
       <ApplicationDetailDialog
+        key={detailId ?? 'closed'}
         applicationId={detailId}
         open={detailId !== null}
         onOpenChange={(open) => {
