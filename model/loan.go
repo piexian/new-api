@@ -125,6 +125,7 @@ var (
 	ErrLoanInvalidAmount  = errors.New("invalid loan amount")
 	ErrLoanRegisterTooNew = errors.New("account registered too recently to borrow")
 	ErrLoanQuotaOverflow  = errors.New("loan amount overflows user quota range")
+	ErrLoanUserDisabled   = errors.New("user account is not in normal status")
 )
 
 // isLoanDuplicateKeyErr 识别各数据库方言的主键/唯一键冲突错误
@@ -190,18 +191,20 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 	if clamp != nil {
 		return nil, ErrLoanQuotaOverflow
 	}
-	if amount <= 0 {
-		return nil, ErrLoanInvalidAmount
-	}
+	// usd > 0 且 QuotaPerUnit = 500000，最小 0.01 USD = 5000 quota，
+	// 故此处 amount 必然 > 0，无需再判 amount <= 0
 
 	now := time.Now()
 	var acc *TokenLoanAccount
 	recordId := 0
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		// 事务内读用户当前值：注册天数与余额 int32 上界校验
+		// 事务内读用户当前值：状态、注册天数与余额 int32 上界校验
 		var user User
-		if err := tx.Select("id", "quota", "created_at").Where("id = ?", userId).First(&user).Error; err != nil {
+		if err := tx.Select("id", "quota", "created_at", "status").Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
+		}
+		if user.Status != common.UserStatusEnabled {
+			return ErrLoanUserDisabled
 		}
 		if loanSetting.MinRegisterDays > 0 &&
 			now.Unix()-user.CreatedAt < int64(loanSetting.MinRegisterDays)*86400 {
@@ -265,14 +268,25 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 
 	if err := IncreaseUserQuota(userId, amount, true); err != nil {
 		if rbErr := rollbackBorrow(userId, recordId, int64(amount)); rbErr != nil {
-			common.SysError(fmt.Sprintf("loan borrow rollback failed for user %d: %v", userId, rbErr))
+			// 补偿失败：账户台账与用户余额两侧可能不一致，大声告警便于人工对账
+			common.SysError(fmt.Sprintf("loan borrow rollback failed for user %d (amount %d quota, record %d): %v",
+				userId, amount, recordId, rbErr))
+		}
+		// IncreaseUserQuota 内部已异步加过 Redis quota 缓存（model/user.go:1438），
+		// DB 写失败时缓存仍在膨胀，补偿路径必须同步扣回
+		if cacheErr := cacheDecrUserQuota(userId, int64(amount)); cacheErr != nil {
+			common.SysError(fmt.Sprintf("loan borrow cache rollback failed for user %d (amount %d quota): %v",
+				userId, amount, cacheErr))
 		}
 		return nil, err
 	}
 	return acc, nil
 }
 
-// rollbackBorrow 借款后 IncreaseUserQuota 失败时的补偿：回滚账户数值并删除台账
+// rollbackBorrow 借款后 IncreaseUserQuota 失败时的补偿：回滚账户数值并删除台账。
+// 采用钳制语义：扣减后任一字段为负则钳到 0 并 SysError 告警（说明与并行的
+// 还款/其他扣减交错，纯减法已失真）。若未来引入与借款并行扣减账户的路径
+// （如签到自动还款），应改为追加冲正台账而非原地减法。
 func rollbackBorrow(userId int, recordId int, amount int64) error {
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var acc TokenLoanAccount
@@ -282,6 +296,14 @@ func rollbackBorrow(userId int, recordId int, amount int64) error {
 		acc.PrincipalQuota -= amount
 		acc.DebtQuota -= amount
 		acc.TotalBorrowed -= amount
+		if acc.PrincipalQuota < 0 || acc.DebtQuota < 0 || acc.TotalBorrowed < 0 {
+			common.SysError(fmt.Sprintf(
+				"loan borrow rollback underflow for user %d (amount %d quota): principal=%d debt=%d total_borrowed=%d, clamping to zero",
+				userId, amount, acc.PrincipalQuota, acc.DebtQuota, acc.TotalBorrowed))
+			acc.PrincipalQuota = max(acc.PrincipalQuota, 0)
+			acc.DebtQuota = max(acc.DebtQuota, 0)
+			acc.TotalBorrowed = max(acc.TotalBorrowed, 0)
+		}
 		acc.UpdatedAt = time.Now().Unix()
 		if err := tx.Save(&acc).Error; err != nil {
 			return err

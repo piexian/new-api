@@ -446,3 +446,55 @@ func TestBorrowLoanConcurrentRespectsCap(t *testing.T) {
 	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
 	require.Equal(t, acc.TotalBorrowed, int64(u.Quota))
 }
+
+func TestBorrowLoanUserDisabled(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.TermsEnabled = false
+		s.MaxTotal = 500000
+	})
+	user := createLoanTestUser(t)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).
+		Update("status", common.UserStatusDisabled).Error)
+
+	_, err := BorrowLoan(user.Id, "0.10")
+	require.ErrorIs(t, err, ErrLoanUserDisabled)
+
+	// 被拒后无账户、无台账、无余额变动
+	var count int64
+	require.NoError(t, DB.Model(&TokenLoanRecord{}).Where("user_id = ?", user.Id).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+	var u User
+	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
+	require.Equal(t, 0, u.Quota)
+}
+
+func TestRollbackBorrowClampsUnderflow(t *testing.T) {
+	user := createLoanTestUser(t)
+	now := time.Now()
+	require.NoError(t, DB.Create(&TokenLoanAccount{
+		UserId:         user.Id,
+		PrincipalQuota: 1000,
+		DebtQuota:      1000,
+		TotalBorrowed:  1000,
+		LastSettledDay: loanDay(now),
+		CreatedAt:      now.Unix(),
+		UpdatedAt:      now.Unix(),
+	}).Error)
+	record := &TokenLoanRecord{
+		UserId: user.Id, Type: "borrow", Amount: 1000, PrincipalPart: 1000,
+		DebtAfter: 1000, Source: "manual", CreatedAt: now.Unix(),
+	}
+	require.NoError(t, DB.Create(record).Error)
+
+	// 补偿扣减额大于现有数值：钳到 0 且不留台账，不产生负值
+	require.NoError(t, rollbackBorrow(user.Id, record.Id, 5000))
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&acc).Error)
+	require.Equal(t, int64(0), acc.PrincipalQuota)
+	require.Equal(t, int64(0), acc.DebtQuota)
+	require.Equal(t, int64(0), acc.TotalBorrowed)
+	var count int64
+	require.NoError(t, DB.Model(&TokenLoanRecord{}).Where("user_id = ?", user.Id).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+}
