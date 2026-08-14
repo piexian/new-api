@@ -114,11 +114,15 @@ export default function SettingsLoan(props) {
     setAiModelRows(rows);
     setInputs((inputs) => ({
       ...inputs,
+      // 序列化时过滤 model 为空的行（trim 后），model 名 trim 存储，
+      // context_window 取整；与 default 主题行为一致
       'loan_setting.ai_models': JSON.stringify(
-        rows.map((row) => ({
-          model: row.model,
-          context_window: Number(row.context_window) || 0,
-        })),
+        rows
+          .filter((row) => row.model && row.model.trim() !== '')
+          .map((row) => ({
+            model: row.model.trim(),
+            context_window: Math.round(Number(row.context_window)) || 0,
+          })),
       ),
     }));
   }
@@ -168,11 +172,14 @@ export default function SettingsLoan(props) {
     ) {
       return showError(t('AI 最低日利率不能高于全局日利率'));
     }
-    for (const row of aiModelRows) {
-      if (!row.model || row.model.trim() === '') {
-        return showError(t('AI 模型名称不能为空'));
-      }
-      if (!(Number(row.context_window) > 0)) {
+    // 空行（model trim 后为空）已在序列化时过滤，此处只校验保留行的
+    // context_window 必须为大于 0 的整数
+    const validRows = aiModelRows.filter(
+      (row) => row.model && row.model.trim() !== '',
+    );
+    for (const row of validRows) {
+      const contextWindow = Number(row.context_window);
+      if (!Number.isInteger(contextWindow) || contextWindow <= 0) {
         return showError(t('上下文窗口必须为大于 0 的整数'));
       }
     }
@@ -341,6 +348,7 @@ export default function SettingsLoan(props) {
                   placeholder={'0'}
                   onChange={handleFieldChange('loan_setting.min_register_days')}
                   min={0}
+                  precision={0}
                   disabled={!enabled}
                   extraText={t('账号注册满该天数后才可借款')}
                 />
@@ -411,6 +419,7 @@ export default function SettingsLoan(props) {
                             value={row.context_window}
                             placeholder={t('上下文窗口')}
                             min={1}
+                            precision={0}
                             style={{ width: 160 }}
                             onChange={(value) =>
                               handleAiModelChange(
@@ -483,6 +492,7 @@ export default function SettingsLoan(props) {
                         'loan_setting.ai_max_grace_days',
                       )}
                       min={0}
+                      precision={0}
                       extraText={t('AI 信贷员可授予的最长免息期')}
                     />
                   </Col>
@@ -497,6 +507,7 @@ export default function SettingsLoan(props) {
                         'loan_setting.ai_max_active_applications',
                       )}
                       min={0}
+                      precision={0}
                     />
                   </Col>
                   <Col xs={24} sm={12} md={8} lg={8} xl={8}>
@@ -506,6 +517,7 @@ export default function SettingsLoan(props) {
                       placeholder={'3'}
                       onChange={handleFieldChange('loan_setting.ai_daily_limit')}
                       min={0}
+                      precision={0}
                     />
                   </Col>
                   <Col xs={24} sm={12} md={8} lg={8} xl={8}>
@@ -515,6 +527,7 @@ export default function SettingsLoan(props) {
                       placeholder={'10'}
                       onChange={handleFieldChange('loan_setting.ai_max_rounds')}
                       min={0}
+                      precision={0}
                     />
                   </Col>
                 </Row>
@@ -526,6 +539,7 @@ export default function SettingsLoan(props) {
                       placeholder={'2048'}
                       onChange={handleFieldChange('loan_setting.ai_max_output')}
                       min={0}
+                      precision={0}
                       extraText={t('AI 信贷员单次回复的最大输出 tokens')}
                     />
                   </Col>
