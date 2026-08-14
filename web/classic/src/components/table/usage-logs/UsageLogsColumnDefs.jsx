@@ -225,6 +225,9 @@ function renderUseTime(type, t) {
 
 function renderFirstUseTime(type, t) {
   let time = parseFloat(type) / 1000.0;
+  if (!Number.isFinite(time) || time <= 0) {
+    return null;
+  }
   time = time.toFixed(1);
   if (time < 3) {
     return (
