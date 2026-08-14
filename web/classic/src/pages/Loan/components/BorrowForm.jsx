@@ -20,13 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useState } from 'react';
 import { Avatar, Button, Card, Input, Typography } from '@douyinfe/semi-ui';
 import { HandCoins } from 'lucide-react';
-import {
-  API,
-  getQuotaPerUnit,
-  renderQuota,
-  showError,
-  showSuccess,
-} from '../../../helpers';
+import { API, renderQuota, showError, showSuccess } from '../../../helpers';
 
 const BorrowForm = ({ t, status, onBorrowed }) => {
   const [amount, setAmount] = useState('');
@@ -34,7 +28,12 @@ const BorrowForm = ({ t, status, onBorrowed }) => {
   const [submitting, setSubmitting] = useState(false);
 
   const termsBlocked = !!status && status.terms_enabled && !status.terms_agreed;
-  const availableUsd = status ? status.available / getQuotaPerUnit() : 0;
+  // quota_per_unit 缺失/非法时跳过本地上限校验，交给后端兜底
+  const rawQuotaPerUnit = parseFloat(localStorage.getItem('quota_per_unit'));
+  const availableUsd =
+    status && Number.isFinite(rawQuotaPerUnit) && rawQuotaPerUnit > 0
+      ? status.available / rawQuotaPerUnit
+      : null;
 
   const handleSubmit = async () => {
     setFieldError('');
@@ -48,7 +47,7 @@ const BorrowForm = ({ t, status, onBorrowed }) => {
       setFieldError(t('请输入有效的正数金额'));
       return;
     }
-    if (status && num > availableUsd) {
+    if (status && availableUsd !== null && num > availableUsd) {
       setFieldError(t('金额超出您的可借额度'));
       return;
     }

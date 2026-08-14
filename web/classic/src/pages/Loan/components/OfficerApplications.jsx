@@ -38,6 +38,7 @@ import {
   showSuccess,
   timestamp2string,
 } from '../../../helpers';
+import QueryError from './QueryError';
 
 const PAGE_SIZE = 10;
 const TOPIC_KEYS = ['credit', 'rate', 'grace', 'other'];
@@ -162,6 +163,7 @@ const ApplicationDetailModal = ({
 }) => {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [rating, setRating] = useState(0);
@@ -171,16 +173,19 @@ const ApplicationDetailModal = ({
   const fetchDetail = async () => {
     if (!applicationId) return;
     setLoading(true);
+    setError('');
     try {
       const res = await API.get(`/api/user/loan/applications/${applicationId}`);
       const { success, message, data } = res.data;
       if (success) {
         setDetail(data);
       } else {
-        showError(message);
+        // 查询失败展示后端 message + 重试，不留空白
+        setError(message || t('获取申请详情失败'));
       }
     } catch {
       // 网络/HTTP 错误已由 API 拦截器提示
+      setError(t('获取申请详情失败'));
     } finally {
       setLoading(false);
     }
@@ -256,7 +261,9 @@ const ApplicationDetailModal = ({
       footer={null}
       width={640}
     >
-      {loading && !detail ? (
+      {error ? (
+        <QueryError t={t} message={error} onRetry={fetchDetail} />
+      ) : loading && !detail ? (
         <div className='py-8 text-center text-sm text-gray-500'>
           {t('加载中...')}
         </div>
@@ -391,11 +398,13 @@ const OfficerApplications = ({ t }) => {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [newModalVisible, setNewModalVisible] = useState(false);
   const [detailId, setDetailId] = useState(null);
 
   const fetchList = async (p) => {
     setLoading(true);
+    setError('');
     try {
       const res = await API.get('/api/user/loan/applications', {
         params: { p, page_size: PAGE_SIZE },
@@ -405,10 +414,12 @@ const OfficerApplications = ({ t }) => {
         setItems(data?.items || []);
         setTotal(data?.total || 0);
       } else {
-        showError(message);
+        // 查询失败展示后端 message + 重试，不伪装成空数据
+        setError(message || t('获取申请列表失败'));
       }
     } catch {
       // 网络/HTTP 错误已由 API 拦截器提示
+      setError(t('获取申请列表失败'));
     } finally {
       setLoading(false);
     }
@@ -475,25 +486,29 @@ const OfficerApplications = ({ t }) => {
         </Button>
       </div>
 
-      <Table
-        size='small'
-        columns={columns}
-        dataSource={items}
-        rowKey='id'
-        loading={loading}
-        empty={t('暂无申请')}
-        scroll={{ x: true }}
-        onRow={(record) => ({
-          onClick: () => setDetailId(record.id),
-          style: { cursor: 'pointer' },
-        })}
-        pagination={{
-          currentPage: page,
-          pageSize: PAGE_SIZE,
-          total,
-          onPageChange: (p) => setPage(p),
-        }}
-      />
+      {error ? (
+        <QueryError t={t} message={error} onRetry={() => fetchList(page)} />
+      ) : (
+        <Table
+          size='small'
+          columns={columns}
+          dataSource={items}
+          rowKey='id'
+          loading={loading}
+          empty={t('暂无申请')}
+          scroll={{ x: true }}
+          onRow={(record) => ({
+            onClick: () => setDetailId(record.id),
+            style: { cursor: 'pointer' },
+          })}
+          pagination={{
+            currentPage: page,
+            pageSize: PAGE_SIZE,
+            total,
+            onPageChange: (p) => setPage(p),
+          }}
+        />
+      )}
 
       <NewApplicationModal
         t={t}

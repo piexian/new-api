@@ -20,12 +20,8 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useMemo, useState } from 'react';
 import { Avatar, Card, Table, Tag, Typography } from '@douyinfe/semi-ui';
 import { ReceiptText } from 'lucide-react';
-import {
-  API,
-  renderQuota,
-  showError,
-  timestamp2string,
-} from '../../../helpers';
+import { API, renderQuota, timestamp2string } from '../../../helpers';
+import QueryError from './QueryError';
 
 const PAGE_SIZE = 10;
 
@@ -34,9 +30,11 @@ const LoanRecordsTable = ({ t, refreshKey }) => {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const fetchRecords = async (p) => {
     setLoading(true);
+    setError('');
     try {
       const res = await API.get('/api/user/loan/records', {
         params: { p, page_size: PAGE_SIZE },
@@ -46,10 +44,12 @@ const LoanRecordsTable = ({ t, refreshKey }) => {
         setItems(data?.items || []);
         setTotal(data?.total || 0);
       } else {
-        showError(message);
+        // 查询失败展示后端 message + 重试，不伪装成空数据
+        setError(message || t('获取借款记录失败'));
       }
     } catch {
       // 网络/HTTP 错误已由 API 拦截器提示
+      setError(t('获取借款记录失败'));
     } finally {
       setLoading(false);
     }
@@ -127,21 +127,25 @@ const LoanRecordsTable = ({ t, refreshKey }) => {
         </div>
       </div>
 
-      <Table
-        size='small'
-        columns={columns}
-        dataSource={items}
-        rowKey='id'
-        loading={loading}
-        empty={t('暂无借款记录')}
-        scroll={{ x: true }}
-        pagination={{
-          currentPage: page,
-          pageSize: PAGE_SIZE,
-          total,
-          onPageChange: (p) => setPage(p),
-        }}
-      />
+      {error ? (
+        <QueryError t={t} message={error} onRetry={() => fetchRecords(page)} />
+      ) : (
+        <Table
+          size='small'
+          columns={columns}
+          dataSource={items}
+          rowKey='id'
+          loading={loading}
+          empty={t('暂无借款记录')}
+          scroll={{ x: true }}
+          pagination={{
+            currentPage: page,
+            pageSize: PAGE_SIZE,
+            total,
+            onPageChange: (p) => setPage(p),
+          }}
+        />
+      )}
     </Card>
   );
 };
