@@ -311,6 +311,8 @@ func migrateDB() error {
 		&OAuthOwnershipTransfer{},
 		&TokenLoanAccount{},
 		&TokenLoanRecord{},
+		&TokenLoanApplication{},
+		&TokenLoanApplicationMessage{},
 	)
 	if err != nil {
 		return err
