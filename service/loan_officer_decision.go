@@ -86,17 +86,14 @@ func ClampLoanDecision(d *LoanDecision, s *operation_setting.LoanSetting) *LoanD
 	if out.InterestFreeDays > s.AiMaxGraceDays {
 		out.InterestFreeDays = s.AiMaxGraceDays
 	}
-	if out.InterestFreeDays < 0 {
-		out.InterestFreeDays = 0
-	}
 	return &out
 }
 
 // TrimLoanMessages 上下文裁剪：从最早的消息开始丢弃，直到估算 token 总量塞进预算。
-// 始终保留最新一条（即使单条已超预算），保证当前轮用户输入不丢。
-func TrimLoanMessages(msgs []model.TokenLoanApplicationMessage, budgetTokens int) []model.TokenLoanApplicationMessage {
-	if len(msgs) <= 1 {
-		return msgs
+// 裁剪到只剩最新一条仍超预算时返回 ErrLoanContentTooLong（调用方不得发给模型）。
+func TrimLoanMessages(msgs []model.TokenLoanApplicationMessage, budgetTokens int) ([]model.TokenLoanApplicationMessage, error) {
+	if len(msgs) == 0 {
+		return msgs, nil
 	}
 	total := 0
 	for _, m := range msgs {
@@ -107,7 +104,10 @@ func TrimLoanMessages(msgs []model.TokenLoanApplicationMessage, budgetTokens int
 		total -= estimateLoanMessageTokens(msgs[start])
 		start++
 	}
-	return msgs[start:]
+	if total > budgetTokens {
+		return nil, ErrLoanContentTooLong
+	}
+	return msgs[start:], nil
 }
 
 // estimateLoanMessageTokens 单条消息的估算 token 数（正文 + 角色/分隔固定开销）

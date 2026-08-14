@@ -22,11 +22,15 @@ var (
 	ErrLoanOfficerBusy = errors.New("loan officer round in progress")
 	// ErrLoanOfficerNoModel 未配置可用的 AI 业务员模型
 	ErrLoanOfficerNoModel = errors.New("no loan officer model configured")
+	// ErrLoanContentTooLong 当前输入（含保留历史）超出上下文预算，不发模型、不入库
+	ErrLoanContentTooLong = errors.New("loan officer input exceeds context budget")
+	// ErrLoanOfficerUnavailable 模型调用失败的通用对外错误，真实上游错误只进服务端日志
+	ErrLoanOfficerUnavailable = errors.New("loan officer is temporarily unavailable")
 )
 
 // callOfficerModel 可注入的模型调用实现：生产环境由 controller 层
 // RegisterLoanOfficerModelCaller 接线（渠道测试同款 in-process 直调），测试替换为假实现。
-var callOfficerModel = func(modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+var callOfficerModel = func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
 	return "", errors.New("loan officer model caller not registered")
 }
 
@@ -34,7 +38,7 @@ var callOfficerModel = func(modelName string, messages []dto.Message, maxOutputT
 var applyLoanOfficerDecision = model.ApplyLoanOfficerDecision
 
 // RegisterLoanOfficerModelCaller 接线生产环境的模型调用实现（仅在进程启动时调用一次）
-func RegisterLoanOfficerModelCaller(f func(modelName string, messages []dto.Message, maxOutputTokens int) (string, error)) {
+func RegisterLoanOfficerModelCaller(f func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error)) {
 	callOfficerModel = f
 }
 
@@ -50,9 +54,10 @@ var loanModelFailCounts = struct {
 }{counts: make(map[int]int)}
 
 // RunLoanOfficerRound 执行一轮 AI 业务员对话（spec 5.1/5.3）：
-// 互斥抢锁 → 用户消息入库 → 档案注入 + 上下文裁剪 → 调用模型 → 回复入库 →
-// 解析结案决定并单事务执行。模型连续失败 3 次自动从配置重抽模型（spec 5.5）；
-// 达到 AiMaxRounds 的强制结案轮解析失败时自动关单（spec 5.1.4）。
+// 互斥抢锁 → 档案注入 + 上下文裁剪（超预算直接报错）→ 调用模型 → 成功后才落库
+// （用户消息 + assistant 回复；失败轮不产生任何消息、不计入轮数）→ 解析结案决定并单事务执行。
+// 模型连续失败 3 次自动从配置重抽模型（spec 5.5）；达到 AiMaxRounds 的强制结案轮
+// 会在 system prompt 追加必须结案的指令，解析失败时自动关单（spec 5.1.4）。
 // 返回 reply 为对用户展示的文本；closed 表示本轮后工单是否已关闭。
 func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput string) (reply string, closed bool, err error) {
 	setting := operation_setting.GetLoanSetting()
@@ -69,11 +74,6 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 	}
 	defer lock.Unlock()
 
-	if err := model.AddLoanApplicationMessage(app.Id, "user", userInput); err != nil {
-		return "", false, err
-	}
-	touchLoanApplication(app.Id)
-
 	history, err := model.GetLoanApplicationMessages(app.Id)
 	if err != nil {
 		return "", false, err
@@ -84,21 +84,37 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 			rounds++
 		}
 	}
-	forceCloseRound := setting.AiMaxRounds > 0 && rounds >= setting.AiMaxRounds
+	// 当前输入尚未入库，轮数按 +1 计
+	forceCloseRound := setting.AiMaxRounds > 0 && rounds+1 >= setting.AiMaxRounds
 
-	modelCfg, ok := resolveLoanOfficerModel(setting, app.ModelUsed)
+	modelCfg, ok := resolveLoanOfficerModel(setting, app)
 	if !ok {
 		return "", false, ErrLoanOfficerNoModel
 	}
 
 	sysPrompt := renderLoanOfficerPrompt(setting, buildLoanOfficerProfile(userId))
+	if forceCloseRound {
+		sysPrompt += "\n\n注意：这是本次申请的最后一轮对话，你必须在本轮结案，并按格式输出决定 json 块。"
+	}
 
-	// 上下文预算 = 窗口 - 输出预留 - system prompt - 少量边界余量；保底 256 确保最新一轮不丢
+	// 上下文预算 = 窗口 - 输出预留 - system prompt - 少量边界余量；保底 256 确保最新一轮可判
 	budget := modelCfg.ContextWindow - setting.AiMaxOutput - CountTextToken(sysPrompt, modelCfg.Model) - 64
 	if budget < 256 {
 		budget = 256
 	}
-	trimmed := TrimLoanMessages(history, budget)
+	// 当前输入以未入库的尾部消息参与裁剪；单条超预算时整体报错，不发模型、不入库
+	pending := make([]model.TokenLoanApplicationMessage, 0, len(history)+1)
+	pending = append(pending, history...)
+	pending = append(pending, model.TokenLoanApplicationMessage{
+		ApplicationId: app.Id,
+		Role:          "user",
+		Content:       userInput,
+		CreatedAt:     time.Now().Unix(),
+	})
+	trimmed, err := TrimLoanMessages(pending, budget)
+	if err != nil {
+		return "", false, err
+	}
 
 	messages := make([]dto.Message, 0, len(trimmed)+1)
 	messages = append(messages, dto.Message{Role: "system", Content: sysPrompt})
@@ -112,12 +128,19 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 		// system 角色的历史消息（强制关单提示等）只用于展示，不回传给模型
 	}
 
-	rawReply, callErr := callOfficerModel(modelCfg.Model, messages, setting.AiMaxOutput)
+	rawReply, callErr := callOfficerModel(userId, modelCfg.Model, messages, setting.AiMaxOutput)
 	if callErr != nil {
 		noteLoanModelFailure(app, setting)
-		return "", false, callErr
+		// 上游错误细节（含可能的响应体）只进服务端日志，对外只暴露通用哨兵错误
+		common.SysError(fmt.Sprintf("loan officer model call failed for application %d (model %s): %v", app.Id, modelCfg.Model, callErr))
+		return "", false, ErrLoanOfficerUnavailable
 	}
 	clearLoanModelFailure(app.Id)
+
+	// 模型调用成功后才落库：先用户消息再 assistant 回复
+	if err := model.AddLoanApplicationMessage(app.Id, "user", userInput); err != nil {
+		return "", false, err
+	}
 
 	displayText, decision, ok := ExtractLoanDecision(rawReply)
 	if displayText == "" {
@@ -225,19 +248,27 @@ func clearLoanModelFailure(appId int) {
 	loanModelFailCounts.Unlock()
 }
 
-// resolveLoanOfficerModel 按 app.ModelUsed 匹配配置；未匹配时随机取一个可用模型
-func resolveLoanOfficerModel(setting *operation_setting.LoanSetting, current string) (operation_setting.AiModelConfig, bool) {
+// resolveLoanOfficerModel 按 app.ModelUsed 匹配配置；未匹配时随机取一个可用模型并回写
+// model_used，保证后续轮次稳定使用同一模型（不每轮随机漂移）
+func resolveLoanOfficerModel(setting *operation_setting.LoanSetting, app *model.TokenLoanApplication) (operation_setting.AiModelConfig, bool) {
 	if len(setting.AiModels) == 0 {
 		return operation_setting.AiModelConfig{}, false
 	}
-	if current != "" {
+	if app.ModelUsed != "" {
 		for _, m := range setting.AiModels {
-			if m.Model == current {
+			if m.Model == app.ModelUsed {
 				return m, true
 			}
 		}
 	}
-	return setting.AiModels[rand.Intn(len(setting.AiModels))], true
+	picked := setting.AiModels[rand.Intn(len(setting.AiModels))]
+	if err := model.DB.Model(&model.TokenLoanApplication{}).
+		Where("id = ?", app.Id).Update("model_used", picked.Model).Error; err != nil {
+		common.SysError(fmt.Sprintf("loan officer pin model update failed for application %d: %v", app.Id, err))
+	} else {
+		app.ModelUsed = picked.Model
+	}
+	return picked, true
 }
 
 // redrawLoanOfficerModel 连续失败后的模型重抽：优先排除当前模型

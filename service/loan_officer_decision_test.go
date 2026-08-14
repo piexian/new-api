@@ -132,10 +132,12 @@ func TestTrimLoanMessagesSlidingWindow(t *testing.T) {
 	for i := 1; i <= 20; i++ {
 		msgs = append(msgs, loanOfficerMsg(i, "user", strings.Repeat("字", 300)))
 	}
-	full := TrimLoanMessages(msgs, 100000)
+	full, err := TrimLoanMessages(msgs, 100000)
+	require.NoError(t, err)
 	assert.Len(t, full, 20)
 
-	trimmed := TrimLoanMessages(msgs, 600)
+	trimmed, err := TrimLoanMessages(msgs, 600)
+	require.NoError(t, err)
 	require.NotEmpty(t, trimmed)
 	// 从最早开始丢弃：保留的是尾部连续段
 	assert.Equal(t, msgs[len(msgs)-len(trimmed)].Id, trimmed[0].Id)
@@ -146,10 +148,9 @@ func TestTrimLoanMessagesSlidingWindow(t *testing.T) {
 func TestTrimLoanMessagesSingleOverBudget(t *testing.T) {
 	msgs := []model.TokenLoanApplicationMessage{
 		loanOfficerMsg(1, "user", strings.Repeat("a", 100)),
-		loanOfficerMsg(2, "assistant", strings.Repeat("b", 100000)),
+		loanOfficerMsg(2, "assistant", strings.Repeat("字", 300)),
 	}
-	trimmed := TrimLoanMessages(msgs, 10)
-	// 单条超预算也始终保留最新一条
-	require.Len(t, trimmed, 1)
-	assert.Equal(t, 2, trimmed[0].Id)
+	// 裁剪到只剩最新一条仍超预算：报哨兵错误，调用方不得发给模型
+	_, err := TrimLoanMessages(msgs, 10)
+	require.ErrorIs(t, err, ErrLoanContentTooLong)
 }

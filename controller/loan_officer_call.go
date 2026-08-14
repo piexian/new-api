@@ -33,13 +33,14 @@ func init() {
 }
 
 // callLoanOfficerUpstream 直调上游模型并返回 assistant 文本（非 stream）
-func callLoanOfficerUpstream(modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+func callLoanOfficerUpstream(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	channel, err := selectLoanOfficerChannel(c, modelName)
+	userGroup, _ := model.GetUserGroup(userId, false)
+	channel, err := selectLoanOfficerChannel(c, modelName, userGroup)
 	if err != nil {
 		return "", err
 	}
@@ -107,7 +108,8 @@ func callLoanOfficerUpstream(modelName string, messages []dto.Message, maxOutput
 	}
 	httpResp := resp.(*http.Response)
 	if httpResp.StatusCode != http.StatusOK {
-		err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
+		// showBodyWhenFail=false：上游错误体不透传给调用方，只进服务端日志
+		err := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 		common.SysError(fmt.Sprintf("loan officer upstream bad response: channel_id=%d model=%s status=%d err=%v",
 			channel.Id, modelName, httpResp.StatusCode, err))
 		return "", err
@@ -130,11 +132,16 @@ func callLoanOfficerUpstream(modelName string, messages []dto.Message, maxOutput
 	return content, nil
 }
 
-// selectLoanOfficerChannel 在启用了该模型的所有分组里随机选一个可用渠道
-// （ability 分组逐个尝试，组内由 CacheGetRandomSatisfiedChannel 按权重随机）
-func selectLoanOfficerChannel(c *gin.Context, modelName string) (*model.Channel, error) {
+// selectLoanOfficerChannel 为业务员模型选择渠道：优先在用户当前分组内随机选择；
+// 用户分组没有该模型的可用渠道时，回退到任意启用了该模型的分组（兜底语义：
+// 业务员调用不产生计费，跨分组只影响上游来源，可接受）。组内按权重随机。
+func selectLoanOfficerChannel(c *gin.Context, modelName string, userGroup string) (*model.Channel, error) {
 	groups := make([]string, 0, 4)
 	seen := make(map[string]bool)
+	if userGroup != "" {
+		seen[userGroup] = true
+		groups = append(groups, userGroup)
+	}
 	for _, ability := range model.GetAllEnableAbilities() {
 		if ability.Model == modelName && !seen[ability.Group] {
 			seen[ability.Group] = true

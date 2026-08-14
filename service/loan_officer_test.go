@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -40,7 +41,7 @@ func withLoanOfficerSetting(t *testing.T, mutate func(s *operation_setting.LoanS
 }
 
 // withFakeOfficerModel 注入假的模型调用实现，测试结束后恢复
-func withFakeOfficerModel(t *testing.T, f func(modelName string, messages []dto.Message, maxOutputTokens int) (string, error)) {
+func withFakeOfficerModel(t *testing.T, f func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error)) {
 	t.Helper()
 	old := callOfficerModel
 	callOfficerModel = f
@@ -70,7 +71,7 @@ func setupLoanOfficerApp(t *testing.T) (*model.User, *model.TokenLoanApplication
 
 func TestRunLoanOfficerRoundNormalClose(t *testing.T) {
 	withLoanOfficerSetting(t, nil)
-	withFakeOfficerModel(t, func(modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
 		assert.Equal(t, "officer-a", modelName)
 		require.NotEmpty(t, messages)
 		// system prompt 注入 USD 文案而非 quota 原值
@@ -111,7 +112,7 @@ func TestRunLoanOfficerRoundNormalClose(t *testing.T) {
 
 func TestRunLoanOfficerRoundParseFailKeepsOpen(t *testing.T) {
 	withLoanOfficerSetting(t, nil)
-	withFakeOfficerModel(t, func(modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
 		return "还需要补充一些材料", nil
 	})
 	user, app := setupLoanOfficerApp(t)
@@ -131,7 +132,10 @@ func TestRunLoanOfficerRoundForceCloseAutoClose(t *testing.T) {
 	withLoanOfficerSetting(t, func(s *operation_setting.LoanSetting) {
 		s.AiMaxRounds = 1 // 第一轮即强制结案轮
 	})
-	withFakeOfficerModel(t, func(modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+		// 末轮 system prompt 必须包含强制结案指令
+		require.NotEmpty(t, messages)
+		assert.Contains(t, messages[0].Content, "你必须在本轮结案")
 		return "还在考虑中", nil // 解析失败
 	})
 	user, app := setupLoanOfficerApp(t)
@@ -160,7 +164,7 @@ func TestRunLoanOfficerRoundForceCloseAutoClose(t *testing.T) {
 
 func TestRunLoanOfficerRoundDecisionRollbackKeepsOpen(t *testing.T) {
 	withLoanOfficerSetting(t, nil)
-	withFakeOfficerModel(t, func(modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
 		return "```json\n{\"action\":\"close\",\"reply\":\"已批准\",\"decision\":{\"credit_limit\":10,\"daily_rate\":0.0008,\"interest_free_days\":7}}\n```", nil
 	})
 	// 注入失败的决定落库实现，覆盖事务回滚路径
@@ -197,7 +201,7 @@ func TestRunLoanOfficerRoundModelRedrawAfter3Failures(t *testing.T) {
 		}
 	})
 	callCount := 0
-	withFakeOfficerModel(t, func(modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
 		callCount++
 		return "", errors.New("upstream down")
 	})
@@ -206,7 +210,8 @@ func TestRunLoanOfficerRoundModelRedrawAfter3Failures(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		_, _, err := RunLoanOfficerRound(user.Id, app, "你好")
-		require.Error(t, err)
+		// 上游错误细节不透出，调用方只见通用哨兵错误
+		require.ErrorIs(t, err, ErrLoanOfficerUnavailable)
 	}
 	assert.Equal(t, 3, callCount)
 	// 连续失败 3 次后重抽模型（候选排除当前 officer-a → 必为 officer-b）
@@ -216,11 +221,43 @@ func TestRunLoanOfficerRoundModelRedrawAfter3Failures(t *testing.T) {
 	require.NoError(t, model.DB.First(&updated, app.Id).Error)
 	assert.Equal(t, "officer-b", updated.ModelUsed)
 	assert.Equal(t, model.LoanAppStatusOpen, updated.Status)
+
+	// 失败轮不产生任何消息（用户消息也未入库）
+	msgs, err := model.GetLoanApplicationMessages(app.Id)
+	require.NoError(t, err)
+	assert.Empty(t, msgs)
+}
+
+func TestRunLoanOfficerRoundContentTooLong(t *testing.T) {
+	withLoanOfficerSetting(t, func(s *operation_setting.LoanSetting) {
+		// 极小窗口：预算触底 256 tokens
+		s.AiModels = []operation_setting.AiModelConfig{{Model: "officer-a", ContextWindow: 100}}
+		s.AiMaxOutput = 50
+	})
+	called := false
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+		called = true
+		return "ok", nil
+	})
+	user, app := setupLoanOfficerApp(t)
+
+	// 400 个 CJK 字符估算约 340 tokens，超出触底预算 256
+	_, _, err := RunLoanOfficerRound(user.Id, app, strings.Repeat("字", 400))
+	require.ErrorIs(t, err, ErrLoanContentTooLong)
+	assert.False(t, called) // 不发模型
+
+	// 不入库、不关单
+	msgs, qerr := model.GetLoanApplicationMessages(app.Id)
+	require.NoError(t, qerr)
+	assert.Empty(t, msgs)
+	var updated model.TokenLoanApplication
+	require.NoError(t, model.DB.First(&updated, app.Id).Error)
+	assert.Equal(t, model.LoanAppStatusOpen, updated.Status)
 }
 
 func TestRunLoanOfficerRoundBusy(t *testing.T) {
 	withLoanOfficerSetting(t, nil)
-	withFakeOfficerModel(t, func(modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
 		return "ok", nil
 	})
 	user, app := setupLoanOfficerApp(t)
@@ -237,7 +274,7 @@ func TestRunLoanOfficerRoundBusy(t *testing.T) {
 
 func TestRunLoanOfficerRoundClosedApplicationRejected(t *testing.T) {
 	withLoanOfficerSetting(t, nil)
-	withFakeOfficerModel(t, func(modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
 		return "ok", nil
 	})
 	user, app := setupLoanOfficerApp(t)
