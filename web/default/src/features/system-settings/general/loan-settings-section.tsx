@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useFieldArray, useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -162,26 +162,29 @@ export function LoanSettingsSection(props: {
   )
 
   const defaults = props.defaultValues
-  const initialValues: Values = {
-    enabled: defaults.enabled,
-    maxTotalUsd: defaults.maxTotal / quotaPerUnit,
-    dailyRate: defaults.dailyRate,
-    minRegisterDays: defaults.minRegisterDays,
-    maxPerBorrowUsd: defaults.maxPerBorrow / quotaPerUnit,
-    checkinRepayEnabled: defaults.checkinRepayEnabled,
-    aiEnabled: defaults.aiEnabled,
-    aiModels: parseAiModels(defaults.aiModels),
-    aiMaxLimitUsd: defaults.aiMaxLimit / quotaPerUnit,
-    aiMinRate: defaults.aiMinRate,
-    aiMaxGraceDays: defaults.aiMaxGraceDays,
-    aiMaxActiveApplications: defaults.aiMaxActiveApplications,
-    aiDailyLimit: defaults.aiDailyLimit,
-    aiMaxRounds: defaults.aiMaxRounds,
-    aiMaxOutput: defaults.aiMaxOutput,
-    aiPrompt: defaults.aiPrompt,
-    termsEnabled: defaults.termsEnabled,
-    termsText: defaults.termsText,
-  }
+  const initialValues: Values = useMemo(
+    () => ({
+      enabled: defaults.enabled,
+      maxTotalUsd: defaults.maxTotal / quotaPerUnit,
+      dailyRate: defaults.dailyRate,
+      minRegisterDays: defaults.minRegisterDays,
+      maxPerBorrowUsd: defaults.maxPerBorrow / quotaPerUnit,
+      checkinRepayEnabled: defaults.checkinRepayEnabled,
+      aiEnabled: defaults.aiEnabled,
+      aiModels: parseAiModels(defaults.aiModels),
+      aiMaxLimitUsd: defaults.aiMaxLimit / quotaPerUnit,
+      aiMinRate: defaults.aiMinRate,
+      aiMaxGraceDays: defaults.aiMaxGraceDays,
+      aiMaxActiveApplications: defaults.aiMaxActiveApplications,
+      aiDailyLimit: defaults.aiDailyLimit,
+      aiMaxRounds: defaults.aiMaxRounds,
+      aiMaxOutput: defaults.aiMaxOutput,
+      aiPrompt: defaults.aiPrompt,
+      termsEnabled: defaults.termsEnabled,
+      termsText: defaults.termsText,
+    }),
+    [defaults, quotaPerUnit]
+  )
 
   const schema = useMemo(() => buildSchema(t), [t])
 
@@ -189,6 +192,11 @@ export function LoanSettingsSection(props: {
     resolver: zodResolver(schema) as unknown as Resolver<Values>,
     defaultValues: initialValues,
   })
+
+  // 选项与额度汇率均为异步加载，就绪后同步进表单，否则首次打开会一直显示内置默认值
+  useEffect(() => {
+    form.reset(initialValues)
+  }, [initialValues, form])
 
   const aiModelFields = useFieldArray({
     control: form.control,
