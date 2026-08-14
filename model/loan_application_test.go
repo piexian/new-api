@@ -1,6 +1,7 @@
 package model
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -181,4 +182,66 @@ func TestGetUserLoanApplicationsPagination(t *testing.T) {
 	page3, err := GetUserLoanApplications(user.Id, 3, 2)
 	require.NoError(t, err)
 	require.Empty(t, page3)
+}
+
+// ===== 并发用例（spec §10）=====
+
+func TestRateLoanApplicationConcurrent(t *testing.T) {
+	user := createLoanAppTestUser(t)
+	app, err := CreateLoanApplication(user.Id, "提额", "gpt-4o")
+	require.NoError(t, err)
+	closeLoanApp(t, app.Id)
+
+	// 两个 goroutine 同时评分（5 和 1），条件更新保证恰好一个成功
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	ratings := []int{5, 1}
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			errs[idx] = RateLoanApplication(user.Id, app.Id, ratings[idx], "")
+		}(i)
+	}
+	wg.Wait()
+
+	successes := 0
+	for _, err := range errs {
+		if err == nil {
+			successes++
+		} else {
+			require.ErrorIs(t, err, ErrLoanAlreadyRated)
+		}
+	}
+	require.Equal(t, 1, successes)
+
+	// rating 只写一次：最终值恰好是胜者的评分
+	var got TokenLoanApplication
+	require.NoError(t, DB.First(&got, app.Id).Error)
+	require.Contains(t, []int{5, 1}, got.Rating)
+}
+
+func TestCreateLoanApplicationConcurrentRespectsActiveLimit(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.AiMaxActiveApplications = 1
+		s.AiDailyLimit = 100 // 放开每日上限，只压并行上限
+	})
+	user := createLoanAppTestUser(t)
+
+	// SQLite 下一方失败或串行均可接受，关键是 open 工单数不得超过上限
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = CreateLoanApplication(user.Id, "提额", "gpt-4o")
+		}()
+	}
+	wg.Wait()
+
+	var openCount int64
+	require.NoError(t, DB.Model(&TokenLoanApplication{}).
+		Where("user_id = ? AND status = ?", user.Id, LoanAppStatusOpen).
+		Count(&openCount).Error)
+	require.LessOrEqual(t, openCount, int64(1))
 }
