@@ -46,6 +46,7 @@ const defaultHeaderNavModules = {
   },
   docs: true,
   about: true,
+  loan: false,
 };
 
 function normalizeHeaderNavModules(modules = {}) {
@@ -56,6 +57,7 @@ function normalizeHeaderNavModules(modules = {}) {
     rankings: modules.rankings ?? { enabled: true, requireAuth: false },
     docs: modules.docs ?? true,
     about: modules.about ?? true,
+    loan: modules.loan ?? false,
   };
 
   if (typeof normalized.pricing === 'boolean') {
@@ -209,6 +211,11 @@ export default function SettingsHeaderNavModules(props) {
       key: 'about',
       title: t('关于'),
       description: t('关于系统的详细信息'),
+    },
+    {
+      key: 'loan',
+      title: t('词元贷'),
+      description: t('用户借用额度与管理还款的页面'),
     },
   ];
 

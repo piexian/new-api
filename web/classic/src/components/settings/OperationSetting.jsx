@@ -27,6 +27,7 @@ import SettingsLog from '../../pages/Setting/Operation/SettingsLog';
 import SettingsMonitoring from '../../pages/Setting/Operation/SettingsMonitoring';
 import SettingsCreditLimit from '../../pages/Setting/Operation/SettingsCreditLimit';
 import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
+import SettingsLoan from '../../pages/Setting/Operation/SettingsLoan';
 import { API, showError, toBoolean } from '../../helpers';
 
 const OperationSetting = () => {
@@ -82,6 +83,26 @@ const OperationSetting = () => {
 
     /* 令牌设置 */
     'token_setting.max_user_tokens': 1000,
+
+    /* 词元贷设置 */
+    'loan_setting.enabled': false,
+    'loan_setting.max_total': 2500000,
+    'loan_setting.daily_rate': 0.001,
+    'loan_setting.min_register_days': 0,
+    'loan_setting.max_per_borrow': 0,
+    'loan_setting.checkin_repay_enabled': true,
+    'loan_setting.terms_enabled': true,
+    'loan_setting.terms_text': '',
+    'loan_setting.ai_enabled': false,
+    'loan_setting.ai_models': '[]',
+    'loan_setting.ai_max_limit': 10000000,
+    'loan_setting.ai_min_rate': 0.0005,
+    'loan_setting.ai_max_grace_days': 30,
+    'loan_setting.ai_max_active_applications': 1,
+    'loan_setting.ai_daily_limit': 3,
+    'loan_setting.ai_max_rounds': 10,
+    'loan_setting.ai_max_output': 2048,
+    'loan_setting.ai_prompt': '',
   });
 
   let [loading, setLoading] = useState(false);
@@ -154,6 +175,10 @@ const OperationSetting = () => {
         {/* 签到设置 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsCheckin options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* 词元贷设置 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsLoan options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>
