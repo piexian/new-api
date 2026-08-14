@@ -65,7 +65,12 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     getUnreadKeys,
   } = useNotifications(statusState);
 
-  const { mainNavLinks } = useNavigation(t, docsLink, headerNavModules);
+  const { mainNavLinks } = useNavigation(
+    t,
+    docsLink,
+    headerNavModules,
+    !!userState?.user,
+  );
 
   // 首页为星空主题：头部随亮暗模式切换的玻璃样式（配色变量由 PageLayout 的 home-starry 作用域提供）
   const location = useLocation();

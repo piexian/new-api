@@ -28,8 +28,8 @@ type TokenLoanApplication struct {
 	UserId        int    `json:"user_id" gorm:"not null;index"`
 	Topic         string `json:"topic" gorm:"type:varchar(256);not null"`
 	Status        string `json:"status" gorm:"type:varchar(16);not null;index"` // open / closed
-	ModelUsed     string `json:"model_used" gorm:"type:varchar(128)"`           // 实际对话使用的模型
-	Decision      string `json:"decision" gorm:"type:text"`                     // AI 最终审批结论（JSON）
+	ModelUsed     string `json:"-" gorm:"type:varchar(128)"`                    // 实际对话使用的模型（内部审计字段，不透出 API）
+	Decision      string `json:"-" gorm:"type:text"`                            // AI 最终审批结论 JSON（内部审计字段，不透出 API）
 	Rating        int    `json:"rating"`                                        // 用户评分 1-5，0 = 未评
 	RatingComment string `json:"rating_comment" gorm:"type:text"`
 	CreatedAt     int64  `json:"created_at" gorm:"bigint"` // 秒级时间戳

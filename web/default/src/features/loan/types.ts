@@ -113,7 +113,7 @@ export interface LoanApplicationDetail {
  */
 export interface LoanOfficerRoundResult {
   application?: LoanApplication
-  reply?: LoanApplicationMessage
+  reply?: string
   closed: boolean
 }
 

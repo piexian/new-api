@@ -11,10 +11,10 @@
 
 ## 2. 核心规则（全部为默认值，均可后台配置）
 
-- 常规借款上限：$50/人（按当前总债务占额，见 4.3）
+- 常规借款上限：$5/人（按当前总债务占额，见 4.3）
 - 日利率：0.1%/天，复利
 - 还款：每日签到奖励自动还款，先抵利息后抵本金
-- 注册赠送、签到规则不变。签到奖励为配置项（`checkin_setting.min_quota`/`max_quota`），生产当前实测 $0.4–$4/天（min=200000 / max=2000000 quota）；按此估算 $50 债务约需 13–125 天签到还清
+- 注册赠送、签到规则不变。签到奖励为配置项（`checkin_setting.min_quota`/`max_quota`），生产当前实测 $0.4–$4/天（min=200000 / max=2000000 quota）；按此估算 $5 债务约需 2–13 天签到还清
 - AI 提示词与前端文案禁止硬编码签到金额，一律注入配置值
 - 本站无充值，还款来源只有签到
 - 首次进入词元贷须同意「年满 18 岁」声明（可配置，见 4.6）
@@ -192,7 +192,7 @@ AI 结案回复必须包含一个 fenced json 代码块。**抽取策略**：大
 
 后端解析后**按硬边界截断**再执行，三字段统一先做 `≥ 0` 校验，越界（含负数）一律视为 0 = 不调整：
 
-- `credit_limit` ≥ 0 且 ≤ `ai_max_limit`（默认 $200）→ USD→quota（见 3.5）写 `custom_max_total`
+- `credit_limit` ≥ 0 且 ≤ `ai_max_limit`（默认 $20）→ USD→quota（见 3.5）写 `custom_max_total`
 - `daily_rate` ≥ `ai_min_rate` 且 ≤ 全局 `daily_rate` → 写 `custom_daily_rate`（只降不升）。若管理员误配 `ai_min_rate > daily_rate`，运行时钳制顺序为先下限后上限（结果取上限）；配置保存页应校验并提示
 - `interest_free_days` ≤ `ai_max_grace_days` → **同一事务内先结算，再写 `interest_free_until = loanDay(now) + days`**（先结算避免把 last_settled_day 与 today 之间未结算天数追溯免息）
 - 展示给用户的内容**剥离 json 决定块，只展示 `decision.reply`**（避免暴露内部契约、防止用户模仿格式注入）
@@ -223,14 +223,14 @@ AI 结案回复必须包含一个 fenced json 代码块。**抽取策略**：大
 | 键 | 默认 | 说明 |
 |---|---|---|
 | enabled | false | 词元贷总开关 |
-| max_total | $50（quota 整数存储） | 常规总额上限 |
+| max_total | $5（quota 整数存储） | 常规总额上限 |
 | daily_rate | 0.001 | 日利率 |
 | min_register_days | 0 | 注册满 N 天可借 |
 | max_per_borrow | 0 | 单笔上限，0 = 跟随 max_total |
 | checkin_repay_enabled | true | 签到自动还款开关 |
 | ai_enabled | false | AI 业务员开关 |
 | ai_models | [] | `[{model, context_window}]` 列表，为空时工单不可建 |
-| ai_max_limit | $200 | AI 可批总额硬上限 |
+| ai_max_limit | $20 | AI 可批总额硬上限 |
 | ai_min_rate | 0.0005 | AI 可批利率下限（保存时校验 ≤ daily_rate） |
 | ai_max_grace_days | 30 | AI 可批宽限天数上限 |
 | ai_max_active_applications | 1 | 每人同时未结工单上限 |
@@ -333,3 +333,4 @@ service 层单测：
 25. 测试清单补齐 SQLite 并发结算、缓存一致性、解析边界、自动关单等用例
 26. 新增 18+ 声明：terms_enabled/terms_text 配置、terms_agreed_at 字段、agree 接口、未同意拒绝借款与工单（v4 追加）
 27. 入口放顶栏导航：接入 HeaderNavModules 新增 loan 开关，仅登录用户可见，词元贷为独立页面而非个人中心卡片（v4 追加）
+28. 更正文档默认值漂移：max_total $50→$5、ai_max_limit $200→$20，与代码默认值（2500000 / 10000000 quota）对齐；借款 quota 入账并入账户/台账事务，rollbackBorrow 补偿逻辑退役（v4 追加）

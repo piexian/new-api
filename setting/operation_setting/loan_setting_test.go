@@ -35,10 +35,11 @@ func TestLoanAiPromptMatchesSpec53(t *testing.T) {
 	p := GetLoanSetting().AiPrompt
 	assert.Contains(t, p, `"action":"close"`)
 	assert.NotContains(t, p, "approve|reject")
-	// 硬边界占位符由 service 层注入
+	// 硬边界占位符由 service 层注入（USD/百分比/天数文案），模板自身不带单位字样
 	assert.Contains(t, p, "{{ai_max_limit}}")
 	assert.Contains(t, p, "{{ai_min_rate}}")
 	assert.Contains(t, p, "{{ai_max_grace_days}}")
+	assert.NotContains(t, p, "{{ai_max_limit}} quota")
 }
 
 func TestLoanSettingRegisteredInGlobalConfig(t *testing.T) {

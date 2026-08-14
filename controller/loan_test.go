@@ -393,8 +393,11 @@ func TestCreateLoanApplicationHappyPath(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing application in response: %v", resp.Data)
 	}
-	if got := app["model_used"]; got != "loan-test-model" {
-		t.Fatalf("expected model_used loan-test-model, got %v", got)
+	// model_used / decision 为内部审计字段，不得经 API 透出
+	for _, k := range []string{"model_used", "decision"} {
+		if _, exists := app[k]; exists {
+			t.Fatalf("internal field %s should not be exposed in response: %v", k, app)
+		}
 	}
 
 	// 首轮消息已落库（user + assistant）
