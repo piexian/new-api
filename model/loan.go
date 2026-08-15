@@ -161,30 +161,6 @@ type LoanRepayInfo struct {
 	DebtAfter     int64 `json:"debt_after"`
 }
 
-// applyCheckinRepay 在已 settle 的账户上执行账户级还款拆分（spec 4.2，旧语义）：
-// repay = min(award, debt)，先息后本。仅修改内存中的 acc，落盘由调用方负责；
-// 无债务或 award<=0 时返回 nil，此时 acc 仅有 settle 造成的内存变动、无需落盘。
-// 注意：Task 9 起还款分配已下沉到 funding（distributeRepayment），本函数仅供
-// checkin.go 的旧签到路径临时使用，Task 10 将替换其调用点后删除。
-func applyCheckinRepay(acc *TokenLoanAccount, award int64) *LoanRepayInfo {
-	if award <= 0 || acc.DebtQuota <= 0 {
-		return nil
-	}
-	repay := min(award, acc.DebtQuota)
-	interest := acc.DebtQuota - acc.PrincipalQuota
-	payInterest := min(repay, interest)
-	payPrincipal := repay - payInterest
-	acc.PrincipalQuota -= payPrincipal
-	acc.DebtQuota -= repay
-	acc.TotalRepaid += repay
-	return &LoanRepayInfo{
-		Amount:        repay,
-		InterestPart:  payInterest,
-		PrincipalPart: payPrincipal,
-		DebtAfter:     acc.DebtQuota,
-	}
-}
-
 // ===== Task 3: 同意声明与借款 =====
 
 // 词元贷哨兵错误，controller 层映射为 i18n 响应
@@ -435,6 +411,18 @@ func loadUserFundingsTx(tx *gorm.DB, userId int) ([]TokenLoanFunding, error) {
 		Order("id ASC").
 		Find(&fundings).Error
 	return fundings, err
+}
+
+// HasOverdueFundings 查询用户是否存在 overdue funding（P1-8 借款闸门判定 / spec §7.6
+// 违约签到扣还的触发条件）。签到钩子不调用本函数：钩子已载入全部 active/overdue
+// fundings（loadUserFundingsTx），且 §7.6 的 100% 扣还公式对正常/逾期模式一致，无需
+// 二次查询；本函数供状态展示等只读路径直接判定"是否处于违约期"。
+func HasOverdueFundings(tx *gorm.DB, userId int) (bool, error) {
+	var count int64
+	err := tx.Model(&TokenLoanFunding{}).
+		Where("loan_user_id = ? AND status = ?", userId, LoanFundingOverdue).
+		Count(&count).Error
+	return count > 0, err
 }
 
 // planTotal 计划总金额（供平台兜底缺额计算）
