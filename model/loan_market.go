@@ -24,12 +24,12 @@ const (
 	LoanFundingOrder    = "order"    // 订单式指定投放
 )
 
-// funding 还款计划
+// funding 还款计划（结算语义见 spec §5）
 const (
-	LoanRepayFull           = "full"            // 到期一次性还本息
-	LoanRepayNoPenalty      = "no_penalty"      // 到期还本，宽限期内免息
-	LoanRepayInterestFreeze = "interest_freeze" // 到期未还进入宽限期，利息冻结
-	LoanRepayPrincipalOnly  = "principal_only"  // 每次仅还本金，利息另行结算
+	LoanRepayFull           = "full"            // 正常复利+逾期罚息直到还清（默认）
+	LoanRepayNoPenalty      = "no_penalty"      // 逾期后免罚息，只还本金+已结算利息（仍按 rate 计息）
+	LoanRepayInterestFreeze = "interest_freeze" // 停止后续计息，只还本金+已结算利息
+	LoanRepayPrincipalOnly  = "principal_only"  // 利息全免只还本金（改档时一次性核销未付利息）
 )
 
 // funding 状态
