@@ -397,7 +397,9 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'loan.checkin_repay':
     'Check-in reward auto-repaid {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})',
   'loan.ai_decision':
-    'AI loan officer closed application {{application_id}}: credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days',
+    'AI loan officer closed application {{application_id}} (model {{model}}): credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days; reply: {{reply}}',
+  'loan.ai_close':
+    'AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})',
   // Generic middleware fallback
   generic: '{{method}} {{route}}',
 }

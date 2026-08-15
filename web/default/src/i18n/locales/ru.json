@@ -6153,7 +6153,9 @@
     "Fee charged on the principal part of manual early repayments, e.g. 0.0001 means 0.01%; check-in auto repayment is never charged": "Комиссия с основной части долга при ручном досрочном погашении, напр. 0.0001 = 0.01%; автопогашение через ежедневную отметку не облагается",
     "Don't show again": "Больше не показывать",
     "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.": "При досрочном погашении взимается комиссия {{rate}} с основной части долга; она списывается с баланса кошелька вместе с процентами.",
-    "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "Досрочное погашение {{amount}} (проценты {{interest_part}}, основной долг {{principal_part}}, комиссия {{fee_part}}, остаток долга {{debt_after}})"
+    "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "Досрочное погашение {{amount}} (проценты {{interest_part}}, основной долг {{principal_part}}, комиссия {{fee_part}}, остаток долга {{debt_after}})",
+    "AI loan officer closed application {{application_id}} (model {{model}}): credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days; reply: {{reply}}": "AI-агент закрыл заявку {{application_id}} (модель {{model}}): лимит {{credit_limit}} USD, ставка {{daily_rate}}, без процентов {{interest_free_days}} дн.; ответ: {{reply}}",
+    "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})": "Заявка {{application_id}} автоматически закрыта без изменений (модель {{model}})"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

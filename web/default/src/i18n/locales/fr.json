@@ -6153,7 +6153,9 @@
     "Fee charged on the principal part of manual early repayments, e.g. 0.0001 means 0.01%; check-in auto repayment is never charged": "Frais appliqués à la part de principal des remboursements anticipés manuels, ex. 0,0001 = 0,01 % ; le remboursement automatique par pointage n'est pas facturé",
     "Don't show again": "Ne plus afficher",
     "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.": "Un remboursement anticipé entraîne des frais de {{rate}} sur la part de principal, prélevés sur le solde de votre portefeuille avec les intérêts éventuels.",
-    "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "Remboursement anticipé de {{amount}} (intérêts {{interest_part}}, principal {{principal_part}}, frais {{fee_part}}, dette restante {{debt_after}})"
+    "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "Remboursement anticipé de {{amount}} (intérêts {{interest_part}}, principal {{principal_part}}, frais {{fee_part}}, dette restante {{debt_after}})",
+    "AI loan officer closed application {{application_id}} (model {{model}}): credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days; reply: {{reply}}": "L'agent IA a clôturé la demande {{application_id}} (modèle {{model}}) : limite {{credit_limit}} USD, taux journalier {{daily_rate}}, {{interest_free_days}} jours sans intérêts ; réponse : {{reply}}",
+    "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})": "La demande {{application_id}} a été clôturée automatiquement sans ajustement (modèle {{model}})"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

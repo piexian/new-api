@@ -171,6 +171,14 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 		if err := model.AddLoanApplicationMessage(app.Id, "system", "本次协商未达成任何调整"); err != nil {
 			common.SysError(fmt.Sprintf("loan officer force close message failed for application %d: %v", app.Id, err))
 		}
+		// 强制关单也写入操作日志，保留模型信息便于审计
+		closeLogParams := map[string]interface{}{
+			"application_id": app.Id,
+			"model":          app.ModelUsed,
+		}
+		model.RecordOperationAuditLog(app.UserId,
+			model.RenderOperationLogContent("loan.ai_close", closeLogParams, model.LogLanguageEN),
+			"", "loan.ai_close", closeLogParams, nil, nil)
 		touchLoanApplication(app.Id)
 		return displayText, true, nil
 	}
@@ -204,12 +212,18 @@ func executeLoanDecision(app *model.TokenLoanApplication, setting *operation_set
 		common.SysError(fmt.Sprintf("loan officer decision apply failed for application %d: %v", app.Id, err))
 		return false
 	}
-	// 结案决定写入操作日志（归属用户，无操作者/IP 上下文）
+	// 结案决定写入操作日志（归属用户，无操作者/IP 上下文）；结论截断防止超长
+	replySummary := displayText
+	if len([]rune(replySummary)) > 100 {
+		replySummary = string([]rune(replySummary)[:100]) + "…"
+	}
 	decisionLogParams := map[string]interface{}{
 		"application_id":     app.Id,
+		"model":              app.ModelUsed,
 		"credit_limit":       clamped.CreditLimit,
 		"daily_rate":         clamped.DailyRate,
 		"interest_free_days": clamped.InterestFreeDays,
+		"reply":              replySummary,
 	}
 	model.RecordOperationAuditLog(app.UserId,
 		model.RenderOperationLogContent("loan.ai_decision", decisionLogParams, model.LogLanguageEN),
