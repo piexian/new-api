@@ -20,6 +20,44 @@ type Adaptor struct {
 	clientStream bool
 }
 
+// boraContinueAssistantInstruction 是尾随 assistant 消息（prefill）被拒绝时追加的
+// 用户续写输入，避免把上游晦涩的 422/code 3000 直接透传给客户端。
+const boraContinueAssistantInstruction = "Please continue."
+
+// boraProtectedFunctionSuffix 是 function 工具与 bora 内置工具类型重名时的重命名后缀。
+const boraProtectedFunctionSuffix = "_fn"
+
+// isBoraProtectedFunctionName 判断函数名是否撞上了 bora 的内置工具类型名。
+// 上游只允许这些名字出现在内置工具上，作为 function 工具名会返回 422
+// （生产证据：value_error: The following tool has a protected function name: web_search）。
+func isBoraProtectedFunctionName(name string) bool {
+	switch name {
+	case "web_search", "code_interpreter", "image_generation", "web_search_premium":
+		return true
+	}
+	return false
+}
+
+// boraFunctionNameForUpstream 返回发送给上游的函数名：与 bora 内置工具类型名冲突时
+// 追加 _fn 后缀重命名。重命名是确定性的，响应侧可按 boraFunctionNameForClient 逆映射。
+func boraFunctionNameForUpstream(name string) string {
+	if isBoraProtectedFunctionName(name) {
+		return name + boraProtectedFunctionSuffix
+	}
+	return name
+}
+
+// boraFunctionNameForClient 返回给客户端看的函数名：仅当名字形如 "<内置工具类型名>_fn"
+// 时才裁掉后缀。客户端真把工具命名为 "web_search_fn" 这类名字时会被误裁回
+// "web_search"，属可接受的极小概率误判（客户端几乎不会用内置工具类型名命名函数）。
+func boraFunctionNameForClient(name string) string {
+	base, found := strings.CutSuffix(name, boraProtectedFunctionSuffix)
+	if found && isBoraProtectedFunctionName(base) {
+		return base
+	}
+	return name
+}
+
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.clientStream = info != nil && info.IsStream
 }
@@ -89,9 +127,9 @@ func (a *Adaptor) ConvertOpenAIRequest(_ *gin.Context, info *relaycommon.RelayIn
 		Model:        info.UpstreamModelName,
 		Instructions: instructions,
 		CompletionArgs: boraCompletionArgs{
-			Temperature: request.Temperature,
+			Temperature: normalizeBoraTemperature(request.Temperature),
 			MaxTokens:   &maxTokens,
-			TopP:        request.TopP,
+			TopP:        normalizeBoraTopP(request.TopP),
 			// Bora only accepts none/high. high is its maximum reasoning level,
 			// so every downstream reasoning setting is normalized to high.
 			ReasoningEffort: boraMaxReasoningEffort,
@@ -196,6 +234,35 @@ func boraMaxTokens(request *dto.GeneralOpenAIRequest) uint {
 	return value
 }
 
+// normalizeBoraTemperature 把 temperature 钳制到 bora 接受的 [0,1] 区间，nil 保持不传。
+func normalizeBoraTemperature(value *float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	normalized := *value
+	if normalized < 0 {
+		normalized = 0
+	} else if normalized > 1 {
+		normalized = 1
+	}
+	return &normalized
+}
+
+func normalizeBoraTopP(value *float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	normalized := *value
+	// bora 的 schema 声称 top_p=0 合法，但模型后端会对 0 返回 422；取最接近的可用正值。
+	// 上界钳制到 1。
+	if normalized <= 0 {
+		normalized = 0.0001
+	} else if normalized > 1 {
+		normalized = 1
+	}
+	return &normalized
+}
+
 func convertBoraInputs(messages []dto.Message) (string, []boraInput, error) {
 	instructionParts := make([]string, 0)
 	inputs := make([]boraInput, 0, len(messages))
@@ -274,6 +341,19 @@ func convertBoraInputs(messages []dto.Message) (string, []boraInput, error) {
 			return "", nil, fmt.Errorf("upstream does not support message role %q", message.Role)
 		}
 	}
+	// bora 拒绝最后一条输入是 message.output 的会话（上游 422/code 3000）。
+	// 部分 OpenAI 客户端习惯以 assistant 消息结尾来请求续写（prefill），
+	// 这里保留该输出并追加一条明确的用户续写输入，而不是透传上游的报错。
+	if len(inputs) > 0 && inputs[len(inputs)-1].Type == "message.output" {
+		content := boraContinueAssistantInstruction
+		inputs = append(inputs, boraInput{
+			Object:  "entry",
+			Type:    "message.input",
+			Role:    "user",
+			Content: &content,
+			Prefix:  &falseValue,
+		})
+	}
 	return strings.Join(instructionParts, "\n\n"), inputs, nil
 }
 
@@ -315,17 +395,23 @@ func convertBoraTools(openAITools []dto.ToolCallRequest, toolChoice any) ([]bora
 			if strings.TrimSpace(tool.Function.Name) == "" {
 				return nil, "", fmt.Errorf("tool %d requires function.name", index)
 			}
-			// bora 要求 parameters 必填，无参数工具给空 object schema
+			// bora 内置工具类型名不允许作为 function 工具名（上游 422），
+			// 冲突时追加 _fn 后缀重命名，响应侧再逆映射回客户端原始名称。
+			name := boraFunctionNameForUpstream(tool.Function.Name)
+			// bora 要求 parameters 必填，无参数工具给空 object schema。
+			// 客户端传 "parameters": {} 时 Go 端是非 nil 的空 map，omitempty 序列化
+			// 会把它整个丢掉导致上游 422，因此空 map 也必须替换为默认 schema
 			parameters := tool.Function.Parameters
-			if parameters == nil {
+			if m, ok := parameters.(map[string]any); parameters == nil || (ok && len(m) == 0) {
 				parameters = map[string]any{"type": "object", "properties": map[string]any{}}
 			}
 			tools = append(tools, boraTool{
 				Type: "function",
 				Function: &boraFunction{
-					Name:        tool.Function.Name,
+					Name:        name,
 					Description: tool.Function.Description,
 					Parameters:  parameters,
+					Strict:      tool.Function.Strict,
 				},
 			})
 		case "code_interpreter", "image_generation", "web_search_premium":
@@ -376,6 +462,8 @@ func applyBoraToolChoice(tools []boraTool, choice any) ([]boraTool, string, erro
 	if selected.Type != "function" || strings.TrimSpace(selected.Function.Name) == "" {
 		return nil, "", errors.New("upstream only supports named function object tool_choice")
 	}
+	// 与 convertBoraTools 保持一致的重命名规则，否则重命名后的工具永远匹配不上
+	selected.Function.Name = boraFunctionNameForUpstream(selected.Function.Name)
 	for _, tool := range tools {
 		if tool.Type == "function" && tool.Function != nil && tool.Function.Name == selected.Function.Name {
 			return []boraTool{tool}, "You must call the function " + selected.Function.Name + " before answering.", nil

@@ -26,8 +26,9 @@ type boraTool struct {
 type boraFunction struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
-	Parameters  any    `json:"parameters,omitempty"`
-	Strict      *bool  `json:"strict,omitempty"`
+	// bora 要求 parameters 必填，不能 omitempty（空 map 会被 omitempty 丢弃触发上游 422）
+	Parameters any   `json:"parameters"`
+	Strict     *bool `json:"strict,omitempty"`
 }
 
 // boraInput is the union of Bora conversation entry types used by the

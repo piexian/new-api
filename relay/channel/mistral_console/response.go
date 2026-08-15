@@ -91,9 +91,15 @@ func handleBoraResponse(c *gin.Context, resp *http.Response, info *relaycommon.R
 
 	usage := state.finalUsage(c, info)
 	message := dto.Message{
-		Role:             "assistant",
-		Content:          state.text.String(),
-		ReasoningContent: func() *string { s := state.reasoning.String(); if s == "" { return nil }; return &s }(),
+		Role:    "assistant",
+		Content: state.text.String(),
+		ReasoningContent: func() *string {
+			s := state.reasoning.String()
+			if s == "" {
+				return nil
+			}
+			return &s
+		}(),
 	}
 	if len(state.toolCalls) > 0 {
 		message.SetToolCalls(state.nonStreamToolCalls())
@@ -231,9 +237,13 @@ func (state *boraResponseState) appendFunctionCall(event boraStreamEvent) (*dto.
 		return nil, errors.New("upstream function.call.delta is missing tool_call_id")
 	}
 
+	// 上游内置工具类型重名时，请求侧在 adaptor 里给函数名追加了 _fn 后缀，
+	// 这里逆映射回客户端原始名称
+	name := boraFunctionNameForClient(strings.TrimSpace(event.Name))
+
 	index, exists := state.toolCallIndexes[toolCallID]
 	if !exists {
-		if strings.TrimSpace(event.Name) == "" {
+		if name == "" {
 			return nil, errors.New("upstream function.call.delta is missing function name")
 		}
 		index = len(state.toolCalls)
@@ -242,13 +252,13 @@ func (state *boraResponseState) appendFunctionCall(event boraStreamEvent) (*dto.
 			ID:   toolCallID,
 			Type: "function",
 			Function: dto.FunctionResponse{
-				Name: event.Name,
+				Name: name,
 			},
 		})
 	}
 	call := &state.toolCalls[index]
-	if event.Name != "" {
-		call.Function.Name = event.Name
+	if name != "" {
+		call.Function.Name = name
 	}
 	call.Function.Arguments += event.Arguments
 
