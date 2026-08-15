@@ -14,18 +14,21 @@ import (
 
 // TokenLoanAccount 词元贷账户（每用户一行）
 type TokenLoanAccount struct {
-	UserId            int     `json:"user_id" gorm:"primaryKey"`
-	PrincipalQuota    int64   `json:"principal_quota" gorm:"bigint"`  // 未还本金
-	DebtQuota         int64   `json:"debt_quota" gorm:"bigint"`       // 债务总额（本金+利息），debt >= principal 恒成立
-	LastSettledDay    int     `json:"last_settled_day"`               // 上次惰性结算的 loanDay
-	CustomMaxTotal    int64   `json:"custom_max_total" gorm:"bigint"` // AI 授予的个人总额上限覆盖，0 = 用全局配置
-	CustomDailyRate   float64 `json:"custom_daily_rate"`              // AI 授予的个人日利率覆盖，0 = 用全局配置
-	InterestFreeUntil int     `json:"interest_free_until"`            // 宽限期截止 loanDay（该日之前不计息），0 = 无
-	TermsAgreedAt     int64   `json:"terms_agreed_at" gorm:"bigint"`  // 同意条款的时间戳，0 = 未同意
-	TotalBorrowed     int64   `json:"total_borrowed" gorm:"bigint"`   // 累计借款
-	TotalRepaid       int64   `json:"total_repaid" gorm:"bigint"`     // 累计还款
-	CreatedAt         int64   `json:"created_at" gorm:"bigint"`       // 秒级时间戳
-	UpdatedAt         int64   `json:"updated_at" gorm:"bigint"`       // 秒级时间戳
+	UserId                   int     `json:"user_id" gorm:"primaryKey"`
+	PrincipalQuota           int64   `json:"principal_quota" gorm:"bigint"`             // 未还本金
+	DebtQuota                int64   `json:"debt_quota" gorm:"bigint"`                  // 债务总额（本金+利息），debt >= principal 恒成立
+	LastSettledDay           int     `json:"last_settled_day"`                          // 上次惰性结算的 loanDay
+	CustomMaxTotal           int64   `json:"custom_max_total" gorm:"bigint"`            // AI 授予的个人总额上限覆盖，0 = 用全局配置
+	CustomDailyRate          float64 `json:"custom_daily_rate"`                         // AI 授予的个人日利率覆盖，0 = 用全局配置
+	InterestFreeUntil        int     `json:"interest_free_until"`                       // 宽限期截止 loanDay（该日之前不计息），0 = 无
+	CreditScore              int     `json:"credit_score"`                              // 贷方信用分，0 = 未评估（回填 credit_initial 属迁移任务）
+	BlacklistedUntilDay      int     `json:"blacklisted_until_day"`                     // 信用拉黑截止 loanDay，0 = 未拉黑
+	TermsAgreedAt            int64   `json:"terms_agreed_at" gorm:"bigint"`             // 同意借款条款的时间戳，0 = 未同意
+	LenderDisclaimerAgreedAt int64   `json:"lender_disclaimer_agreed_at" gorm:"bigint"` // 同意放贷免责声明的时间戳，0 = 未同意
+	TotalBorrowed            int64   `json:"total_borrowed" gorm:"bigint"`              // 累计借款
+	TotalRepaid              int64   `json:"total_repaid" gorm:"bigint"`                // 累计还款
+	CreatedAt                int64   `json:"created_at" gorm:"bigint"`                  // 秒级时间戳
+	UpdatedAt                int64   `json:"updated_at" gorm:"bigint"`                  // 秒级时间戳
 }
 
 func (TokenLoanAccount) TableName() string {
@@ -44,6 +47,8 @@ type TokenLoanRecord struct {
 	DebtAfter     int64  `json:"debt_after" gorm:"bigint"`                // 变动后债务总额
 	Source        string `json:"source" gorm:"type:varchar(16);not null"` // manual / checkin / ai
 	RefId         int64  `json:"ref_id" gorm:"bigint"`                    // source=ai 时为申请 id，其余为 0
+	FundingId     int64  `json:"funding_id" gorm:"bigint"`                // 关联 funding 行 id，0 = 非市场投放
+	LenderId      int    `json:"lender_id"`                               // 放贷方 user id，0 = 平台/资金池
 	CreatedAt     int64  `json:"created_at" gorm:"bigint"`                // 秒级时间戳
 }
 

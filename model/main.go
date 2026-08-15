@@ -313,6 +313,8 @@ func migrateDB() error {
 		&TokenLoanRecord{},
 		&TokenLoanApplication{},
 		&TokenLoanApplicationMessage{},
+		&TokenLoanOffer{},
+		&TokenLoanFunding{},
 	)
 	if err != nil {
 		return err
