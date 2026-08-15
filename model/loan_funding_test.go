@@ -51,15 +51,68 @@ func TestSettleFunding(t *testing.T) {
 		require.Equal(t, int64(1000000), f.PrincipalRemaining) // 本金不动
 	})
 
-	t.Run("overdue full plan applies penalty multiplier", func(t *testing.T) {
+	t.Run("overdue full plan splits penalty at due day", func(t *testing.T) {
 		withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.OverduePenaltyMultiplier = 2.0 })
 		today := loanDay(time.Now())
 		f := mkTestFunding(LoanFundingPool, LoanRepayFull, 1000000, 1000000, today-3, 0.001)
-		f.DueDay = today - 1 // 昨天到期
+		f.DueDay = today - 1 // 昨天到期，到期前 2 天按 base 利率、之后 1 天按罚息利率
 
 		settleFunding(&f, mkTestAcc(0, 0, 0), time.Now())
 
-		require.Equal(t, int64(1006012), f.DebtQuota) // round(1000000 * 1.002^3)，2 倍罚息
+		// Round(Round(1000000 * 1.001^2) * 1.002^1) = Round(1002001 * 1.002) = 1004005
+		require.Equal(t, int64(1004005), f.DebtQuota)
+		require.Equal(t, today, f.LastSettledDay)
+	})
+
+	t.Run("mid-span due day splits base and penalty segments", func(t *testing.T) {
+		withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.OverduePenaltyMultiplier = 2.0 })
+		today := loanDay(time.Now())
+		f := mkTestFunding(LoanFundingPool, LoanRepayFull, 1000000, 1000000, today-5, 0.001)
+		f.DueDay = today - 2 // 区间中段的 due_day
+
+		settleFunding(&f, mkTestAcc(0, 0, 0), time.Now())
+
+		// Round(Round(1000000 * 1.001^3) * 1.002^2) = Round(1003003 * 1.004004) = 1007019
+		require.Equal(t, int64(1007019), f.DebtQuota)
+		require.Equal(t, today, f.LastSettledDay)
+	})
+
+	t.Run("whole span past due single penalty segment", func(t *testing.T) {
+		withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.OverduePenaltyMultiplier = 2.0 })
+		today := loanDay(time.Now())
+		f := mkTestFunding(LoanFundingPool, LoanRepayFull, 1000000, 1000000, today-3, 0.001)
+		f.DueDay = today - 6 // 整个未结算区间都在 due_day 之后
+
+		settleFunding(&f, mkTestAcc(0, 0, 0), time.Now())
+
+		require.Equal(t, int64(1006012), f.DebtQuota) // round(1000000 * 1.002^3)，整段罚息
+		require.Equal(t, today, f.LastSettledDay)
+	})
+
+	t.Run("not yet due single base segment", func(t *testing.T) {
+		withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.OverduePenaltyMultiplier = 2.0 })
+		today := loanDay(time.Now())
+		f := mkTestFunding(LoanFundingPool, LoanRepayFull, 1000000, 1000000, today-3, 0.001)
+		f.DueDay = today + 2 // 尚未到期
+
+		settleFunding(&f, mkTestAcc(0, 0, 0), time.Now())
+
+		require.Equal(t, int64(1003003), f.DebtQuota) // round(1000000 * 1.001^3)，不乘罚息
+		require.Equal(t, today, f.LastSettledDay)
+	})
+
+	t.Run("platform grace lift past due day no double penalty", func(t *testing.T) {
+		withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.OverduePenaltyMultiplier = 2.0 })
+		today := loanDay(time.Now())
+		acc := mkTestAcc(1000000, 1000000, today-5)
+		acc.InterestFreeUntil = today - 1 // 宽限把起算日上提到 due_day 之后
+		f := mkTestFunding(LoanFundingPlatform, LoanRepayFull, 1000000, 1000000, today-5, 0.001)
+		f.DueDay = today - 4
+
+		settleFunding(&f, acc, time.Now())
+
+		// base 上提到 today-1：seg1=0，仅宽限结束后的 1 天按罚息计息，宽限期不双重计息
+		require.Equal(t, int64(1002000), f.DebtQuota) // round(1000000 * 1.002^1)
 		require.Equal(t, today, f.LastSettledDay)
 	})
 

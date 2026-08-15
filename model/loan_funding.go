@@ -17,7 +17,9 @@ import (
 //     （宽限期内 days<=0 不计息，LastSettledDay 照常推进，防止宽限结束后一次性补算）
 //
 // 逾期纯计算（P0-1，不翻转状态、不写 PenaltyStartedDay——那是 Task 11 的事）：
-// loanDay(now) > f.DueDay 且 RepayPlan == full 时利率 ×= OverduePenaltyMultiplier；
+// loanDay(now) > f.DueDay 且 RepayPlan == full 时，罚息只作用于 due_day 之后的区间：
+// [base, due_day] 按 base 利率复利、[due_day, today] 按 ×OverduePenaltyMultiplier 罚息利率复利
+// （base 可能被 platform 宽限上提到 due_day 之后，此时整段均为罚息段，不会双重计息）；
 // no_penalty 逾期仍按 base 利率；interest_freeze/principal_only 债务恒不增长。
 // acc 仅为 platform 分支提供利率/宽限输入，P2P 分支可不传（nil 安全）。
 func settleFunding(f *TokenLoanFunding, acc *TokenLoanAccount, now time.Time) {
@@ -34,18 +36,34 @@ func settleFunding(f *TokenLoanFunding, acc *TokenLoanAccount, now time.Time) {
 		switch f.RepayPlan {
 		case LoanRepayFull:
 			if today > f.DueDay {
-				rate *= operation_setting.GetLoanSetting().OverduePenaltyMultiplier
+				// 分段复利：先按 base 利率计 [base, due_day)，再对结转后的
+				// DebtQuota 按罚息利率计 [due_day, today)。每段各做一次
+				// compoundRound（逐段取整符合既有整数 quota 取整风格）。
+				penaltyRate := rate * operation_setting.GetLoanSetting().OverduePenaltyMultiplier
+				// 外层已保证 today > base 且 today > DueDay，故 seg1 = DueDay - base
+				if seg1 := f.DueDay - base; seg1 > 0 {
+					f.DebtQuota = compoundRound(f.DebtQuota, rate, seg1)
+				}
+				if seg2 := today - max(base, f.DueDay); seg2 > 0 {
+					f.DebtQuota = compoundRound(f.DebtQuota, penaltyRate, seg2)
+				}
+			} else {
+				f.DebtQuota = compoundRound(f.DebtQuota, rate, days)
 			}
-			// math.Round 远离零取整到整数 quota；真值 >= principal 且 principal 为整数，
-			// 故 debt >= principal 不变式恒成立（镜像 settle()）
-			f.DebtQuota = int64(math.Round(float64(f.DebtQuota) * math.Pow(1+rate, float64(days))))
 		case LoanRepayNoPenalty:
 			// 逾期不乘罚息倍率，按 base 利率计息
-			f.DebtQuota = int64(math.Round(float64(f.DebtQuota) * math.Pow(1+rate, float64(days))))
+			f.DebtQuota = compoundRound(f.DebtQuota, rate, days)
 		default: // interest_freeze / principal_only：债务冻结不增长
 		}
 	}
 	f.LastSettledDay = today
+}
+
+// compoundRound 把 quota 按 rate 日复利 days 天并四舍五入到整数 quota。
+// math.Round 远离零取整；真值 >= principal 且 principal 为整数，
+// 故 debt >= principal 不变式恒成立（镜像 settle()）。
+func compoundRound(quota int64, rate float64, days int) int64 {
+	return int64(math.Round(float64(quota) * math.Pow(1+rate, float64(days))))
 }
 
 // ProjectFundingDebt 只读投影：返回 now 时刻该 funding 的债务总额，不修改 f、不落盘
