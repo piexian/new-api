@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
-import { HandCoins } from 'lucide-react'
+import { HandCoins, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -39,13 +39,17 @@ import {
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
 import { formatQuotaWithCurrency } from '@/lib/currency'
+import { formatPercent } from '@/lib/format'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { borrowLoan } from '../api'
-import type { LoanStatus } from '../types'
+import type { LoanStatus, MarketOffer } from '../types'
 
 interface BorrowFormProps {
   status?: LoanStatus
+  /** 市场浏览中选中的 order 挂单；选中后本次借款优先定向匹配该挂单 */
+  presetOrder?: MarketOffer | null
+  onClearOrder?: () => void
 }
 
 // schema 需要 t() 文案，在组件内构建
@@ -95,12 +99,15 @@ export function BorrowForm(props: BorrowFormProps) {
     }
     setSubmitting(true)
     try {
-      const res = await borrowLoan(values.amount)
+      const res = await borrowLoan(values.amount, props.presetOrder?.id)
       if (res.success && res.data) {
         toast.success(t('Borrow successful'))
         queryClient.setQueryData(['loan-status'], res.data)
         queryClient.invalidateQueries({ queryKey: ['loan-records'] })
+        queryClient.invalidateQueries({ queryKey: ['loan-market-fundings'] })
+        queryClient.invalidateQueries({ queryKey: ['loan-market-offers'] })
         form.reset()
+        props.onClearOrder?.()
         return
       }
       // Backend message is already toasted by the api interceptor
@@ -161,6 +168,40 @@ export function BorrowForm(props: BorrowFormProps) {
               <p className='text-muted-foreground text-xs'>
                 {t('Please agree to the loan terms before borrowing')}
               </p>
+            ) : null}
+            {props.presetOrder ? (
+              <div className='bg-muted/30 flex items-start justify-between gap-2 rounded-lg border p-3 text-xs'>
+                <div className='space-y-0.5'>
+                  <p className='text-muted-foreground'>
+                    {t('Borrowing from order offer #{{id}}', {
+                      id: props.presetOrder.id,
+                    })}
+                  </p>
+                  <p>
+                    {t('Fixed rate')}:{' '}
+                    {formatPercent(props.presetOrder.rate_fixed * 100)} ·{' '}
+                    {t('Available')}:{' '}
+                    {formatQuotaWithCurrency(
+                      props.presetOrder.amount_available
+                    )}
+                  </p>
+                  <p className='text-muted-foreground'>
+                    {t(
+                      'If the order cannot cover the full amount, the rest is covered by the platform.'
+                    )}
+                  </p>
+                </div>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon'
+                  className='h-6 w-6 shrink-0'
+                  aria-label={t('Clear order selection')}
+                  onClick={() => props.onClearOrder?.()}
+                >
+                  <X className='h-3.5 w-3.5' />
+                </Button>
+              </div>
             ) : null}
             <Button
               type='submit'

@@ -61,6 +61,16 @@ export interface LoanStatus {
   terms_text: string
   /** Early repayment fee rate applied to the principal part (0 = no fee) */
   repay_fee_rate: number
+  /** Current credit score (0 is a valid penalized value) */
+  credit_score: number
+  /** Whether the lending market is enabled */
+  market_enabled: boolean
+  /** Server-local day number the user is blacklisted until, 0 = not blacklisted */
+  blacklisted_until_day: number
+  /** Whether the user currently has any overdue funding */
+  has_overdue: boolean
+  /** Whether the user agreed to the lender disclaimer */
+  lender_disclaimer_agreed: boolean
 }
 
 /**
@@ -86,7 +96,7 @@ export interface LoanRecord {
  */
 export interface LoanApplication {
   id: number
-  topic: 'credit' | 'rate' | 'grace' | 'other'
+  topic: 'credit' | 'rate' | 'grace' | 'other' | 'appeal'
   status: 'open' | 'closed'
   rating: number
   rating_comment: string
@@ -121,6 +131,122 @@ export interface LoanOfficerRoundResult {
   closed: boolean
 }
 
-export const LOAN_TOPIC_KEYS = ['credit', 'rate', 'grace', 'other'] as const
+export const LOAN_TOPIC_KEYS = [
+  'credit',
+  'rate',
+  'grace',
+  'other',
+  'appeal',
+] as const
 
 export type LoanTopic = (typeof LOAN_TOPIC_KEYS)[number]
+
+// ============================================================================
+// Lending Market Type Definitions
+// ============================================================================
+
+/**
+ * 撮合模式：pool 资金池自动撮合 / ai AI 审核撮合 / order 订单式公开撮合
+ */
+export const LOAN_OFFER_MODE_KEYS = ['pool', 'ai', 'order'] as const
+export type LoanOfferMode = (typeof LOAN_OFFER_MODE_KEYS)[number]
+
+export const LOAN_OFFER_STATUS_KEYS = ['active', 'paused', 'closed'] as const
+export type LoanOfferStatus = (typeof LOAN_OFFER_STATUS_KEYS)[number]
+
+/**
+ * Lender's own offer. Money fields are int64 quota ($1 = quotaPerUnit);
+ * rate fields are daily rate fractions (0.001 = 0.1%/day);
+ * min_credit_score -50 = no limit.
+ */
+export interface LoanOffer {
+  id: number
+  mode: LoanOfferMode
+  status: LoanOfferStatus
+  amount_total: number
+  amount_available: number
+  rate_fixed: number
+  rate_min: number
+  rate_max: number
+  per_loan_cap: number
+  min_credit_score: number
+  total_lent: number
+  total_interest_earned: number
+  created_at: number
+}
+
+/**
+ * Anonymized order offer shown on the market browse list.
+ */
+export interface MarketOffer {
+  id: number
+  amount_available: number
+  rate_fixed: number
+  min_credit_score: number
+  lender_credit_score: number
+}
+
+export const LOAN_FUNDING_SOURCE_KEYS = [
+  'platform',
+  'pool',
+  'ai',
+  'order',
+] as const
+export type LoanFundingSource = (typeof LOAN_FUNDING_SOURCE_KEYS)[number]
+
+export const LOAN_FUNDING_STATUS_KEYS = [
+  'active',
+  'overdue',
+  'repaid',
+  'written_off',
+] as const
+export type LoanFundingStatus = (typeof LOAN_FUNDING_STATUS_KEYS)[number]
+
+export const LOAN_REPAY_PLAN_KEYS = [
+  'full',
+  'no_penalty',
+  'interest_freeze',
+  'principal_only',
+] as const
+export type LoanRepayPlan = (typeof LOAN_REPAY_PLAN_KEYS)[number]
+
+/**
+ * A lender-ledger funding entry. Money fields are int64 quota;
+ * `debt` is a projected amount for active/overdue rows.
+ */
+export interface LoanFunding {
+  id: number
+  loan_user_id: number
+  source_type: LoanFundingSource
+  offer_id: number
+  amount: number
+  principal_remaining: number
+  repaid_principal: number
+  debt: number
+  rate: number
+  repay_plan: LoanRepayPlan
+  status: LoanFundingStatus
+  due_day: number
+  created_at: number
+  borrower_credit_score: number
+}
+
+/** Payload for creating a loan market offer */
+export interface CreateLoanOfferPayload {
+  mode: LoanOfferMode
+  amount_usd: string
+  rate_fixed: string
+  rate_min: number
+  rate_max: number
+  per_loan_cap: number
+  min_credit_score: number
+}
+
+/** Overdue resolution actions available to the lender */
+export const LOAN_FUNDING_RESOLVE_ACTIONS = [
+  'extend',
+  'writeoff',
+  'perpetual',
+] as const
+export type LoanFundingResolveAction =
+  (typeof LOAN_FUNDING_RESOLVE_ACTIONS)[number]

@@ -114,6 +114,10 @@ export function LoanStatusCard(props: LoanStatusCardProps) {
           value={formatPercent(status.daily_rate * 100)}
         />
         <StatusItem
+          label={t('Credit Score')}
+          value={String(status.credit_score)}
+        />
+        <StatusItem
           label={t('Grace Period')}
           value={
             graceActive && graceUntil

@@ -20,12 +20,18 @@ import { api } from '@/lib/api'
 
 import type {
   ApiResponse,
+  CreateLoanOfferPayload,
   LoanApplication,
   LoanApplicationDetail,
+  LoanFunding,
+  LoanFundingResolveAction,
+  LoanOffer,
   LoanOfficerRoundResult,
   LoanRecord,
+  LoanRepayPlan,
   LoanStatus,
   LoanTopic,
+  MarketOffer,
   PageInfo,
 } from './types'
 
@@ -50,13 +56,19 @@ export async function agreeLoanTerms(): Promise<ApiResponse> {
 }
 
 /**
- * Borrow an amount in USD (string to preserve decimal precision).
+ * Borrow an amount in USD (string to preserve decimal precision),
+ * optionally targeting a specific market order offer. Pass the amount only;
+ * order_id 0 means no specific order.
  * Returns the refreshed loan status on success.
  */
 export async function borrowLoan(
-  amountUsd: string
+  amountUsd: string,
+  orderId?: number
 ): Promise<ApiResponse<LoanStatus>> {
-  const res = await api.post('/api/user/loan/borrow', { amount_usd: amountUsd })
+  const res = await api.post('/api/user/loan/borrow', {
+    amount_usd: amountUsd,
+    order_id: orderId ?? 0,
+  })
   return res.data
 }
 
@@ -149,5 +161,124 @@ export async function rateLoanApplication(
     rating,
     comment,
   })
+  return res.data
+}
+
+// ============================================================================
+// Lending Market APIs
+// ============================================================================
+
+/**
+ * Agree to the lender disclaimer (idempotent)
+ */
+export async function agreeLenderDisclaimer(): Promise<ApiResponse> {
+  const res = await api.post('/api/user/loan/market/disclaimer')
+  return res.data
+}
+
+/**
+ * Get the current user's own loan offers
+ */
+export async function getLoanMarketOffers(): Promise<
+  ApiResponse<{ offers: LoanOffer[] }>
+> {
+  const res = await api.get('/api/user/loan/market/offers')
+  return res.data
+}
+
+/**
+ * Create a loan offer. Returns the created offer on success.
+ */
+export async function createLoanMarketOffer(
+  payload: CreateLoanOfferPayload
+): Promise<ApiResponse<LoanOffer>> {
+  const res = await api.post('/api/user/loan/market/offers', payload)
+  return res.data
+}
+
+/**
+ * Pause an offer so it no longer participates in matching
+ */
+export async function pauseLoanMarketOffer(id: number): Promise<ApiResponse> {
+  const res = await api.post(`/api/user/loan/market/offers/${id}/pause`)
+  return res.data
+}
+
+/**
+ * Resume a paused offer
+ */
+export async function resumeLoanMarketOffer(id: number): Promise<ApiResponse> {
+  const res = await api.post(`/api/user/loan/market/offers/${id}/resume`)
+  return res.data
+}
+
+/**
+ * Close an offer (terminal state); idle quota is refunded to balance
+ */
+export async function closeLoanMarketOffer(id: number): Promise<ApiResponse> {
+  const res = await api.post(`/api/user/loan/market/offers/${id}/close`)
+  return res.data
+}
+
+/**
+ * Withdraw all idle quota of an offer back to the balance; offer keeps its
+ * current status. Returns the refunded quota amount.
+ */
+export async function withdrawLoanMarketOffer(
+  id: number
+): Promise<ApiResponse<{ refunded: number }>> {
+  const res = await api.post(`/api/user/loan/market/offers/${id}/withdraw`)
+  return res.data
+}
+
+/**
+ * Get the anonymized order-offer list for market browsing
+ */
+export async function getLoanMarketList(): Promise<
+  ApiResponse<{ offers: MarketOffer[] }>
+> {
+  const res = await api.get('/api/user/loan/market/list')
+  return res.data
+}
+
+/**
+ * Get the paginated lender funding ledger
+ */
+export async function getLoanMarketFundings(
+  page: number,
+  pageSize: number
+): Promise<ApiResponse<PageInfo<LoanFunding>>> {
+  const res = await api.get('/api/user/loan/market/fundings', {
+    params: { p: page, page_size: pageSize },
+  })
+  return res.data
+}
+
+/**
+ * Resolve an overdue funding (extend / writeoff / perpetual)
+ */
+export async function resolveLoanMarketFunding(
+  id: number,
+  action: LoanFundingResolveAction,
+  extendDays: number
+): Promise<ApiResponse> {
+  const res = await api.post(`/api/user/loan/market/fundings/${id}/resolve`, {
+    action,
+    extend_days: extendDays,
+  })
+  return res.data
+}
+
+/**
+ * Adjust the repay plan of a funding
+ */
+export async function setLoanMarketFundingRepayPlan(
+  id: number,
+  plan: LoanRepayPlan
+): Promise<ApiResponse> {
+  const res = await api.post(
+    `/api/user/loan/market/fundings/${id}/repay_plan`,
+    { plan }
+  )
   return res.data
 }

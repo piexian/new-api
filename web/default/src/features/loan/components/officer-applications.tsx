@@ -64,6 +64,7 @@ function useTopicLabel() {
     if (topic === 'credit') return t('Credit Limit Increase')
     if (topic === 'rate') return t('Interest Rate Reduction')
     if (topic === 'grace') return t('Grace Period Extension')
+    if (topic === 'appeal') return t('Appeal a Decision')
     return t('Other')
   }
 }
