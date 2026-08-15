@@ -415,6 +415,7 @@ export type BillingSettings = {
   'loan_setting.ai_max_rounds': number
   'loan_setting.ai_max_output': number
   'loan_setting.ai_prompt': string
+  'loan_setting.credit_tier_limits': string
   'loan_setting.terms_enabled': boolean
   'loan_setting.terms_text': string
 }

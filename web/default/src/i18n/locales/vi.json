@@ -4106,7 +4106,7 @@
     "Remove string prefix": "Xóa tiền tố chuỗi",
     "Remove string suffix": "Xóa hậu tố chuỗi",
     "Remove the target field": "Xóa trường đích",
-    "Remove tier": "Gỡ bậc",
+    "Remove tier": "Xóa bậc",
     "Removed": "Đã xóa",
     "Removed {{removed}} duplicate key(s). Before: {{before}}, After: {{after}}": "Đã xóa {{removed}} khóa trùng lặp. Trước: {{before}}, Sau: {{after}}",
     "Removed an OAuth binding for the user": "Đã gỡ một liên kết OAuth của người dùng",
@@ -6306,7 +6306,11 @@
     "Penalty charged when a borrower fully repays within the window; empty = no penalty": "Phí cố định tính khi người vay trả hết trong cửa sổ; để trống = không thu",
     "Please enter a valid non-negative penalty amount": "Vui lòng nhập số tiền phạt không âm hợp lệ",
     "Repay Result": "Kết quả trả nợ",
-    "Same day": "Cùng ngày"
+    "Same day": "Cùng ngày",
+    "Credit score tier limits": "Hạn mức theo bậc điểm tín dụng",
+    "Min score": "Điểm tối thiểu",
+    "Max total (USD)": "Tổng tối đa (USD)",
+    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Giới hạn tổng hạn mức AI có thể cấp theo bậc điểm tín dụng của người dùng; hạn mức bậc áp dụng cho tổng hạn mức được cấp, không phải từng khoản vay"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

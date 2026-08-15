@@ -122,6 +122,7 @@ const defaultBillingSettings: BillingSettings = {
   'loan_setting.ai_max_rounds': 10,
   'loan_setting.ai_max_output': 2048,
   'loan_setting.ai_prompt': '',
+  'loan_setting.credit_tier_limits': '[]',
   'loan_setting.terms_enabled': true,
   'loan_setting.terms_text': '',
 }

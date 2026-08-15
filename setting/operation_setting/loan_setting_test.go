@@ -28,6 +28,58 @@ func TestLoanSettingDefaults(t *testing.T) {
 	assert.Equal(t, 0, s.MinRegisterDays)
 	assert.Equal(t, int64(0), s.MaxPerBorrow)
 	assert.False(t, s.AiEnabled)
+	// 信用分档位提额上限默认值：[-50,$2] [0,$5] [60,$10] [80,$20]（QuotaPerUnit=500000）
+	assert.Equal(t, []CreditTierLimit{
+		{MinScore: -50, MaxTotal: 1000000},
+		{MinScore: 0, MaxTotal: 2500000},
+		{MinScore: 60, MaxTotal: 5000000},
+		{MinScore: 80, MaxTotal: 10000000},
+	}, s.CreditTierLimits)
+}
+
+func TestGetCreditTierMaxTotal(t *testing.T) {
+	s := &LoanSetting{CreditTierLimits: []CreditTierLimit{
+		{MinScore: -50, MaxTotal: 1000000}, // $2
+		{MinScore: 0, MaxTotal: 2500000},   // $5
+		{MinScore: 60, MaxTotal: 5000000},  // $10
+		{MinScore: 80, MaxTotal: 10000000}, // $20
+	}}
+	cases := []struct {
+		score int
+		want  int64
+	}{
+		{-50, 1000000},  // 命中 -50 档（最低档）
+		{-1, 1000000},   // 未到 0 档，仍取 -50 档
+		{0, 2500000},    // 0 档
+		{59, 2500000},   // 未到 60 档
+		{60, 5000000},   // 60 档
+		{80, 10000000},  // 80 档
+		{100, 10000000}, // 超过最高档，取最高档
+	}
+	for _, tc := range cases {
+		assert.Equalf(t, tc.want, GetCreditTierMaxTotal(s, tc.score), "score %d", tc.score)
+	}
+}
+
+func TestGetCreditTierMaxTotalEmptyFallsBackToAiMaxLimit(t *testing.T) {
+	s := &LoanSetting{AiMaxLimit: 10000000}
+	assert.Equal(t, int64(10000000), GetCreditTierMaxTotal(s, 0))
+	assert.Equal(t, int64(10000000), GetCreditTierMaxTotal(s, 100))
+	// nil 配置同样回退全局默认 AiMaxLimit（历史行为）
+	assert.Equal(t, GetLoanSetting().AiMaxLimit, GetCreditTierMaxTotal(nil, 0))
+}
+
+func TestGetCreditTierMaxTotalUnsortedAndBelowAll(t *testing.T) {
+	// 未排序配置：先按 MinScore 升序再查档
+	s := &LoanSetting{CreditTierLimits: []CreditTierLimit{
+		{MinScore: 60, MaxTotal: 5000000},
+		{MinScore: 0, MaxTotal: 2500000},
+	}}
+	// score 低于全部档位 → 升序后的第一档（min_score=0 档）
+	assert.Equal(t, int64(2500000), GetCreditTierMaxTotal(s, -10))
+	assert.Equal(t, int64(5000000), GetCreditTierMaxTotal(s, 70))
+	// 原配置顺序不被改动（排序作用于副本）
+	assert.Equal(t, 60, s.CreditTierLimits[0].MinScore)
 }
 
 func TestLoanAiPromptMatchesSpec53(t *testing.T) {

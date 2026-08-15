@@ -225,6 +225,7 @@ const BILLING_SECTIONS = [
           aiMaxRounds: settings['loan_setting.ai_max_rounds'],
           aiMaxOutput: settings['loan_setting.ai_max_output'],
           aiPrompt: settings['loan_setting.ai_prompt'],
+          creditTierLimits: settings['loan_setting.credit_tier_limits'],
           termsEnabled: settings['loan_setting.terms_enabled'],
           termsText: settings['loan_setting.terms_text'],
         }}

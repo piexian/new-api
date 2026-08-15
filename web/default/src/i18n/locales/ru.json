@@ -6306,7 +6306,11 @@
     "Penalty charged when a borrower fully repays within the window; empty = no penalty": "Фиксированный штраф при полном погашении займа в пределах окна; пусто = не взимается",
     "Please enter a valid non-negative penalty amount": "Введите допустимую неотрицательную сумму штрафа",
     "Repay Result": "Результат погашения",
-    "Same day": "Тот же день"
+    "Same day": "Тот же день",
+    "Credit score tier limits": "Лимиты по уровню кредитного скоринга",
+    "Min score": "Мин. скоринг",
+    "Max total (USD)": "Макс. сумма (USD)",
+    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Ограничивает общий лимит, который ИИ может предоставить, по уровню кредитного скоринга пользователя; лимит уровня действует на общий предоставленный лимит, а не на отдельный заём"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

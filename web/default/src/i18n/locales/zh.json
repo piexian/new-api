@@ -227,7 +227,7 @@
     "Add split": "添加分流",
     "Add subscription": "新增订阅",
     "Add tags...": "添加标签...",
-    "Add tier": "新增档位",
+    "Add tier": "添加档位",
     "Add time condition": "新增时间条件",
     "Add time rule group": "新增时间规则组",
     "Add Uptime Kuma Group": "添加 Uptime Kuma 分组",
@@ -6306,7 +6306,11 @@
     "Penalty charged when a borrower fully repays within the window; empty = no penalty": "借款人于窗口内全额还清时收取的固定惩罚额度；留空 = 不收取",
     "Please enter a valid non-negative penalty amount": "请输入有效的非负惩罚额度",
     "Repay Result": "还款结果",
-    "Same day": "仅当天"
+    "Same day": "仅当天",
+    "Credit score tier limits": "信用分档位提额上限",
+    "Min score": "最低信用分",
+    "Max total (USD)": "档位上限（美元）",
+    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "按用户信用分档位限制 AI 可批准的累计总额上限；档位上限作用于授予的总额而非单次借款"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

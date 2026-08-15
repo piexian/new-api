@@ -34,6 +34,7 @@ func withLoanOfficerSetting(t *testing.T, mutate func(s *operation_setting.LoanS
 	setting.AiMaxRounds = 10
 	setting.AiMaxOutput = 2048
 	setting.AiPrompt = "硬边界：额度上限 {{ai_max_limit}}，最低日利率 {{ai_min_rate}}，最长免息 {{ai_max_grace_days}} 天。"
+	setting.CreditTierLimits = nil // 默认不启用档位钳制（回退 AiMaxLimit），档位用例自行配置
 	if mutate != nil {
 		mutate(setting)
 	}
@@ -284,4 +285,88 @@ func TestRunLoanOfficerRoundClosedApplicationRejected(t *testing.T) {
 
 	_, _, err := RunLoanOfficerRound(user.Id, &closedApp, "你好")
 	require.ErrorIs(t, err, model.ErrLoanApplicationNotOpen)
+}
+
+// withLoanCreditAccount 为用户创建带指定信用分的贷款账户（executeLoanDecision 经
+// GetCreditScore 读取；账户不存在时信用分回退 CreditInitial）
+func withLoanCreditAccount(t *testing.T, userId int, creditScore int) {
+	t.Helper()
+	now := time.Now().Unix()
+	require.NoError(t, model.DB.Create(&model.TokenLoanAccount{
+		UserId:      userId,
+		CreditScore: creditScore,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}).Error)
+}
+
+// defaultCreditTiers 默认四档：[-50,$2] [0,$5] [60,$10] [80,$20]（QuotaPerUnit=500000）
+var defaultCreditTiers = []operation_setting.CreditTierLimit{
+	{MinScore: -50, MaxTotal: 1000000},
+	{MinScore: 0, MaxTotal: 2500000},
+	{MinScore: 60, MaxTotal: 5000000},
+	{MinScore: 80, MaxTotal: 10000000},
+}
+
+// TestExecuteLoanDecisionClampedByCreditTier spec 测试③：信用分 50 的用户申请 $20，
+// ai_max_limit 为 $20 不受限，但档位只允许 $5 → 落库总额上限为 2500000 quota
+func TestExecuteLoanDecisionClampedByCreditTier(t *testing.T) {
+	withLoanOfficerSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CreditTierLimits = defaultCreditTiers
+	})
+	var decisionJSON string
+	var capturedMaxTotal int64
+	oldApply := applyLoanOfficerDecision
+	applyLoanOfficerDecision = func(appId int, json string, customMaxTotal int64, customDailyRate float64, interestFreeDays int) error {
+		decisionJSON = json
+		capturedMaxTotal = customMaxTotal
+		return nil
+	}
+	t.Cleanup(func() { applyLoanOfficerDecision = oldApply })
+
+	user, app := setupLoanOfficerApp(t)
+	withLoanCreditAccount(t, user.Id, 50) // 50 分命中 [0,$5] 档
+
+	closed, notice := executeLoanDecision(app, operation_setting.GetLoanSetting(), "已批准", &LoanDecision{CreditLimit: 20, DailyRate: 0.0008, InterestFreeDays: 7})
+	require.True(t, closed)
+	assert.Equal(t, "", notice)
+	assert.Equal(t, int64(2500000), capturedMaxTotal)    // AI 想给 $20，档位只允许 $5
+	assert.Contains(t, decisionJSON, `"credit_limit":5`) // 决定 JSON 记录钳制后的值
+}
+
+// TestExecuteLoanDecisionHighScoreGetsHigherCap spec 测试④：信用分 90 的用户申请 $20，
+// 命中 [80,$20] 档，档位不产生额外收窄（仍受 ai_max_limit 约束）
+func TestExecuteLoanDecisionHighScoreGetsHigherCap(t *testing.T) {
+	withLoanOfficerSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CreditTierLimits = defaultCreditTiers
+	})
+	var capturedMaxTotal int64
+	oldApply := applyLoanOfficerDecision
+	applyLoanOfficerDecision = func(appId int, json string, customMaxTotal int64, customDailyRate float64, interestFreeDays int) error {
+		capturedMaxTotal = customMaxTotal
+		return nil
+	}
+	t.Cleanup(func() { applyLoanOfficerDecision = oldApply })
+
+	user, app := setupLoanOfficerApp(t)
+	withLoanCreditAccount(t, user.Id, 90) // 90 分命中 [80,$20] 档
+
+	closed, notice := executeLoanDecision(app, operation_setting.GetLoanSetting(), "已批准", &LoanDecision{CreditLimit: 20, DailyRate: 0.0008, InterestFreeDays: 7})
+	require.True(t, closed)
+	assert.Equal(t, "", notice)
+	assert.Equal(t, int64(10000000), capturedMaxTotal) // 高信用分用户拿到 $20
+}
+
+// TestLoanOfficerProfileIncludesCreditTier spec 点 4：system prompt 的用户档案需包含
+// 用户信用分与分级提额上限，让 AI 知道真实边界
+func TestLoanOfficerProfileIncludesCreditTier(t *testing.T) {
+	withLoanOfficerSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CreditTierLimits = []operation_setting.CreditTierLimit{{MinScore: 0, MaxTotal: 2500000}}
+	})
+	user, _ := setupLoanOfficerApp(t)
+	withLoanCreditAccount(t, user.Id, 50)
+
+	profile := buildLoanOfficerProfile(user.Id)
+	assert.Contains(t, profile, "信用分：50")
+	assert.Contains(t, profile, "分级提额上限：$5.00")
 }

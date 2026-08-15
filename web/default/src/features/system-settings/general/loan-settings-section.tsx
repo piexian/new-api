@@ -69,6 +69,13 @@ function buildSchema(t: (key: string) => string) {
             .positive(t('Context window must be greater than 0')),
         })
       ),
+      creditTiers: z.array(
+        z.object({
+          // 允许负信用分（信用分下限为 -50）
+          minScore: z.coerce.number().int(),
+          maxTotalUsd: z.coerce.number().min(0),
+        })
+      ),
       aiMaxLimitUsd: z.coerce.number().min(0),
       aiMinRate: z.coerce.number().min(0),
       aiMaxGraceDays: z.coerce.number().int().min(0),
@@ -102,6 +109,8 @@ type Values = z.infer<ReturnType<typeof buildSchema>>
 
 type AiModelRow = Values['aiModels'][number]
 
+type CreditTierRow = Values['creditTiers'][number]
+
 export type LoanSettingsDefaults = {
   enabled: boolean
   maxTotal: number
@@ -120,6 +129,7 @@ export type LoanSettingsDefaults = {
   aiMaxRounds: number
   aiMaxOutput: number
   aiPrompt: string
+  creditTierLimits: string
   termsEnabled: boolean
   termsText: string
 }
@@ -154,6 +164,43 @@ function serializeAiModels(rows: AiModelRow[]): string {
   return JSON.stringify(normalized)
 }
 
+// credit_tier_limits 后端以 JSON 字符串存储（min_score 整数、max_total 为 quota），
+// 解析失败时回退为空列表；max_total 换算为 USD 供编辑
+function parseCreditTiers(raw: string, quotaPerUnit: number): CreditTierRow[] {
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter(
+        (item): item is { min_score: number; max_total: number } =>
+          !!item && typeof item === 'object' && 'min_score' in item
+      )
+      .map((item) => ({
+        minScore: Number(item.min_score) || 0,
+        maxTotalUsd: (Number(item.max_total) || 0) / quotaPerUnit,
+      }))
+  } catch {
+    return []
+  }
+}
+
+// 序列化时过滤掉 max_total 无效的行，min_score 取整、max_total 由 USD 换算回 quota
+function serializeCreditTiers(
+  rows: CreditTierRow[],
+  quotaPerUnit: number
+): string {
+  const normalized = rows
+    .filter(
+      (row) =>
+        Number.isFinite(Number(row.maxTotalUsd)) && Number(row.maxTotalUsd) >= 0
+    )
+    .map((row) => ({
+      min_score: Math.round(Number(row.minScore) || 0),
+      max_total: Math.round((Number(row.maxTotalUsd) || 0) * quotaPerUnit),
+    }))
+  return JSON.stringify(normalized)
+}
+
 export function LoanSettingsSection(props: {
   defaultValues: LoanSettingsDefaults
 }) {
@@ -175,6 +222,7 @@ export function LoanSettingsSection(props: {
       checkinRepayEnabled: defaults.checkinRepayEnabled,
       aiEnabled: defaults.aiEnabled,
       aiModels: parseAiModels(defaults.aiModels),
+      creditTiers: parseCreditTiers(defaults.creditTierLimits, quotaPerUnit),
       aiMaxLimitUsd: defaults.aiMaxLimit / quotaPerUnit,
       aiMinRate: defaults.aiMinRate,
       aiMaxGraceDays: defaults.aiMaxGraceDays,
@@ -204,6 +252,11 @@ export function LoanSettingsSection(props: {
   const aiModelFields = useFieldArray({
     control: form.control,
     name: 'aiModels',
+  })
+
+  const creditTierFields = useFieldArray({
+    control: form.control,
+    name: 'creditTiers',
   })
 
   const { isDirty, isSubmitting } = form.formState
@@ -279,6 +332,20 @@ export function LoanSettingsSection(props: {
     const aiModels = serializeAiModels(values.aiModels)
     if (aiModels !== serializeAiModels(parseAiModels(defaults.aiModels))) {
       updates.push({ key: 'loan_setting.ai_models', value: aiModels })
+    }
+
+    const creditTiers = serializeCreditTiers(values.creditTiers, quotaPerUnit)
+    if (
+      creditTiers !==
+      serializeCreditTiers(
+        parseCreditTiers(defaults.creditTierLimits, quotaPerUnit),
+        quotaPerUnit
+      )
+    ) {
+      updates.push({
+        key: 'loan_setting.credit_tier_limits',
+        value: creditTiers,
+      })
     }
 
     const aiMaxLimit = toQuota(values.aiMaxLimitUsd)
@@ -494,7 +561,8 @@ export function LoanSettingsSection(props: {
                 <FormField
                   control={form.control}
                   name='minRegisterDays'
-                  render={({ field }) => (                    <FormItem>
+                  render={({ field }) => (
+                    <FormItem>
                       <FormLabel>{t('Minimum registration days')}</FormLabel>
                       <FormControl>
                         <Input
@@ -811,6 +879,80 @@ export function LoanSettingsSection(props: {
                       )}
                     />
                   </div>
+
+                  <FormItem>
+                    <FormLabel>{t('Credit score tier limits')}</FormLabel>
+                    <div className='grid gap-2'>
+                      {creditTierFields.fields.map((item, index) => (
+                        <div key={item.id} className='flex items-start gap-2'>
+                          <FormField
+                            control={form.control}
+                            name={`creditTiers.${index}.minScore`}
+                            render={({ field }) => (
+                              <FormItem className='w-36'>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    placeholder={t('Min score')}
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`creditTiers.${index}.maxTotalUsd`}
+                            render={({ field }) => (
+                              <FormItem className='flex-1'>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    min={0}
+                                    step='any'
+                                    placeholder={t('Max total (USD)')}
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='icon'
+                            onClick={() => creditTierFields.remove(index)}
+                            aria-label={t('Remove tier')}
+                          >
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      ))}
+                      <div>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={() =>
+                            creditTierFields.append({
+                              minScore: 0,
+                              maxTotalUsd: 0,
+                            })
+                          }
+                        >
+                          <Plus className='h-4 w-4' />
+                          {t('Add tier')}
+                        </Button>
+                      </div>
+                    </div>
+                    <FormDescription>
+                      {t(
+                        'Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow'
+                      )}
+                    </FormDescription>
+                  </FormItem>
 
                   <FormField
                     control={form.control}

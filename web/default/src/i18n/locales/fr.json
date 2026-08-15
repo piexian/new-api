@@ -6306,7 +6306,11 @@
     "Penalty charged when a borrower fully repays within the window; empty = no penalty": "Pénalité fixe facturée lorsqu'un emprunteur rembourse intégralement dans la fenêtre ; vide = aucune",
     "Please enter a valid non-negative penalty amount": "Veuillez saisir un montant de pénalité non négatif valide",
     "Repay Result": "Résultat du remboursement",
-    "Same day": "Même jour"
+    "Same day": "Même jour",
+    "Credit score tier limits": "Plafonds par palier de score de crédit",
+    "Min score": "Score minimal",
+    "Max total (USD)": "Total max (USD)",
+    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Plafonne le crédit total accordé par l'IA selon le palier de score de crédit de l'utilisateur ; le plafond du palier s'applique au total accordé, pas à un emprunt isolé"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

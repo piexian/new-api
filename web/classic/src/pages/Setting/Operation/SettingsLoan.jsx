@@ -57,6 +57,26 @@ function parseAiModels(raw) {
   }
 }
 
+// credit_tier_limits 后端以 JSON 字符串存储（min_score 整数、max_total 为 quota），
+// 解析失败时回退为空列表；max_total 换算为 USD 供编辑（quotaPerUnit 缺失时置 0）
+function parseCreditTiers(raw, quotaPerUnit) {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => item && typeof item === 'object' && 'min_score' in item)
+      .map((item) => ({
+        min_score: Number(item.min_score) || 0,
+        max_total_usd:
+          quotaPerUnit !== null
+            ? (Number(item.max_total) || 0) / quotaPerUnit
+            : 0,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export default function SettingsLoan(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
@@ -80,6 +100,7 @@ export default function SettingsLoan(props) {
     'loan_setting.ai_max_rounds': '10',
     'loan_setting.ai_max_output': '2048',
     'loan_setting.ai_prompt': '',
+    'loan_setting.credit_tier_limits': '[]',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -90,6 +111,7 @@ export default function SettingsLoan(props) {
     ai_max_limit: 0,
   });
   const [aiModelRows, setAiModelRows] = useState([]);
+  const [creditTierRows, setCreditTierRows] = useState([]);
 
   // quota_per_unit 取自 localStorage，可能缺失；缺失时禁用 USD 输入并提示，
   // 避免按错误汇率换算出错误 quota（选择禁用换算输入，而非回退为 quota 直填）
@@ -133,6 +155,37 @@ export default function SettingsLoan(props) {
       i === index ? { ...row, [field]: value } : row,
     );
     syncAiModelRows(rows);
+  }
+
+  // 序列化时过滤 max_total 无效的行；min_score 取整，max_total 由 USD 换算回 quota；
+  // 与 default 主题行为一致
+  function syncCreditTierRows(rows) {
+    setCreditTierRows(rows);
+    setInputs((inputs) => ({
+      ...inputs,
+      'loan_setting.credit_tier_limits': JSON.stringify(
+        rows
+          .filter(
+            (row) =>
+              Number.isFinite(Number(row.max_total_usd)) &&
+              Number(row.max_total_usd) >= 0,
+          )
+          .map((row) => ({
+            min_score: Math.round(Number(row.min_score)) || 0,
+            max_total:
+              quotaPerUnit !== null
+                ? Math.round((Number(row.max_total_usd) || 0) * quotaPerUnit)
+                : 0,
+          })),
+      ),
+    }));
+  }
+
+  function handleCreditTierChange(index, field, value) {
+    const rows = creditTierRows.map((row, i) =>
+      i === index ? { ...row, [field]: value } : row,
+    );
+    syncCreditTierRows(rows);
   }
 
   function renderUsdInput(name, description) {
@@ -238,6 +291,12 @@ export default function SettingsLoan(props) {
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);
     setAiModelRows(parseAiModels(currentInputs['loan_setting.ai_models']));
+    setCreditTierRows(
+      parseCreditTiers(
+        currentInputs['loan_setting.credit_tier_limits'],
+        quotaPerUnit,
+      ),
+    );
     if (quotaPerUnit !== null) {
       const nextUsd = {};
       USD_QUOTA_FIELDS.forEach((name) => {
@@ -551,6 +610,79 @@ export default function SettingsLoan(props) {
                     precision={0}
                     extraText={t('AI 信贷员单次回复的最大输出 tokens')}
                   />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={24}>
+                  <Typography.Text strong>
+                    {t('信用分档位提额上限')}
+                  </Typography.Text>
+                  <div style={{ marginTop: 8 }}>
+                    {creditTierRows.map((row, index) => (
+                      <div
+                        key={index}
+                        style={{
+                          display: 'flex',
+                          gap: 8,
+                          marginBottom: 8,
+                          alignItems: 'center',
+                        }}
+                      >
+                        <InputNumber
+                          value={row.min_score}
+                          placeholder={t('最低信用分')}
+                          precision={0}
+                          style={{ width: 140 }}
+                          onChange={(value) =>
+                            handleCreditTierChange(index, 'min_score', value)
+                          }
+                        />
+                        <InputNumber
+                          value={row.max_total_usd}
+                          placeholder={t('档位上限（美元）')}
+                          min={0}
+                          step='any'
+                          style={{ flex: 1 }}
+                          disabled={quotaPerUnit === null}
+                          onChange={(value) =>
+                            handleCreditTierChange(
+                              index,
+                              'max_total_usd',
+                              value,
+                            )
+                          }
+                        />
+                        <Button
+                          type='danger'
+                          theme='borderless'
+                          icon={<IconDelete />}
+                          onClick={() =>
+                            syncCreditTierRows(
+                              creditTierRows.filter((_, i) => i !== index),
+                            )
+                          }
+                        />
+                      </div>
+                    ))}
+                    <Button
+                      icon={<IconPlus />}
+                      onClick={() =>
+                        syncCreditTierRows([
+                          ...creditTierRows,
+                          { min_score: 0, max_total_usd: 0 },
+                        ])
+                      }
+                    >
+                      {t('添加档位')}
+                    </Button>
+                    <div style={{ marginTop: 4 }}>
+                      <Typography.Text type='tertiary' size='small'>
+                        {t(
+                          '按用户信用分档位限制 AI 可批准的累计总额上限，档位上限作用于授予的总额而非单次借款',
+                        )}
+                      </Typography.Text>
+                    </div>
+                  </div>
                 </Col>
               </Row>
               <Row gutter={16}>

@@ -6306,7 +6306,11 @@
     "Penalty charged when a borrower fully repays within the window; empty = no penalty": "Penalty charged when a borrower fully repays within the window; empty = no penalty",
     "Please enter a valid non-negative penalty amount": "Please enter a valid non-negative penalty amount",
     "Repay Result": "Repay Result",
-    "Same day": "Same day"
+    "Same day": "Same day",
+    "Credit score tier limits": "Credit score tier limits",
+    "Min score": "Min score",
+    "Max total (USD)": "Max total (USD)",
+    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow"
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

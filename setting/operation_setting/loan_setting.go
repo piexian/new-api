@@ -2,6 +2,7 @@ package operation_setting
 
 import (
 	"errors"
+	"sort"
 
 	"github.com/QuantumNous/new-api/setting/config"
 )
@@ -10,6 +11,12 @@ import (
 type AiModelConfig struct {
 	Model         string `json:"model"`          // 模型名
 	ContextWindow int    `json:"context_window"` // 上下文窗口大小（tokens）
+}
+
+// CreditTierLimit 信用分档位：信用分 >= MinScore 的用户，AI 提额总上限为 MaxTotal（quota）
+type CreditTierLimit struct {
+	MinScore int   `json:"min_score"` // 信用分下限（含）
+	MaxTotal int64 `json:"max_total"` // 该档位 AI 可批准的额度总上限（quota）
 }
 
 // LoanSetting 词元贷功能配置
@@ -31,6 +38,8 @@ type LoanSetting struct {
 	AiMaxRounds             int             `json:"ai_max_rounds"`              // 单次申请最大对话轮数
 	AiMaxOutput             int             `json:"ai_max_output"`              // AI 单次回复最大输出 tokens
 	AiPrompt                string          `json:"ai_prompt"`                  // AI 业务员 system prompt 模板
+
+	CreditTierLimits []CreditTierLimit `json:"credit_tier_limits"` // 按信用分档位限制 AI 提额总上限（quota；空 = 跟随 AiMaxLimit）
 
 	TermsEnabled bool   `json:"terms_enabled"` // 借款前是否要求确认条款
 	TermsText    string `json:"terms_text"`    // 条款文本
@@ -93,9 +102,16 @@ var loanSetting = LoanSetting{
 	AiMaxRounds:             10,       // 默认单次申请最多 10 轮对话
 	AiMaxOutput:             2048,     // 默认单次回复最大 2048 tokens
 	AiPrompt:                defaultLoanAiPrompt,
-	TermsEnabled:            true, // 默认开启条款确认
-	TermsText:               "本人确认已年满 18 周岁，自愿参与词元贷玩法，理解借款按日复利计息、签到自动还款的规则",
-	RepayFeeRate:            0.0001, // 默认提前还款手续费率 0.01%
+	// 信用分档位提额总上限（quota）：[-50,$2] [0,$5] [60,$10] [80,$20]（QuotaPerUnit=500000）
+	CreditTierLimits: []CreditTierLimit{
+		{MinScore: -50, MaxTotal: 1000000},
+		{MinScore: 0, MaxTotal: 2500000},
+		{MinScore: 60, MaxTotal: 5000000},
+		{MinScore: 80, MaxTotal: 10000000},
+	},
+	TermsEnabled: true, // 默认开启条款确认
+	TermsText:    "本人确认已年满 18 周岁，自愿参与词元贷玩法，理解借款按日复利计息、签到自动还款的规则",
+	RepayFeeRate: 0.0001, // 默认提前还款手续费率 0.01%
 
 	MarketEnabled:            false,  // 默认关闭放贷市场
 	LenderMinAmount:          50000,  // 最小入池 50000 quota (0.10 USD @ QuotaPerUnit=500000)
@@ -122,6 +138,30 @@ func init() {
 // GetLoanSetting 获取词元贷配置
 func GetLoanSetting() *LoanSetting {
 	return &loanSetting
+}
+
+// GetCreditTierMaxTotal 按用户信用分查 AI 提额档位总上限（quota）。
+// 档位按 MinScore 升序排序后，取最后一个 min_score <= score 的档位；
+// score 低于全部档位时返回第一档；未配置档位（或 s 为 nil）时回退 s.AiMaxLimit（历史行为）。
+// 档位上限作用于 AI 授予的累计总额上限（CustomMaxTotal），而非单次借款。
+func GetCreditTierMaxTotal(s *LoanSetting, score int) int64 {
+	if s == nil {
+		return GetLoanSetting().AiMaxLimit
+	}
+	if len(s.CreditTierLimits) == 0 {
+		return s.AiMaxLimit
+	}
+	tiers := make([]CreditTierLimit, len(s.CreditTierLimits))
+	copy(tiers, s.CreditTierLimits)
+	sort.Slice(tiers, func(i, j int) bool { return tiers[i].MinScore < tiers[j].MinScore })
+	maxTotal := tiers[0].MaxTotal // score 低于全部档位时取第一档
+	for _, tier := range tiers {
+		if score < tier.MinScore {
+			break
+		}
+		maxTotal = tier.MaxTotal
+	}
+	return maxTotal
 }
 
 // ValidateLoanMarketSetting 校验放贷市场配置的跨字段约束。
