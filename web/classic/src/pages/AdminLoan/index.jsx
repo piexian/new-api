@@ -283,6 +283,7 @@ const LoanAccountsTab = () => {
         loading={loading}
         empty={t('暂无数据')}
         scroll={{ x: 'max-content' }}
+        pagination={false}
       />
       <div className='mt-4'>{pagination}</div>
     </Card>
@@ -413,6 +414,7 @@ const LoanRecordsTab = () => {
         loading={loading}
         empty={t('暂无数据')}
         scroll={{ x: 'max-content' }}
+        pagination={false}
       />
       <div className='mt-4'>{pagination}</div>
     </Card>
@@ -547,6 +549,7 @@ const LoanApplicationsTab = () => {
         loading={loading}
         empty={t('暂无数据')}
         scroll={{ x: 'max-content' }}
+        pagination={false}
       />
       <div className='mt-4'>{pagination}</div>
     </Card>
