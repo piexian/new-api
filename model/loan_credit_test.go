@@ -177,7 +177,7 @@ func TestCreditScoreMultiFundingEventScoresOnce(t *testing.T) {
 
 	acc := createCreditAccount(t, borrower.Id, 50)
 	// 一次还款覆盖整事件（债务=本金无息，全额结清两条 funding）
-	info, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f1, *f2}, int64(common.QuotaPerUnit*2), now)
+	info, _, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f1, *f2}, int64(common.QuotaPerUnit*2), now)
 	require.NoError(t, err)
 	require.Zero(t, info.DebtAfter)
 	require.Equal(t, 55, acc.CreditScore, "事件级加分只结算一次（+5 而非 +10）")

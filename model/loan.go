@@ -260,6 +260,7 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 	now := time.Now()
 	var acc *TokenLoanAccount
 	var newFundings []TokenLoanFunding
+	var flipped []TokenLoanFunding // 本次新翻转的逾期 funding（Task 15 官方处置派发）
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		// 事务内读用户当前值：状态、注册天数与余额 int32 上界校验
 		var user User
@@ -309,8 +310,9 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 
 		// 逾期状态机（Task 11）：今天过期的 active funding 在此翻转为 overdue 并落盘，
 		// 使闸门能看到"今天刚过期"的 funding，杜绝借新还旧。幂等条件更新；拒绝路径
-		// 整体回滚不落痕，下次写路径再翻。新翻转列表供 Task 12/15 消费，此处忽略。
-		if _, err := flipOverdueFundingsTx(tx, userId, fundings, now); err != nil {
+		// 整体回滚不落痕，下次写路径再翻。新翻转列表供 Task 12/15 消费。
+		flipped, err = flipOverdueFundingsTx(tx, userId, fundings, now)
+		if err != nil {
 			return err
 		}
 
@@ -408,6 +410,9 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 	go func() {
 		_ = cacheIncrUserQuota(userId, int64(amount))
 	}()
+	// 本次新翻转的 platform 逾期 funding 异步派发官方处置（Task 15，提交后派发保证
+	// overdue 状态已持久化；P2P 在 flip 结果里被过滤，全 P2P 时 no-op）
+	dispatchPlatformOverdueAsync(flipped)
 	common.ResetQuotaNotificationSendLocks(userId, "wallet", 0)
 	return acc, newFundings, nil
 }
@@ -557,6 +562,7 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 	var acc *TokenLoanAccount
 	var info *LoanRepayInfo
 	var credits []LenderCredit
+	var flipped []TokenLoanFunding // 本次新翻转的逾期 funding（Task 15 官方处置派发）
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var user User
 		if err := tx.Select("id", "quota").Where("id = ?", userId).First(&user).Error; err != nil {
@@ -624,7 +630,7 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 		// pro-rata 分配（结算幂等，不会二次计息；变更的 funding 行在此落盘）。
 		// info 必非 nil：repay > 0 且 Σdebt = acc.DebtQuota > 0
 		var allocs []RepayAllocation
-		info, allocs, err = distributeRepayment(tx, acc, fundings, repay, now)
+		info, allocs, flipped, err = distributeRepayment(tx, acc, fundings, repay, now)
 		if err != nil {
 			return err
 		}
@@ -663,6 +669,8 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 			_ = cacheIncrUserQuota(c.UserId, c.Amount)
 		}
 	}()
+	// 本次新翻转的 platform 逾期 funding 异步派发官方处置（Task 15，提交后派发）
+	dispatchPlatformOverdueAsync(flipped)
 	return acc, info, nil
 }
 

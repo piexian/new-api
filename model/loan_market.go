@@ -798,3 +798,93 @@ func setFundingRepayPlanTx(tx *gorm.DB, f *TokenLoanFunding, plan string, now ti
 	common.SysLog(fmt.Sprintf("loan repay plan: funding %d repay_plan -> %s", f.Id, plan))
 	return nil
 }
+
+// ===== Task 15: 官方逾期处置（AI 审批员，spec §9） =====
+
+// ResolvePlatformOverdueByOfficer AI 审批员处置平台官方逾期债权（spec §9，与放贷人
+// ResolveOverdueFunding 镜像，仅平台债权走此路径）：
+//   - 仅 SourceType == platform 的 funding 可处置（P2P 归放贷人路径），非平台债权
+//     返回 ErrLoanNotFundingOwner；
+//   - 仅 status == overdue 可处置；非 overdue 视为幂等 no-op（并发处置抢先或已处置）
+//     ——官方处置是异步后台流程，重复派发不得产生副作用，故不报错；
+//   - extend：extendDays 钳制到 [1, max(LoanTermDays, 1)]（期限配置 0/负值时至少延
+//     一天，镜像迁移防呆），DueDay = loanDay(now) + 钳制后天数，status → active；
+//     PenaltyStartedDay 保留（历史记录，与 ResolveOverdueFunding 同语义）；
+//   - writeoff：见 writeoffFundingTx（冻结最终债务 + funding 终态 + offer 核减 +
+//     借款人拉黑扣分 + 投影销毁）；
+//   - perpetual：funding 状态不变（保持 overdue 继续计息），仅记录决策日志。
+func ResolvePlatformOverdueByOfficer(fundingId int64, action string, extendDays int) error {
+	loanSetting := operation_setting.GetLoanSetting()
+	now := time.Now()
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var f TokenLoanFunding
+		if err := lockForUpdate(tx).Where("id = ?", fundingId).First(&f).Error; err != nil {
+			return err // gorm.ErrRecordNotFound 由调用方日志记录
+		}
+		if f.SourceType != LoanFundingPlatform {
+			return ErrLoanNotFundingOwner // 官方处置仅限平台债权
+		}
+		if f.Status != LoanFundingOverdue {
+			return nil // 幂等：已处置（并发抢先）或非逾期，no-op
+		}
+		switch action {
+		case LoanDefaultActionExtend:
+			term := loanSetting.LoanTermDays
+			if term < 1 {
+				term = 1 // 防御：期限配置 0/负值时至少延一天
+			}
+			days := extendDays
+			if days < 1 {
+				days = 1
+			}
+			if days > term {
+				days = term
+			}
+			f.DueDay = loanDay(now) + days
+			f.Status = LoanFundingActive
+			f.UpdatedAt = now.Unix()
+			return tx.Save(&f).Error
+		case LoanDefaultActionWriteoff:
+			return writeoffFundingTx(tx, &f, now)
+		case LoanDefaultActionPerpetual:
+			common.SysLog(fmt.Sprintf("loan default decision: platform funding %d marked perpetual (stays overdue, keeps accruing)", f.Id))
+			return nil
+		default:
+			return ErrLoanInvalidDefaultAction
+		}
+	})
+}
+
+// platformOverdueDispatcher 官方逾期处置实现（service 层进程启动时接线一次）。
+// model 包不能反向依赖 service，用可注入接缝镜像 controller 接线
+// service.RegisterLoanOfficerModelCaller 的模式。
+var platformOverdueDispatcher func(fundingId int64)
+
+// RegisterPlatformOverdueDispatcher 接线官方逾期处置实现（service 包 init 调用）
+func RegisterPlatformOverdueDispatcher(f func(fundingId int64)) {
+	platformOverdueDispatcher = f
+}
+
+// dispatchPlatformOverdueAsync 逾期翻转事务提交后调用：把本次新翻转的 platform funding
+// 逐条异步派发官方处置（DisposePlatformOverdueFunding 自身幂等，重复派发安全）。
+// 空列表 / 全 P2P / 未接线时 no-op。goroutine 带 panic 兜底，处置失败不影响主流程。
+func dispatchPlatformOverdueAsync(flipped []TokenLoanFunding) {
+	if platformOverdueDispatcher == nil {
+		return
+	}
+	for i := range flipped {
+		f := &flipped[i]
+		if f.SourceType != LoanFundingPlatform {
+			continue
+		}
+		fundingId := f.Id
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					common.SysError(fmt.Sprintf("platform overdue disposal panicked for funding %d: %v", fundingId, r))
+				}
+			}()
+			platformOverdueDispatcher(fundingId)
+		}()
+	}
+}

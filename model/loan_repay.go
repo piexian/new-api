@@ -43,11 +43,13 @@ type LenderCredit struct {
 //     scoreBorrowEventRepaidTx——事件全部结清才评分（按时还清加分 / 快速还清扣分 /
 //     逾期后还清与低于金额门槛均不计分），仅改内存 acc，落盘由调用方统一 Save。
 //
-// 返回还款结果（Amount/InterestPart/PrincipalPart/DebtAfter 来自同步后的账户投影）与逐条分配。
-// repay <= 0 或 Σdebt <= 0 时返回 (nil, nil, nil)，调用方须先保证有债务。
-func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoanFunding, repay int64, now time.Time) (*LoanRepayInfo, []RepayAllocation, error) {
+// 返回还款结果（Amount/InterestPart/PrincipalPart/DebtAfter 来自同步后的账户投影）、
+// 逐条分配与本次新翻转的逾期 funding 列表（Task 15 官方处置派发用，事务提交后由
+// 调用方 dispatchPlatformOverdueAsync；事务内不可派发——overdue 尚未提交）。
+// repay <= 0 或 Σdebt <= 0 时返回 (nil, nil, nil, nil)，调用方须先保证有债务。
+func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoanFunding, repay int64, now time.Time) (*LoanRepayInfo, []RepayAllocation, []TokenLoanFunding, error) {
 	if repay <= 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	// ① 逐条结算；结算有变动（债务增长/时钟推进）的行落盘。幂等：调用方已结算时
 	//    days=0 无变动，不重复写
@@ -56,7 +58,7 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 		settleFunding(&fundings[i], acc, now)
 		if fundings[i].DebtQuota != before.DebtQuota || fundings[i].LastSettledDay != before.LastSettledDay {
 			if err := tx.Save(&fundings[i]).Error; err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 		}
 	}
@@ -65,8 +67,10 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 	// 更新，并发双还款不双翻）。翻转只改 status/penalty_started_day，不影响 ② 的
 	// pro-rata 分配（分配基于结算后 debt_quota，与 status 无关）；③ 中 debt 归零照常
 	// 置 repaid，故逾期 funding 全额结清自然完成 overdue → repaid 流转。
-	if _, err := flipOverdueFundingsTx(tx, acc.UserId, fundings, now); err != nil {
-		return nil, nil, err
+	// 新翻转列表随返回值带出（调用方事务提交后派发官方处置，见函数头注释）。
+	flipped, err := flipOverdueFundingsTx(tx, acc.UserId, fundings, now)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 
 	// ② pro-rata 分配（最大余数法）：
@@ -80,7 +84,7 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 		}
 	}
 	if total <= 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	if repay > total {
 		repay = total
@@ -138,7 +142,7 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 			repaidAny = true
 		}
 		if err := tx.Save(f).Error; err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		totalInterest += payInterest
 		totalPrincipal += payPrincipal
@@ -167,7 +171,7 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 	}
 	for eventId := range scoredEvents {
 		if err := scoreBorrowEventRepaidTx(tx, acc, eventId, now); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 
@@ -175,7 +179,7 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 	//     （永续全还清 → 立即解除；核销窗口内不解锁）。仅改内存 acc，落盘由调用方统一 Save
 	if repaidAny {
 		if err := maybeLiftBlacklistTx(tx, acc, now); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 
@@ -185,7 +189,7 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 		PrincipalPart: totalPrincipal,
 		DebtAfter:     acc.DebtQuota,
 	}
-	return info, allocs, nil
+	return info, allocs, flipped, nil
 }
 
 // settleRepayAllocations 在事务内结算还款分配的资金去向（spec §7.4）：

@@ -9,11 +9,15 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
-// LoanDecision AI 业务员的结案决定，金额字段单位为 USD（落库前由编排层换算为 quota）
+// LoanDecision AI 业务员的结案决定，金额字段单位为 USD（落库前由编排层换算为 quota）。
+// FundingId/RepayPlan 为减免申诉专用字段（Task 15）：funding_id > 0 时走改档路径
+// （SetFundingRepayPlanByOfficer），经典字段不参与；funding_id == 0 走经典路径。
 type LoanDecision struct {
 	CreditLimit      float64 `json:"credit_limit"`
 	DailyRate        float64 `json:"daily_rate"`
 	InterestFreeDays int     `json:"interest_free_days"`
+	FundingId        int64   `json:"funding_id"`
+	RepayPlan        string  `json:"repay_plan"`
 }
 
 // loanDecisionEnvelope 结案 json 块的整体结构；action 白名单只认 "close"
@@ -67,7 +71,8 @@ func ExtractLoanDecision(reply string) (displayText string, decision *LoanDecisi
 // ClampLoanDecision 按配置钳制决定数值：三字段 <0 一律置 0；
 // credit_limit 截断到 ai_max_limit（quota 换算为 USD）；
 // daily_rate 先夹 ai_min_rate 下限再夹全局 daily_rate 上限（先下限后上限，误配时落在全局上限），
-// 0 表示不调整、不参与钳制；interest_free_days 截断到 ai_max_grace_days。
+// 0 表示不调整、不参与钳制；interest_free_days 截断到 ai_max_grace_days；
+// funding_id < 0 置 0；repay_plan 非法值钳制为空（不调整），合法四档保留。
 func ClampLoanDecision(d *LoanDecision, s *operation_setting.LoanSetting) *LoanDecision {
 	if d == nil {
 		return &LoanDecision{}
@@ -81,6 +86,15 @@ func ClampLoanDecision(d *LoanDecision, s *operation_setting.LoanSetting) *LoanD
 	}
 	if out.InterestFreeDays < 0 {
 		out.InterestFreeDays = 0
+	}
+	if out.FundingId < 0 {
+		out.FundingId = 0
+	}
+	switch out.RepayPlan {
+	case model.LoanRepayFull, model.LoanRepayNoPenalty, model.LoanRepayInterestFreeze, model.LoanRepayPrincipalOnly:
+		// 合法还款计划保留
+	default:
+		out.RepayPlan = "" // 非法计划钳制为空 = 不调整（同其余字段的钳制语义）
 	}
 	maxLimitUsd := float64(s.AiMaxLimit) / common.QuotaPerUnit
 	if out.CreditLimit > maxLimitUsd {

@@ -16,12 +16,13 @@ import (
 	"gorm.io/gorm"
 )
 
-// 工单诉求类型白名单（spec 3.3：提额/降息/宽限/其他）
+// 工单诉求类型白名单（spec 3.3：提额/降息/宽限/其他；Task 15 增加减免申诉）
 var loanApplicationTopics = map[string]bool{
 	"credit": true,
 	"rate":   true,
 	"grace":  true,
 	"other":  true,
+	"appeal": true,
 }
 
 // respondLoanError 将 model/service 层哨兵错误映射为 i18n 响应；未知错误走通用 ApiError

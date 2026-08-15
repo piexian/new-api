@@ -71,6 +71,35 @@ func TestExtractLoanDecisionActionNotCloseFail(t *testing.T) {
 	assert.Nil(t, decision)
 }
 
+func TestExtractLoanDecisionAppealEnvelope(t *testing.T) {
+	// 减免申诉结案 envelope（Task 15）：decision 携带 funding_id + repay_plan
+	reply := "```json\n{\"action\":\"close\",\"reply\":\"同意减免\",\"decision\":{\"funding_id\":5,\"repay_plan\":\"no_penalty\"}}\n```"
+	display, decision, ok := ExtractLoanDecision(reply)
+	require.True(t, ok)
+	require.NotNil(t, decision)
+	assert.Equal(t, int64(5), decision.FundingId)
+	assert.Equal(t, model.LoanRepayNoPenalty, decision.RepayPlan)
+	assert.Equal(t, "同意减免", display)
+}
+
+func TestExtractLoanDecisionClassicEnvelopeKeepsZeroAppealFields(t *testing.T) {
+	// 经典结案块（无申诉字段）解析后申诉字段为零值，走经典路径
+	reply := "```json\n{\"action\":\"close\",\"decision\":{\"credit_limit\":1,\"daily_rate\":0,\"interest_free_days\":0}}\n```"
+	_, decision, ok := ExtractLoanDecision(reply)
+	require.True(t, ok)
+	assert.Equal(t, int64(0), decision.FundingId)
+	assert.Equal(t, "", decision.RepayPlan)
+}
+
+func TestExtractLoanDecisionAppealAfterThinkStrip(t *testing.T) {
+	raw := "<think>评估申诉</think>```json\n{\"action\":\"close\",\"reply\":\"同意\",\"decision\":{\"funding_id\":3,\"repay_plan\":\"interest_freeze\"}}\n```"
+	display, decision, ok := ExtractLoanDecision(StripLoanThinkContent(raw))
+	require.True(t, ok)
+	assert.Equal(t, int64(3), decision.FundingId)
+	assert.Equal(t, model.LoanRepayInterestFreeze, decision.RepayPlan)
+	assert.Equal(t, "同意", display)
+}
+
 func TestExtractLoanDecisionPlainText(t *testing.T) {
 	display, decision, ok := ExtractLoanDecision("还在评估中，请补充材料")
 	assert.False(t, ok)
@@ -120,6 +149,23 @@ func TestClampLoanDecisionNil(t *testing.T) {
 	out := ClampLoanDecision(nil, s)
 	require.NotNil(t, out)
 	assert.Equal(t, LoanDecision{}, *out)
+}
+
+func TestClampLoanDecisionAppealFields(t *testing.T) {
+	s := &operation_setting.LoanSetting{AiMaxLimit: 10000000, AiMinRate: 0.0005, AiMaxGraceDays: 30, DailyRate: 0.001}
+	// 负 funding_id 置 0；非法 plan 钳制为空
+	out := ClampLoanDecision(&LoanDecision{CreditLimit: 0, FundingId: -3, RepayPlan: "garbage"}, s)
+	require.Equal(t, int64(0), out.FundingId)
+	require.Equal(t, "", out.RepayPlan)
+	// 合法 plan 保留
+	out = ClampLoanDecision(&LoanDecision{FundingId: 7, RepayPlan: model.LoanRepayInterestFreeze}, s)
+	require.Equal(t, int64(7), out.FundingId)
+	require.Equal(t, model.LoanRepayInterestFreeze, out.RepayPlan)
+	// 经典字段与申诉字段互不影响
+	out = ClampLoanDecision(&LoanDecision{CreditLimit: 1, DailyRate: 0.0005, FundingId: 2, RepayPlan: model.LoanRepayPrincipalOnly}, s)
+	require.Equal(t, 1.0, out.CreditLimit)
+	require.Equal(t, int64(2), out.FundingId)
+	require.Equal(t, model.LoanRepayPrincipalOnly, out.RepayPlan)
 }
 
 func loanOfficerMsg(id int, role, content string) model.TokenLoanApplicationMessage {

@@ -100,6 +100,7 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 	var repayInfo *LoanRepayInfo
 	var lenderCredits []LenderCredit
 	netQuota := quotaAwarded
+	var flipped []TokenLoanFunding // 本次新翻转的逾期 funding（Task 15 官方处置派发）
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		// 步骤1: 创建签到记录
 		if err := tx.Create(checkin).Error; err != nil {
@@ -131,14 +132,17 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 				// 逾期状态机（Task 11）：今天过期的 active funding 在此翻转为 overdue
 				// （幂等），使签到路径的 funding 状态与到期日对齐；翻转不影响结算/分配
 				// 数学，逾期 funding 被本次签到全额结清时照常转 repaid。
-				if _, err := flipOverdueFundingsTx(tx, acc.UserId, fundings, now); err != nil {
+				// 新翻转列表供 Task 15 官方处置派发（distributeRepayment 内部二次翻转
+				// 幂等为空，本处结果即本次新翻转全集）。
+				flipped, err = flipOverdueFundingsTx(tx, acc.UserId, fundings, now)
+				if err != nil {
 					return err
 				}
 				syncAccountFromFundings(acc, fundings)
 				if acc.DebtQuota > 0 {
 					// repay = min(奖励, Σ债务)：100% 扣还，超额仍入账
 					repay := min(int64(quotaAwarded), acc.DebtQuota)
-					info, allocs, err := distributeRepayment(tx, acc, fundings, repay, now)
+					info, allocs, _, err := distributeRepayment(tx, acc, fundings, repay, now)
 					if err != nil {
 						return err
 					}
@@ -181,6 +185,8 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 			_ = cacheIncrUserQuota(c.UserId, c.Amount)
 		}
 	}()
+	// 本次新翻转的 platform 逾期 funding 异步派发官方处置（Task 15，提交后派发）
+	dispatchPlatformOverdueAsync(flipped)
 
 	return checkin, repayInfo, nil
 }

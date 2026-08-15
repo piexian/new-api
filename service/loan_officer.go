@@ -93,6 +93,11 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 	}
 
 	sysPrompt := renderLoanOfficerPrompt(setting, buildLoanOfficerProfile(userId))
+	// 减免申诉工单补充借款明细与申诉结案 schema（代码保证 schema 存在，自定义
+	// prompt 未必含申诉段；数据只是审批参考）
+	if app.Topic == loanAppTopicAppeal {
+		sysPrompt += buildAppealContext(userId)
+	}
 	if forceCloseRound {
 		sysPrompt += "\n\n注意：这是本次申请的最后一轮对话，你必须在本轮结案，并按格式输出决定 json 块。"
 	}
@@ -156,7 +161,15 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 	}
 
 	if ok {
-		closedNow := executeLoanDecision(app, setting, displayText, decision)
+		closedNow, notice := executeLoanDecision(app, setting, displayText, decision)
+		// 减免申诉被拒提示并入 assistant 回复展示给用户（不阻断结案流程）
+		if notice != "" {
+			if displayText == "" {
+				displayText = notice
+			} else {
+				displayText += "\n\n" + notice
+			}
+		}
 		persistLoanAssistantReply(app.Id, displayText)
 		return displayText, closedNow, nil
 	}
@@ -186,16 +199,21 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 }
 
 // executeLoanDecision 钳制并单事务执行结案决定；执行失败时整体回滚、工单保持 open，
-// 返回 false（该回复按普通回复展示，spec 5.3）
-func executeLoanDecision(app *model.TokenLoanApplication, setting *operation_setting.LoanSetting, displayText string, decision *LoanDecision) bool {
+// 返回 false（该回复按普通回复展示，spec 5.3）。第二返回值是减免申诉被拒的提示文本
+// （空 = 无），由调用方并入 assistant 回复展示给用户。
+func executeLoanDecision(app *model.TokenLoanApplication, setting *operation_setting.LoanSetting, displayText string, decision *LoanDecision) (bool, string) {
 	clamped := ClampLoanDecision(decision, setting)
+	// 减免申诉决定（funding_id > 0）：走改档路径（executeAppealDecision），经典字段不参与
+	if clamped.FundingId > 0 {
+		return executeAppealDecision(app, setting, displayText, clamped)
+	}
 	var quotaLimit int64
 	if clamped.CreditLimit > 0 {
 		quotaDec := decimal.NewFromFloat(clamped.CreditLimit).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
 		quota, clamp := common.QuotaFromDecimalChecked(quotaDec)
 		if clamp != nil {
 			common.SysError(fmt.Sprintf("loan officer decision credit limit overflow for application %d: %v", app.Id, clamp))
-			return false
+			return false, ""
 		}
 		quotaLimit = int64(quota)
 	}
@@ -206,11 +224,11 @@ func executeLoanDecision(app *model.TokenLoanApplication, setting *operation_set
 	})
 	if err != nil {
 		common.SysError(fmt.Sprintf("loan officer decision marshal failed for application %d: %v", app.Id, err))
-		return false
+		return false, ""
 	}
 	if err := applyLoanOfficerDecision(app.Id, string(payload), quotaLimit, clamped.DailyRate, clamped.InterestFreeDays); err != nil {
 		common.SysError(fmt.Sprintf("loan officer decision apply failed for application %d: %v", app.Id, err))
-		return false
+		return false, ""
 	}
 	// 结案决定写入操作日志（归属用户，无操作者/IP 上下文）；结论截断防止超长
 	replySummary := displayText
@@ -228,7 +246,7 @@ func executeLoanDecision(app *model.TokenLoanApplication, setting *operation_set
 	model.RecordOperationAuditLog(app.UserId,
 		model.RenderOperationLogContent("loan.ai_decision", decisionLogParams, model.LogLanguageEN),
 		"", "loan.ai_decision", decisionLogParams, nil, nil)
-	return true
+	return true, ""
 }
 
 // acquireLoanRoundLock 尝试获取工单轮次互斥锁，已被占用时返回 nil
