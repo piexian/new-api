@@ -134,6 +134,19 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/loan/applications/:id/reply", controller.ReplyLoanApplication)
 				selfRoute.POST("/loan/applications/:id/rate", controller.RateLoanApplication)
 
+				// Token loan marketplace routes（放贷市场，P2P）
+				selfRoute.POST("/loan/market/disclaimer", controller.AgreeLenderDisclaimer)
+				selfRoute.GET("/loan/market/offers", controller.GetLoanMarketOffers)
+				selfRoute.POST("/loan/market/offers", controller.CreateLoanMarketOffer)
+				selfRoute.POST("/loan/market/offers/:id/pause", controller.PauseLoanMarketOffer)
+				selfRoute.POST("/loan/market/offers/:id/resume", controller.ResumeLoanMarketOffer)
+				selfRoute.POST("/loan/market/offers/:id/close", controller.CloseLoanMarketOffer)
+				selfRoute.POST("/loan/market/offers/:id/withdraw", controller.WithdrawLoanMarketOffer)
+				selfRoute.GET("/loan/market/list", controller.GetLoanMarketList)
+				selfRoute.GET("/loan/market/fundings", controller.GetLoanMarketFundings)
+				selfRoute.POST("/loan/market/fundings/:id/resolve", controller.ResolveLoanMarketFunding)
+				selfRoute.POST("/loan/market/fundings/:id/repay_plan", controller.SetLoanMarketFundingRepayPlan)
+
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)

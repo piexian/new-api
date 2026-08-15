@@ -504,6 +504,54 @@ func GetLoanOfferById(id int) (*TokenLoanOffer, error) {
 	return &offer, nil
 }
 
+// ListActiveOrderOffers 市场浏览：返回全部 active 状态、order 模式且有可撮合额度的
+// 挂单，按利率升序、id 升序（确定性平局，与撮合引擎统一市场排序一致）。
+func ListActiveOrderOffers() ([]TokenLoanOffer, error) {
+	var offers []TokenLoanOffer
+	err := DB.Where("status = ? AND mode = ? AND amount_available > 0",
+		LoanOfferStatusActive, LoanOfferModeOrder).
+		Order("rate_fixed ASC").Order("id ASC").
+		Find(&offers).Error
+	return offers, err
+}
+
+// ListActiveAiOffersForBorrow 借款前收集 ai 模式候选挂单：active、有可撮合额度、
+// 排除借款人本人，按 updated_at 倒序（最新优先）；limit 越界/非正时钳制到 20。
+func ListActiveAiOffersForBorrow(borrowerId int, limit int) ([]TokenLoanOffer, error) {
+	if limit <= 0 || limit > 20 {
+		limit = 20
+	}
+	var offers []TokenLoanOffer
+	err := DB.Where("status = ? AND mode = ? AND amount_available > 0 AND lender_id <> ?",
+		LoanOfferStatusActive, LoanOfferModeAi, borrowerId).
+		Order("updated_at DESC").
+		Limit(limit).
+		Find(&offers).Error
+	return offers, err
+}
+
+// GetLenderFundings 分页返回放贷人名下全部投放记录（id 倒序，最新在前），附总数；
+// 分页语义镜像 GetUserLoanRecords。
+func GetLenderFundings(lenderId, page, pageSize int) ([]TokenLoanFunding, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	var total int64
+	if err := DB.Model(&TokenLoanFunding{}).Where("lender_id = ?", lenderId).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var fundings []TokenLoanFunding
+	err := DB.Where("lender_id = ?", lenderId).
+		Order("id DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&fundings).Error
+	return fundings, total, err
+}
+
 // ===== Task 12: 逾期债权处置（延长/核销/永续）+ 黑名单出口 =====
 
 // 逾期债权处置动作（spec §9）

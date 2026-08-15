@@ -90,11 +90,17 @@ var operationLogTemplates = map[string]localizedLogText{
 	"subscription.user_plan_reset": {ZH: "重置了用户 ${target_user_id} 在套餐 ${plan_id} 下的有效订阅", EN: "Reset active plan ${plan_id} subscriptions for user ${target_user_id}"},
 	"log.clear":                    {ZH: "清除了历史日志", EN: "Cleared historical logs"},
 
-	"loan.borrow":        {ZH: "词元贷借入 ${amount_usd} USD（当前债务 ${debt_after}）", EN: "Borrowed ${amount_usd} USD via token loan (outstanding debt ${debt_after})"},
-	"loan.repay":         {ZH: "词元贷提前还款 ${amount}（抵息 ${interest_part}，抵本 ${principal_part}，手续费 ${fee_part}，剩余债务 ${debt_after}）", EN: "Early loan repayment of ${amount} (interest ${interest_part}, principal ${principal_part}, fee ${fee_part}, remaining debt ${debt_after})"},
-	"loan.checkin_repay": {ZH: "签到奖励自动还款 ${amount}（抵息 ${interest_part}，抵本 ${principal_part}，剩余债务 ${debt_after}）", EN: "Check-in reward auto-repaid ${amount} (interest ${interest_part}, principal ${principal_part}, remaining debt ${debt_after})"},
-	"loan.ai_decision":   {ZH: "AI 业务员结案（工单 ${application_id}，模型 ${model}）：额度上限 ${credit_limit} USD，日利率 ${daily_rate}，免息 ${interest_free_days} 天；结论：${reply}", EN: "AI loan officer closed application ${application_id} (model ${model}): credit limit ${credit_limit} USD, daily rate ${daily_rate}, interest-free ${interest_free_days} days; reply: ${reply}"},
-	"loan.ai_close":      {ZH: "AI 业务员工单 ${application_id} 到期未达成调整，已自动结案（模型 ${model}）", EN: "AI loan officer application ${application_id} auto-closed without adjustments (model ${model})"},
+	"loan.borrow":            {ZH: "词元贷借入 ${amount_usd} USD（当前债务 ${debt_after}）", EN: "Borrowed ${amount_usd} USD via token loan (outstanding debt ${debt_after})"},
+	"loan.repay":             {ZH: "词元贷提前还款 ${amount}（抵息 ${interest_part}，抵本 ${principal_part}，手续费 ${fee_part}，剩余债务 ${debt_after}）", EN: "Early loan repayment of ${amount} (interest ${interest_part}, principal ${principal_part}, fee ${fee_part}, remaining debt ${debt_after})"},
+	"loan.checkin_repay":     {ZH: "签到奖励自动还款 ${amount}（抵息 ${interest_part}，抵本 ${principal_part}，剩余债务 ${debt_after}）", EN: "Check-in reward auto-repaid ${amount} (interest ${interest_part}, principal ${principal_part}, remaining debt ${debt_after})"},
+	"loan.ai_decision":       {ZH: "AI 业务员结案（工单 ${application_id}，模型 ${model}）：额度上限 ${credit_limit} USD，日利率 ${daily_rate}，免息 ${interest_free_days} 天；结论：${reply}", EN: "AI loan officer closed application ${application_id} (model ${model}): credit limit ${credit_limit} USD, daily rate ${daily_rate}, interest-free ${interest_free_days} days; reply: ${reply}"},
+	"loan.ai_close":          {ZH: "AI 业务员工单 ${application_id} 到期未达成调整，已自动结案（模型 ${model}）", EN: "AI loan officer application ${application_id} auto-closed without adjustments (model ${model})"},
+	"loan.disclaimer_agreed": {ZH: "同意放贷免责声明", EN: "Agreed to the lender disclaimer"},
+	"loan.offer_create":      {ZH: "创建了放贷挂单（模式 ${mode}，金额 ${amount_usd} USD，固定日利率 ${rate_fixed}）", EN: "Created a lending offer (mode ${mode}, amount ${amount_usd} USD, fixed daily rate ${rate_fixed})"},
+	"loan.offer_close":       {ZH: "关闭了放贷挂单 ${offer_id}", EN: "Closed lending offer ${offer_id}"},
+	"loan.offer_withdraw":    {ZH: "撤回了放贷挂单 ${offer_id} 的闲置额度 ${refunded}", EN: "Withdrew idle quota ${refunded} from lending offer ${offer_id}"},
+	"loan.default_decision":  {ZH: "处置了逾期债权 ${funding_id}（动作 ${action}${extend_days}）", EN: "Resolved overdue funding ${funding_id} (action ${action}${extend_days})"},
+	"loan.repay_plan_change": {ZH: "调整了借款 ${funding_id} 的还款计划为 ${plan}", EN: "Changed repayment plan of funding ${funding_id} to ${plan}"},
 
 	"generic": {ZH: "${method} ${route}", EN: "${method} ${route}"},
 }

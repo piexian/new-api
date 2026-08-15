@@ -62,6 +62,30 @@ func respondLoanError(c *gin.Context, err error) {
 		common.ApiErrorI18n(c, i18n.MsgLoanContentTooLong)
 	case errors.Is(err, service.ErrLoanOfficerUnavailable):
 		common.ApiErrorI18n(c, i18n.MsgLoanOfficerUnavailable)
+	case errors.Is(err, model.ErrLoanBlacklisted):
+		common.ApiErrorI18n(c, i18n.MsgLoanBlacklisted)
+	case errors.Is(err, model.ErrLoanHasOverdue):
+		common.ApiErrorI18n(c, i18n.MsgLoanHasOverdue)
+	case errors.Is(err, model.ErrLoanMarketDisabled):
+		common.ApiErrorI18n(c, i18n.MsgLoanMarketDisabled)
+	case errors.Is(err, model.ErrLoanDisclaimerRequired):
+		common.ApiErrorI18n(c, i18n.MsgLoanDisclaimerRequired)
+	case errors.Is(err, model.ErrLoanOfferNotFound):
+		common.ApiErrorI18n(c, i18n.MsgLoanOfferNotFound)
+	case errors.Is(err, model.ErrLoanOfferInvalidParams):
+		common.ApiErrorI18n(c, i18n.MsgLoanOfferInvalidParams)
+	case errors.Is(err, model.ErrLoanOfferNotActive):
+		common.ApiErrorI18n(c, i18n.MsgLoanOfferNotActive)
+	case errors.Is(err, model.ErrLoanNothingToWithdraw):
+		common.ApiErrorI18n(c, i18n.MsgLoanNothingToWithdraw)
+	case errors.Is(err, model.ErrLoanFundingNotOverdue):
+		common.ApiErrorI18n(c, i18n.MsgLoanFundingNotOverdue)
+	case errors.Is(err, model.ErrLoanInvalidDefaultAction):
+		common.ApiErrorI18n(c, i18n.MsgLoanInvalidDefaultAction)
+	case errors.Is(err, model.ErrLoanNotFundingOwner):
+		common.ApiErrorI18n(c, i18n.MsgLoanNotFundingOwner)
+	case errors.Is(err, model.ErrLoanInvalidRepayPlan):
+		common.ApiErrorI18n(c, i18n.MsgLoanInvalidRepayPlan)
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		common.ApiErrorI18n(c, i18n.MsgLoanNotFound)
 	default:
@@ -76,13 +100,17 @@ func respondLoanInternalError(c *gin.Context, err error) {
 	common.ApiErrorI18n(c, i18n.MsgLoanInternalError)
 }
 
-// buildLoanStatusData 组装 status 响应字段；acc 为 nil 时按无贷用户返回零值。
-// 金额字段一律为整数 quota，USD 展示由前端换算。只读投影，不落盘。
-func buildLoanStatusData(setting *operation_setting.LoanSetting, acc *model.TokenLoanAccount, now time.Time) gin.H {
+// buildLoanStatusData 组装 status 响应字段；acc 为 nil 时按无贷用户返回零值
+// （信用分取初始值，镜像 GetCreditScore）。金额字段一律为整数 quota，USD 展示由前端
+// 换算。只读投影，不落盘；has_overdue 为 best-effort 只读判定，失败按 false 处理。
+func buildLoanStatusData(setting *operation_setting.LoanSetting, acc *model.TokenLoanAccount, userId int, now time.Time) gin.H {
 	var principal, debt, interest int64
 	var interestFreeUntil int
 	var totalBorrowed, totalRepaid int64
 	termsAgreed := false
+	creditScore := setting.CreditInitial
+	blacklistedUntilDay := 0
+	lenderDisclaimerAgreed := false
 	effectiveMax := setting.MaxTotal
 	dailyRate := setting.DailyRate
 	if acc != nil {
@@ -92,6 +120,9 @@ func buildLoanStatusData(setting *operation_setting.LoanSetting, acc *model.Toke
 		totalBorrowed = acc.TotalBorrowed
 		totalRepaid = acc.TotalRepaid
 		termsAgreed = acc.TermsAgreedAt != 0
+		creditScore = acc.CreditScore
+		blacklistedUntilDay = acc.BlacklistedUntilDay
+		lenderDisclaimerAgreed = acc.LenderDisclaimerAgreedAt != 0
 		// 个人覆盖只降不升：上限直接覆盖，利率取较小者（与 model.effectiveRate 一致）
 		if acc.CustomMaxTotal > 0 {
 			effectiveMax = acc.CustomMaxTotal
@@ -100,26 +131,32 @@ func buildLoanStatusData(setting *operation_setting.LoanSetting, acc *model.Toke
 			dailyRate = acc.CustomDailyRate
 		}
 	}
+	hasOverdue, _ := model.HasOverdueFundings(model.DB, userId)
 	available := effectiveMax - debt
 	if available < 0 {
 		available = 0
 	}
 	return gin.H{
-		"enabled":             setting.Enabled,
-		"principal":           principal,
-		"interest":            interest,
-		"debt":                debt,
-		"available":           available,
-		"effective_max":       effectiveMax,
-		"daily_rate":          dailyRate,
-		"interest_free_until": interestFreeUntil,
-		"total_borrowed":      totalBorrowed,
-		"total_repaid":        totalRepaid,
-		"ai_enabled":          setting.AiEnabled,
-		"terms_enabled":       setting.TermsEnabled,
-		"terms_agreed":        termsAgreed,
-		"terms_text":          setting.TermsText,
-		"repay_fee_rate":      setting.RepayFeeRate,
+		"enabled":                  setting.Enabled,
+		"principal":                principal,
+		"interest":                 interest,
+		"debt":                     debt,
+		"available":                available,
+		"effective_max":            effectiveMax,
+		"daily_rate":               dailyRate,
+		"interest_free_until":      interestFreeUntil,
+		"total_borrowed":           totalBorrowed,
+		"total_repaid":             totalRepaid,
+		"ai_enabled":               setting.AiEnabled,
+		"terms_enabled":            setting.TermsEnabled,
+		"terms_agreed":             termsAgreed,
+		"terms_text":               setting.TermsText,
+		"repay_fee_rate":           setting.RepayFeeRate,
+		"credit_score":             creditScore,
+		"market_enabled":           setting.MarketEnabled,
+		"blacklisted_until_day":    blacklistedUntilDay,
+		"has_overdue":              hasOverdue,
+		"lender_disclaimer_agreed": lenderDisclaimerAgreed,
 	}
 }
 
@@ -142,7 +179,7 @@ func GetLoanStatus(c *gin.Context) {
 		respondLoanInternalError(c, err)
 		return
 	}
-	common.ApiSuccess(c, buildLoanStatusData(setting, acc, time.Now()))
+	common.ApiSuccess(c, buildLoanStatusData(setting, acc, userId, time.Now()))
 }
 
 // AgreeLoanTerms 同意词元贷声明（幂等）
@@ -157,9 +194,12 @@ func AgreeLoanTerms(c *gin.Context) {
 
 type borrowLoanRequest struct {
 	AmountUsd string `json:"amount_usd"`
+	OrderId   int    `json:"order_id"` // 定向挂单 offer id，0 = 不挑单
 }
 
-// BorrowLoan 借款，成功返回最新状态（同 GET status 字段）
+// BorrowLoan 借款，成功返回最新状态（同 GET status 字段）。
+// 市场开启时：先收集 ai 模式候选挂单并调用服务层 AI 定价（best-effort，
+// 定价失败不阻断借款，见 service.PriceAiSpaceFundings），连同 order_id 传入撮合引擎。
 func BorrowLoan(c *gin.Context) {
 	var req borrowLoanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -172,8 +212,20 @@ func BorrowLoan(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
-	// 定向挂单与 AI 出资方案暂不接线（Task 16），先以 0/nil 走纯平台/统一市场路径
-	acc, _, err := model.BorrowLoan(userId, amountUsd, 0, nil)
+	orderId := req.OrderId
+	if orderId < 0 {
+		orderId = 0
+	}
+	// AI 出资方案：仅市场开启时收集候选并定价；任何失败（候选查询/定价）都跳过，
+	// 不阻断借款（撮合引擎对 aiPriced 为空、定向挂单无效均按缺额平台兜底）
+	var aiPriced []model.FundingPlan
+	if operation_setting.GetLoanSetting().MarketEnabled {
+		if candidates, err := model.ListActiveAiOffersForBorrow(userId, 20); err == nil && len(candidates) > 0 {
+			amountUsdFloat, _ := strconv.ParseFloat(amountUsd, 64)
+			aiPriced, _ = service.PriceAiSpaceFundings(userId, amountUsdFloat, candidates)
+		}
+	}
+	acc, _, err := model.BorrowLoan(userId, amountUsd, orderId, aiPriced)
 	if err != nil {
 		respondLoanError(c, err)
 		return
@@ -183,7 +235,7 @@ func BorrowLoan(c *gin.Context) {
 		"amount_usd": amountUsd,
 		"debt_after": logger.LogQuota(int(acc.DebtQuota)),
 	})
-	common.ApiSuccess(c, buildLoanStatusData(operation_setting.GetLoanSetting(), acc, time.Now()))
+	common.ApiSuccess(c, buildLoanStatusData(operation_setting.GetLoanSetting(), acc, userId, time.Now()))
 }
 
 type repayLoanRequest struct {
@@ -215,7 +267,7 @@ func RepayLoan(c *gin.Context) {
 		"fee_part":       logger.LogQuota(int(info.FeePart)),
 		"debt_after":     logger.LogQuota(int(info.DebtAfter)),
 	})
-	data := buildLoanStatusData(operation_setting.GetLoanSetting(), acc, time.Now())
+	data := buildLoanStatusData(operation_setting.GetLoanSetting(), acc, userId, time.Now())
 	data["repay"] = info
 	common.ApiSuccess(c, data)
 }

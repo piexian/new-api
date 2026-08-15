@@ -246,6 +246,19 @@ const (
 	MsgLoanNoDebt              = "loan.no_debt"
 	MsgLoanInsufficientBalance = "loan.insufficient_balance"
 	MsgLoanInternalError       = "loan.internal_error"
+	// 借贷市场（P2P）相关消息
+	MsgLoanMarketDisabled       = "loan.market_disabled"
+	MsgLoanDisclaimerRequired   = "loan.disclaimer_required"
+	MsgLoanOfferNotFound        = "loan.offer_not_found"
+	MsgLoanOfferInvalidParams   = "loan.offer_invalid_params"
+	MsgLoanOfferNotActive       = "loan.offer_not_active"
+	MsgLoanNothingToWithdraw    = "loan.nothing_to_withdraw"
+	MsgLoanBlacklisted          = "loan.blacklisted"
+	MsgLoanHasOverdue           = "loan.has_overdue"
+	MsgLoanFundingNotOverdue    = "loan.funding_not_overdue"
+	MsgLoanInvalidDefaultAction = "loan.invalid_default_action"
+	MsgLoanNotFundingOwner      = "loan.not_funding_owner"
+	MsgLoanInvalidRepayPlan     = "loan.invalid_repay_plan"
 )
 
 // Passkey related messages
