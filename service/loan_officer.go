@@ -137,6 +137,9 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 	}
 	clearLoanModelFailure(app.Id)
 
+	// 剥离推理模型混入的 <think> 思考块，再走结案解析与展示
+	rawReply = StripLoanThinkContent(rawReply)
+
 	// 模型调用成功后才落库：先用户消息再 assistant 回复
 	if err := model.AddLoanApplicationMessage(app.Id, "user", userInput); err != nil {
 		return "", false, err

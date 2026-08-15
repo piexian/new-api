@@ -108,6 +108,7 @@ const defaultBillingSettings: BillingSettings = {
   'loan_setting.enabled': false,
   'loan_setting.max_total': 2500000,
   'loan_setting.daily_rate': 0.001,
+  'loan_setting.repay_fee_rate': 0.0001,
   'loan_setting.min_register_days': 0,
   'loan_setting.max_per_borrow': 0,
   'loan_setting.checkin_repay_enabled': true,

@@ -6148,7 +6148,12 @@
     "Borrowed {{amount_usd}} USD via token loan (outstanding debt {{debt_after}})": "トークンローンで {{amount_usd}} USD を借入（未返済の債務 {{debt_after}}）",
     "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})": "ローン {{amount}} を早期返済（利息 {{interest_part}}、元本 {{principal_part}}、残債務 {{debt_after}}）",
     "Check-in reward auto-repaid {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})": "チェックイン報酬による自動返済 {{amount}}（利息 {{interest_part}}、元本 {{principal_part}}、残債務 {{debt_after}}）",
-    "AI loan officer closed application {{application_id}}: credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days": "AI ローン担当が申請 {{application_id}} をクローズ：利用限度額 {{credit_limit}} USD、日次利率 {{daily_rate}}、無利息 {{interest_free_days}} 日"
+    "AI loan officer closed application {{application_id}}: credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days": "AI ローン担当が申請 {{application_id}} をクローズ：利用限度額 {{credit_limit}} USD、日次利率 {{daily_rate}}、無利息 {{interest_free_days}} 日",
+    "Early repayment fee rate": "繰り上げ返済手数料率",
+    "Fee charged on the principal part of manual early repayments, e.g. 0.0001 means 0.01%; check-in auto repayment is never charged": "手動での繰り上げ返済の元金部分にかかる手数料率（例: 0.0001 = 0.01%）。チェックイン自動返済にはかかりません",
+    "Don't show again": "今後表示しない",
+    "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.": "繰り上げ返済には元金部分に {{rate}} の手数料がかかり、利息と合わせてウォレット残高から差し引かれます。",
+    "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "繰り上げ返済 {{amount}}（利息 {{interest_part}}、元金 {{principal_part}}、手数料 {{fee_part}}、残債務 {{debt_after}}）"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

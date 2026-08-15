@@ -4832,6 +4832,11 @@
     "宽限": "Grace",
     "已结案": "Closed",
     "未评分": "Unrated",
-    "评分备注": "Rating Comment"
+    "评分备注": "Rating Comment",
+    "提前还款手续费率": "Early repayment fee rate",
+    "手动提前还款按抵本部分收取的手续费率，签到自动还款不收取": "Fee rate charged on the principal part of manual early repayments; check-in auto repayment is never charged",
+    "提前还款将按抵本部分收取 {{rate}} 手续费，与利息一并从钱包余额扣除": "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest",
+    "不再显示": "Don't show again",
+    "手续费": "Fee"
   }
 }

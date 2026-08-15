@@ -393,7 +393,7 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'loan.borrow':
     'Borrowed {{amount_usd}} USD via token loan (outstanding debt {{debt_after}})',
   'loan.repay':
-    'Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})',
+    'Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})',
   'loan.checkin_repay':
     'Check-in reward auto-repaid {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})',
   'loan.ai_decision':

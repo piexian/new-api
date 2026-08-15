@@ -59,6 +59,8 @@ export interface LoanStatus {
   terms_enabled: boolean
   terms_agreed: boolean
   terms_text: string
+  /** Early repayment fee rate applied to the principal part (0 = no fee) */
+  repay_fee_rate: number
 }
 
 /**
@@ -70,6 +72,8 @@ export interface LoanRecord {
   amount: number
   interest_part: number
   principal_part: number
+  /** Early repayment fee (manual repay only; 0 otherwise) */
+  fee_part: number
   debt_after: number
   source: 'manual' | 'checkin' | 'ai' | string
   ref_id: number

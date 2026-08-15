@@ -55,6 +55,7 @@ function buildSchema(t: (key: string) => string) {
       enabled: z.boolean(),
       maxTotalUsd: z.coerce.number().min(0),
       dailyRate: z.coerce.number().min(0),
+      repayFeeRate: z.coerce.number().min(0),
       minRegisterDays: z.coerce.number().int().min(0),
       maxPerBorrowUsd: z.coerce.number().min(0),
       checkinRepayEnabled: z.boolean(),
@@ -105,6 +106,7 @@ export type LoanSettingsDefaults = {
   enabled: boolean
   maxTotal: number
   dailyRate: number
+  repayFeeRate: number
   minRegisterDays: number
   maxPerBorrow: number
   checkinRepayEnabled: boolean
@@ -167,6 +169,7 @@ export function LoanSettingsSection(props: {
       enabled: defaults.enabled,
       maxTotalUsd: defaults.maxTotal / quotaPerUnit,
       dailyRate: defaults.dailyRate,
+      repayFeeRate: defaults.repayFeeRate,
       minRegisterDays: defaults.minRegisterDays,
       maxPerBorrowUsd: defaults.maxPerBorrow / quotaPerUnit,
       checkinRepayEnabled: defaults.checkinRepayEnabled,
@@ -234,6 +237,13 @@ export function LoanSettingsSection(props: {
       updates.push({
         key: 'loan_setting.daily_rate',
         value: String(values.dailyRate),
+      })
+    }
+
+    if (values.repayFeeRate !== defaults.repayFeeRate) {
+      updates.push({
+        key: 'loan_setting.repay_fee_rate',
+        value: String(values.repayFeeRate),
       })
     }
 
@@ -458,9 +468,33 @@ export function LoanSettingsSection(props: {
 
                 <FormField
                   control={form.control}
-                  name='minRegisterDays'
+                  name='repayFeeRate'
                   render={({ field }) => (
                     <FormItem>
+                      <FormLabel>{t('Early repayment fee rate')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          min={0}
+                          step='any'
+                          placeholder='0.0001'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Fee charged on the principal part of manual early repayments, e.g. 0.0001 means 0.01%; check-in auto repayment is never charged'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='minRegisterDays'
+                  render={({ field }) => (                    <FormItem>
                       <FormLabel>{t('Minimum registration days')}</FormLabel>
                       <FormControl>
                         <Input

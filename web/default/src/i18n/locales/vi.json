@@ -6148,7 +6148,12 @@
     "Borrowed {{amount_usd}} USD via token loan (outstanding debt {{debt_after}})": "Vay {{amount_usd}} USD qua khoản vay token (nợ chưa trả {{debt_after}})",
     "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})": "Trả nợ khoản vay sớm {{amount}} (lãi {{interest_part}}, gốc {{principal_part}}, nợ còn lại {{debt_after}})",
     "Check-in reward auto-repaid {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})": "Phần thưởng điểm danh tự động trả {{amount}} (lãi {{interest_part}}, gốc {{principal_part}}, nợ còn lại {{debt_after}})",
-    "AI loan officer closed application {{application_id}}: credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days": "AI đã đóng đơn {{application_id}}: hạn mức tín dụng {{credit_limit}} USD, lãi ngày {{daily_rate}}, miễn lãi {{interest_free_days}} ngày"
+    "AI loan officer closed application {{application_id}}: credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days": "AI đã đóng đơn {{application_id}}: hạn mức tín dụng {{credit_limit}} USD, lãi ngày {{daily_rate}}, miễn lãi {{interest_free_days}} ngày",
+    "Early repayment fee rate": "Tỷ lệ phí trả trước",
+    "Fee charged on the principal part of manual early repayments, e.g. 0.0001 means 0.01%; check-in auto repayment is never charged": "Phí tính trên phần gốc khi trả trước thủ công, vd 0.0001 = 0.01%; trả tự động qua điểm danh không tính phí",
+    "Don't show again": "Không hiển thị lại",
+    "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.": "Trả trước sẽ tính phí {{rate}} trên phần gốc, trừ từ số dư ví cùng với lãi (nếu có).",
+    "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "Trả trước {{amount}} (lãi {{interest_part}}, gốc {{principal_part}}, phí {{fee_part}}, dư nợ {{debt_after}})"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

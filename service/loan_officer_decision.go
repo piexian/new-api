@@ -26,6 +26,17 @@ type loanDecisionEnvelope struct {
 // 大小写不敏感匹配 fenced ```json 块（懒惰匹配到最近的闭合反引号）
 var loanDecisionBlockRe = regexp.MustCompile("(?s)```[ \\t]*(?i:json)[ \\t]*\\r?\\n(.*?)```")
 
+// 推理模型可能把 <think> 思考块混进正文（未闭合的截断块也算），
+// 一律剥离，避免思考内容泄漏给用户
+var loanThinkBlockRe = regexp.MustCompile("(?s)<think>.*?(</think>|$)")
+
+// StripLoanThinkContent 剥离 AI 回复中的 <think> 思考块及孤立闭合标签
+func StripLoanThinkContent(s string) string {
+	cleaned := loanThinkBlockRe.ReplaceAllString(s, "")
+	cleaned = strings.ReplaceAll(cleaned, "</think>", "")
+	return strings.TrimSpace(cleaned)
+}
+
 // ExtractLoanDecision 从 AI 回复中提取结案决定（spec 5.3）：
 // 恰好一个 fenced json 块且 action == "close" 且 JSON 合法时才 ok=true；
 // 多块 / 裸 JSON / 非法 JSON / action 非白名单一律 ok=false。

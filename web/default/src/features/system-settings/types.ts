@@ -401,6 +401,7 @@ export type BillingSettings = {
   'loan_setting.enabled': boolean
   'loan_setting.max_total': number
   'loan_setting.daily_rate': number
+  'loan_setting.repay_fee_rate': number
   'loan_setting.min_register_days': number
   'loan_setting.max_per_borrow': number
   'loan_setting.checkin_repay_enabled': boolean

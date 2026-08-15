@@ -40,6 +40,7 @@ type TokenLoanRecord struct {
 	Amount        int64  `json:"amount" gorm:"bigint"`                    // 本次变动总额
 	InterestPart  int64  `json:"interest_part" gorm:"bigint"`             // 其中抵息部分（borrow 为 0）
 	PrincipalPart int64  `json:"principal_part" gorm:"bigint"`            // 其中抵本部分（borrow 为 amount）
+	FeePart       int64  `json:"fee_part" gorm:"bigint"`                  // 提前还款手续费（仅手动还款可能 > 0）
 	DebtAfter     int64  `json:"debt_after" gorm:"bigint"`                // 变动后债务总额
 	Source        string `json:"source" gorm:"type:varchar(16);not null"` // manual / checkin / ai
 	RefId         int64  `json:"ref_id" gorm:"bigint"`                    // source=ai 时为申请 id，其余为 0
@@ -145,11 +146,12 @@ func ProjectLoanStatus(acc *TokenLoanAccount, now time.Time) (debt, interest int
 
 // ===== Task 4: 签到还款 =====
 
-// LoanRepayInfo 签到还款结果（供 controller 透出，nil = 无还款）
+// LoanRepayInfo 还款结果（供 controller 透出，nil = 无还款）
 type LoanRepayInfo struct {
 	Amount        int64 `json:"amount"`
 	InterestPart  int64 `json:"interest_part"`
 	PrincipalPart int64 `json:"principal_part"`
+	FeePart       int64 `json:"fee_part"` // 提前还款手续费（签到自动还款恒为 0）
 	DebtAfter     int64 `json:"debt_after"`
 }
 
@@ -342,9 +344,25 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 	return acc, nil
 }
 
-// RepayLoan 手动提前还款：从用户余额扣款偿还债务（先息后本，复用签到还款拆分）。
-// amountUsd 为 "all"（忽略大小写）时偿还 min(债务, 余额)；否则按 decimal 解析
-// （正数、最多两位小数），还款额 = min(金额, 债务)。余额不足时报
+// earlyRepayFee 手动提前还款手续费：按还款中的抵本部分 × 费率计算（四舍五入到整数 quota）。
+// 签到自动还款不收取；费率为 0 或还款全部抵息时为 0。
+func earlyRepayFee(acc *TokenLoanAccount, repay int64) int64 {
+	rate := operation_setting.GetLoanSetting().RepayFeeRate
+	if rate <= 0 || repay <= 0 {
+		return 0
+	}
+	interest := acc.DebtQuota - acc.PrincipalQuota
+	principalPart := repay - interest
+	if principalPart <= 0 {
+		return 0
+	}
+	return int64(math.Round(float64(principalPart) * rate))
+}
+
+// RepayLoan 手动提前还款：从用户余额扣款偿还债务（先息后本，复用签到还款拆分），
+// 并按抵本部分收取手续费（RepayFeeRate，签到自动还款不收）。
+// amountUsd 为 "all"（忽略大小写）时偿还 min(债务, 余额能覆盖的本息费)；否则按 decimal 解析
+// （正数、最多两位小数），还款额 = min(金额, 债务)。余额不足以覆盖还款额+手续费时报
 // ErrLoanInsufficientBalance。账户/台账/余额扣款在同一事务，提交后异步同步缓存。
 func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo, error) {
 	loanSetting := operation_setting.GetLoanSetting()
@@ -401,12 +419,26 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 			// all 时余额为 0 视同为余额不足；显式金额理论上到不了这里（正数且债务为正）
 			return ErrLoanInsufficientBalance
 		}
-		if int64(user.Quota) < repay {
+
+		// 手续费按抵本部分计算；all 时余额需同时覆盖还款额与手续费，
+		// 不足则下调还款额（手续费随还款额单调不增，数次迭代必收敛）
+		fee := earlyRepayFee(acc, repay)
+		if repayAll {
+			for i := 0; i < 4 && repay > 0 && repay+fee > int64(user.Quota); i++ {
+				repay = int64(user.Quota) - fee
+				fee = earlyRepayFee(acc, repay)
+			}
+			if repay <= 0 {
+				return ErrLoanInsufficientBalance
+			}
+		}
+		if int64(user.Quota) < repay+fee {
 			return ErrLoanInsufficientBalance
 		}
 
 		// info 必非 nil：repay > 0 且债务 > 0
 		info = applyCheckinRepay(acc, repay)
+		info.FeePart = fee
 		acc.UpdatedAt = now.Unix()
 		if err := tx.Save(acc).Error; err != nil {
 			return err
@@ -418,6 +450,7 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 			Amount:        info.Amount,
 			InterestPart:  info.InterestPart,
 			PrincipalPart: info.PrincipalPart,
+			FeePart:       info.FeePart,
 			DebtAfter:     info.DebtAfter,
 			Source:        "manual",
 			CreatedAt:     now.Unix(),
@@ -425,9 +458,9 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 			return err
 		}
 
-		// 余额扣款与账户/台账同一事务，失败整体回滚
+		// 余额扣款（还款额+手续费）与账户/台账同一事务，失败整体回滚
 		if err := tx.Model(&User{}).Where("id = ?", userId).
-			Update("quota", gorm.Expr("quota - ?", repay)).Error; err != nil {
+			Update("quota", gorm.Expr("quota - ?", repay+fee)).Error; err != nil {
 			return err
 		}
 		return nil
@@ -438,7 +471,7 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 
 	// 事务提交后异步同步 Redis 余额缓存（镜像 BorrowLoan 的缓存副作用）
 	go func() {
-		_ = cacheDecrUserQuota(userId, info.Amount)
+		_ = cacheDecrUserQuota(userId, info.Amount+info.FeePart)
 	}()
 	return acc, info, nil
 }

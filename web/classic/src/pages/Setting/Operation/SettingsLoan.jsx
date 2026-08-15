@@ -64,6 +64,7 @@ export default function SettingsLoan(props) {
     'loan_setting.enabled': false,
     'loan_setting.max_total': '2500000',
     'loan_setting.daily_rate': '0.001',
+    'loan_setting.repay_fee_rate': '0.0001',
     'loan_setting.min_register_days': '0',
     'loan_setting.max_per_borrow': '0',
     'loan_setting.checkin_repay_enabled': true,
@@ -342,6 +343,20 @@ export default function SettingsLoan(props) {
               </Col>
             </Row>
             <Row gutter={16}>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.InputNumber
+                  field={'loan_setting.repay_fee_rate'}
+                  label={t('提前还款手续费率')}
+                  placeholder={'0.0001'}
+                  onChange={handleFieldChange('loan_setting.repay_fee_rate')}
+                  min={0}
+                  step={0.0001}
+                  disabled={!enabled}
+                  extraText={t(
+                    '手动提前还款按抵本部分收取的手续费率，签到自动还款不收取',
+                  )}
+                />
+              </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.InputNumber
                   field={'loan_setting.min_register_days'}

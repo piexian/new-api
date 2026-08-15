@@ -154,3 +154,33 @@ func TestTrimLoanMessagesSingleOverBudget(t *testing.T) {
 	_, err := TrimLoanMessages(msgs, 10)
 	require.ErrorIs(t, err, ErrLoanContentTooLong)
 }
+
+func TestStripLoanThinkContent(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"无思考块原样保留", "正常回复内容", "正常回复内容"},
+		{"闭合思考块剥离", "<think>分析一下用户资质</think>批准的回复", "批准的回复"},
+		{"未闭合截断块剥离", "<think>思考到一半被截断", ""},
+		{"思考块夹正文", "前<think>思考</think>后", "前后"},
+		{"多个思考块", "<think>a</think>中<think>b</think>间", "中间"},
+		{"孤立闭合标签", "回复</think>内容", "回复内容"},
+		{"思考块含结案json", "<think>```json\n{\"action\":\"close\"}\n```</think>正文", "正文"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, StripLoanThinkContent(tc.in))
+		})
+	}
+}
+
+func TestExtractLoanDecisionAfterThinkStrip(t *testing.T) {
+	// 思考块剥离后结案块仍能正常解析
+	raw := "<think>评估中</think>可以的。\n```json\n{\"action\":\"close\",\"reply\":\"批准\",\"decision\":{\"credit_limit\":1,\"daily_rate\":0.001,\"interest_free_days\":3}}\n```"
+	display, decision, ok := ExtractLoanDecision(StripLoanThinkContent(raw))
+	require.True(t, ok)
+	require.Equal(t, "可以的。", display)
+	require.Equal(t, 1.0, decision.CreditLimit)
+}

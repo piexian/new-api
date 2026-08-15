@@ -4725,6 +4725,11 @@
     "宽限": "Sursis",
     "已结案": "Clôturé",
     "未评分": "Non noté",
-    "评分备注": "Commentaire de notation"
+    "评分备注": "Commentaire de notation",
+    "提前还款手续费率": "Taux de frais de remboursement anticipé",
+    "手动提前还款按抵本部分收取的手续费率，签到自动还款不收取": "Taux de frais appliqué à la part de principal des remboursements anticipés manuels ; le remboursement automatique par pointage n'est pas facturé",
+    "提前还款将按抵本部分收取 {{rate}} 手续费，与利息一并从钱包余额扣除": "Un remboursement anticipé entraîne des frais de {{rate}} sur la part de principal, prélevés sur le solde de votre portefeuille avec les intérêts éventuels",
+    "不再显示": "Ne plus afficher",
+    "手续费": "Frais"
   }
 }

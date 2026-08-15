@@ -91,7 +91,7 @@ var operationLogTemplates = map[string]localizedLogText{
 	"log.clear":                    {ZH: "清除了历史日志", EN: "Cleared historical logs"},
 
 	"loan.borrow":        {ZH: "词元贷借入 ${amount_usd} USD（当前债务 ${debt_after}）", EN: "Borrowed ${amount_usd} USD via token loan (outstanding debt ${debt_after})"},
-	"loan.repay":         {ZH: "词元贷提前还款 ${amount}（抵息 ${interest_part}，抵本 ${principal_part}，剩余债务 ${debt_after}）", EN: "Early loan repayment of ${amount} (interest ${interest_part}, principal ${principal_part}, remaining debt ${debt_after})"},
+	"loan.repay":         {ZH: "词元贷提前还款 ${amount}（抵息 ${interest_part}，抵本 ${principal_part}，手续费 ${fee_part}，剩余债务 ${debt_after}）", EN: "Early loan repayment of ${amount} (interest ${interest_part}, principal ${principal_part}, fee ${fee_part}, remaining debt ${debt_after})"},
 	"loan.checkin_repay": {ZH: "签到奖励自动还款 ${amount}（抵息 ${interest_part}，抵本 ${principal_part}，剩余债务 ${debt_after}）", EN: "Check-in reward auto-repaid ${amount} (interest ${interest_part}, principal ${principal_part}, remaining debt ${debt_after})"},
 	"loan.ai_decision":   {ZH: "AI 业务员结案（工单 ${application_id}）：额度上限 ${credit_limit} USD，日利率 ${daily_rate}，免息 ${interest_free_days} 天", EN: "AI loan officer closed application ${application_id}: credit limit ${credit_limit} USD, daily rate ${daily_rate}, interest-free ${interest_free_days} days"},
 

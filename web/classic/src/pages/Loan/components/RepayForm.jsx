@@ -27,8 +27,14 @@ const RepayForm = ({ t, status, onRepaid }) => {
   const [fieldError, setFieldError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [balance, setBalance] = useState(null);
+  // 手续费说明"不再显示"标记（localStorage，按浏览器记住）
+  const [feeNoticeHidden, setFeeNoticeHidden] = useState(
+    () => localStorage.getItem('loan-repay-fee-notice-hidden') === '1',
+  );
 
   const debt = status?.debt ?? 0;
+  const feeRate = status?.repay_fee_rate ?? 0;
+  const feeRateText = `${Number((feeRate * 100).toFixed(6))}%`;
 
   // quota_per_unit 缺失/非法时跳过本地余额校验，交给后端兜底
   const rawQuotaPerUnit = parseFloat(localStorage.getItem('quota_per_unit'));
@@ -130,6 +136,28 @@ const RepayForm = ({ t, status, onRepaid }) => {
           <Typography.Text type='tertiary' size='small'>
             {t('钱包余额')}: {balance !== null ? renderQuota(balance) : '-'}
           </Typography.Text>
+        )}
+        {feeRate > 0 && !feeNoticeHidden && (
+          <div className='rounded-lg border p-3 text-xs space-y-2 bg-gray-50 dark:bg-gray-800'>
+            <Typography.Text type='tertiary' size='small'>
+              {t(
+                '提前还款将按抵本部分收取 {{rate}} 手续费，与利息一并从钱包余额扣除',
+                { rate: feeRateText },
+              )}
+            </Typography.Text>
+            <div>
+              <Button
+                size='small'
+                theme='borderless'
+                onClick={() => {
+                  localStorage.setItem('loan-repay-fee-notice-hidden', '1');
+                  setFeeNoticeHidden(true);
+                }}
+              >
+                {t('不再显示')}
+              </Button>
+            </div>
+          </div>
         )}
         <div className='flex gap-2'>
           <Button

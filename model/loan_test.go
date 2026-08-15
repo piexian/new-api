@@ -579,49 +579,56 @@ func TestRepayLoanInsufficientBalance(t *testing.T) {
 }
 
 func TestRepayLoanPartialInterestFirst(t *testing.T) {
-	// 债务 100000（本金 90000 + 利息 10000），还 0.08 USD = 40000：先抵息 10000 再抵本 30000
+	// 债务 100000（本金 90000 + 利息 10000），还 0.08 USD = 40000：先抵息 10000 再抵本 30000，
+	// 手续费 = round(30000 * 0.0001) = 3
 	user := setupRepayTestUser(t, 100000, 90000, 500000)
 	acc, info, err := RepayLoan(user.Id, "0.08")
 	require.NoError(t, err)
 	require.Equal(t, int64(40000), info.Amount)
 	require.Equal(t, int64(10000), info.InterestPart)
 	require.Equal(t, int64(30000), info.PrincipalPart)
+	require.Equal(t, int64(3), info.FeePart)
 	require.Equal(t, int64(60000), info.DebtAfter)
 	require.Equal(t, int64(60000), acc.DebtQuota)
 	require.Equal(t, int64(60000), acc.PrincipalQuota)
 	require.Equal(t, int64(40000), acc.TotalRepaid)
 
-	// 台账与余额扣款
+	// 台账与余额扣款（还款额 + 手续费）
 	var rec TokenLoanRecord
 	require.NoError(t, DB.Where("user_id = ? AND type = ?", user.Id, "repay").First(&rec).Error)
 	require.Equal(t, "manual", rec.Source)
 	require.Equal(t, int64(40000), rec.Amount)
+	require.Equal(t, int64(3), rec.FeePart)
 	require.Equal(t, int64(60000), rec.DebtAfter)
 	var u User
 	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
-	require.Equal(t, 460000, u.Quota)
+	require.Equal(t, 459997, u.Quota)
 }
 
 func TestRepayLoanAll(t *testing.T) {
 	// 余额充足：all 全额还清（金额不受两位小数限制，精确到 quota）
+	// 手续费 = round(90001 * 0.0001) = 9
 	user := setupRepayTestUser(t, 100001, 90001, 500000)
 	acc, info, err := RepayLoan(user.Id, "all")
 	require.NoError(t, err)
 	require.Equal(t, int64(100001), info.Amount)
+	require.Equal(t, int64(9), info.FeePart)
 	require.Equal(t, int64(0), acc.DebtQuota)
 	require.Equal(t, int64(0), acc.PrincipalQuota)
 	var u User
 	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
-	require.Equal(t, 399999, u.Quota)
+	require.Equal(t, 399990, u.Quota)
 }
 
 func TestRepayLoanAllClampedByBalance(t *testing.T) {
-	// 余额不足覆盖债务：all 只还余额部分
+	// 余额不足覆盖债务：all 只还余额能覆盖的部分（还款额 + 手续费 <= 余额）
+	// 迭代收敛：repay 39997 + fee round(29997*0.0001)=3 = 40000
 	user := setupRepayTestUser(t, 100000, 90000, 40000)
 	acc, info, err := RepayLoan(user.Id, "ALL") // 大小写不敏感
 	require.NoError(t, err)
-	require.Equal(t, int64(40000), info.Amount)
-	require.Equal(t, int64(60000), acc.DebtQuota)
+	require.Equal(t, int64(39997), info.Amount)
+	require.Equal(t, int64(3), info.FeePart)
+	require.Equal(t, int64(60003), acc.DebtQuota)
 	var u User
 	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
 	require.Equal(t, 0, u.Quota)
@@ -634,13 +641,36 @@ func TestRepayLoanAllZeroBalance(t *testing.T) {
 }
 
 func TestRepayLoanExplicitAmountClampedToDebt(t *testing.T) {
-	// 显式金额超过债务时按债务截断
+	// 显式金额超过债务时按债务截断；手续费 = round(50000 * 0.0001) = 5
 	user := setupRepayTestUser(t, 50000, 50000, 500000)
 	acc, info, err := RepayLoan(user.Id, "1.00") // 500000 quota > 债务 50000
 	require.NoError(t, err)
 	require.Equal(t, int64(50000), info.Amount)
+	require.Equal(t, int64(5), info.FeePart)
 	require.Equal(t, int64(0), acc.DebtQuota)
 	var u User
 	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
-	require.Equal(t, 450000, u.Quota)
+	require.Equal(t, 449995, u.Quota)
+}
+
+func TestRepayLoanFeeDisabled(t *testing.T) {
+	// 费率为 0 时不收手续费，行为与旧版一致
+	user := setupRepayTestUser(t, 100000, 90000, 500000)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.RepayFeeRate = 0 })
+	_, info, err := RepayLoan(user.Id, "0.08")
+	require.NoError(t, err)
+	require.Equal(t, int64(0), info.FeePart)
+	var u User
+	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
+	require.Equal(t, 460000, u.Quota)
+}
+
+func TestRepayLoanFeeOnlyOnPrincipal(t *testing.T) {
+	// 还款全部抵息时无抵本部分，手续费为 0
+	user := setupRepayTestUser(t, 100000, 90000, 500000)
+	_, info, err := RepayLoan(user.Id, "0.01") // 5000 quota，全抵息（利息 10000）
+	require.NoError(t, err)
+	require.Equal(t, int64(5000), info.InterestPart)
+	require.Equal(t, int64(0), info.PrincipalPart)
+	require.Equal(t, int64(0), info.FeePart)
 }

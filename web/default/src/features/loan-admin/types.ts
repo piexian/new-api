@@ -74,6 +74,7 @@ export interface LoanAdminRecord {
   amount: number
   interest_part: number
   principal_part: number
+  fee_part: number
   debt_after: number
   source: 'manual' | 'checkin' | 'ai' | string
   ref_id: number

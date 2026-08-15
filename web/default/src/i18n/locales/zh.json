@@ -6148,7 +6148,12 @@
     "Borrowed {{amount_usd}} USD via token loan (outstanding debt {{debt_after}})": "通过词元贷借入 {{amount_usd}} USD（未偿债务 {{debt_after}}）",
     "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})": "提前偿还借贷 {{amount}}（利息 {{interest_part}}，本金 {{principal_part}}，剩余债务 {{debt_after}}）",
     "Check-in reward auto-repaid {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})": "签到奖励自动还款 {{amount}}（利息 {{interest_part}}，本金 {{principal_part}}，剩余债务 {{debt_after}}）",
-    "AI loan officer closed application {{application_id}}: credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days": "AI 借贷专员已结案申请 {{application_id}}：信用额度 {{credit_limit}} USD，日利率 {{daily_rate}}，免息 {{interest_free_days}} 天"
+    "AI loan officer closed application {{application_id}}: credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days": "AI 借贷专员已结案申请 {{application_id}}：信用额度 {{credit_limit}} USD，日利率 {{daily_rate}}，免息 {{interest_free_days}} 天",
+    "Early repayment fee rate": "提前还款手续费率",
+    "Fee charged on the principal part of manual early repayments, e.g. 0.0001 means 0.01%; check-in auto repayment is never charged": "手动提前还款按抵本部分收取的手续费率，例如 0.0001 表示 0.01%；签到自动还款不收取",
+    "Don't show again": "不再显示",
+    "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.": "提前还款将按抵本部分收取 {{rate}} 手续费，与利息一并从钱包余额扣除。",
+    "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "词元贷提前还款 {{amount}}（抵息 {{interest_part}}，抵本 {{principal_part}}，手续费 {{fee_part}}，剩余债务 {{debt_after}}）"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

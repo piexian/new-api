@@ -6148,7 +6148,12 @@
     "Borrowed {{amount_usd}} USD via token loan (outstanding debt {{debt_after}})": "Emprunt de {{amount_usd}} USD via prêt de tokens (dette restante {{debt_after}})",
     "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})": "Remboursement anticipé du prêt de {{amount}} (intérêts {{interest_part}}, principal {{principal_part}}, dette restante {{debt_after}})",
     "Check-in reward auto-repaid {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})": "Récompense de pointage auto-remboursée {{amount}} (intérêts {{interest_part}}, principal {{principal_part}}, dette restante {{debt_after}})",
-    "AI loan officer closed application {{application_id}}: credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days": "Agent de prêt IA clôturé la demande {{application_id}} : limite de crédit {{credit_limit}} USD, taux journalier {{daily_rate}}, sans intérêt {{interest_free_days}} jours"
+    "AI loan officer closed application {{application_id}}: credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days": "Agent de prêt IA clôturé la demande {{application_id}} : limite de crédit {{credit_limit}} USD, taux journalier {{daily_rate}}, sans intérêt {{interest_free_days}} jours",
+    "Early repayment fee rate": "Taux de frais de remboursement anticipé",
+    "Fee charged on the principal part of manual early repayments, e.g. 0.0001 means 0.01%; check-in auto repayment is never charged": "Frais appliqués à la part de principal des remboursements anticipés manuels, ex. 0,0001 = 0,01 % ; le remboursement automatique par pointage n'est pas facturé",
+    "Don't show again": "Ne plus afficher",
+    "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.": "Un remboursement anticipé entraîne des frais de {{rate}} sur la part de principal, prélevés sur le solde de votre portefeuille avec les intérêts éventuels.",
+    "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "Remboursement anticipé de {{amount}} (intérêts {{interest_part}}, principal {{principal_part}}, frais {{fee_part}}, dette restante {{debt_after}})"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

@@ -210,6 +210,7 @@ const BILLING_SECTIONS = [
           enabled: settings['loan_setting.enabled'],
           maxTotal: settings['loan_setting.max_total'],
           dailyRate: settings['loan_setting.daily_rate'],
+          repayFeeRate: settings['loan_setting.repay_fee_rate'],
           minRegisterDays: settings['loan_setting.min_register_days'],
           maxPerBorrow: settings['loan_setting.max_per_borrow'],
           checkinRepayEnabled: settings['loan_setting.checkin_repay_enabled'],

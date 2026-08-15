@@ -30,6 +30,8 @@ type LoanSetting struct {
 
 	TermsEnabled bool   `json:"terms_enabled"` // 借款前是否要求确认条款
 	TermsText    string `json:"terms_text"`    // 条款文本
+
+	RepayFeeRate float64 `json:"repay_fee_rate"` // 手动提前还款手续费率（按抵本部分计，0 = 不收；签到自动还款始终不收）
 }
 
 // 默认 AI 业务员 system prompt 模板。
@@ -69,6 +71,7 @@ var loanSetting = LoanSetting{
 	AiPrompt:                defaultLoanAiPrompt,
 	TermsEnabled:            true, // 默认开启条款确认
 	TermsText:               "本人确认已年满 18 周岁，自愿参与词元贷玩法，理解借款按日复利计息、签到自动还款的规则",
+	RepayFeeRate:            0.0001, // 默认提前还款手续费率 0.01%
 }
 
 func init() {

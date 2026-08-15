@@ -118,6 +118,7 @@ func buildLoanStatusData(setting *operation_setting.LoanSetting, acc *model.Toke
 		"terms_enabled":       setting.TermsEnabled,
 		"terms_agreed":        termsAgreed,
 		"terms_text":          setting.TermsText,
+		"repay_fee_rate":      setting.RepayFeeRate,
 	}
 }
 
@@ -209,6 +210,7 @@ func RepayLoan(c *gin.Context) {
 		"amount":         logger.LogQuota(int(info.Amount)),
 		"interest_part":  logger.LogQuota(int(info.InterestPart)),
 		"principal_part": logger.LogQuota(int(info.PrincipalPart)),
+		"fee_part":       logger.LogQuota(int(info.FeePart)),
 		"debt_after":     logger.LogQuota(int(info.DebtAfter)),
 	})
 	data := buildLoanStatusData(operation_setting.GetLoanSetting(), acc, time.Now())
@@ -332,6 +334,12 @@ func GetLoanApplicationDetail(c *gin.Context) {
 	if err != nil {
 		respondLoanInternalError(c, err)
 		return
+	}
+	// 历史数据可能含未剥离的 <think> 思考块，透出前统一清洗
+	for i := range msgs {
+		if msgs[i].Role == "assistant" {
+			msgs[i].Content = service.StripLoanThinkContent(msgs[i].Content)
+		}
 	}
 	common.ApiSuccess(c, gin.H{
 		"application": app,

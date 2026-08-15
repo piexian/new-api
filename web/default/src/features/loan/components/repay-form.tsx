@@ -40,10 +40,14 @@ import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
 import { getSelf } from '@/lib/api'
 import { formatQuotaWithCurrency } from '@/lib/currency'
+import { formatPercent } from '@/lib/format'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { repayLoan } from '../api'
 import type { LoanStatus } from '../types'
+
+// 提前还款手续费说明的"不再显示"标记（localStorage，按浏览器记住）
+const FEE_NOTICE_HIDDEN_KEY = 'loan-repay-fee-notice-hidden'
 
 interface RepayFormProps {
   status?: LoanStatus
@@ -72,6 +76,9 @@ export function RepayForm(props: RepayFormProps) {
     (state) => state.config.currency.quotaPerUnit
   )
   const [submitting, setSubmitting] = useState(false)
+  const [feeNoticeHidden, setFeeNoticeHidden] = useState(
+    () => localStorage.getItem(FEE_NOTICE_HIDDEN_KEY) === '1'
+  )
 
   const schema = useMemo(() => buildSchema(t), [t])
 
@@ -181,6 +188,28 @@ export function RepayForm(props: RepayFormProps) {
                 </FormItem>
               )}
             />
+            {status && status.repay_fee_rate > 0 && !feeNoticeHidden ? (
+              <div className='bg-muted/30 space-y-2 rounded-lg border p-3 text-xs'>
+                <p className='text-muted-foreground'>
+                  {t(
+                    'Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.',
+                    { rate: formatPercent(status.repay_fee_rate * 100) }
+                  )}
+                </p>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='sm'
+                  className='h-7 px-2 text-xs'
+                  onClick={() => {
+                    localStorage.setItem(FEE_NOTICE_HIDDEN_KEY, '1')
+                    setFeeNoticeHidden(true)
+                  }}
+                >
+                  {t("Don't show again")}
+                </Button>
+              </div>
+            ) : null}
             <div className='flex flex-col gap-2 sm:flex-row'>
               <Button
                 type='submit'

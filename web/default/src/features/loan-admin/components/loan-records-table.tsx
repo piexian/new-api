@@ -121,6 +121,7 @@ export function LoanRecordsTable() {
                 <TableHead>{t('Amount')}</TableHead>
                 <TableHead>{t('Interest Part')}</TableHead>
                 <TableHead>{t('Principal Part')}</TableHead>
+                <TableHead>{t('Fee')}</TableHead>
                 <TableHead>{t('Debt After')}</TableHead>
                 <TableHead>{t('Source')}</TableHead>
                 <TableHead>{t('Ref ID')}</TableHead>
@@ -148,6 +149,9 @@ export function LoanRecordsTable() {
                   </TableCell>
                   <TableCell className='tabular-nums'>
                     {formatQuotaWithCurrency(record.principal_part)}
+                  </TableCell>
+                  <TableCell className='tabular-nums'>
+                    {formatQuotaWithCurrency(record.fee_part)}
                   </TableCell>
                   <TableCell className='tabular-nums'>
                     {formatQuotaWithCurrency(record.debt_after)}

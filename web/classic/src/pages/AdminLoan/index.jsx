@@ -347,6 +347,12 @@ const LoanRecordsTab = () => {
         width: 120,
       },
       {
+        title: t('手续费'),
+        dataIndex: 'fee_part',
+        render: (v) => renderQuota(v || 0),
+        width: 120,
+      },
+      {
         title: t('欠款余额'),
         dataIndex: 'debt_after',
         render: (v) => renderQuota(v || 0),
