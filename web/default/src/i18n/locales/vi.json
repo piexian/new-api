@@ -6112,7 +6112,13 @@
     "Total outstanding quota a user can borrow": "Tổng quota chưa trả ngưởi dùng có thể vay",
     "Type your reply...": "Nhập phản hồi của bạn...",
     "Users must agree to the loan terms before borrowing": "Ngưởi dùng phải đồng ý điều khoản vay trước khi vay",
-    "Your Rating": "Đánh giá của bạn"
+    "Your Rating": "Đánh giá của bạn",
+    "Early Repayment": "Trả trước",
+    "Repay with your wallet balance, interest first": "Trả bằng số dư ví, trừ lãi trước",
+    "Amount exceeds your wallet balance": "Số tiền vượt quá số dư ví",
+    "Repay All": "Trả hết",
+    "Repay successful": "Trả thành công",
+    "Repay failed": "Trả thất bại"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

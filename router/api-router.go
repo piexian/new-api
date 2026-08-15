@@ -126,6 +126,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/loan/status", controller.GetLoanStatus)
 				selfRoute.POST("/loan/agree", controller.AgreeLoanTerms)
 				selfRoute.POST("/loan/borrow", controller.BorrowLoan)
+				selfRoute.POST("/loan/repay", controller.RepayLoan)
 				selfRoute.GET("/loan/records", controller.GetLoanRecords)
 				selfRoute.POST("/loan/applications", controller.CreateLoanApplication)
 				selfRoute.GET("/loan/applications", controller.GetLoanApplications)

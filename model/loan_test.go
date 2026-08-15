@@ -499,3 +499,148 @@ func TestBorrowLoanQuotaCreditFailureRollsBackAll(t *testing.T) {
 	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
 	require.Equal(t, 0, u.Quota)
 }
+
+// setupRepayTestUser 创建带债务的还款测试用户：直接建行造 100000 债务（含 10000 利息），
+// 用户余额设为 balance，避免走借款流程的耦合
+func setupRepayTestUser(t *testing.T, debt, principal, balance int64) *User {
+	t.Helper()
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.TermsEnabled = false
+	})
+	user := createLoanTestUser(t)
+	now := time.Now()
+	require.NoError(t, DB.Create(&TokenLoanAccount{
+		UserId:         user.Id,
+		PrincipalQuota: principal,
+		DebtQuota:      debt,
+		LastSettledDay: loanDay(now),
+		CreatedAt:      now.Unix(),
+		UpdatedAt:      now.Unix(),
+	}).Error)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).
+		Update("quota", balance).Error)
+	return user
+}
+
+func TestRepayLoanDisabled(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = false
+	})
+	user := createLoanTestUser(t)
+	_, _, err := RepayLoan(user.Id, "1.00")
+	require.ErrorIs(t, err, ErrLoanDisabled)
+}
+
+func TestRepayLoanNoAccount(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+	})
+	user := createLoanTestUser(t)
+	_, _, err := RepayLoan(user.Id, "1.00")
+	require.ErrorIs(t, err, ErrLoanNoDebt)
+
+	// 不存在的账户不得被还款路径创建
+	var count int64
+	require.NoError(t, DB.Model(&TokenLoanAccount{}).Where("user_id = ?", user.Id).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+}
+
+func TestRepayLoanZeroDebt(t *testing.T) {
+	user := setupRepayTestUser(t, 0, 0, 100000)
+	_, _, err := RepayLoan(user.Id, "1.00")
+	require.ErrorIs(t, err, ErrLoanNoDebt)
+}
+
+func TestRepayLoanRejectsInvalidAmount(t *testing.T) {
+	user := setupRepayTestUser(t, 100000, 90000, 500000)
+	for _, amt := range []string{"", "abc", "-1.00", "0", "0.00", "1.005", "0.001"} {
+		_, _, err := RepayLoan(user.Id, amt)
+		require.ErrorIs(t, err, ErrLoanInvalidAmount, "amount %q should be rejected", amt)
+	}
+}
+
+func TestRepayLoanInsufficientBalance(t *testing.T) {
+	// 债务 100000，余额只有 30000，显式还 0.10 USD（50000）被拒
+	user := setupRepayTestUser(t, 100000, 90000, 30000)
+	_, _, err := RepayLoan(user.Id, "0.10")
+	require.ErrorIs(t, err, ErrLoanInsufficientBalance)
+
+	// 拒绝后债务、余额、台账均无变化
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", user.Id).First(&acc).Error)
+	require.Equal(t, int64(100000), acc.DebtQuota)
+	var u User
+	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
+	require.Equal(t, 30000, u.Quota)
+	var count int64
+	require.NoError(t, DB.Model(&TokenLoanRecord{}).Where("user_id = ?", user.Id).Count(&count).Error)
+	require.Equal(t, int64(0), count)
+}
+
+func TestRepayLoanPartialInterestFirst(t *testing.T) {
+	// 债务 100000（本金 90000 + 利息 10000），还 0.08 USD = 40000：先抵息 10000 再抵本 30000
+	user := setupRepayTestUser(t, 100000, 90000, 500000)
+	acc, info, err := RepayLoan(user.Id, "0.08")
+	require.NoError(t, err)
+	require.Equal(t, int64(40000), info.Amount)
+	require.Equal(t, int64(10000), info.InterestPart)
+	require.Equal(t, int64(30000), info.PrincipalPart)
+	require.Equal(t, int64(60000), info.DebtAfter)
+	require.Equal(t, int64(60000), acc.DebtQuota)
+	require.Equal(t, int64(60000), acc.PrincipalQuota)
+	require.Equal(t, int64(40000), acc.TotalRepaid)
+
+	// 台账与余额扣款
+	var rec TokenLoanRecord
+	require.NoError(t, DB.Where("user_id = ? AND type = ?", user.Id, "repay").First(&rec).Error)
+	require.Equal(t, "manual", rec.Source)
+	require.Equal(t, int64(40000), rec.Amount)
+	require.Equal(t, int64(60000), rec.DebtAfter)
+	var u User
+	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
+	require.Equal(t, 460000, u.Quota)
+}
+
+func TestRepayLoanAll(t *testing.T) {
+	// 余额充足：all 全额还清（金额不受两位小数限制，精确到 quota）
+	user := setupRepayTestUser(t, 100001, 90001, 500000)
+	acc, info, err := RepayLoan(user.Id, "all")
+	require.NoError(t, err)
+	require.Equal(t, int64(100001), info.Amount)
+	require.Equal(t, int64(0), acc.DebtQuota)
+	require.Equal(t, int64(0), acc.PrincipalQuota)
+	var u User
+	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
+	require.Equal(t, 399999, u.Quota)
+}
+
+func TestRepayLoanAllClampedByBalance(t *testing.T) {
+	// 余额不足覆盖债务：all 只还余额部分
+	user := setupRepayTestUser(t, 100000, 90000, 40000)
+	acc, info, err := RepayLoan(user.Id, "ALL") // 大小写不敏感
+	require.NoError(t, err)
+	require.Equal(t, int64(40000), info.Amount)
+	require.Equal(t, int64(60000), acc.DebtQuota)
+	var u User
+	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
+	require.Equal(t, 0, u.Quota)
+}
+
+func TestRepayLoanAllZeroBalance(t *testing.T) {
+	user := setupRepayTestUser(t, 100000, 90000, 0)
+	_, _, err := RepayLoan(user.Id, "all")
+	require.ErrorIs(t, err, ErrLoanInsufficientBalance)
+}
+
+func TestRepayLoanExplicitAmountClampedToDebt(t *testing.T) {
+	// 显式金额超过债务时按债务截断
+	user := setupRepayTestUser(t, 50000, 50000, 500000)
+	acc, info, err := RepayLoan(user.Id, "1.00") // 500000 quota > 债务 50000
+	require.NoError(t, err)
+	require.Equal(t, int64(50000), info.Amount)
+	require.Equal(t, int64(0), acc.DebtQuota)
+	var u User
+	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
+	require.Equal(t, 450000, u.Quota)
+}

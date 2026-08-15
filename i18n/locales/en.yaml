@@ -211,6 +211,8 @@ loan.invalid_rating: "Rating must be between 1 and 5"
 loan.not_found: "Application not found"
 loan.invalid_topic: "Invalid application topic"
 loan.not_open: "This application is closed and cannot be replied to"
+loan.no_debt: "No outstanding loan to repay"
+loan.insufficient_balance: "Insufficient balance to complete the repayment"
 loan.internal_error: "Operation failed, please try again later"
 
 # Passkey messages

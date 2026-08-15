@@ -6112,7 +6112,13 @@
     "Total outstanding quota a user can borrow": "使用者可借用的未償還總額度",
     "Type your reply...": "輸入您的回覆…",
     "Users must agree to the loan terms before borrowing": "使用者借款前必須同意借貸條款",
-    "Your Rating": "您的評分"
+    "Your Rating": "您的評分",
+    "Early Repayment": "提前還款",
+    "Repay with your wallet balance, interest first": "使用錢包餘額還款，先抵利息後抵本金",
+    "Amount exceeds your wallet balance": "金額超出您的錢包餘額",
+    "Repay All": "全部還清",
+    "Repay successful": "還款成功",
+    "Repay failed": "還款失敗"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

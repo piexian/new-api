@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { API, showError } from '../../helpers';
 import LoanStatusCard from './components/LoanStatusCard';
 import BorrowForm from './components/BorrowForm';
+import RepayForm from './components/RepayForm';
 import LoanRecordsTable from './components/LoanRecordsTable';
 import OfficerApplications from './components/OfficerApplications';
 import TermsModal from './components/TermsModal';
@@ -60,7 +61,7 @@ const Loan = () => {
     fetchStatus();
   }, [fetchStatus]);
 
-  // 借款成功后后端返回最新状态，直接复用并触发台账刷新
+  // 借款/还款成功后后端返回最新状态，直接复用并触发台账刷新
   const handleBorrowed = (newStatus) => {
     if (newStatus) setStatus(newStatus);
     setRecordsRefreshKey((k) => k + 1);
@@ -102,7 +103,12 @@ const Loan = () => {
       <div className='flex flex-col gap-6'>
         <div className='grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'>
           <LoanStatusCard t={t} status={status} />
-          <BorrowForm t={t} status={status} onBorrowed={handleBorrowed} />
+          <div className='flex flex-col gap-6'>
+            <BorrowForm t={t} status={status} onBorrowed={handleBorrowed} />
+            {status.debt > 0 ? (
+              <RepayForm t={t} status={status} onRepaid={handleBorrowed} />
+            ) : null}
+          </div>
         </div>
         <LoanRecordsTable t={t} refreshKey={recordsRefreshKey} />
         {status.ai_enabled ? <OfficerApplications t={t} /> : null}

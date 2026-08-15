@@ -27,6 +27,7 @@ import { BorrowForm } from './components/borrow-form'
 import { LoanRecordsTable } from './components/loan-records-table'
 import { LoanStatusCard } from './components/loan-status-card'
 import { OfficerApplications } from './components/officer-applications'
+import { RepayForm } from './components/repay-form'
 import { TermsDialog } from './components/terms-dialog'
 
 export function LoanPage() {
@@ -74,7 +75,12 @@ export function LoanPage() {
                   error={isError ? error.message : null}
                   onRetry={() => refetch()}
                 />
-                <BorrowForm status={status} />
+                <div className='flex flex-col gap-4'>
+                  <BorrowForm status={status} />
+                  {status && status.debt > 0 ? (
+                    <RepayForm status={status} />
+                  ) : null}
+                </div>
               </div>
               <LoanRecordsTable />
               {status?.ai_enabled ? <OfficerApplications /> : null}

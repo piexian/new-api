@@ -4695,6 +4695,14 @@
     "默认智谱地址": "Adresse Zhipu par défaut",
     "默认测试模型": "Modèle de test par défaut",
     "默认用户消息": "Bonjour",
-    "默认补全倍率": "Taux de complétion par défaut"
+    "默认补全倍率": "Taux de complétion par défaut",
+    "提前还款": "Remboursement anticipé",
+    "使用钱包余额还款，先抵利息后抵本金": "Remboursez avec le solde de votre portefeuille, les intérêts d'abord",
+    "请输入还款金额": "Veuillez saisir un montant de remboursement",
+    "金额超出您的钱包余额": "Le montant dépasse le solde de votre portefeuille",
+    "钱包余额": "Solde du portefeuille",
+    "全部还清": "Tout rembourser",
+    "还款成功": "Remboursement réussi",
+    "还款失败": "Échec du remboursement"
   }
 }

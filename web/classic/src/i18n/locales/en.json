@@ -4802,6 +4802,14 @@
     "默认智谱地址": "Default Zhipu Address",
     "默认测试模型": "Default Test Model",
     "默认用户消息": "Default User Message",
-    "默认补全倍率": "Default completion ratio"
+    "默认补全倍率": "Default completion ratio",
+    "提前还款": "Early Repayment",
+    "使用钱包余额还款，先抵利息后抵本金": "Repay with your wallet balance, interest first",
+    "请输入还款金额": "Please enter a repayment amount",
+    "金额超出您的钱包余额": "Amount exceeds your wallet balance",
+    "钱包余额": "Wallet Balance",
+    "全部还清": "Repay All",
+    "还款成功": "Repay successful",
+    "还款失败": "Repay failed"
   }
 }

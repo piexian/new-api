@@ -61,6 +61,17 @@ export async function borrowLoan(
 }
 
 /**
+ * Repay an amount in USD, or "all" to repay as much as the wallet covers.
+ * Returns the refreshed loan status (plus a repay breakdown) on success.
+ */
+export async function repayLoan(
+  amountUsd: string
+): Promise<ApiResponse<LoanStatus>> {
+  const res = await api.post('/api/user/loan/repay', { amount_usd: amountUsd })
+  return res.data
+}
+
+/**
  * Get paginated loan ledger records
  */
 export async function getLoanRecords(

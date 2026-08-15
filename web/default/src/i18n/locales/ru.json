@@ -6112,7 +6112,13 @@
     "Total outstanding quota a user can borrow": "Общая непогашенная квота, которую пользователь может занять",
     "Type your reply...": "Введите ваш ответ...",
     "Users must agree to the loan terms before borrowing": "Пользователи должны принять условия займа перед оформлением",
-    "Your Rating": "Ваша оценка"
+    "Your Rating": "Ваша оценка",
+    "Early Repayment": "Досрочное погашение",
+    "Repay with your wallet balance, interest first": "Погашайте с баланса кошелька, сначала проценты",
+    "Amount exceeds your wallet balance": "Сумма превышает баланс кошелька",
+    "Repay All": "Погасить всё",
+    "Repay successful": "Погашение выполнено",
+    "Repay failed": "Ошибка погашения"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

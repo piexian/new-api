@@ -40,6 +40,10 @@ func respondLoanError(c *gin.Context, err error) {
 		common.ApiErrorI18n(c, i18n.MsgLoanQuotaOverflow)
 	case errors.Is(err, model.ErrLoanUserDisabled):
 		common.ApiErrorI18n(c, i18n.MsgLoanUserDisabled)
+	case errors.Is(err, model.ErrLoanNoDebt):
+		common.ApiErrorI18n(c, i18n.MsgLoanNoDebt)
+	case errors.Is(err, model.ErrLoanInsufficientBalance):
+		common.ApiErrorI18n(c, i18n.MsgLoanInsufficientBalance)
 	case errors.Is(err, model.ErrLoanApplicationLimit):
 		common.ApiErrorI18n(c, i18n.MsgLoanApplicationLimit)
 	case errors.Is(err, model.ErrLoanAlreadyRated):
@@ -171,6 +175,33 @@ func BorrowLoan(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, buildLoanStatusData(operation_setting.GetLoanSetting(), acc, time.Now()))
+}
+
+type repayLoanRequest struct {
+	AmountUsd string `json:"amount_usd"`
+}
+
+// RepayLoan 提前还款（amount_usd 为美元金额或 "all" 全部还清），成功返回最新状态与本次还款拆分
+func RepayLoan(c *gin.Context) {
+	var req repayLoanRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	amountUsd := strings.TrimSpace(req.AmountUsd)
+	if amountUsd == "" {
+		common.ApiErrorI18n(c, i18n.MsgLoanInvalidAmount)
+		return
+	}
+	userId := c.GetInt("id")
+	acc, info, err := model.RepayLoan(userId, amountUsd)
+	if err != nil {
+		respondLoanError(c, err)
+		return
+	}
+	data := buildLoanStatusData(operation_setting.GetLoanSetting(), acc, time.Now())
+	data["repay"] = info
+	common.ApiSuccess(c, data)
 }
 
 // GetLoanRecords 分页查询当前用户台账（id 倒序）

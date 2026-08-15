@@ -6112,7 +6112,13 @@
     "Total outstanding quota a user can borrow": "ユーザーが借入れできる未返済クォータの合計",
     "Type your reply...": "返信を入力してください...",
     "Users must agree to the loan terms before borrowing": "ユーザーは借入前にローン規約に同意する必要があります",
-    "Your Rating": "あなたの評価"
+    "Your Rating": "あなたの評価",
+    "Early Repayment": "繰り上げ返済",
+    "Repay with your wallet balance, interest first": "ウォレット残高で返済（利息優先）",
+    "Amount exceeds your wallet balance": "金額がウォレット残高を超えています",
+    "Repay All": "全額返済",
+    "Repay successful": "返済しました",
+    "Repay failed": "返済に失敗しました"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

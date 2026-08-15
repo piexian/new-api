@@ -179,13 +179,15 @@ func applyCheckinRepay(acc *TokenLoanAccount, award int64) *LoanRepayInfo {
 
 // 词元贷哨兵错误，controller 层映射为 i18n 响应
 var (
-	ErrLoanDisabled       = errors.New("loan feature is disabled")
-	ErrLoanTermsNotAgreed = errors.New("loan terms not agreed")
-	ErrLoanLimitExceeded  = errors.New("loan limit exceeded")
-	ErrLoanInvalidAmount  = errors.New("invalid loan amount")
-	ErrLoanRegisterTooNew = errors.New("account registered too recently to borrow")
-	ErrLoanQuotaOverflow  = errors.New("loan amount overflows user quota range")
-	ErrLoanUserDisabled   = errors.New("user account is not in normal status")
+	ErrLoanDisabled            = errors.New("loan feature is disabled")
+	ErrLoanTermsNotAgreed      = errors.New("loan terms not agreed")
+	ErrLoanLimitExceeded       = errors.New("loan limit exceeded")
+	ErrLoanInvalidAmount       = errors.New("invalid loan amount")
+	ErrLoanRegisterTooNew      = errors.New("account registered too recently to borrow")
+	ErrLoanQuotaOverflow       = errors.New("loan amount overflows user quota range")
+	ErrLoanUserDisabled        = errors.New("user account is not in normal status")
+	ErrLoanNoDebt              = errors.New("no outstanding loan debt")
+	ErrLoanInsufficientBalance = errors.New("insufficient balance to repay loan")
 )
 
 // isLoanDuplicateKeyErr 识别各数据库方言的主键/唯一键冲突错误
@@ -338,6 +340,107 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 	}()
 	common.ResetQuotaNotificationSendLocks(userId, "wallet", 0)
 	return acc, nil
+}
+
+// RepayLoan 手动提前还款：从用户余额扣款偿还债务（先息后本，复用签到还款拆分）。
+// amountUsd 为 "all"（忽略大小写）时偿还 min(债务, 余额)；否则按 decimal 解析
+// （正数、最多两位小数），还款额 = min(金额, 债务)。余额不足时报
+// ErrLoanInsufficientBalance。账户/台账/余额扣款在同一事务，提交后异步同步缓存。
+func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo, error) {
+	loanSetting := operation_setting.GetLoanSetting()
+	if !loanSetting.Enabled {
+		return nil, nil, ErrLoanDisabled
+	}
+
+	repayAll := strings.EqualFold(strings.TrimSpace(amountUsd), "all")
+	var amount int64
+	if !repayAll {
+		// 与 BorrowLoan 同一套金额解析：非正数或超过两位小数一律拒绝
+		usd, err := decimal.NewFromString(amountUsd)
+		if err != nil || !usd.IsPositive() || usd.Exponent() < -2 {
+			return nil, nil, ErrLoanInvalidAmount
+		}
+		quotaDec := usd.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+		a, clamp := common.QuotaFromDecimalChecked(quotaDec)
+		if clamp != nil {
+			return nil, nil, ErrLoanQuotaOverflow
+		}
+		amount = int64(a)
+	}
+
+	now := time.Now()
+	var acc *TokenLoanAccount
+	var info *LoanRepayInfo
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := tx.Select("id", "quota").Where("id = ?", userId).First(&user).Error; err != nil {
+			return err
+		}
+
+		var err error
+		// 还款只面向已有账户，不为无贷用户建行
+		acc, err = getLoanAccountTx(tx, userId)
+		if err != nil {
+			return err
+		}
+		if acc == nil {
+			return ErrLoanNoDebt
+		}
+		settle(acc, now)
+		if acc.DebtQuota <= 0 {
+			return ErrLoanNoDebt
+		}
+
+		repay := amount
+		if repayAll {
+			repay = min(acc.DebtQuota, int64(user.Quota))
+		} else {
+			repay = min(repay, acc.DebtQuota)
+		}
+		if repay <= 0 {
+			// all 时余额为 0 视同为余额不足；显式金额理论上到不了这里（正数且债务为正）
+			return ErrLoanInsufficientBalance
+		}
+		if int64(user.Quota) < repay {
+			return ErrLoanInsufficientBalance
+		}
+
+		// info 必非 nil：repay > 0 且债务 > 0
+		info = applyCheckinRepay(acc, repay)
+		acc.UpdatedAt = now.Unix()
+		if err := tx.Save(acc).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Create(&TokenLoanRecord{
+			UserId:        userId,
+			Type:          "repay",
+			Amount:        info.Amount,
+			InterestPart:  info.InterestPart,
+			PrincipalPart: info.PrincipalPart,
+			DebtAfter:     info.DebtAfter,
+			Source:        "manual",
+			CreatedAt:     now.Unix(),
+		}).Error; err != nil {
+			return err
+		}
+
+		// 余额扣款与账户/台账同一事务，失败整体回滚
+		if err := tx.Model(&User{}).Where("id = ?", userId).
+			Update("quota", gorm.Expr("quota - ?", repay)).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// 事务提交后异步同步 Redis 余额缓存（镜像 BorrowLoan 的缓存副作用）
+	go func() {
+		_ = cacheDecrUserQuota(userId, info.Amount)
+	}()
+	return acc, info, nil
 }
 
 // GetUserLoanRecords 分页返回用户台账，id 倒序（最新在前），page 从 1 开始；附总数用于分页

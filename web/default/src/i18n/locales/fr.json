@@ -6112,7 +6112,13 @@
     "Total outstanding quota a user can borrow": "Quota total en cours qu'un utilisateur peut emprunter",
     "Type your reply...": "Saisissez votre réponse...",
     "Users must agree to the loan terms before borrowing": "Les utilisateurs doivent accepter les conditions avant d'emprunter",
-    "Your Rating": "Votre note"
+    "Your Rating": "Votre note",
+    "Early Repayment": "Remboursement anticipé",
+    "Repay with your wallet balance, interest first": "Remboursez avec le solde de votre portefeuille, les intérêts d'abord",
+    "Amount exceeds your wallet balance": "Le montant dépasse le solde de votre portefeuille",
+    "Repay All": "Tout rembourser",
+    "Repay successful": "Remboursement réussi",
+    "Repay failed": "Échec du remboursement"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

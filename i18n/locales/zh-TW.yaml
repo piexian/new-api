@@ -212,6 +212,8 @@ loan.invalid_rating: "評分需在 1 到 5 之間"
 loan.not_found: "申請不存在"
 loan.invalid_topic: "無效的申請類型"
 loan.not_open: "該申請已結案，無法繼續回覆"
+loan.no_debt: "目前沒有未償還的借款"
+loan.insufficient_balance: "餘額不足，無法完成還款"
 loan.internal_error: "操作失敗，請稍後重試"
 
 # Passkey messages
