@@ -1,6 +1,10 @@
 package operation_setting
 
-import "github.com/QuantumNous/new-api/setting/config"
+import (
+	"errors"
+
+	"github.com/QuantumNous/new-api/setting/config"
+)
 
 // AiModelConfig 词元贷 AI 业务员可用的模型配置
 type AiModelConfig struct {
@@ -32,6 +36,23 @@ type LoanSetting struct {
 	TermsText    string `json:"terms_text"`    // 条款文本
 
 	RepayFeeRate float64 `json:"repay_fee_rate"` // 手动提前还款手续费率（按抵本部分计，0 = 不收；签到自动还款始终不收）
+
+	// —— 放贷市场（P2P）配置 ——
+	MarketEnabled            bool    `json:"market_enabled"`             // 市场总开关
+	LenderMinAmount          int64   `json:"lender_min_amount"`          // 最小入池金额（quota）
+	LenderRateMin            float64 `json:"lender_rate_min"`            // 放贷利率下限（日利率，必须 > 0 且 < DailyRate）
+	LenderRateMax            float64 `json:"lender_rate_max"`            // 放贷利率上限（日利率）
+	PerLoanCapDefault        int64   `json:"per_loan_cap_default"`       // offer 单笔出资上限缺省值（0 = 不限）
+	MaxFundingsPerBorrow     int     `json:"max_fundings_per_borrow"`    // 单笔借款 funding 条数上限（1~10）
+	LoanTermDays             int     `json:"loan_term_days"`             // 借款期限（天）
+	BlacklistDaysOnDefault   int     `json:"blacklist_days_on_default"`  // 核销违约后禁借天数
+	OverduePenaltyMultiplier float64 `json:"overdue_penalty_multiplier"` // 逾期罚息倍率（× funding 日利率）
+	CreditInitial            int     `json:"credit_initial"`             // 信用分初始值
+	CreditRepayBonus         int     `json:"credit_repay_bonus"`         // 按时全额还清加分
+	CreditFastRepayPenalty   int     `json:"credit_fast_repay_penalty"`  // 持有不足最短天数即全额还清的扣分
+	CreditDefaultPenalty     int     `json:"credit_default_penalty"`     // 违约（核销）扣分
+	CreditMinHoldDays        int     `json:"credit_min_hold_days"`       // 计分前最短持有天数（防刷分）
+	CreditMinBorrowUsd       float64 `json:"credit_min_borrow_usd"`      // 信用分计分金额门槛（USD，低于不计分）
 }
 
 // 默认 AI 业务员 system prompt 模板。
@@ -72,6 +93,22 @@ var loanSetting = LoanSetting{
 	TermsEnabled:            true, // 默认开启条款确认
 	TermsText:               "本人确认已年满 18 周岁，自愿参与词元贷玩法，理解借款按日复利计息、签到自动还款的规则",
 	RepayFeeRate:            0.0001, // 默认提前还款手续费率 0.01%
+
+	MarketEnabled:            false,  // 默认关闭放贷市场
+	LenderMinAmount:          50000,  // 最小入池 50000 quota (0.10 USD @ QuotaPerUnit=500000)
+	LenderRateMin:            0.0005, // 放贷利率下限 0.05%/天
+	LenderRateMax:            0.003,  // 放贷利率上限 0.3%/天
+	PerLoanCapDefault:        0,      // 默认不限
+	MaxFundingsPerBorrow:     5,      // 默认最多 5 条 funding
+	LoanTermDays:             30,     // 默认借款期限 30 天
+	BlacklistDaysOnDefault:   30,     // 默认核销后禁借 30 天
+	OverduePenaltyMultiplier: 2.0,    // 默认逾期罚息 2 倍
+	CreditInitial:            50,     // 默认信用分初始 50
+	CreditRepayBonus:         5,      // 按时还清 +5
+	CreditFastRepayPenalty:   2,      // 快速还清 -2
+	CreditDefaultPenalty:     20,     // 违约 -20
+	CreditMinHoldDays:        3,      // 至少持有 3 天
+	CreditMinBorrowUsd:       1.0,    // 1 USD 以下不计信用分
 }
 
 func init() {
@@ -82,4 +119,29 @@ func init() {
 // GetLoanSetting 获取词元贷配置
 func GetLoanSetting() *LoanSetting {
 	return &loanSetting
+}
+
+// ValidateLoanMarketSetting 校验放贷市场配置的跨字段约束。
+// 在配置保存路径调用（controller/option.go 的 UpdateOption），
+// 保证不合法的市场配置无法入库。约束见 docs/specs/2026-08-15-loan-marketplace-design.md：
+//   - LenderRateMin > 0，且严格低于官方日利率 DailyRate（利率地板必须低于官方利率）
+//   - LenderRateMin <= LenderRateMax（下限不得高于上限）
+//   - MaxFundingsPerBorrow 在 1~10 之间（单笔借款 funding 条数上限）
+func ValidateLoanMarketSetting(s *LoanSetting) error {
+	if s == nil {
+		return errors.New("loan_setting 配置为空")
+	}
+	if s.LenderRateMin <= 0 {
+		return errors.New("放贷利率下限必须大于 0")
+	}
+	if s.LenderRateMin >= s.DailyRate {
+		return errors.New("放贷利率下限必须低于官方日利率")
+	}
+	if s.LenderRateMin > s.LenderRateMax {
+		return errors.New("放贷利率下限不能高于放贷利率上限")
+	}
+	if s.MaxFundingsPerBorrow < 1 || s.MaxFundingsPerBorrow > 10 {
+		return errors.New("单笔借款资金条数上限必须在 1 到 10 之间")
+	}
+	return nil
 }

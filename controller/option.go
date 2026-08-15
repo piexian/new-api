@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -160,6 +161,18 @@ func UpdateOption(c *gin.Context) {
 	}
 	if strings.HasPrefix(option.Key, "fetch_setting.") {
 		if err := system_setting.ValidateFetchSettingOption(option.Key, option.Value.(string)); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
+	}
+	if strings.HasPrefix(option.Key, "loan_setting.") {
+		// 放贷市场字段与官方日利率互相约束，任何 loan_setting 保存都按"应用后全量校验"
+		// 处理：把本次改动应用到当前配置的副本再跑 ValidateLoanMarketSetting，
+		// 保证不合法的市场配置无法入库（与 fetch_setting 的保存前校验同风格）。
+		proposed := *operation_setting.GetLoanSetting()
+		configKey := strings.TrimPrefix(option.Key, "loan_setting.")
+		config.UpdateConfigFromMap(&proposed, map[string]string{configKey: option.Value.(string)})
+		if err := operation_setting.ValidateLoanMarketSetting(&proposed); err != nil {
 			common.ApiErrorMsg(c, err.Error())
 			return
 		}
