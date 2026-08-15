@@ -189,7 +189,7 @@ function NewApplicationDialog({
           }}
         >
           <SelectTrigger className='w-full'>
-            <SelectValue />
+            <SelectValue>{topicLabel(topic)}</SelectValue>
           </SelectTrigger>
           <SelectContent alignItemWithTrigger={false}>
             <SelectGroup>

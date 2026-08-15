@@ -31,7 +31,25 @@ import * as React from 'react'
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
 
-const Select = SelectPrimitive.Root
+// 选中值 -> 选项文案注册表：Base UI 的 Value 默认只显示原始 value，
+// 这里在 Item 挂载时登记 label，让 Value 能回查到选项文案
+type SelectLabelsRegistry = React.MutableRefObject<Map<string, string>>
+
+const SelectLabelsContext = React.createContext<SelectLabelsRegistry | null>(
+  null
+)
+
+function Select<Value, Multiple extends boolean | undefined = false>({
+  children,
+  ...props
+}: SelectPrimitive.Root.Props<Value, Multiple>) {
+  const registry = React.useRef(new Map<string, string>())
+  return (
+    <SelectLabelsContext.Provider value={registry}>
+      <SelectPrimitive.Root {...props}>{children}</SelectPrimitive.Root>
+    </SelectLabelsContext.Provider>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -43,13 +61,43 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   )
 }
 
-function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
+function SelectValue({
+  className,
+  children,
+  placeholder,
+  ...props
+}: SelectPrimitive.Value.Props) {
+  const registry = React.useContext(SelectLabelsContext)
+  // children 为函数时 Value 不再自动处理 placeholder，这里自行兜底：
+  // 未选中显示 placeholder；已选中优先回查注册的选项文案，否则退回原始值
+  const renderValue = React.useCallback(
+    (value: unknown): React.ReactNode => {
+      if (value === null || value === undefined || value === '') {
+        return placeholder ?? ''
+      }
+      if (Array.isArray(value)) {
+        return value
+          .map(
+            (item) => registry?.current.get(String(item)) ?? String(item)
+          )
+          .join(', ')
+      }
+      if (typeof value === 'string' || typeof value === 'number') {
+        return registry?.current.get(String(value)) ?? String(value)
+      }
+      return String(value)
+    },
+    [registry, placeholder]
+  )
   return (
     <SelectPrimitive.Value
       data-slot='select-value'
       className={cn('flex flex-1 text-left', className)}
+      placeholder={placeholder}
       {...props}
-    />
+    >
+      {children ?? renderValue}
+    </SelectPrimitive.Value>
   )
 }
 
@@ -149,11 +197,22 @@ function SelectLabel({
 function SelectItem({
   className,
   children,
+  value,
   ...props
 }: SelectPrimitive.Item.Props) {
+  const registry = React.useContext(SelectLabelsContext)
+  // 弹层关闭后 Item 会卸载，有意不做注销：选中值在关闭状态下仍需文案回查
+  if (
+    registry &&
+    (typeof value === 'string' || typeof value === 'number') &&
+    typeof children === 'string'
+  ) {
+    registry.current.set(String(value), children)
+  }
   return (
     <SelectPrimitive.Item
       data-slot='select-item'
+      value={value}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground not-data-[variant=destructive]:focus:**:text-accent-foreground relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-8 pl-1.5 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className

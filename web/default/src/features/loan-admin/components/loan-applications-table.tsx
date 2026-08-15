@@ -220,7 +220,7 @@ export function LoanApplicationsTable() {
               }}
             >
               <SelectTrigger className='h-8 w-28'>
-                <SelectValue />
+                <SelectValue>{statusLabel(status)}</SelectValue>
               </SelectTrigger>
               <SelectContent alignItemWithTrigger={false}>
                 <SelectGroup>
