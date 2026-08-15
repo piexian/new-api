@@ -61,14 +61,14 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	}
 	var imageLogDetails map[string]interface{}
 	if passThroughRequest {
-		storage, err := common.GetBodyStorage(c)
+		body, _, err := relaycommon.PassThroughRequestBody(c, info)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		if info.ChannelType == constant.ChannelTypeXai {
 			imageLogDetails = xai.BuildImageLogDetails(*request, nil, info)
 		}
-		requestBody = common.ReaderOnly(storage)
+		requestBody = body
 	} else {
 		convertedRequest, err := adaptor.ConvertImageRequest(c, info, *request)
 		if err != nil {

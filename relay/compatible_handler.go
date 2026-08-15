@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -103,16 +104,17 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	var requestBody io.Reader
 
 	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
-		storage, err := common.GetBodyStorage(c)
+		body, _, err := relaycommon.PassThroughRequestBody(c, info)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		if common.DebugEnabled {
-			if debugBytes, bErr := storage.Bytes(); bErr == nil {
+			if debugBytes, bErr := io.ReadAll(body); bErr == nil {
 				logger.LogDebug(c, "requestBody: %s", debugBytes)
+				body = bytes.NewReader(debugBytes)
 			}
 		}
-		requestBody = common.ReaderOnly(storage)
+		requestBody = body
 	} else {
 		if (info.ChannelType == constant.ChannelTypeZhipu ||
 			info.ChannelType == constant.ChannelTypeZhipu_v4) &&
