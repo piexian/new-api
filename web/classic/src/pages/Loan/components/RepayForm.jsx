@@ -162,6 +162,16 @@ const RepayForm = ({ t, status, onRepaid }) => {
             </div>
           </div>
         )}
+        {(status?.fast_repay_penalty_estimate ?? 0) > 0 && (
+          <div className='rounded-lg border border-red-300 dark:border-red-800 p-3 text-xs bg-red-50 dark:bg-red-950'>
+            <Typography.Text type='danger' size='small'>
+              {t(
+                '您的欠款包含带秒结清惩罚的资金：现在手动全额结清将额外收取 {{amount}}；签到自动还款不会触发该惩罚，可正常还款。',
+                { amount: renderQuota(status.fast_repay_penalty_estimate) },
+              )}
+            </Typography.Text>
+          </div>
+        )}
         {lastRepay ? (
           <div className='rounded-lg border p-3 text-xs space-y-1.5 bg-gray-50 dark:bg-gray-800'>
             <Typography.Text type='tertiary' size='small'>

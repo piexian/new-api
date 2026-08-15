@@ -283,13 +283,40 @@ func AgreeLenderDisclaimer(userId int) error {
 //     PerLoanCapDefault 缺省（可能仍为 0 = 不限）；
 //   - ai：rateMin/rateMax 区间 ⊆ [LenderRateMin, LenderRateMax] 且 perLoanCap > 0；
 //   - minCreditScore 钳制到 [-50, 100]，低于 -50 视为"不限制"。
+//
+// LoanOfferParamError 挂单参数无效：Reason 标识具体哪个参数无效（mode /
+// amount_min / penalty / penalty_exceeds / window / rate / rate_range /
+// per_loan_cap），Params 携带合法范围等模板参数，controller 据此渲染 i18n 明细
+type LoanOfferParamError struct {
+	Reason string
+	Params map[string]any
+}
+
+func (e *LoanOfferParamError) Error() string {
+	return "loan offer invalid params: " + e.Reason
+}
+
+func (e *LoanOfferParamError) Is(target error) bool {
+	return target == ErrLoanOfferInvalidParams
+}
+
+// loanUsdStr 把 quota 换算为两位小数的美元字符串（错误消息模板参数用）
+func loanUsdStr(quota int64) string {
+	return strconv.FormatFloat(float64(quota)/common.QuotaPerUnit, 'f', 2, 64)
+}
+
+// loanRatePctStr 把日利率小数换算为百分数字符串（错误消息模板参数用）
+func loanRatePctStr(rate float64) string {
+	return strconv.FormatFloat(rate*100, 'f', -1, 64) + "%"
+}
+
 func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rateMin, rateMax float64, perLoanCap int64, minCreditScore int, fastRepayPenaltyUsd string, fastRepayWindowDays int) (*TokenLoanOffer, error) {
 	loanSetting := operation_setting.GetLoanSetting()
 	if !loanSetting.MarketEnabled {
 		return nil, ErrLoanMarketDisabled
 	}
 	if mode != LoanOfferModePool && mode != LoanOfferModeAi && mode != LoanOfferModeOrder {
-		return nil, ErrLoanOfferInvalidParams
+		return nil, &LoanOfferParamError{Reason: "mode"}
 	}
 
 	// 金额解析与 BorrowLoan 同一套：非正数或超过两位小数一律拒绝
@@ -298,24 +325,23 @@ func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rat
 		return nil, ErrLoanInvalidAmount
 	}
 	quotaDec := usd.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
-	amount, clamp := common.QuotaFromDecimalChecked(quotaDec)
-	if clamp != nil {
+	amount, overflow := LoanQuotaFromDecimal(quotaDec)
+	if overflow {
 		return nil, ErrLoanQuotaOverflow
 	}
 	// QuotaPerUnit 是运行时可调配置（model/option.go），换算后 amount 可能为 0，必须显式拒绝
 	if amount <= 0 {
 		return nil, ErrLoanInvalidAmount
 	}
-	if int64(amount) < loanSetting.LenderMinAmount {
-		return nil, ErrLoanOfferInvalidParams
-	}
-	// 挂出金额必须落在 int32 quota 上界内（clamp 后恒成立，防御性校验）
-	if int64(amount) > common.MaxQuota {
-		return nil, ErrLoanQuotaOverflow
+	if amount < loanSetting.LenderMinAmount {
+		return nil, &LoanOfferParamError{Reason: "amount_min", Params: map[string]any{
+			"min": loanUsdStr(loanSetting.LenderMinAmount),
+		}}
 	}
 
 	// 秒结清惩罚参数（放贷人自定条款，随放款复制到 funding）：
 	//   - fastRepayPenaltyUsd 为空视为 "0"（不收取）；decimal 解析必须非负、最多两位小数；
+	//   - 惩罚不得超过挂出金额的 2 倍（防天价罚单，借款人侧最高承担 本金+2×本金）；
 	//   - fastRepayWindowDays ∈ [0, 365]，0 = 仅当天结清才计罚；
 	// 非法一律 ErrLoanOfferInvalidParams（与挂单参数同级，不占用金额类哨兵错误）。
 	penaltyUsd := strings.TrimSpace(fastRepayPenaltyUsd)
@@ -324,14 +350,21 @@ func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rat
 	}
 	penaltyDec, err := decimal.NewFromString(penaltyUsd)
 	if err != nil || penaltyDec.IsNegative() || penaltyDec.Exponent() < -2 {
-		return nil, ErrLoanOfferInvalidParams
+		return nil, &LoanOfferParamError{Reason: "penalty"}
 	}
-	penaltyQuota, clamp := common.QuotaFromDecimalChecked(penaltyDec.Mul(decimal.NewFromFloat(common.QuotaPerUnit)))
-	if clamp != nil {
-		return nil, ErrLoanOfferInvalidParams
+	penaltyQuota, overflow := LoanQuotaFromDecimal(penaltyDec.Mul(decimal.NewFromFloat(common.QuotaPerUnit)))
+	if overflow {
+		return nil, &LoanOfferParamError{Reason: "penalty"}
+	}
+	if penaltyQuota > 2*amount {
+		return nil, &LoanOfferParamError{Reason: "penalty_exceeds", Params: map[string]any{
+			"max": loanUsdStr(2 * amount),
+		}}
 	}
 	if fastRepayWindowDays < 0 || fastRepayWindowDays > 365 {
-		return nil, ErrLoanOfferInvalidParams
+		return nil, &LoanOfferParamError{Reason: "window", Params: map[string]any{
+			"max": "365",
+		}}
 	}
 
 	var rateFixedVal float64
@@ -339,15 +372,21 @@ func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rat
 	case LoanOfferModePool, LoanOfferModeOrder:
 		rf, err := strconv.ParseFloat(rateFixed, 64)
 		if err != nil || rf < loanSetting.LenderRateMin || rf > loanSetting.LenderRateMax {
-			return nil, ErrLoanOfferInvalidParams
+			return nil, &LoanOfferParamError{Reason: "rate", Params: map[string]any{
+				"min": loanRatePctStr(loanSetting.LenderRateMin),
+				"max": loanRatePctStr(loanSetting.LenderRateMax),
+			}}
 		}
 		rateFixedVal = rf
 	case LoanOfferModeAi:
 		if rateMin > rateMax || rateMin < loanSetting.LenderRateMin || rateMax > loanSetting.LenderRateMax {
-			return nil, ErrLoanOfferInvalidParams
+			return nil, &LoanOfferParamError{Reason: "rate_range", Params: map[string]any{
+				"min": loanRatePctStr(loanSetting.LenderRateMin),
+				"max": loanRatePctStr(loanSetting.LenderRateMax),
+			}}
 		}
 		if perLoanCap <= 0 {
-			return nil, ErrLoanOfferInvalidParams
+			return nil, &LoanOfferParamError{Reason: "per_loan_cap"}
 		}
 	}
 	// pool/order 的 perLoanCap=0 表示跟随全局缺省；ai 已强制 perLoanCap>0，无需替换
@@ -373,7 +412,7 @@ func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rat
 		if user.Status != common.UserStatusEnabled {
 			return ErrLoanUserDisabled
 		}
-		if int64(user.Quota) < int64(amount) {
+		if int64(user.Quota) < amount {
 			return ErrLoanInsufficientBalance
 		}
 
@@ -401,7 +440,7 @@ func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rat
 			if lendable < 0 {
 				lendable = 0
 			}
-			if int64(amount) > lendable {
+			if amount > lendable {
 				return ErrLoanLendBorrowedNotAllowed
 			}
 		}
@@ -415,14 +454,14 @@ func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rat
 			LenderId:              lenderId,
 			Mode:                  mode,
 			Status:                LoanOfferStatusActive,
-			AmountTotal:           int64(amount),
-			AmountAvailable:       int64(amount),
+			AmountTotal:           amount,
+			AmountAvailable:       amount,
 			RateFixed:             rateFixedVal,
 			RateMin:               rateMin,
 			RateMax:               rateMax,
 			PerLoanCap:            perLoanCap,
 			MinCreditScore:        minCreditScore,
-			FastRepayPenaltyQuota: int64(penaltyQuota),
+			FastRepayPenaltyQuota: penaltyQuota,
 			FastRepayWindowDays:   fastRepayWindowDays,
 			CreatedAt:             now.Unix(),
 			UpdatedAt:             now.Unix(),
@@ -435,7 +474,7 @@ func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rat
 
 	// 事务提交后异步同步 Redis 余额缓存（镜像 BorrowLoan 的缓存副作用）
 	go func() {
-		_ = cacheDecrUserQuota(lenderId, int64(amount))
+		_ = cacheDecrUserQuota(lenderId, amount)
 	}()
 	return offer, nil
 }
@@ -508,8 +547,8 @@ func closeOrWithdrawOffer(lenderId int, offerId int, closing bool) (int64, error
 			if err := lockForUpdate(tx).Select("id", "quota").Where("id = ?", lenderId).First(&user).Error; err != nil {
 				return err
 			}
-			// 入账走 int32 上界校验（镜像 BorrowLoan 的 quota+amount 检查）
-			if int64(user.Quota)+refund > common.MaxQuota {
+			// 入账走 64 位上界校验（镜像 BorrowLoan 的 quota+amount 检查）
+			if refund > LoanQuotaCeiling-int64(user.Quota) {
 				return ErrLoanQuotaOverflow
 			}
 			if err := tx.Model(&User{}).Where("id = ?", lenderId).

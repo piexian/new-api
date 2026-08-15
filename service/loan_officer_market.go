@@ -18,6 +18,16 @@ const loanAppTopicAppeal = "appeal"
 func init() {
 	// 官方逾期处置接线：逾期翻转事务提交后由 model 层异步派发本函数
 	model.RegisterPlatformOverdueDispatcher(DisposePlatformOverdueFunding)
+	// 放贷人入账溢出接线：还款事务回滚后由 model 层异步通知管理员介入
+	model.RegisterLenderOverflowNotifier(notifyLenderOverflow)
+}
+
+// notifyLenderOverflow 放贷人入账溢出通知：还款因放贷人余额触及 64 位上界无法入账而
+// 整笔回滚（借款人/签到人无过错），记系统错误并通知 root 管理员介入处理放贷人账户
+func notifyLenderOverflow(lenderId int, amount int64) {
+	common.SysError(fmt.Sprintf("loan lender quota overflow: lender_id=%d amount=%d, repayment rolled back", lenderId, amount))
+	NotifyRootUser(dto.NotifyTypeQuotaExceed, "词元贷放贷人入账溢出",
+		fmt.Sprintf("放贷人 %d 的余额已达系统上限，借款人还款入账 %d 额度失败，本次还款已整体回滚。请处理该放贷人账户余额后引导借款人重新还款。", lenderId, amount))
 }
 
 // callOfficerOneShot 一次性（非对话）模型调用：随机抽取配置模型，system + user 两段消息，
@@ -126,15 +136,15 @@ func parseAiPricingOutput(raw string, candidates []model.TokenLoanOffer) []model
 			continue // 无有效利率区间或利率越出区间剔除
 		}
 		quotaDec := decimal.NewFromFloat(a.AmountUsd).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
-		amount, clamp := common.QuotaFromDecimalChecked(quotaDec)
-		if clamp != nil || amount <= 0 {
+		amount, overflow := model.LoanQuotaFromDecimal(quotaDec)
+		if overflow || amount <= 0 {
 			continue // quota 换算溢出或为 0 剔除
 		}
 		plans = append(plans, model.FundingPlan{
 			OfferId:    offer.Id,
 			LenderId:   offer.LenderId,
 			SourceType: model.LoanFundingAi,
-			Amount:     int64(amount),
+			Amount:     amount,
 			Rate:       a.DailyRate,
 		})
 	}

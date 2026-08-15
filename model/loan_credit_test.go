@@ -98,7 +98,7 @@ func TestCreditScoreOnTimeFullRepayBonus(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, 50)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, 55, acc.CreditScore, "按时还清 +5")
 }
 
@@ -113,7 +113,7 @@ func TestCreditScoreBonusClampsCeiling100(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, 98)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, 100, acc.CreditScore, "98 + 5 钳制到上限 100")
 }
 
@@ -129,8 +129,25 @@ func TestCreditScoreFastRepayPenalty(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, 50)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, 48, acc.CreditScore, "快速还清 -2，不得加分")
+}
+
+// ②b 签到自动还款快速结清（含当天借当天结清）：积分中性——不扣快速还清分，
+// 也不放行按时加分（防止"借款→签到结清→+5"的零成本刷分循环）
+func TestCreditScoreCheckinRepayExemptFromFastPenalty(t *testing.T) {
+	user := setupCreditTest(t)
+	now := time.Now()
+	day := loanDay(now)
+	// 持有 0 天（当天借当天签到结清），本金 2 USD 满足门槛、到期日未过
+	eventId := createCreditBorrowEvent(t, user.Id, int64(common.QuotaPerUnit*2), now)
+	createCreditFunding(t, user.Id, eventId, int64(common.QuotaPerUnit*2), day+30)
+	require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("borrow_event_id = ?", eventId).
+		Update("status", LoanFundingRepaid).Error)
+
+	acc := createCreditAccount(t, user.Id, 50)
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "checkin"))
+	require.Equal(t, 50, acc.CreditScore, "签到快速结清积分中性：不扣分也不加分")
 }
 
 // ③ 事件本金低于 CreditMinBorrowUsd（刷分墙）→ 不加分不扣分
@@ -145,7 +162,7 @@ func TestCreditScoreBelowMinBorrowUsdNoScore(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, 50)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, 50, acc.CreditScore, "低于金额门槛不加分不扣分")
 }
 
@@ -161,7 +178,7 @@ func TestCreditScoreLateRepayNoChange(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, 50)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, 50, acc.CreditScore, "逾期后还清不加分不扣分")
 }
 
@@ -177,7 +194,7 @@ func TestCreditScoreMultiFundingEventScoresOnce(t *testing.T) {
 
 	acc := createCreditAccount(t, borrower.Id, 50)
 	// 一次还款覆盖整事件（债务=本金无息，全额结清两条 funding）
-	info, _, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f1, *f2}, int64(common.QuotaPerUnit*2), now)
+	info, _, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f1, *f2}, int64(common.QuotaPerUnit*2), now, "manual")
 	require.NoError(t, err)
 	require.Zero(t, info.DebtAfter)
 	require.Equal(t, 55, acc.CreditScore, "事件级加分只结算一次（+5 而非 +10）")
@@ -203,13 +220,13 @@ func TestCreditScoreEventNotFullySettledSkips(t *testing.T) {
 
 	acc := createCreditAccount(t, user.Id, 50)
 	// 只有一条结清：事件未完成，不得评分
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, 50, acc.CreditScore, "事件未完全结清时不得评分")
 
 	// 第二条结清：此刻才评分恰一次
 	require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("id = ?", f2.Id).
 		Update("status", LoanFundingRepaid).Error)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, 55, acc.CreditScore, "最后一条结清时评分恰一次")
 }
 
@@ -236,7 +253,7 @@ func TestCreditScoreLegacyFundingSkipped(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, 50)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, 0, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, 0, now, "manual"))
 	require.Equal(t, 50, acc.CreditScore, "legacy funding 不参与事件评分")
 }
 
@@ -251,7 +268,7 @@ func TestCreditScoreFastRepayClampsFloorMinus50(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, -49)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, -50, acc.CreditScore, "-49 - 2 → -50，不再下探")
 }
 
@@ -266,7 +283,7 @@ func TestCreditScoreMissingBorrowRecordSkipped(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, 50)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, 424242, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, 424242, now, "manual"))
 	require.Equal(t, 50, acc.CreditScore, "borrow 行缺失不评分")
 }
 
@@ -284,7 +301,7 @@ func TestCreditLedgerRowOnRepayBonus(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, 50)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, 55, acc.CreditScore)
 
 	var rec TokenLoanRecord
@@ -311,7 +328,7 @@ func TestCreditLedgerRowOnFastRepayPenalty(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, 50)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, 48, acc.CreditScore)
 
 	var rec TokenLoanRecord
@@ -333,7 +350,7 @@ func TestCreditLedgerRowBonusClampRecordsActualDelta(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, 98)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, 100, acc.CreditScore)
 
 	var rec TokenLoanRecord
@@ -354,7 +371,7 @@ func TestCreditLedgerRowFastRepayRecordsClampedDelta(t *testing.T) {
 		Update("status", LoanFundingRepaid).Error)
 
 	acc := createCreditAccount(t, user.Id, -45)
-	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now, "manual"))
 	require.Equal(t, -50, acc.CreditScore, "-45 - 20 钳制到下限 -50")
 
 	var rec TokenLoanRecord

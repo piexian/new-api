@@ -235,6 +235,20 @@ export function RepayForm(props: RepayFormProps) {
                 </Button>
               </div>
             ) : null}
+            {status && (status.fast_repay_penalty_estimate ?? 0) > 0 ? (
+              <div className='border-destructive/30 bg-destructive/5 rounded-lg border p-3 text-xs'>
+                <p className='text-destructive'>
+                  {t(
+                    'Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.',
+                    {
+                      amount: formatQuotaWithCurrency(
+                        status.fast_repay_penalty_estimate ?? 0
+                      ),
+                    }
+                  )}
+                </p>
+              </div>
+            ) : null}
             {lastRepay ? (
               <div className='bg-muted/30 space-y-1.5 rounded-lg border p-3 text-xs'>
                 <p className='text-muted-foreground font-medium'>

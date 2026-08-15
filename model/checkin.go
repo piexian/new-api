@@ -143,7 +143,7 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 				if acc.DebtQuota > 0 {
 					// repay = min(奖励, Σ债务)：100% 扣还，超额仍入账
 					repay := min(int64(quotaAwarded), acc.DebtQuota)
-					info, allocs, _, err := distributeRepayment(tx, acc, fundings, repay, now)
+					info, allocs, _, err := distributeRepayment(tx, acc, fundings, repay, now, "checkin")
 					if err != nil {
 						return err
 					}
@@ -175,6 +175,8 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 	})
 
 	if err != nil {
+		// 放贷人入账溢出（签到人无过错）：事务已回滚，异步通知管理员/放贷人介入
+		notifyLenderOverflowAsync(err)
 		return nil, nil, nil, err
 	}
 

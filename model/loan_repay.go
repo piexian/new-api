@@ -6,7 +6,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
 )
 
@@ -47,13 +46,15 @@ type LenderCredit struct {
 //     → 立即解除；核销窗口内不解锁），仅改内存 acc，落盘由调用方统一 Save。
 //  5. 信用分结算（Task 13）：本次转结清的 funding 所属借款事件（去重）调用
 //     scoreBorrowEventRepaidTx——事件全部结清才评分（按时还清加分 / 快速还清扣分 /
-//     逾期后还清与低于金额门槛均不计分），仅改内存 acc，落盘由调用方统一 Save。
+//     逾期后还清与低于金额门槛均不计分；source == "checkin" 的快速结清积分中性，
+//     不扣分也不加分），仅改内存 acc，落盘由调用方统一 Save。
 //
 // 返回还款结果（Amount/InterestPart/PrincipalPart/DebtAfter 来自同步后的账户投影）、
 // 逐条分配与本次新翻转的逾期 funding 列表（Task 15 官方处置派发用，事务提交后由
 // 调用方 dispatchPlatformOverdueAsync；事务内不可派发——overdue 尚未提交）。
 // repay <= 0 或 Σdebt <= 0 时返回 (nil, nil, nil, nil)，调用方须先保证有债务。
-func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoanFunding, repay int64, now time.Time) (*LoanRepayInfo, []RepayAllocation, []TokenLoanFunding, error) {
+// source 为还款来源（manual / checkin），仅用于信用分结算的快速还清豁免。
+func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoanFunding, repay int64, now time.Time, source string) (*LoanRepayInfo, []RepayAllocation, []TokenLoanFunding, error) {
 	if repay <= 0 {
 		return nil, nil, nil, nil
 	}
@@ -181,7 +182,7 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 		}
 	}
 	for eventId := range scoredEvents {
-		if err := scoreBorrowEventRepaidTx(tx, acc, eventId, now); err != nil {
+		if err := scoreBorrowEventRepaidTx(tx, acc, eventId, now, source); err != nil {
 			return nil, nil, nil, err
 		}
 	}
@@ -210,7 +211,7 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 //     offer closed → 计入放贷人余额且 amount_total -= 本金（钱离开 offer 账面）；
 //     platform → 无入账；
 //   - 秒结清惩罚（penaltyByFunding，按 funding id 给出本次转结清 funding 的惩罚额度）：
-//     合并进放贷人入账（与利息/本金同一 MaxQuota 上界校验，溢出整体回滚），并写入
+//     合并进放贷人入账（与利息/本金同一 64 位上界校验，溢出整体回滚），并写入
 //     对应 repay 台账行的 penalty_part；platform funding 无惩罚（条款为 0，天然排除）；
 //   - 台账：每条 alloc 一行 repay 记录（FundingId/LenderId 冗余），Source 由调用方传入
 //     （manual / checkin），DebtAfter 取同事务内 funding 当前剩余债务。
@@ -261,7 +262,7 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 	}
 
 	// 入账归集：利息（非 platform）+ closed offer 的本金 + 秒结清惩罚；platform 本息归
-	// 平台（债务销毁）。惩罚并入同一 credits map，MaxQuota 上界校验统一生效（溢出整笔
+	// 平台（债务销毁）。惩罚并入同一 credits map，64 位上界校验统一生效（溢出整笔
 	// 还款回滚，绝不让余额静默截断），入账清单返回值自然携带惩罚供缓存/充值日志使用。
 	credits := make(map[int]int64)
 	for i := range allocs {
@@ -285,9 +286,10 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 		}
 	}
 
-	// 用户入账（锁序 users(id 升序)）：int32 上界校验镜像 BorrowLoan —— 溢出时整笔还款
-	// 回滚（ErrLoanQuotaOverflow），绝不让余额静默截断。users.quota 列是 32 位 int，
-	// 直接写超界大值在 MySQL/PG 会报错/回绕，因此必须事前锁行校验（非截断方案）。
+	// 用户入账（锁序 users(id 升序)）：64 位上界校验镜像 BorrowLoan —— 溢出时整笔还款
+	// 回滚（LoanLenderOverflowError），绝不让余额静默截断。users.quota 按 64 位存储，
+	// 不再沿用 int32 口径的 common.MaxQuota。溢出属放贷人侧异常（借款人无过错），
+	// 错误携带放贷人 id 与金额，供调用方在回滚后通知管理员介入。
 	lenderIds := make([]int, 0, len(credits))
 	for lid := range credits {
 		lenderIds = append(lenderIds, lid)
@@ -299,8 +301,8 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 		if err := lockForUpdate(tx).Select("id", "quota").Where("id = ?", lid).First(&user).Error; err != nil {
 			return nil, err
 		}
-		if int64(user.Quota)+amt > common.MaxQuota {
-			return nil, ErrLoanQuotaOverflow
+		if amt > LoanQuotaCeiling-int64(user.Quota) {
+			return nil, &LoanLenderOverflowError{LenderId: lid, Amount: amt}
 		}
 		if err := tx.Model(&User{}).Where("id = ?", lid).
 			Update("quota", gorm.Expr("quota + ?", amt)).Error; err != nil {
@@ -340,6 +342,31 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 		out = append(out, LenderCredit{UserId: lid, Amount: credits[lid]})
 	}
 	return out, nil
+}
+
+// ProjectFastRepayPenalty 只读估算：借款人此刻手动全额结清将触发的秒结清惩罚总额
+// （active/overdue funding 中仍在惩罚窗口内的 FastRepayPenaltyQuota 之和，platform
+// funding 条款恒为 0 天然排除）。仅供 status 投影展示；签到自动还款恒不触发惩罚。
+func ProjectFastRepayPenalty(userId int, now time.Time) (int64, error) {
+	var fundings []TokenLoanFunding
+	if err := DB.Select("lender_id", "fast_repay_penalty_quota", "fast_repay_window_days", "created_at").
+		Where("loan_user_id = ? AND status IN ? AND fast_repay_penalty_quota > 0",
+			userId, []string{LoanFundingActive, LoanFundingOverdue}).
+		Find(&fundings).Error; err != nil {
+		return 0, err
+	}
+	today := loanDay(now)
+	var total int64
+	for i := range fundings {
+		f := &fundings[i]
+		if f.LenderId <= 0 {
+			continue
+		}
+		if today-loanDay(time.Unix(f.CreatedAt, 0)) <= f.FastRepayWindowDays {
+			total += f.FastRepayPenaltyQuota
+		}
+	}
+	return total, nil
 }
 
 // computeFastRepayPenalties 计算手动提前还款的秒结清惩罚（仅 model.RepayLoan 调用；

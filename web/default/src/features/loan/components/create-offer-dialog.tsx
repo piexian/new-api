@@ -397,7 +397,7 @@ export function CreateOfferDialog(props: CreateOfferDialogProps) {
                   </FormControl>
                   <FormDescription>
                     {t(
-                      'Penalty charged when a borrower fully repays within the window; empty = no penalty'
+                      'Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.'
                     )}
                   </FormDescription>
                   <FormMessage />

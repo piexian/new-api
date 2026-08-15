@@ -58,16 +58,19 @@ export async function agreeLoanTerms(): Promise<ApiResponse> {
 /**
  * Borrow an amount in USD (string to preserve decimal precision),
  * optionally targeting a specific market order offer. Pass the amount only;
- * order_id 0 means no specific order.
- * Returns the refreshed loan status on success.
+ * order_id 0 means no specific order. platformOnly skips marketplace
+ * matching entirely and borrows from the official pool.
+ * Returns the refreshed loan status (plus a funding breakdown) on success.
  */
 export async function borrowLoan(
   amountUsd: string,
-  orderId?: number
+  orderId?: number,
+  platformOnly?: boolean
 ): Promise<ApiResponse<LoanStatus>> {
   const res = await api.post('/api/user/loan/borrow', {
     amount_usd: amountUsd,
     order_id: orderId ?? 0,
+    platform_only: platformOnly ?? false,
   })
   return res.data
 }

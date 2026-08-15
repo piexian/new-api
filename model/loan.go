@@ -70,6 +70,22 @@ func LoanDayOf(t time.Time) int {
 	return loanDay(t)
 }
 
+// LoanQuotaCeiling 词元贷额度算术的 64 位安全上界。users.quota 实际按 64 位存储
+// （Go int 在 64 位平台即 int64，生产库列为 bigint），词元贷不再沿用 int32 口径的
+// common.MaxQuota。取 MaxInt64/2 为单次加法留足余量，杜绝溢出回绕。
+const LoanQuotaCeiling = int64(math.MaxInt64 / 2)
+
+// LoanQuotaFromDecimal 把 USD×QuotaPerUnit 的 decimal 金额换算为 int64 quota：
+// 四舍五入到整数；|d| 超过 LoanQuotaCeiling 时返回 overflow=true（调用方映射为
+// ErrLoanQuotaOverflow / 参数错误），零值/负值由调用方按既有语义拒绝。
+func LoanQuotaFromDecimal(d decimal.Decimal) (quota int64, overflow bool) {
+	d = d.Round(0)
+	if d.Abs().GreaterThan(decimal.NewFromInt(LoanQuotaCeiling)) {
+		return 0, true
+	}
+	return d.IntPart(), false
+}
+
 // effectiveRate 返回有效日利率：个人覆盖 (>0) 与全局利率取较小者
 func effectiveRate(acc *TokenLoanAccount) float64 {
 	global := operation_setting.GetLoanSetting().DailyRate
@@ -178,9 +194,43 @@ var (
 	ErrLoanUserDisabled        = errors.New("user account is not in normal status")
 	ErrLoanNoDebt              = errors.New("no outstanding loan debt")
 	ErrLoanInsufficientBalance = errors.New("insufficient balance to repay loan")
-	ErrLoanBlacklisted         = errors.New("loan user is blacklisted")      // 黑名单未解除（P1-8 借款闸门）
-	ErrLoanHasOverdue          = errors.New("loan user has overdue funding") // 存在 overdue funding（P1-8 借款闸门）
+	ErrLoanBlacklisted         = errors.New("loan user is blacklisted")                       // 黑名单未解除（P1-8 借款闸门）
+	ErrLoanHasOverdue          = errors.New("loan user has overdue funding")                  // 存在 overdue funding（P1-8 借款闸门）
+	ErrLoanLenderQuotaOverflow = errors.New("lender quota overflow on loan repayment credit") // 放贷人入账溢出（借款人无过错）
 )
+
+// LoanLenderOverflowError 放贷人入账溢出：还款分配的资金无法计入放贷人余额
+// （触及 64 位上界）。整笔还款回滚，绝不静默截断；携带放贷人 id 与入账金额，
+// 供调用方在事务回滚后通知管理员/放贷人介入处理。
+type LoanLenderOverflowError struct {
+	LenderId int
+	Amount   int64
+}
+
+func (e *LoanLenderOverflowError) Error() string {
+	return fmt.Sprintf("lender %d quota overflow on loan repayment credit of %d", e.LenderId, e.Amount)
+}
+
+func (e *LoanLenderOverflowError) Is(target error) bool {
+	return target == ErrLoanLenderQuotaOverflow
+}
+
+// lenderOverflowNotifier 放贷人入账溢出通知钩子（事务回滚后异步触发）；
+// 由 service 层注册（model 不依赖 service），未注册时静默跳过
+var lenderOverflowNotifier func(lenderId int, amount int64)
+
+// RegisterLenderOverflowNotifier 注册溢出通知钩子（启动时由 service 层调用一次）
+func RegisterLenderOverflowNotifier(f func(lenderId int, amount int64)) {
+	lenderOverflowNotifier = f
+}
+
+// notifyLenderOverflowAsync 若 err 为放贷人入账溢出则异步触发通知钩子
+func notifyLenderOverflowAsync(err error) {
+	var e *LoanLenderOverflowError
+	if errors.As(err, &e) && lenderOverflowNotifier != nil {
+		go lenderOverflowNotifier(e.LenderId, e.Amount)
+	}
+}
 
 // isLoanDuplicateKeyErr 识别各数据库方言的主键/唯一键冲突错误
 func isLoanDuplicateKeyErr(err error) bool {
@@ -225,7 +275,7 @@ func AgreeLoanTerms(userId int) error {
 }
 
 // BorrowLoan 借款主流程（Task 8 起按 funding 放款）：
-//  1. 事务外无状态校验：功能开关、amount_usd 解析（decimal，最多两位小数）、int32 上界
+//  1. 事务外无状态校验：功能开关、amount_usd 解析（decimal，最多两位小数）、64 位上界
 //  2. 事务内 lockForUpdate 锁定用户行 → 读/建贷款账户 + 条款校验 → 借款闸门（黑名单/
 //     逾期，P1-8）→ 全部 active/overdue fundings 惰性结算（settleFunding，替代旧 settle）
 //     → 额度校验（用 funding 汇总的同步债务，公式与旧版一致）→ 市场撮合（MarketEnabled
@@ -240,6 +290,12 @@ func AgreeLoanTerms(userId int) error {
 // funding 列表（含 platform 兜底）。市场关闭时退化为纯官方放款：整笔金额生成一条
 // platform funding，行为与旧版借款一致。
 func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []FundingPlan) (*TokenLoanAccount, []TokenLoanFunding, error) {
+	return BorrowLoanWithOptions(userId, amountUsd, intendedOrderId, aiPriced, false)
+}
+
+// BorrowLoanWithOptions 同 BorrowLoan；platformOnly=true（借款人选择"只接官方资金"）时
+// 跳过市场撮合与 AI 定价方案，整笔由平台资金池放款（官方 funding 无秒结清惩罚条款）
+func BorrowLoanWithOptions(userId int, amountUsd string, intendedOrderId int, aiPriced []FundingPlan, platformOnly bool) (*TokenLoanAccount, []TokenLoanFunding, error) {
 	loanSetting := operation_setting.GetLoanSetting()
 	if !loanSetting.Enabled {
 		return nil, nil, ErrLoanDisabled
@@ -251,8 +307,8 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 		return nil, nil, ErrLoanInvalidAmount
 	}
 	quotaDec := usd.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
-	amount, clamp := common.QuotaFromDecimalChecked(quotaDec)
-	if clamp != nil {
+	amount, overflow := LoanQuotaFromDecimal(quotaDec)
+	if overflow {
 		return nil, nil, ErrLoanQuotaOverflow
 	}
 	// QuotaPerUnit 是运行时可调配置（model/option.go），换算后 amount 可能为 0，
@@ -266,7 +322,7 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 	var newFundings []TokenLoanFunding
 	var flipped []TokenLoanFunding // 本次新翻转的逾期 funding（Task 15 官方处置派发）
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		// 事务内读用户当前值：状态、注册天数与余额 int32 上界校验
+		// 事务内读用户当前值：状态、注册天数与余额 64 位上界校验
 		var user User
 		if err := tx.Select("id", "quota", "created_at", "status").Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
@@ -278,7 +334,7 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 			now.Unix()-user.CreatedAt < int64(loanSetting.MinRegisterDays)*86400 {
 			return ErrLoanRegisterTooNew
 		}
-		if int64(user.Quota)+int64(amount) > common.MaxQuota {
+		if amount > LoanQuotaCeiling-int64(user.Quota) {
 			return ErrLoanQuotaOverflow
 		}
 
@@ -346,22 +402,23 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 		if loanSetting.MaxPerBorrow > 0 {
 			perBorrowCap = loanSetting.MaxPerBorrow
 		}
-		if int64(amount) > perBorrowCap || synced.DebtQuota+int64(amount) > effectiveMax {
+		if amount > perBorrowCap || synced.DebtQuota+amount > effectiveMax {
 			return ErrLoanLimitExceeded
 		}
 
-		// 撮合（只读 + 内存）：市场开启时定向挂单 → 统一市场 → AI 方案；来源不足部分
-		// 由平台兜底。dropReasons 供 Task 16 审计透出，业务性跳过不阻断借款。
+		// 撮合（只读 + 内存）：市场开启且未勾选"只接官方资金"时定向挂单 → 统一市场 →
+		// AI 方案；来源不足部分由平台兜底。dropReasons 供 Task 16 审计透出，业务性跳过
+		// 不阻断借款。
 		var plans []FundingPlan
-		if loanSetting.MarketEnabled {
+		if loanSetting.MarketEnabled && !platformOnly {
 			var dropReasons []string
-			plans, dropReasons, err = MatchLoanFundings(tx, userId, acc.CreditScore, int64(amount), intendedOrderId, aiPriced)
+			plans, dropReasons, err = MatchLoanFundings(tx, userId, acc.CreditScore, amount, intendedOrderId, aiPriced)
 			if err != nil {
 				return err
 			}
 			_ = dropReasons
 		}
-		if shortfall := int64(amount) - planTotal(plans); shortfall > 0 {
+		if shortfall := amount - planTotal(plans); shortfall > 0 {
 			plans = append(plans, FundingPlan{
 				SourceType: LoanFundingPlatform,
 				Amount:     shortfall,
@@ -373,10 +430,10 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 		record := &TokenLoanRecord{
 			UserId:        userId,
 			Type:          "borrow",
-			Amount:        int64(amount),
+			Amount:        amount,
 			InterestPart:  0,
-			PrincipalPart: int64(amount),
-			DebtAfter:     synced.DebtQuota + int64(amount),
+			PrincipalPart: amount,
+			DebtAfter:     synced.DebtQuota + amount,
 			Source:        "manual",
 			RefId:         0,
 			CreatedAt:     now.Unix(),
@@ -398,7 +455,7 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 			return err
 		}
 		syncAccountFromFundings(acc, all)
-		acc.TotalBorrowed += int64(amount)
+		acc.TotalBorrowed += amount
 		acc.UpdatedAt = now.Unix()
 		if err := tx.Save(acc).Error; err != nil {
 			return err
@@ -406,7 +463,7 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 
 		// quota 入账与账户/台账/funding 同一事务（镜像签到模式），失败整体回滚
 		if err := tx.Model(&User{}).Where("id = ?", userId).
-			Update("quota", gorm.Expr("quota + ?", int64(amount))).Error; err != nil {
+			Update("quota", gorm.Expr("quota + ?", amount)).Error; err != nil {
 			return err
 		}
 		return nil
@@ -418,7 +475,7 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 	// 事务提交后异步同步 Redis 余额缓存；并重置额度提醒锁，
 	// 对齐 IncreaseUserQuota（model/user.go:1434）quota>0 时的副作用
 	go func() {
-		_ = cacheIncrUserQuota(userId, int64(amount))
+		_ = cacheIncrUserQuota(userId, amount)
 	}()
 	// 本次新翻转的 platform 逾期 funding 异步派发官方处置（Task 15，提交后派发保证
 	// overdue 状态已持久化；P2P 在 flip 结果里被过滤，全 P2P 时 no-op）
@@ -464,7 +521,8 @@ func planTotal(plans []FundingPlan) int64 {
 //     （撮合是只读快照，available 可能已被并发借款占用，故此处必须加锁重验；
 //     校验失败返回错误整体回滚），随后扣减 amount_available、累加 total_lent 并落库；
 //     秒结清惩罚条款（FastRepayPenaltyQuota/FastRepayWindowDays）在此从 offer 复制到
-//     funding（撮合引擎不感知惩罚，放款阶段以 offer 行锁定后的值为准）；
+//     funding（撮合引擎不感知惩罚，放款阶段以 offer 行锁定后的值为准）；惩罚额度
+//     复制时按"不超过本笔借出金额的 2 倍"封顶（借款人侧最高承担 本金+2×本金）；
 //   - 逐条创建 funding 行：Amount=PrincipalRemaining=DebtQuota=plan.Amount、
 //     Rate=plan.Rate、LastSettledDay=loanDay(now)、DueDay=loanDay(now)+max(LoanTermDays,1)
 //     （LoanTermDays<=0 时至少推到明天，防当日到期即整段罚息）、RepayPlan=full、
@@ -520,6 +578,11 @@ func executeFundingPlans(tx *gorm.DB, userId int, borrowEventId int64, plans []F
 	for i := range plans {
 		plan := &plans[i]
 		penalty := offerPenalties[plan.OfferId]
+		// 秒结清惩罚随放款复制时按"不超过本笔借出金额的 2 倍"封顶：
+		// offer 条款是大单总惩罚，小额 funding 不得承担超过 2×本金的罚单
+		if penalty.quota > 2*plan.Amount {
+			penalty.quota = 2 * plan.Amount
+		}
 		funding := TokenLoanFunding{
 			LoanUserId:            userId,
 			BorrowEventId:         borrowEventId,
@@ -571,7 +634,7 @@ func earlyRepayFee(acc *TokenLoanAccount, repay int64) int64 {
 // 秒结清惩罚（放贷人自定义条款）：本次转结清的 funding 若仍在惩罚窗口内（loanDay 差 ≤
 // FastRepayWindowDays）且惩罚额度 > 0，按 funding 逐条计罚——Σ 惩罚在余额扣款阶段一并
 // 扣除（gorm.Expr("quota - ?")，不校验余额，允许扣成负数），按 funding 写入台账
-// penalty_part，按放贷人并入 LenderCredit（利息/本金同一 MaxQuota 上界校验）。
+// penalty_part，按放贷人并入 LenderCredit（利息/本金同一 64 位上界校验）。
 //
 // 事务内：锁用户行 → 读/锁贷款账户（不为无贷用户建行）→ 锁全部 active/overdue fundings
 // （id 升序）→ 逐条 settleFunding 并落盘 → syncAccountFromFundings 同步账户投影（账户行
@@ -597,11 +660,11 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 			return nil, nil, nil, ErrLoanInvalidAmount
 		}
 		quotaDec := usd.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
-		a, clamp := common.QuotaFromDecimalChecked(quotaDec)
-		if clamp != nil {
+		a, overflow := LoanQuotaFromDecimal(quotaDec)
+		if overflow {
 			return nil, nil, nil, ErrLoanQuotaOverflow
 		}
-		amount = int64(a)
+		amount = a
 		// 同 BorrowLoan：QuotaPerUnit 运行时可调，换算后可能为 0，显式拒绝
 		if amount <= 0 {
 			return nil, nil, nil, ErrLoanInvalidAmount
@@ -680,7 +743,7 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 		// pro-rata 分配（结算幂等，不会二次计息；变更的 funding 行在此落盘）。
 		// info 必非 nil：repay > 0 且 Σdebt = acc.DebtQuota > 0
 		var allocs []RepayAllocation
-		info, allocs, flipped, err = distributeRepayment(tx, acc, fundings, repay, now)
+		info, allocs, flipped, err = distributeRepayment(tx, acc, fundings, repay, now, "manual")
 		if err != nil {
 			return err
 		}
@@ -693,7 +756,7 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 		// 识别本次转结清且仍在惩罚窗口内的 funding，Σ 惩罚从借款人余额扣除（不参与
 		// 余额充足性校验，允许扣成负数——借款人用余额覆盖本息费即可结清，惩罚后扣），
 		// 按 funding 写入台账 penalty_part，按放贷人并入入账清单（与利息/本金同一
-		// MaxQuota 上界校验，见 settleRepayAllocations）。
+		// 64 位上界校验，见 settleRepayAllocations）。
 		penaltyByFunding, _, penaltyTotal := computeFastRepayPenalties(allocs, now)
 		info.PenaltyPart = penaltyTotal
 
@@ -717,9 +780,10 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 		return nil
 	})
 	if err != nil {
+		// 放贷人入账溢出（借款人无过错）：事务已回滚，异步通知管理员/放贷人介入
+		notifyLenderOverflowAsync(err)
 		return nil, nil, nil, err
 	}
-
 	// 事务提交后异步同步 Redis 余额缓存（镜像 BorrowLoan 的缓存副作用）：
 	// 借款人按 还款额+手续费+惩罚 扣减，各放贷人按入账清单递增（已含惩罚）
 	go func() {

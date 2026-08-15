@@ -6310,7 +6310,12 @@
     "Credit score tier limits": "Лимиты по уровню кредитного скоринга",
     "Min score": "Мин. скоринг",
     "Max total (USD)": "Макс. сумма (USD)",
-    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Ограничивает общий лимит, который ИИ может предоставить, по уровню кредитного скоринга пользователя; лимит уровня действует на общий предоставленный лимит, а не на отдельный заём"
+    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Ограничивает общий лимит, который ИИ может предоставить, по уровню кредитного скоринга пользователя; лимит уровня действует на общий предоставленный лимит, а не на отдельный заём",
+    "Official funds only": "Только официальные средства",
+    "Skip marketplace offers and borrow entirely from the official pool, which never carries fast-settle penalties.": "Пропустить предложения рынка и занять всю сумму из официального пула — он никогда не содержит штрафов за быстрое погашение.",
+    "This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.": "Этот заём включает средства со штрафом за быстрое погашение на {{amount}}: при полном досрочном погашении вручную в окне кредитора штраф будет списан. Автопогашение через ежедневный вход никогда не вызывает этот штраф и погашает долг как обычно.",
+    "Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.": "Ваш долг включает средства со штрафом за быстрое погашение: при полном погашении вручную прямо сейчас будет списано дополнительно {{amount}}. Автопогашение через ежедневный вход не вызывает этот штраф и погашает долг как обычно.",
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.": "Штраф, взимаемый при полном погашении заёмщиком в течение окна; пусто = без штрафа. Ограничен двукратной суммой каждого займа."
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

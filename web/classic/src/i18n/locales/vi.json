@@ -5397,6 +5397,11 @@
     "默认智谱地址": "Địa chỉ Zhipu mặc định",
     "默认测试模型": "Mô hình kiểm tra mặc định",
     "默认用户消息": "Xin chào",
-    "默认补全倍率": "Tỷ lệ hoàn thành mặc định"
+    "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
+    "只接官方资金": "Chỉ nhận vốn chính thức",
+    "跳过市场挂单，整笔从官方资金池借款；官方资金不附带秒结清惩罚。": "Bỏ qua các lệnh thị trường và vay toàn bộ từ quỹ chính thức, quỹ này không bao giờ kèm phí phạt trả nhanh.",
+    "本次借款包含带秒结清惩罚的资金（共 {{amount}}）：在惩罚窗口期内手动全额提前结清将被收取该惩罚；签到自动还款不会触发惩罚，可正常还款。": "Khoản vay này bao gồm nguồn vốn có phí phạt trả nhanh {{amount}}: tất toán thủ công toàn bộ trong thời hạn của bên cho vay sẽ bị thu phí. Trả nợ tự động qua điểm danh không bao giờ kích hoạt khoản phạt này và vẫn trả bình thường.",
+    "您的欠款包含带秒结清惩罚的资金：现在手动全额结清将额外收取 {{amount}}；签到自动还款不会触发该惩罚，可正常还款。": "Khoản nợ của bạn bao gồm nguồn vốn có phí phạt trả nhanh: tất toán thủ công toàn bộ ngay bây giờ sẽ bị thu thêm {{amount}}. Trả nợ tự động qua điểm danh không kích hoạt khoản phạt này và vẫn trả bình thường.",
+    "借款人于窗口内全额还清时收取的固定惩罚额度；留空 = 不收取；按每笔借出金额的 2 倍封顶": "Khoản phạt cố định khi người vay trả hết trong thởi hạn; để trống = không thu; tối đa gấp 2 lần số tiền mỗi khoản giải ngân"
   }
 }

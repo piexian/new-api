@@ -82,7 +82,7 @@ func TestRepayLargestRemainderExact(t *testing.T) {
 		fundings = append(fundings, *f)
 	}
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 500, now)
+	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 500, now, "manual")
 	require.NoError(t, err)
 	require.Equal(t, int64(500), info.Amount)
 	require.Len(t, allocs, 3)
@@ -129,7 +129,7 @@ func TestRepayHigherRateFundingGetsMore(t *testing.T) {
 		fundings = append(fundings, *f)
 	}
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 200000, now)
+	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 200000, now, "manual")
 	require.NoError(t, err)
 	require.Len(t, allocs, 2)
 	require.Equal(t, int64(200000), info.Amount)
@@ -170,7 +170,7 @@ func TestRepayInterestFirstWithinFunding(t *testing.T) {
 	}
 	require.NoError(t, DB.Create(f).Error)
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 40000, now)
+	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 40000, now, "manual")
 	require.NoError(t, err)
 	require.Len(t, allocs, 1)
 	a := allocs[0]
@@ -218,7 +218,7 @@ func TestRepayLenderInterestOfferAvailableUnchangedTotal(t *testing.T) {
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", borrower.Id).Update("quota", 500000).Error)
 
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now)
+	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now, "manual")
 	require.NoError(t, err)
 	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil)
 	require.NoError(t, err)
@@ -291,7 +291,7 @@ func TestRepayClosedOfferPrincipalToLender(t *testing.T) {
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", borrower.Id).Update("quota", 500000).Error)
 
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now)
+	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now, "manual")
 	require.NoError(t, err)
 	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil)
 	require.NoError(t, err)
@@ -335,7 +335,7 @@ func TestRepayPlatformNoCredit(t *testing.T) {
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", borrower.Id).Update("quota", 500000).Error)
 
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 40000, now)
+	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 40000, now, "manual")
 	require.NoError(t, err)
 	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil)
 	require.NoError(t, err)
@@ -377,7 +377,7 @@ func TestRepayFundingFullyClearedStatusRepaid(t *testing.T) {
 	}
 	require.NoError(t, DB.Create(f).Error)
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now)
+	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now, "manual")
 	require.NoError(t, err)
 	require.Len(t, allocs, 1)
 	require.Equal(t, int64(100000), info.Amount)
@@ -495,7 +495,7 @@ func TestRepayCappedAtTotalDebt(t *testing.T) {
 		fundings = append(fundings, *f)
 	}
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 200000, now)
+	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 200000, now, "manual")
 	require.NoError(t, err)
 	require.Equal(t, int64(100000), info.Amount, "还款额必须封顶在总债务")
 	require.Len(t, allocs, 2)

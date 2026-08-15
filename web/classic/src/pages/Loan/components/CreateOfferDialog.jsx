@@ -366,7 +366,9 @@ const CreateOfferDialog = ({ t, visible, onClose, onCreated }) => {
               placeholder='0.00'
             />
             <div className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
-              {t('借款人于窗口内全额还清时收取的固定惩罚额度；留空 = 不收取')}
+              {t(
+                '借款人于窗口内全额还清时收取的固定惩罚额度；留空 = 不收取；按每笔借出金额的 2 倍封顶',
+              )}
             </div>
           </div>
           <div>

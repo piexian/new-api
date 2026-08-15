@@ -18,9 +18,22 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Avatar, Button, Card, Input, Typography } from '@douyinfe/semi-ui';
+import {
+  Avatar,
+  Button,
+  Card,
+  Checkbox,
+  Input,
+  Typography,
+} from '@douyinfe/semi-ui';
 import { HandCoins, X } from 'lucide-react';
-import { API, renderQuota, showError, showSuccess } from '../../../helpers';
+import {
+  API,
+  renderQuota,
+  showError,
+  showSuccess,
+  showWarning,
+} from '../../../helpers';
 
 // 日利率展示与 default 主题一致（percent，最多两位小数）
 const formatDailyRate = (rate) => {
@@ -35,6 +48,8 @@ const BorrowForm = ({ t, status, onBorrowed, presetOrder, onClearOrder }) => {
   const [amount, setAmount] = useState('');
   const [fieldError, setFieldError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // 只接官方资金：跳过市场撮合，整笔由平台放款（官方资金无秒结清惩罚条款）
+  const [platformOnly, setPlatformOnly] = useState(false);
 
   const termsBlocked = !!status && status.terms_enabled && !status.terms_agreed;
   // quota_per_unit 缺失/非法时跳过本地上限校验，交给后端兜底
@@ -65,10 +80,27 @@ const BorrowForm = ({ t, status, onBorrowed, presetOrder, onClearOrder }) => {
       const res = await API.post('/api/user/loan/borrow', {
         amount_usd: value,
         order_id: presetOrder?.id ?? 0,
+        platform_only: platformOnly,
       });
       const { success, message, data } = res.data;
       if (success) {
         showSuccess(t('借款成功'));
+        // 借款后即时提示：本次放款含秒结清惩罚条款的资金，说明手动提前结清的
+        // 惩罚与签到自动还款的豁免（签到视为正常还款，不触发惩罚）
+        const penaltyTotal = (data?.fundings ?? []).reduce(
+          (sum, f) =>
+            sum +
+            (f.fast_repay_penalty_quota > 0 ? f.fast_repay_penalty_quota : 0),
+          0,
+        );
+        if (penaltyTotal > 0) {
+          showWarning(
+            t(
+              '本次借款包含带秒结清惩罚的资金（共 {{amount}}）：在惩罚窗口期内手动全额提前结清将被收取该惩罚；签到自动还款不会触发惩罚，可正常还款。',
+              { amount: renderQuota(penaltyTotal) },
+            ),
+          );
+        }
         setAmount('');
         onBorrowed?.(data);
         onClearOrder?.();
@@ -149,6 +181,17 @@ const BorrowForm = ({ t, status, onBorrowed, presetOrder, onClearOrder }) => {
               />
             </div>
           </div>
+        ) : null}
+        {status?.market_enabled && !presetOrder ? (
+          <Checkbox
+            checked={platformOnly}
+            onChange={(e) => setPlatformOnly(!!e.target.checked)}
+            extra={t(
+              '跳过市场挂单，整笔从官方资金池借款；官方资金不附带秒结清惩罚。',
+            )}
+          >
+            {t('只接官方资金')}
+          </Checkbox>
         ) : null}
         <Button
           type='primary'

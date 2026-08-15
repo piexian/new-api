@@ -26,6 +26,18 @@ var loanApplicationTopics = map[string]bool{
 	"appeal": true,
 }
 
+// loanOfferParamMsgKeys 挂单参数明细错误（model.LoanOfferParamError.Reason）→ i18n key
+var loanOfferParamMsgKeys = map[string]string{
+	"mode":            i18n.MsgLoanOfferInvalidMode,
+	"amount_min":      i18n.MsgLoanOfferAmountBelowMin,
+	"penalty":         i18n.MsgLoanOfferInvalidPenalty,
+	"penalty_exceeds": i18n.MsgLoanOfferPenaltyExceeds,
+	"window":          i18n.MsgLoanOfferInvalidWindow,
+	"rate":            i18n.MsgLoanOfferInvalidRate,
+	"rate_range":      i18n.MsgLoanOfferInvalidRateRange,
+	"per_loan_cap":    i18n.MsgLoanOfferInvalidPerLoanCap,
+}
+
 // respondLoanError 将 model/service 层哨兵错误映射为 i18n 响应；未知错误走通用 ApiError
 func respondLoanError(c *gin.Context, err error) {
 	switch {
@@ -47,6 +59,8 @@ func respondLoanError(c *gin.Context, err error) {
 		common.ApiErrorI18n(c, i18n.MsgLoanNoDebt)
 	case errors.Is(err, model.ErrLoanInsufficientBalance):
 		common.ApiErrorI18n(c, i18n.MsgLoanInsufficientBalance)
+	case errors.Is(err, model.ErrLoanLenderQuotaOverflow):
+		common.ApiErrorI18n(c, i18n.MsgLoanLenderOverflow)
 	case errors.Is(err, model.ErrLoanApplicationLimit):
 		common.ApiErrorI18n(c, i18n.MsgLoanApplicationLimit)
 	case errors.Is(err, model.ErrLoanAlreadyRated):
@@ -74,7 +88,18 @@ func respondLoanError(c *gin.Context, err error) {
 	case errors.Is(err, model.ErrLoanOfferNotFound):
 		common.ApiErrorI18n(c, i18n.MsgLoanOfferNotFound)
 	case errors.Is(err, model.ErrLoanOfferInvalidParams):
-		common.ApiErrorI18n(c, i18n.MsgLoanOfferInvalidParams)
+		// 明细参数错误：按 Reason 映射到具体 i18n key 并透传合法范围模板参数，
+		// 无明细时回退泛用"参数无效"
+		var pe *model.LoanOfferParamError
+		if errors.As(err, &pe) {
+			key := loanOfferParamMsgKeys[pe.Reason]
+			if key == "" {
+				key = i18n.MsgLoanOfferInvalidParams
+			}
+			common.ApiErrorI18n(c, key, pe.Params)
+		} else {
+			common.ApiErrorI18n(c, i18n.MsgLoanOfferInvalidParams)
+		}
 	case errors.Is(err, model.ErrLoanOfferNotActive):
 		common.ApiErrorI18n(c, i18n.MsgLoanOfferNotActive)
 	case errors.Is(err, model.ErrLoanNothingToWithdraw):
@@ -139,31 +164,34 @@ func buildLoanStatusData(setting *operation_setting.LoanSetting, acc *model.Toke
 		}
 	}
 	hasOverdue, _ := model.HasOverdueFundings(model.DB, userId)
+	// 秒结清惩罚预估（best-effort 只读）：手动全额结清将触发的惩罚总额，失败按 0
+	fastRepayPenaltyEstimate, _ := model.ProjectFastRepayPenalty(userId, now)
 	available := effectiveMax - debt
 	if available < 0 {
 		available = 0
 	}
 	return gin.H{
-		"enabled":                  setting.Enabled,
-		"principal":                principal,
-		"interest":                 interest,
-		"debt":                     debt,
-		"available":                available,
-		"effective_max":            effectiveMax,
-		"daily_rate":               dailyRate,
-		"interest_free_until":      interestFreeUntil,
-		"total_borrowed":           totalBorrowed,
-		"total_repaid":             totalRepaid,
-		"ai_enabled":               setting.AiEnabled,
-		"terms_enabled":            setting.TermsEnabled,
-		"terms_agreed":             termsAgreed,
-		"terms_text":               setting.TermsText,
-		"repay_fee_rate":           setting.RepayFeeRate,
-		"credit_score":             creditScore,
-		"market_enabled":           setting.MarketEnabled,
-		"blacklisted_until_day":    blacklistedUntilDay,
-		"has_overdue":              hasOverdue,
-		"lender_disclaimer_agreed": lenderDisclaimerAgreed,
+		"enabled":                     setting.Enabled,
+		"principal":                   principal,
+		"interest":                    interest,
+		"debt":                        debt,
+		"available":                   available,
+		"effective_max":               effectiveMax,
+		"daily_rate":                  dailyRate,
+		"interest_free_until":         interestFreeUntil,
+		"total_borrowed":              totalBorrowed,
+		"total_repaid":                totalRepaid,
+		"ai_enabled":                  setting.AiEnabled,
+		"terms_enabled":               setting.TermsEnabled,
+		"terms_agreed":                termsAgreed,
+		"terms_text":                  setting.TermsText,
+		"repay_fee_rate":              setting.RepayFeeRate,
+		"credit_score":                creditScore,
+		"market_enabled":              setting.MarketEnabled,
+		"blacklisted_until_day":       blacklistedUntilDay,
+		"has_overdue":                 hasOverdue,
+		"lender_disclaimer_agreed":    lenderDisclaimerAgreed,
+		"fast_repay_penalty_estimate": fastRepayPenaltyEstimate,
 	}
 }
 
@@ -200,13 +228,16 @@ func AgreeLoanTerms(c *gin.Context) {
 }
 
 type borrowLoanRequest struct {
-	AmountUsd string `json:"amount_usd"`
-	OrderId   int    `json:"order_id"` // 定向挂单 offer id，0 = 不挑单
+	AmountUsd    string `json:"amount_usd"`
+	OrderId      int    `json:"order_id"`      // 定向挂单 offer id，0 = 不挑单
+	PlatformOnly bool   `json:"platform_only"` // 只接官方资金：跳过市场撮合，整笔平台放款
 }
 
-// BorrowLoan 借款，成功返回最新状态（同 GET status 字段）。
+// BorrowLoan 借款，成功返回最新状态（同 GET status 字段）+ 本次放款的 funding 明细
+// （含秒结清惩罚条款，供前端借款后即时提示）。
 // 市场开启时：先收集 ai 模式候选挂单并调用服务层 AI 定价（best-effort，
 // 定价失败不阻断借款，见 service.PriceAiSpaceFundings），连同 order_id 传入撮合引擎。
+// platform_only=true 时跳过 AI 定价与撮合，整笔由平台资金池放款。
 func BorrowLoan(c *gin.Context) {
 	var req borrowLoanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -223,16 +254,16 @@ func BorrowLoan(c *gin.Context) {
 	if orderId < 0 {
 		orderId = 0
 	}
-	// AI 出资方案：仅市场开启时收集候选并定价；任何失败（候选查询/定价）都跳过，
-	// 不阻断借款（撮合引擎对 aiPriced 为空、定向挂单无效均按缺额平台兜底）
+	// AI 出资方案：仅市场开启且未勾选"只接官方"时收集候选并定价；任何失败（候选查询/
+	// 定价）都跳过，不阻断借款（撮合引擎对 aiPriced 为空、定向挂单无效均按缺额平台兜底）
 	var aiPriced []model.FundingPlan
-	if operation_setting.GetLoanSetting().MarketEnabled {
+	if operation_setting.GetLoanSetting().MarketEnabled && !req.PlatformOnly {
 		if candidates, err := model.ListActiveAiOffersForBorrow(userId, 20); err == nil && len(candidates) > 0 {
 			amountUsdFloat, _ := strconv.ParseFloat(amountUsd, 64)
 			aiPriced, _ = service.PriceAiSpaceFundings(userId, amountUsdFloat, candidates)
 		}
 	}
-	acc, fundings, err := model.BorrowLoan(userId, amountUsd, orderId, aiPriced)
+	acc, fundings, err := model.BorrowLoanWithOptions(userId, amountUsd, orderId, aiPriced, req.PlatformOnly)
 	if err != nil {
 		respondLoanError(c, err)
 		return
@@ -265,7 +296,21 @@ func BorrowLoan(c *gin.Context) {
 		borrowedQuota += fundings[i].Amount
 	}
 	model.RecordTopupLog(userId, fmt.Sprintf("词元贷借款入账，额度: %v", logger.LogQuota(int(borrowedQuota))), c.ClientIP(), "loan", "loan", c.GetHeader("User-Agent"))
-	common.ApiSuccess(c, buildLoanStatusData(operation_setting.GetLoanSetting(), acc, userId, time.Now()))
+	data := buildLoanStatusData(operation_setting.GetLoanSetting(), acc, userId, time.Now())
+	// 本次放款明细透出（含秒结清惩罚条款）：借款人借款后第一时间知晓哪些资金
+	// 带"窗口期内手动全额提前结清收取惩罚"条款，并提示签到自动还款不触发该惩罚
+	fundingList := make([]gin.H, 0, len(fundings))
+	for i := range fundings {
+		fundingList = append(fundingList, gin.H{
+			"source_type":              fundings[i].SourceType,
+			"amount":                   fundings[i].Amount,
+			"rate":                     fundings[i].Rate,
+			"fast_repay_penalty_quota": fundings[i].FastRepayPenaltyQuota,
+			"fast_repay_window_days":   fundings[i].FastRepayWindowDays,
+		})
+	}
+	data["fundings"] = fundingList
+	common.ApiSuccess(c, data)
 }
 
 type repayLoanRequest struct {

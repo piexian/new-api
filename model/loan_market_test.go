@@ -474,9 +474,13 @@ func TestCreateLoanOfferRejectsInvalidAmount(t *testing.T) {
 	// 低于最小入池金额（LenderMinAmount=50000）
 	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.05", "0.001", 0, 0, 0, -50, "", 0)
 	require.ErrorIs(t, err, ErrLoanOfferInvalidParams)
-	// int32 上界：10000 USD × 500000 = 5e9 quota 超 MaxQuota
-	_, err = CreateLoanOffer(lender.Id, LoanOfferModePool, "10000.00", "0.001", 0, 0, 0, -50, "", 0)
+	// 64 位上界：1e14 USD × 500000 = 5e19 quota 超 LoanQuotaCeiling
+	_, err = CreateLoanOffer(lender.Id, LoanOfferModePool, "99999999999999.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.ErrorIs(t, err, ErrLoanQuotaOverflow)
+	// 超 int32 上界的金额（10000 USD = 5e9 quota）不再按 int32 口径拒绝，
+	// 余额不足时落到余额检查
+	_, err = CreateLoanOffer(lender.Id, LoanOfferModePool, "10000.00", "0.001", 0, 0, 0, -50, "", 0)
+	require.ErrorIs(t, err, ErrLoanInsufficientBalance)
 }
 
 func TestCreateLoanOfferRejectsInvalidParams(t *testing.T) {
@@ -778,10 +782,10 @@ func TestCloseLoanOfferQuotaOverflow(t *testing.T) {
 	lender := setupMarketLender(t, quotaOf(t, "10.00"))
 	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "2.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
-	// 挂出期间余额暴涨（模拟其他入账）到 int32 上界附近
+	// 挂出期间余额暴涨（模拟其他入账）到 64 位上界附近
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", lender.Id).
-		Update("quota", int64(common.MaxQuota)-100).Error)
-	// 关闭退回 1e6 → 2147483547 + 1000000 超 int32 上界
+		Update("quota", LoanQuotaCeiling-100).Error)
+	// 关闭退回 1e6 → 超 64 位上界
 	_, err = CloseLoanOffer(lender.Id, offer.Id)
 	require.ErrorIs(t, err, ErrLoanQuotaOverflow)
 	// 失败后 offer 保持 active、余额不变
@@ -790,7 +794,7 @@ func TestCloseLoanOfferQuotaOverflow(t *testing.T) {
 	require.Equal(t, LoanOfferStatusActive, got.Status)
 	var u User
 	require.NoError(t, DB.Select("quota").First(&u, lender.Id).Error)
-	require.Equal(t, int64(common.MaxQuota)-100, int64(u.Quota))
+	require.Equal(t, LoanQuotaCeiling-100, int64(u.Quota))
 }
 
 func TestGetUserLoanOffersAndGetLoanOfferById(t *testing.T) {
@@ -1100,7 +1104,7 @@ func TestBlacklistLiftsWhenPerpetualFundingsFullyRepaid(t *testing.T) {
 		require.NotNil(t, acc)
 		fundings, err := loadUserFundingsTx(tx, borrower.Id)
 		require.NoError(t, err)
-		info, _, _, err := distributeRepayment(tx, acc, fundings, 100_000, now)
+		info, _, _, err := distributeRepayment(tx, acc, fundings, 100_000, now, "manual")
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		require.Equal(t, int64(100_000), info.Amount)
@@ -1141,7 +1145,7 @@ func TestBlacklistNotLiftedRightAfterWriteoff(t *testing.T) {
 		fundings, err := loadUserFundingsTx(tx, borrower.Id)
 		require.NoError(t, err)
 		require.Len(t, fundings, 1, "核销后的 funding 已退出 active/overdue 集合")
-		info, _, _, err := distributeRepayment(tx, acc, fundings, 105_000, now)
+		info, _, _, err := distributeRepayment(tx, acc, fundings, 105_000, now, "manual")
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		require.NoError(t, tx.Save(acc).Error)
@@ -1179,7 +1183,7 @@ func TestWrittenOffFundingExcludedFromRepayment(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, fundings, 1)
 		require.Equal(t, fB.Id, fundings[0].Id)
-		info, allocs, _, err := distributeRepayment(tx, acc, fundings, 105_000, now)
+		info, allocs, _, err := distributeRepayment(tx, acc, fundings, 105_000, now, "manual")
 		require.NoError(t, err)
 		require.NotNil(t, info)
 		require.Len(t, allocs, 1)

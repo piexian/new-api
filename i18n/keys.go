@@ -245,6 +245,7 @@ const (
 	MsgLoanApplicationNotOpen  = "loan.not_open"
 	MsgLoanNoDebt              = "loan.no_debt"
 	MsgLoanInsufficientBalance = "loan.insufficient_balance"
+	MsgLoanLenderOverflow      = "loan.lender_overflow"
 	MsgLoanInternalError       = "loan.internal_error"
 	// 借贷市场（P2P）相关消息
 	MsgLoanMarketDisabled         = "loan.market_disabled"
@@ -260,6 +261,15 @@ const (
 	MsgLoanNotFundingOwner        = "loan.not_funding_owner"
 	MsgLoanInvalidRepayPlan       = "loan.invalid_repay_plan"
 	MsgLoanLendBorrowedNotAllowed = "loan.lend_borrowed_not_allowed"
+	// 挂单参数明细错误（LoanOfferParamError.Reason → key 映射见 controller/loan.go）
+	MsgLoanOfferInvalidMode       = "loan.offer_invalid_mode"
+	MsgLoanOfferAmountBelowMin    = "loan.offer_amount_below_min"
+	MsgLoanOfferInvalidPenalty    = "loan.offer_invalid_penalty"
+	MsgLoanOfferPenaltyExceeds    = "loan.offer_penalty_exceeds"
+	MsgLoanOfferInvalidWindow     = "loan.offer_invalid_window"
+	MsgLoanOfferInvalidRate       = "loan.offer_invalid_rate"
+	MsgLoanOfferInvalidRateRange  = "loan.offer_invalid_rate_range"
+	MsgLoanOfferInvalidPerLoanCap = "loan.offer_invalid_per_loan_cap"
 )
 
 // Passkey related messages

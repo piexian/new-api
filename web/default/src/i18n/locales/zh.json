@@ -6310,7 +6310,12 @@
     "Credit score tier limits": "信用分档位提额上限",
     "Min score": "最低信用分",
     "Max total (USD)": "档位上限（美元）",
-    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "按用户信用分档位限制 AI 可批准的累计总额上限；档位上限作用于授予的总额而非单次借款"
+    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "按用户信用分档位限制 AI 可批准的累计总额上限；档位上限作用于授予的总额而非单次借款",
+    "Official funds only": "只接官方资金",
+    "Skip marketplace offers and borrow entirely from the official pool, which never carries fast-settle penalties.": "跳过市场挂单，整笔从官方资金池借款；官方资金不附带秒结清惩罚。",
+    "This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.": "本次借款包含带秒结清惩罚的资金（共 {{amount}}）：在惩罚窗口期内手动全额提前结清将被收取该惩罚；签到自动还款不会触发惩罚，可正常还款。",
+    "Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.": "您的欠款包含带秒结清惩罚的资金：现在手动全额结清将额外收取 {{amount}}；签到自动还款不会触发该惩罚，可正常还款。",
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.": "借款人在窗口期内全额还清时收取的固定惩罚额度；留空 = 不收取；按每笔借出金额的 2 倍封顶"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

@@ -236,16 +236,41 @@ func TestBorrowLoanQuotaOverflow(t *testing.T) {
 		s.MaxTotal = math.MaxInt64
 	})
 	user := createLoanTestUser(t)
-	// 10000 USD * 500000 = 5e9 quota，超 int32 上界
-	_, _, err := BorrowLoan(user.Id, "10000.00", 0, nil)
+	// 金额本身超 64 位上界（1e14 USD × 500000 = 5e19 quota > LoanQuotaCeiling）
+	_, _, err := BorrowLoan(user.Id, "99999999999999.00", 0, nil)
 	require.ErrorIs(t, err, ErrLoanQuotaOverflow)
 
-	// 金额本身未超 int32，但 用户余额 + 借款 超上界
+	// 金额本身未超上界，但 用户余额 + 借款 超 64 位上界
 	user2 := createLoanTestUser(t)
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", user2.Id).
-		Update("quota", math.MaxInt32-100).Error)
+		Update("quota", LoanQuotaCeiling-100).Error)
 	_, _, err = BorrowLoan(user2.Id, "1.00", 0, nil) // 500000 quota
 	require.ErrorIs(t, err, ErrLoanQuotaOverflow)
+}
+
+// 64 位口径回归：余额超过 int32 上限的用户可以正常借款；单笔金额超过 int32
+// 上限（10000 USD = 5e9 quota > MaxInt32）同样可以借出（生产 PG 列为 bigint，
+// 词元贷不再沿用 int32 口径的 common.MaxQuota）
+func TestBorrowLoanBeyondInt32Quota(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.TermsEnabled = false
+		s.MaxTotal = math.MaxInt64
+	})
+	user := createLoanTestUser(t)
+	// 余额已超 int32 上界：借款入账不得再按 int32 口径拒绝
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).
+		Update("quota", int64(math.MaxInt32)+1_000_000).Error)
+	acc, fundings, err := BorrowLoan(user.Id, "10000.00", 0, nil)
+	require.NoError(t, err)
+	require.NotNil(t, acc)
+	require.Equal(t, int64(5_000_000_000), acc.DebtQuota)
+	var total int64
+	for i := range fundings {
+		total += fundings[i].Amount
+	}
+	require.Equal(t, int64(5_000_000_000), total)
+	require.Equal(t, int64(math.MaxInt32)+1_000_000+5_000_000_000, userQuota(t, user.Id))
 }
 
 // QuotaPerUnit 是运行时可调配置：调成 1 后，"0.01" USD 换算为 0 quota，

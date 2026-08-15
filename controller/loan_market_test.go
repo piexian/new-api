@@ -116,13 +116,13 @@ func TestLoanMarketOfferCRUD(t *testing.T) {
 		t.Fatalf("failed to agree disclaimer: %v", err)
 	}
 
-	// 非法模式 → 参数无效
+	// 非法模式 → 参数明细错误（无效的挂单模式）
 	ctx, recorder := newLoanContext(t, http.MethodPost, "/api/user/loan/market/offers",
 		marketOfferBody("hack", "1.00", "0.001", 0, 0, 0, -50), user.Id, nil)
 	CreateLoanMarketOffer(ctx)
 	resp := decodeLoanResponse(t, recorder)
-	if resp.Success || resp.Message != "放贷挂单参数无效" {
-		t.Fatalf("expected invalid params rejection, got: %+v", resp)
+	if resp.Success || resp.Message != "无效的挂单模式" {
+		t.Fatalf("expected invalid mode rejection, got: %+v", resp)
 	}
 
 	// 建单

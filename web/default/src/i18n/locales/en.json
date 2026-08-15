@@ -6310,7 +6310,12 @@
     "Credit score tier limits": "Credit score tier limits",
     "Min score": "Min score",
     "Max total (USD)": "Max total (USD)",
-    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow"
+    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow",
+    "Official funds only": "Official funds only",
+    "Skip marketplace offers and borrow entirely from the official pool, which never carries fast-settle penalties.": "Skip marketplace offers and borrow entirely from the official pool, which never carries fast-settle penalties.",
+    "This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.": "This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.",
+    "Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.": "Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.",
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.": "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount."
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

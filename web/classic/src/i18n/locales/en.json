@@ -4987,6 +4987,11 @@
     "默认智谱地址": "Default Zhipu Address",
     "默认测试模型": "Default Test Model",
     "默认用户消息": "Default User Message",
-    "默认补全倍率": "Default completion ratio"
+    "默认补全倍率": "Default completion ratio",
+    "只接官方资金": "Official funds only",
+    "跳过市场挂单，整笔从官方资金池借款；官方资金不附带秒结清惩罚。": "Skip marketplace offers and borrow entirely from the official pool, which never carries fast-settle penalties.",
+    "本次借款包含带秒结清惩罚的资金（共 {{amount}}）：在惩罚窗口期内手动全额提前结清将被收取该惩罚；签到自动还款不会触发惩罚，可正常还款。": "This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.",
+    "您的欠款包含带秒结清惩罚的资金：现在手动全额结清将额外收取 {{amount}}；签到自动还款不会触发该惩罚，可正常还款。": "Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.",
+    "借款人于窗口内全额还清时收取的固定惩罚额度；留空 = 不收取；按每笔借出金额的 2 倍封顶": "Fixed penalty charged when the borrower fully repays within the window; empty = none; capped at 2x each funded amount"
   }
 }

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 // （Repaid）的 funding 满足 loanDay(now)-loanDay(CreatedAt) <= FastRepayWindowDays 且
 // FastRepayPenaltyQuota > 0 → 该 funding 计罚。签到自动还款（checkin 路径）恒不触发。
 // 惩罚从借款人余额扣除时不校验余额（允许扣成负数），按 funding 记台账 penalty_part，
-// 按放贷人并入 LenderCredit（与利息/本金同一 MaxQuota 上界校验）。
+// 按放贷人并入 LenderCredit（与利息/本金同一 64 位上界校验）。
 
 // setupFastRepayTest 开启词元贷 + 市场，返回借款人/放贷人（共享库残留行已清理）。
 // 手续费率置 0 消除干扰，使惩罚断言聚焦。
@@ -251,10 +252,11 @@ func TestFastRepayPenaltyTwoFundingsDifferentPenalties(t *testing.T) {
 	acc, info, credits, err := RepayLoan(borrower.Id, "all")
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, quotaOf(t, "3.00"), info.PenaltyPart, "惩罚 = 两档之和")
+	// 惩罚 = 两档之和；第二档 1,000,000 超 2×本金（2×400,000），按 800,000 封顶
+	require.Equal(t, int64(1_300_000), info.PenaltyPart, "惩罚 = 两档之和（第二档 2×本金封顶）")
 
-	// 借款人：借得 1,000,000 - 本息 1,000,000 - 惩罚 1,500,000 = -1,500,000
-	require.Equal(t, int64(-1_500_000), userQuota(t, borrower.Id))
+	// 借款人：借得 1,000,000 - 本息 1,000,000 - 惩罚 1,300,000 = -1,300,000
+	require.Equal(t, int64(-1_300_000), userQuota(t, borrower.Id))
 
 	// 各放贷人收到各自惩罚（同日无利息）
 	require.Len(t, credits, 2)
@@ -263,9 +265,9 @@ func TestFastRepayPenaltyTwoFundingsDifferentPenalties(t *testing.T) {
 		byLender[c.UserId] = c.Amount
 	}
 	require.Equal(t, quotaOf(t, "1.00"), byLender[lender1.Id])
-	require.Equal(t, quotaOf(t, "2.00"), byLender[lender2.Id])
+	require.Equal(t, int64(800_000), byLender[lender2.Id])
 	require.Equal(t, int64(4_500_000), userQuota(t, lender1.Id))
-	require.Equal(t, int64(5_000_000), userQuota(t, lender2.Id))
+	require.Equal(t, int64(4_800_000), userQuota(t, lender2.Id))
 
 	// 台账两条 repay 行，各自携带自己的惩罚份额
 	rows := repayLedgerRows(t, borrower.Id)
@@ -275,7 +277,7 @@ func TestFastRepayPenaltyTwoFundingsDifferentPenalties(t *testing.T) {
 		byFunding[r.FundingId] = r.PenaltyPart
 	}
 	require.Equal(t, quotaOf(t, "1.00"), byFunding[fundings[0].Id])
-	require.Equal(t, quotaOf(t, "2.00"), byFunding[fundings[1].Id])
+	require.Equal(t, int64(800_000), byFunding[fundings[1].Id])
 }
 
 // ⑥ 窗口 0 = 仅当天：次日还款不计罚；同日还款照常计罚。
@@ -370,4 +372,83 @@ func TestCreateLoanOfferFastRepayParamsValidation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, quotaOf(t, "1.50"), offer2.FastRepayPenaltyQuota)
 	require.Equal(t, 7, offer2.FastRepayWindowDays)
+}
+
+// ⑧ 高余额放贷人回归（生产 bug）：放贷人余额超过 int32 上界时，借款人结清触发的
+// 惩罚入账不得再按 int32 口径溢出回滚（生产库 quota 列为 bigint，词元贷 64 位口径）
+func TestFastRepayPenaltyLenderBeyondInt32Quota(t *testing.T) {
+	borrower, lender := setupFastRepayTest(t)
+	// 隔离共享库中其他用例残留的 active offer，保证撮合只命中本用例的挂单
+	require.NoError(t, DB.Where("1 = 1").Delete(&TokenLoanOffer{}).Error)
+	createPenaltyOffer(t, lender.Id, 1_000_000, 1_000_000, quotaOf(t, "2.00"), 3)
+	// 放贷人余额远超 int32 上界（模拟生产 root 的超大余额）
+	highBalance := int64(math.MaxInt32) + 5_000_000
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", lender.Id).Update("quota", highBalance).Error)
+
+	fundings := borrowFromMarket(t, borrower.Id, "1.00")
+	require.Len(t, fundings, 1)
+
+	acc, info, credits, err := RepayLoan(borrower.Id, "all")
+	require.NoError(t, err)
+	require.NotNil(t, acc)
+	require.Equal(t, quotaOf(t, "2.00"), info.PenaltyPart)
+	require.Len(t, credits, 1)
+	require.Equal(t, lender.Id, credits[0].UserId)
+	require.Equal(t, highBalance+quotaOf(t, "2.00"), userQuota(t, lender.Id))
+}
+
+// ⑨ 只接官方资金：市场开启且有 pool 挂单时，platformOnly 借款整笔走平台兜底，
+// 不动用任何市场挂单（offer 余额不变），funding 无惩罚条款
+func TestBorrowLoanPlatformOnlySkipsMarket(t *testing.T) {
+	borrower, lender := setupFastRepayTest(t)
+	// 隔离共享库中其他用例残留的 active offer
+	require.NoError(t, DB.Where("1 = 1").Delete(&TokenLoanOffer{}).Error)
+	offer := createPenaltyOffer(t, lender.Id, 1_000_000, 1_000_000, quotaOf(t, "2.00"), 3)
+
+	acc, fundings, err := BorrowLoanWithOptions(borrower.Id, "1.00", 0, nil, true)
+	require.NoError(t, err)
+	require.NotNil(t, acc)
+	require.Len(t, fundings, 1)
+	require.Equal(t, LoanFundingPlatform, fundings[0].SourceType)
+	require.Zero(t, fundings[0].OfferId)
+	require.Zero(t, fundings[0].FastRepayPenaltyQuota)
+
+	// offer 未被动用
+	var got TokenLoanOffer
+	require.NoError(t, DB.First(&got, offer.Id).Error)
+	require.Equal(t, int64(1_000_000), got.AmountAvailable)
+	require.Zero(t, got.TotalLent)
+}
+
+// ⑩ 秒结清惩罚随放款复制时按"不超过本笔借出金额 2 倍"封顶：
+// offer 惩罚 2.00 USD，借 0.50 → funding 惩罚封顶 1.00 USD
+func TestFastRepayPenaltyCappedAtTwiceFundingAmount(t *testing.T) {
+	borrower, lender := setupFastRepayTest(t)
+	// 隔离共享库中其他用例残留的 active offer，保证撮合只命中本用例的挂单
+	require.NoError(t, DB.Where("1 = 1").Delete(&TokenLoanOffer{}).Error)
+	createPenaltyOffer(t, lender.Id, 1_000_000, 1_000_000, quotaOf(t, "2.00"), 3)
+
+	fundings := borrowFromMarket(t, borrower.Id, "0.50") // 250,000 quota
+	require.Len(t, fundings, 1)
+	require.Equal(t, int64(500_000), fundings[0].FastRepayPenaltyQuota, "惩罚按 2×本金封顶")
+
+	// 结清时实际收取封顶后的惩罚
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", borrower.Id).Update("quota", 2_000_000).Error)
+	_, info, _, err := RepayLoan(borrower.Id, "all")
+	require.NoError(t, err)
+	require.Equal(t, int64(500_000), info.PenaltyPart)
+}
+
+// ⑪ CreateLoanOffer：惩罚超过挂出金额 2 倍 → ErrLoanOfferInvalidParams（penalty_exceeds）
+func TestCreateLoanOfferPenaltyExceedsTwiceOfferAmount(t *testing.T) {
+	lender := setupMarketLender(t, quotaOf(t, "10.00"))
+	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50, "2.01", 3)
+	require.ErrorIs(t, err, ErrLoanOfferInvalidParams)
+	var pe *LoanOfferParamError
+	require.ErrorAs(t, err, &pe)
+	require.Equal(t, "penalty_exceeds", pe.Reason)
+	// 恰好 2 倍放行
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50, "2.00", 3)
+	require.NoError(t, err)
+	require.Equal(t, quotaOf(t, "2.00"), offer.FastRepayPenaltyQuota)
 }

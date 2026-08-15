@@ -36,6 +36,8 @@ const (
 //   - 持有天数 heldDays = loanDay(now) - loanDay(record.CreatedAt)；
 //   - heldDays < CreditMinHoldDays → 快速还清扣 CreditFastRepayPenalty（反刷分），
 //     下限 -50 钳制后直接结束（不再走按时判定）；
+//     例外：source == "checkin"（签到自动还款）积分中性（不扣分也不加分）——
+//     秒结清类惩罚只针对手动提前还款，但放行加分会形成零成本刷分循环；
 //   - 否则按事件内 max(due_day) 判定（含延长处置写回的新 due_day）：today > max(due_day)
 //     → 逾期后还清，不加分不扣分；today <= max(due_day) 且事件本金（record.Amount）
 //     换算 USD >= CreditMinBorrowUsd → 按时还清加 CreditRepayBonus，上限 100 钳制；
@@ -45,7 +47,7 @@ const (
 // 加减分（钳制后 new-old），DebtAfter 复用为变动后信用分，Source=repay_bonus /
 // fast_repay，RefId=借款事件 id。仅修改内存 acc（CreditScore），落盘由调用方统一
 // tx.Save(acc)（与 maybeLiftBlacklistTx 同风格），台账行在本事务内直接写入。
-func scoreBorrowEventRepaidTx(tx *gorm.DB, acc *TokenLoanAccount, borrowEventId int64, now time.Time) error {
+func scoreBorrowEventRepaidTx(tx *gorm.DB, acc *TokenLoanAccount, borrowEventId int64, now time.Time, source string) error {
 	if borrowEventId <= 0 {
 		return nil // legacy 迁移 funding：无对应借款事件，不评分
 	}
@@ -87,6 +89,11 @@ func scoreBorrowEventRepaidTx(tx *gorm.DB, acc *TokenLoanAccount, borrowEventId 
 	loanSetting := operation_setting.GetLoanSetting()
 	heldDays := loanDay(now) - loanDay(time.Unix(record.CreatedAt, 0))
 	if heldDays < loanSetting.CreditMinHoldDays {
+		// 签到自动还款快速结清：积分中性（不扣分也不加分）——秒结清类惩罚只针对
+		// 手动提前还款；若放行加分会形成"借款→签到结清→+5"的零成本刷分循环
+		if source == "checkin" {
+			return nil
+		}
 		// 快速还清（反刷分）：扣分后直接结束，不再按 due_day 判定
 		before := acc.CreditScore
 		acc.CreditScore -= loanSetting.CreditFastRepayPenalty

@@ -27,6 +27,7 @@ import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Form,
   FormControl,
@@ -75,6 +76,8 @@ export function BorrowForm(props: BorrowFormProps) {
     (state) => state.config.currency.quotaPerUnit
   )
   const [submitting, setSubmitting] = useState(false)
+  // 只接官方资金：跳过市场撮合，整笔由平台放款（官方资金无秒结清惩罚条款）
+  const [platformOnly, setPlatformOnly] = useState(false)
 
   const schema = useMemo(() => buildSchema(t), [t])
 
@@ -99,9 +102,28 @@ export function BorrowForm(props: BorrowFormProps) {
     }
     setSubmitting(true)
     try {
-      const res = await borrowLoan(values.amount, props.presetOrder?.id)
+      const res = await borrowLoan(
+        values.amount,
+        props.presetOrder?.id,
+        platformOnly
+      )
       if (res.success && res.data) {
         toast.success(t('Borrow successful'))
+        // 借款后即时提示：本次放款含秒结清惩罚条款的资金，说明手动提前结清的
+        // 惩罚与签到自动还款的豁免（签到视为正常还款，不触发惩罚）
+        const penaltyTotal = (res.data.fundings ?? []).reduce(
+          (sum, f) => sum + (f.fast_repay_penalty_quota > 0 ? f.fast_repay_penalty_quota : 0),
+          0
+        )
+        if (penaltyTotal > 0) {
+          toast.warning(
+            t(
+              'This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.',
+              { amount: formatQuotaWithCurrency(penaltyTotal) }
+            ),
+            { duration: 10000 }
+          )
+        }
         queryClient.setQueryData(['loan-status'], res.data)
         queryClient.invalidateQueries({ queryKey: ['loan-records'] })
         queryClient.invalidateQueries({ queryKey: ['loan-market-fundings'] })
@@ -201,6 +223,30 @@ export function BorrowForm(props: BorrowFormProps) {
                 >
                   <X className='h-3.5 w-3.5' />
                 </Button>
+              </div>
+            ) : null}
+            {status?.market_enabled && !props.presetOrder ? (
+              <div className='flex items-start gap-2'>
+                <Checkbox
+                  id='borrow-platform-only'
+                  checked={platformOnly}
+                  onCheckedChange={(checked) =>
+                    setPlatformOnly(checked === true)
+                  }
+                />
+                <div className='grid gap-0.5 leading-none'>
+                  <label
+                    htmlFor='borrow-platform-only'
+                    className='text-sm font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+                  >
+                    {t('Official funds only')}
+                  </label>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'Skip marketplace offers and borrow entirely from the official pool, which never carries fast-settle penalties.'
+                    )}
+                  </p>
+                </div>
               </div>
             ) : null}
             <Button

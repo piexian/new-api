@@ -6310,7 +6310,12 @@
     "Credit score tier limits": "Hạn mức theo bậc điểm tín dụng",
     "Min score": "Điểm tối thiểu",
     "Max total (USD)": "Tổng tối đa (USD)",
-    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Giới hạn tổng hạn mức AI có thể cấp theo bậc điểm tín dụng của người dùng; hạn mức bậc áp dụng cho tổng hạn mức được cấp, không phải từng khoản vay"
+    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Giới hạn tổng hạn mức AI có thể cấp theo bậc điểm tín dụng của người dùng; hạn mức bậc áp dụng cho tổng hạn mức được cấp, không phải từng khoản vay",
+    "Official funds only": "Chỉ nhận vốn chính thức",
+    "Skip marketplace offers and borrow entirely from the official pool, which never carries fast-settle penalties.": "Bỏ qua các lệnh thị trường và vay toàn bộ từ quỹ chính thức, quỹ này không bao giờ kèm phí phạt trả nhanh.",
+    "This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.": "Khoản vay này bao gồm nguồn vốn có phí phạt trả nhanh {{amount}}: tất toán thủ công toàn bộ trong thời hạn của bên cho vay sẽ bị thu phí. Trả nợ tự động qua điểm danh không bao giờ kích hoạt khoản phạt này và vẫn trả bình thường.",
+    "Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.": "Khoản nợ của bạn bao gồm nguồn vốn có phí phạt trả nhanh: tất toán thủ công toàn bộ ngay bây giờ sẽ bị thu thêm {{amount}}. Trả nợ tự động qua điểm danh không kích hoạt khoản phạt này và vẫn trả bình thường.",
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.": "Khoản phạt cố định thu khi người vay trả hết trong thởi hạn; để trống = không thu; tối đa gấp 2 lần số tiền mỗi khoản giải ngân."
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

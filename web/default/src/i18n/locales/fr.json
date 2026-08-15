@@ -6310,7 +6310,12 @@
     "Credit score tier limits": "Plafonds par palier de score de crédit",
     "Min score": "Score minimal",
     "Max total (USD)": "Total max (USD)",
-    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Plafonne le crédit total accordé par l'IA selon le palier de score de crédit de l'utilisateur ; le plafond du palier s'applique au total accordé, pas à un emprunt isolé"
+    "Cap the total AI-granted credit limit by user credit score tier; the tier cap applies to the total limit granted, not per borrow": "Plafonne le crédit total accordé par l'IA selon le palier de score de crédit de l'utilisateur ; le plafond du palier s'applique au total accordé, pas à un emprunt isolé",
+    "Official funds only": "Fonds officiels uniquement",
+    "Skip marketplace offers and borrow entirely from the official pool, which never carries fast-settle penalties.": "Ignorez les offres du marché et empruntez entièrement auprès du pool officiel, qui ne comporte jamais de pénalité de règlement rapide.",
+    "This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.": "Cet emprunt inclut des fonds avec une pénalité de règlement rapide de {{amount}} : un règlement manuel complet anticipé pendant la fenêtre du prêteur sera facturé. Le remboursement automatique par pointage ne déclenche jamais cette pénalité et rembourse normalement.",
+    "Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.": "Votre dette inclut des fonds avec une pénalité de règlement rapide : un règlement manuel complet maintenant facturera {{amount}} supplémentaires. Le remboursement automatique par pointage ne déclenche pas cette pénalité et rembourse normalement.",
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.": "Pénalité facturée lorsqu'un emprunteur rembourse intégralement pendant la fenêtre ; vide = aucune pénalité. Plafonnée à 2× le montant de chaque financement."
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

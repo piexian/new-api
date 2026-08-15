@@ -71,8 +71,26 @@ export interface LoanStatus {
   has_overdue: boolean
   /** Whether the user agreed to the lender disclaimer */
   lender_disclaimer_agreed: boolean
+  /** Estimated fast-settle penalty if the whole debt were manually settled now (0 = none) */
+  fast_repay_penalty_estimate?: number
   /** Repay breakdown returned by a successful manual repay (absent otherwise) */
   repay?: LoanRepayResult
+  /** Funding breakdown returned by a successful borrow (absent otherwise) */
+  fundings?: LoanBorrowFunding[]
+}
+
+/**
+ * Per-funding breakdown returned in the borrow response (`data.fundings`).
+ * Money fields are int64 quota; `rate` is a daily rate fraction.
+ */
+export interface LoanBorrowFunding {
+  source_type: LoanFundingSource
+  amount: number
+  rate: number
+  /** Fast-settle penalty charged if this funding is manually settled inside the window (0 = none) */
+  fast_repay_penalty_quota: number
+  /** Fast-settle window in days (0 = same day only) */
+  fast_repay_window_days: number
 }
 
 /**

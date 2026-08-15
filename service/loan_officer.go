@@ -244,12 +244,12 @@ func executeLoanDecision(app *model.TokenLoanApplication, setting *operation_set
 			}
 		}
 		quotaDec := decimal.NewFromFloat(clamped.CreditLimit).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
-		quota, clamp := common.QuotaFromDecimalChecked(quotaDec)
-		if clamp != nil {
-			common.SysError(fmt.Sprintf("loan officer decision credit limit overflow for application %d: %v", app.Id, clamp))
+		quota, overflow := model.LoanQuotaFromDecimal(quotaDec)
+		if overflow {
+			common.SysError(fmt.Sprintf("loan officer decision credit limit overflow for application %d", app.Id))
 			return false, ""
 		}
-		quotaLimit = int64(quota)
+		quotaLimit = quota
 	}
 	payload, err := common.Marshal(map[string]interface{}{
 		"action":   "close",
