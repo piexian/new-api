@@ -6292,7 +6292,11 @@
     "Search by lender username or ID": "Rechercher par nom ou ID de prêteur",
     "Lender ID": "ID du prêteur",
     "Borrower ID": "ID de l'emprunteur",
-    "Principal Remaining": "Principal restant"
+    "Principal Remaining": "Principal restant",
+    "Credit Change": "Changement de crédit",
+    "Repay Bonus": "Bonus de remboursement",
+    "Fast Repay Penalty": "Pénalité de remboursement rapide",
+    "Write-off": "Radiation"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

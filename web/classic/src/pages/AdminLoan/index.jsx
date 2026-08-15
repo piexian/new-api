@@ -47,11 +47,15 @@ const { Title, Text } = Typography;
 const LOAN_TYPE_LABELS = {
   borrow: '借款',
   repay: '还款',
+  credit: '信用分变动',
 };
 const LOAN_SOURCE_LABELS = {
   manual: '手动',
   checkin: '签到',
   ai: 'AI 业务员',
+  repay_bonus: '按时还款加分',
+  fast_repay: '快速还款扣分',
+  writeoff: '核销扣分',
 };
 const LOAN_TOPIC_LABELS = {
   credit: '提额',
@@ -64,7 +68,9 @@ const LOAN_STATUS_LABELS = {
   closed: '已结案',
 };
 
-const LOAN_TYPE_TAG_COLORS = { borrow: 'orange', repay: 'green' };
+const LOAN_TYPE_TAG_COLORS = { borrow: 'orange', repay: 'green', credit: 'blue' };
+// credit 台账行的 Amount 是带符号的信用分变动 delta（+5/-2/-20），DebtAfter 是变动后信用分
+const formatSignedDelta = (v) => (v > 0 ? `+${v}` : `${v}`);
 const LOAN_TOPIC_TAG_COLORS = {
   credit: 'blue',
   rate: 'green',
@@ -369,7 +375,10 @@ const LoanRecordsTab = () => {
       {
         title: t('金额'),
         dataIndex: 'amount',
-        render: (v) => renderQuota(v || 0),
+        render: (v, record) =>
+          record.type === 'credit'
+            ? formatSignedDelta(v)
+            : renderQuota(v || 0),
         width: 120,
       },
       {
@@ -393,7 +402,8 @@ const LoanRecordsTab = () => {
       {
         title: t('欠款余额'),
         dataIndex: 'debt_after',
-        render: (v) => renderQuota(v || 0),
+        render: (v, record) =>
+          record.type === 'credit' ? String(v) : renderQuota(v || 0),
         width: 120,
       },
       {

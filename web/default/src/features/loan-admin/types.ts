@@ -70,11 +70,12 @@ export interface LoanAdminRecord {
   id: number
   user_id: number
   username: string
-  type: 'borrow' | 'repay'
+  type: 'borrow' | 'repay' | 'credit'
   amount: number
   interest_part: number
   principal_part: number
   fee_part: number
+  /** Debt after change; for type=credit this is the credit score after the change */
   debt_after: number
   source: 'manual' | 'checkin' | 'ai' | string
   ref_id: number

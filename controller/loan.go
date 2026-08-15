@@ -87,6 +87,8 @@ func respondLoanError(c *gin.Context, err error) {
 		common.ApiErrorI18n(c, i18n.MsgLoanNotFundingOwner)
 	case errors.Is(err, model.ErrLoanInvalidRepayPlan):
 		common.ApiErrorI18n(c, i18n.MsgLoanInvalidRepayPlan)
+	case errors.Is(err, model.ErrLoanLendBorrowedNotAllowed):
+		common.ApiErrorI18n(c, i18n.MsgLoanLendBorrowedNotAllowed)
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		common.ApiErrorI18n(c, i18n.MsgLoanNotFound)
 	default:

@@ -227,6 +227,7 @@ loan.funding_not_overdue: "該借款未逾期，無法處置"
 loan.invalid_default_action: "無效的逾期處置動作"
 loan.not_funding_owner: "該借款不屬於你，無法操作"
 loan.invalid_repay_plan: "還款計畫無效或目前不可調整"
+loan.lend_borrowed_not_allowed: "借來的額度不能用於掛放貸市場單"
 
 # Passkey messages
 passkey.create_failed: "無法建立 Passkey 憑證"

@@ -6292,7 +6292,11 @@
     "Search by lender username or ID": "按放貸人用戶名或 ID 搜索",
     "Lender ID": "放貸人 ID",
     "Borrower ID": "借款人 ID",
-    "Principal Remaining": "未還本金"
+    "Principal Remaining": "未還本金",
+    "Credit Change": "信用分變動",
+    "Repay Bonus": "按時還款加分",
+    "Fast Repay Penalty": "快速還款扣分",
+    "Write-off": "核銷扣分"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

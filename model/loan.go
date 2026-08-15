@@ -37,18 +37,18 @@ func (TokenLoanAccount) TableName() string {
 	return "token_loan_accounts"
 }
 
-// TokenLoanRecord 词元贷台账（借款/还款变动记录）
+// TokenLoanRecord 词元贷台账（借款/还款/信用分变动记录）
 type TokenLoanRecord struct {
 	Id            int    `json:"id" gorm:"primaryKey;autoIncrement"`
 	UserId        int    `json:"user_id" gorm:"not null;index"`
-	Type          string `json:"type" gorm:"type:varchar(16);not null"`   // borrow / repay
-	Amount        int64  `json:"amount" gorm:"bigint"`                    // 本次变动总额
-	InterestPart  int64  `json:"interest_part" gorm:"bigint"`             // 其中抵息部分（borrow 为 0）
-	PrincipalPart int64  `json:"principal_part" gorm:"bigint"`            // 其中抵本部分（borrow 为 amount）
-	FeePart       int64  `json:"fee_part" gorm:"bigint"`                  // 提前还款手续费（仅手动还款可能 > 0）
-	DebtAfter     int64  `json:"debt_after" gorm:"bigint"`                // 变动后债务总额
-	Source        string `json:"source" gorm:"type:varchar(16);not null"` // manual / checkin / ai
-	RefId         int64  `json:"ref_id" gorm:"bigint"`                    // source=ai 时为申请 id，其余为 0
+	Type          string `json:"type" gorm:"type:varchar(16);not null"`   // borrow / repay / credit（credit = 信用分变动）
+	Amount        int64  `json:"amount" gorm:"bigint"`                    // 本次变动总额；type=credit 时为带符号的实际生效加减分（钳制后 new-old）
+	InterestPart  int64  `json:"interest_part" gorm:"bigint"`             // 其中抵息部分（borrow 为 0；credit 恒为 0）
+	PrincipalPart int64  `json:"principal_part" gorm:"bigint"`            // 其中抵本部分（borrow 为 amount；credit 恒为 0）
+	FeePart       int64  `json:"fee_part" gorm:"bigint"`                  // 提前还款手续费（仅手动还款可能 > 0；credit 恒为 0）
+	DebtAfter     int64  `json:"debt_after" gorm:"bigint"`                // 变动后债务总额；type=credit 时复用为变动后信用分
+	Source        string `json:"source" gorm:"type:varchar(16);not null"` // manual / checkin / ai / repay_bonus / fast_repay / writeoff
+	RefId         int64  `json:"ref_id" gorm:"bigint"`                    // source=ai 时为申请 id；credit 时为借款事件 id（writeoff 为 0）；其余为 0
 	FundingId     int64  `json:"funding_id" gorm:"bigint"`                // 关联 funding 行 id，0 = 非市场投放
 	LenderId      int    `json:"lender_id"`                               // 放贷方 user id，0 = 平台/资金池
 	CreatedAt     int64  `json:"created_at" gorm:"bigint"`                // 秒级时间戳

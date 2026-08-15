@@ -41,7 +41,10 @@ const (
 //     换算 USD >= CreditMinBorrowUsd → 按时还清加 CreditRepayBonus，上限 100 钳制；
 //     本金低于门槛（刷分墙）→ 不加分不扣分。
 //
-// 仅修改内存 acc（CreditScore），落盘由调用方统一 tx.Save(acc)（与 maybeLiftBlacklistTx 同风格）。
+// 评分发生时（加分/扣分两个分支）各写一条 type=credit 台账行：Amount=实际生效的
+// 加减分（钳制后 new-old），DebtAfter 复用为变动后信用分，Source=repay_bonus /
+// fast_repay，RefId=借款事件 id。仅修改内存 acc（CreditScore），落盘由调用方统一
+// tx.Save(acc)（与 maybeLiftBlacklistTx 同风格），台账行在本事务内直接写入。
 func scoreBorrowEventRepaidTx(tx *gorm.DB, acc *TokenLoanAccount, borrowEventId int64, now time.Time) error {
 	if borrowEventId <= 0 {
 		return nil // legacy 迁移 funding：无对应借款事件，不评分
@@ -85,11 +88,12 @@ func scoreBorrowEventRepaidTx(tx *gorm.DB, acc *TokenLoanAccount, borrowEventId 
 	heldDays := loanDay(now) - loanDay(time.Unix(record.CreatedAt, 0))
 	if heldDays < loanSetting.CreditMinHoldDays {
 		// 快速还清（反刷分）：扣分后直接结束，不再按 due_day 判定
+		before := acc.CreditScore
 		acc.CreditScore -= loanSetting.CreditFastRepayPenalty
 		if acc.CreditScore < creditScoreFloor {
 			acc.CreditScore = creditScoreFloor
 		}
-		return nil
+		return writeCreditLedgerRowTx(tx, acc, before, "fast_repay", borrowEventId, now)
 	}
 	// 逾期后还清：不加分不扣分（基准 = 事件内 max(due_day)，含延长后的新 due_day）
 	if loanDay(now) > maxDueDay {
@@ -99,11 +103,37 @@ func scoreBorrowEventRepaidTx(tx *gorm.DB, acc *TokenLoanAccount, borrowEventId 
 	if float64(record.Amount)/common.QuotaPerUnit < loanSetting.CreditMinBorrowUsd {
 		return nil
 	}
+	before := acc.CreditScore
 	acc.CreditScore += loanSetting.CreditRepayBonus
 	if acc.CreditScore > creditScoreCeil {
 		acc.CreditScore = creditScoreCeil
 	}
-	return nil
+	return writeCreditLedgerRowTx(tx, acc, before, "repay_bonus", borrowEventId, now)
+}
+
+// writeCreditLedgerRowTx 写一条信用分变动台账行（type=credit）：
+//   - Amount = 实际生效的加减分 = 钳制后的 new - before（钳制时可能小于名义值，如
+//     99 + 5 → +1、-45 - 20 → -5），保证台账与账户最终分一致；
+//   - DebtAfter 复用为变动后信用分（字段语义见 model/loan.go TokenLoanRecord）；
+//   - Source 为变动原因（repay_bonus / fast_repay / writeoff），RefId 关联借款事件
+//     （核销无事件，传 0）；InterestPart/PrincipalPart/FeePart/FundingId/LenderId = 0。
+//
+// delta == 0（如对应参数配置为 0）时无实际变动，不写行，避免噪音记录。
+func writeCreditLedgerRowTx(tx *gorm.DB, acc *TokenLoanAccount, before int, source string, refId int64, now time.Time) error {
+	delta := acc.CreditScore - before
+	if delta == 0 {
+		return nil
+	}
+	record := &TokenLoanRecord{
+		UserId:    acc.UserId,
+		Type:      "credit",
+		Amount:    int64(delta),
+		DebtAfter: int64(acc.CreditScore),
+		Source:    source,
+		RefId:     refId,
+		CreatedAt: now.Unix(),
+	}
+	return tx.Create(record).Error
 }
 
 // GetCreditScore 查询用户当前信用分：账户不存在时返回信用分初始值（CreditInitial，不建行）。

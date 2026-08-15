@@ -6292,7 +6292,11 @@
     "Search by lender username or ID": "Поиск по имени или ID кредитора",
     "Lender ID": "ID кредитора",
     "Borrower ID": "ID заемщика",
-    "Principal Remaining": "Остаток основного долга"
+    "Principal Remaining": "Остаток основного долга",
+    "Credit Change": "Изменение кредитного рейтинга",
+    "Repay Bonus": "Бонус за погашение",
+    "Fast Repay Penalty": "Штраф за досрочное погашение",
+    "Write-off": "Списание"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

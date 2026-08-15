@@ -394,6 +394,29 @@ func createOfferFunding(t *testing.T, offer *TokenLoanOffer, borrowerId int, amo
 	return f
 }
 
+// createActiveBorrowerFunding 直接建一条 borrower 名下的 active funding
+// （PrincipalRemaining=amount，模拟 borrower 尚未偿还的借款本金）
+func createActiveBorrowerFunding(t *testing.T, borrowerId int, amount int64) *TokenLoanFunding {
+	t.Helper()
+	now := time.Now()
+	f := &TokenLoanFunding{
+		LoanUserId:         borrowerId,
+		SourceType:         LoanFundingPlatform,
+		Amount:             amount,
+		PrincipalRemaining: amount,
+		DebtQuota:          amount,
+		LastSettledDay:     loanDay(now),
+		Rate:               0.001,
+		RepayPlan:          LoanRepayFull,
+		Status:             LoanFundingActive,
+		DueDay:             loanDay(now) + 30,
+		CreatedAt:          now.Unix(),
+		UpdatedAt:          now.Unix(),
+	}
+	require.NoError(t, DB.Create(f).Error)
+	return f
+}
+
 func TestAgreeLenderDisclaimerIdempotent(t *testing.T) {
 	lender := createLoanTestUser(t)
 	require.NoError(t, DB.Where("user_id = ?", lender.Id).Delete(&TokenLoanAccount{}).Error)
@@ -569,6 +592,54 @@ func TestCreateLoanOfferHappyPath(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0.0015, offer3.RateFixed)
 	require.Equal(t, int64(200000), offer3.PerLoanCap)
+}
+
+// ===== 禁止二次挂市场（P1-10）=====
+
+// ① 借来的钱不得再放贷：余额 1000000、未还本金 600000 → 可放贷额度 400000，
+// 挂 0.90 USD（450000）被拒（ErrLoanLendBorrowedNotAllowed），挂 0.80 USD（400000）放行
+func TestCreateLoanOfferRejectsRelendingBorrowedQuota(t *testing.T) {
+	lender := setupMarketLender(t, 1_000_000)
+	require.NoError(t, DB.Where("loan_user_id = ?", lender.Id).Delete(&TokenLoanFunding{}).Error)
+	createActiveBorrowerFunding(t, lender.Id, 600_000)
+
+	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.90", "0.001", 0, 0, 0, -50)
+	require.ErrorIs(t, err, ErrLoanLendBorrowedNotAllowed)
+
+	// 恰好等于可放贷额度的挂单放行
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.80", "0.001", 0, 0, 0, -50)
+	require.NoError(t, err)
+	require.Equal(t, int64(400_000), offer.AmountTotal)
+
+	// 被拒路径不落 offer、不动余额（成功挂单扣 400000，余额剩 600000）
+	var n int64
+	require.NoError(t, DB.Model(&TokenLoanOffer{}).Where("lender_id = ?", lender.Id).Count(&n).Error)
+	require.Equal(t, int64(1), n)
+	var u User
+	require.NoError(t, DB.Select("quota").First(&u, lender.Id).Error)
+	require.Equal(t, int64(600_000), int64(u.Quota))
+}
+
+// ② MarketAllowLendBorrowed=true 时跳过限制：同一场景 0.90 USD（450000 > 可放贷 400000）放行
+func TestCreateLoanOfferAllowsRelendingWhenToggleEnabled(t *testing.T) {
+	lender := setupMarketLender(t, 1_000_000)
+	require.NoError(t, DB.Where("loan_user_id = ?", lender.Id).Delete(&TokenLoanFunding{}).Error)
+	createActiveBorrowerFunding(t, lender.Id, 600_000)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.MarketAllowLendBorrowed = true })
+
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.90", "0.001", 0, 0, 0, -50)
+	require.NoError(t, err)
+	require.Equal(t, int64(450_000), offer.AmountTotal)
+}
+
+// ③ 无未还本金的放贷人不受影响：可放贷额度 = 余额，行为与旧版一致
+func TestCreateLoanOfferUnaffectedWithoutDebt(t *testing.T) {
+	lender := setupMarketLender(t, 1_000_000)
+	require.NoError(t, DB.Where("loan_user_id = ?", lender.Id).Delete(&TokenLoanFunding{}).Error)
+
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.90", "0.001", 0, 0, 0, -50)
+	require.NoError(t, err)
+	require.Equal(t, int64(450_000), offer.AmountTotal)
 }
 
 func TestSetLoanOfferStatusTransitions(t *testing.T) {
@@ -836,7 +907,8 @@ func TestResolveOverdueFundingRejectsNonOverdue(t *testing.T) {
 // ③ 核销全链路：funding → written_off（冻结债务保留作历史，不偿还）；offer 侧
 //
 //	amount_total -= principal_remaining；借款人拉黑（today + BlacklistDaysOnDefault）、
-//	扣分（50-20=30）；syncAccountFromFundings 后投影销毁核销债务；无任何台账行
+//	扣分（50-20=30）；syncAccountFromFundings 后投影销毁核销债务；只写一条信用分
+//	变动台账行（type=credit，不写资金类台账行）
 func TestResolveOverdueFundingWriteoff(t *testing.T) {
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
 		s.BlacklistDaysOnDefault = 30
@@ -873,13 +945,23 @@ func TestResolveOverdueFundingWriteoff(t *testing.T) {
 	require.Zero(t, acc.DebtQuota, "核销债务从投影销毁（deflation）")
 	require.Zero(t, acc.PrincipalQuota)
 
-	// 决策不是资金变动：不写任何台账行
-	var n int64
-	require.NoError(t, DB.Model(&TokenLoanRecord{}).Where("user_id = ?", borrower.Id).Count(&n).Error)
-	require.Zero(t, n)
+	// 核销不写资金类台账行（决策不是资金变动），但信用分扣分必须留痕：写一条
+	// type=credit 行，Amount=-20（实际生效扣分），DebtAfter=扣分后信用分 30，Source=writeoff
+	var recs []TokenLoanRecord
+	require.NoError(t, DB.Where("user_id = ?", borrower.Id).Order("id ASC").Find(&recs).Error)
+	require.Len(t, recs, 1)
+	rec := recs[0]
+	require.Equal(t, "credit", rec.Type)
+	require.Equal(t, int64(-20), rec.Amount)
+	require.Equal(t, int64(30), rec.DebtAfter)
+	require.Equal(t, "writeoff", rec.Source)
+	require.Zero(t, rec.RefId)
+	require.Zero(t, rec.FundingId)
+	require.Zero(t, rec.LenderId)
 }
 
-// ③b 信用分扣分下限 -50 截断（P1-9）：-40 - 20 → -50，不继续下探
+// ③b 信用分扣分下限 -50 截断（P1-9）：-40 - 20 → -50，不继续下探；
+// 台账记录实际生效的 delta（-50 - (-40) = -10），而非名义 -20
 func TestResolveOverdueFundingWriteoffClampsCreditAtMinus50(t *testing.T) {
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
 		s.CreditDefaultPenalty = 20
@@ -898,6 +980,11 @@ func TestResolveOverdueFundingWriteoffClampsCreditAtMinus50(t *testing.T) {
 	var acc TokenLoanAccount
 	require.NoError(t, DB.Where("user_id = ?", borrower.Id).First(&acc).Error)
 	require.Equal(t, -50, acc.CreditScore)
+
+	var rec TokenLoanRecord
+	require.NoError(t, DB.Where("user_id = ? AND type = ?", borrower.Id, "credit").First(&rec).Error)
+	require.Equal(t, int64(-10), rec.Amount, "钳制后记录实际生效的 delta（-50 - (-40)）")
+	require.Equal(t, int64(-50), rec.DebtAfter)
 }
 
 // ④ 已关闭 offer 的核销同样核减 amount_total（floor 0 防御：amount_total < 本金时归零）

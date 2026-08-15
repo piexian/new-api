@@ -53,6 +53,8 @@ type LoanSetting struct {
 	CreditDefaultPenalty     int     `json:"credit_default_penalty"`     // 违约（核销）扣分
 	CreditMinHoldDays        int     `json:"credit_min_hold_days"`       // 计分前最短持有天数（防刷分）
 	CreditMinBorrowUsd       float64 `json:"credit_min_borrow_usd"`      // 信用分计分金额门槛（USD，低于不计分）
+
+	MarketAllowLendBorrowed bool `json:"market_allow_lend_borrowed"` // 是否允许用借来的额度二次挂放贷市场单（默认 false = 禁止二次挂市场）
 }
 
 // 默认 AI 业务员 system prompt 模板。

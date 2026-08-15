@@ -6292,7 +6292,11 @@
     "Search by lender username or ID": "貸し手のユーザー名またはIDで検索",
     "Lender ID": "貸し手ID",
     "Borrower ID": "借り手ID",
-    "Principal Remaining": "未返済元本"
+    "Principal Remaining": "未返済元本",
+    "Credit Change": "信用スコア変更",
+    "Repay Bonus": "返済ボーナス",
+    "Fast Repay Penalty": "早期返済ペナルティ",
+    "Write-off": "貸倒償却"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

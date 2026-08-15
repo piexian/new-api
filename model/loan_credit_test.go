@@ -269,3 +269,97 @@ func TestCreditScoreMissingBorrowRecordSkipped(t *testing.T) {
 	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, 424242, now))
 	require.Equal(t, 50, acc.CreditScore, "borrow 行缺失不评分")
 }
+
+// ===== 信用分变动入台账（type=credit）=====
+
+// ⑩ 按时还清加分写 credit 台账行：+5，DebtAfter=变动后信用分，Source=repay_bonus，
+// RefId=借款事件 id
+func TestCreditLedgerRowOnRepayBonus(t *testing.T) {
+	user := setupCreditTest(t)
+	now := time.Now()
+	day := loanDay(now)
+	eventId := createCreditBorrowEvent(t, user.Id, int64(common.QuotaPerUnit*2), now.AddDate(0, 0, -10))
+	createCreditFunding(t, user.Id, eventId, int64(common.QuotaPerUnit*2), day+30)
+	require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("borrow_event_id = ?", eventId).
+		Update("status", LoanFundingRepaid).Error)
+
+	acc := createCreditAccount(t, user.Id, 50)
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.Equal(t, 55, acc.CreditScore)
+
+	var rec TokenLoanRecord
+	require.NoError(t, DB.Where("user_id = ? AND type = ?", user.Id, "credit").First(&rec).Error)
+	require.Equal(t, int64(5), rec.Amount)
+	require.Equal(t, int64(55), rec.DebtAfter)
+	require.Equal(t, "repay_bonus", rec.Source)
+	require.Equal(t, eventId, rec.RefId)
+	require.Zero(t, rec.FundingId)
+	require.Zero(t, rec.LenderId)
+	require.Zero(t, rec.InterestPart)
+	require.Zero(t, rec.PrincipalPart)
+	require.Zero(t, rec.FeePart)
+}
+
+// ⑪ 快速还清扣分写 credit 台账行：-2，DebtAfter=变动后信用分，Source=fast_repay
+func TestCreditLedgerRowOnFastRepayPenalty(t *testing.T) {
+	user := setupCreditTest(t)
+	now := time.Now()
+	day := loanDay(now)
+	eventId := createCreditBorrowEvent(t, user.Id, int64(common.QuotaPerUnit*2), now.AddDate(0, 0, -2))
+	createCreditFunding(t, user.Id, eventId, int64(common.QuotaPerUnit*2), day+30)
+	require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("borrow_event_id = ?", eventId).
+		Update("status", LoanFundingRepaid).Error)
+
+	acc := createCreditAccount(t, user.Id, 50)
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.Equal(t, 48, acc.CreditScore)
+
+	var rec TokenLoanRecord
+	require.NoError(t, DB.Where("user_id = ? AND type = ?", user.Id, "credit").First(&rec).Error)
+	require.Equal(t, int64(-2), rec.Amount)
+	require.Equal(t, int64(48), rec.DebtAfter)
+	require.Equal(t, "fast_repay", rec.Source)
+	require.Equal(t, eventId, rec.RefId)
+}
+
+// ⑫ 加分上限 100 钳制时记录实际生效的 delta：98 + 5 → 100，台账记 +2 而非 +5
+func TestCreditLedgerRowBonusClampRecordsActualDelta(t *testing.T) {
+	user := setupCreditTest(t)
+	now := time.Now()
+	day := loanDay(now)
+	eventId := createCreditBorrowEvent(t, user.Id, int64(common.QuotaPerUnit*2), now.AddDate(0, 0, -10))
+	createCreditFunding(t, user.Id, eventId, int64(common.QuotaPerUnit*2), day+30)
+	require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("borrow_event_id = ?", eventId).
+		Update("status", LoanFundingRepaid).Error)
+
+	acc := createCreditAccount(t, user.Id, 98)
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.Equal(t, 100, acc.CreditScore)
+
+	var rec TokenLoanRecord
+	require.NoError(t, DB.Where("user_id = ? AND type = ?", user.Id, "credit").First(&rec).Error)
+	require.Equal(t, int64(2), rec.Amount, "钳制后记录实际生效的 delta（100 - 98），而非名义 +5")
+	require.Equal(t, int64(100), rec.DebtAfter)
+}
+
+// ⑬ 扣分下限 -50 钳制时记录实际生效的 delta：-45 - 20 → -50，台账记 -5 而非 -20
+func TestCreditLedgerRowFastRepayRecordsClampedDelta(t *testing.T) {
+	user := setupCreditTest(t)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.CreditFastRepayPenalty = 20 })
+	now := time.Now()
+	day := loanDay(now)
+	eventId := createCreditBorrowEvent(t, user.Id, int64(common.QuotaPerUnit*2), now.AddDate(0, 0, -2))
+	createCreditFunding(t, user.Id, eventId, int64(common.QuotaPerUnit*2), day+30)
+	require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("borrow_event_id = ?", eventId).
+		Update("status", LoanFundingRepaid).Error)
+
+	acc := createCreditAccount(t, user.Id, -45)
+	require.NoError(t, scoreBorrowEventRepaidTx(DB, acc, eventId, now))
+	require.Equal(t, -50, acc.CreditScore, "-45 - 20 钳制到下限 -50")
+
+	var rec TokenLoanRecord
+	require.NoError(t, DB.Where("user_id = ? AND type = ?", user.Id, "credit").First(&rec).Error)
+	require.Equal(t, int64(-5), rec.Amount, "钳制后记录实际生效的 delta（-50 - (-45)），而非名义 -20")
+	require.Equal(t, int64(-50), rec.DebtAfter)
+	require.Equal(t, "fast_repay", rec.Source)
+}

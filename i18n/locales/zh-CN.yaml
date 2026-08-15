@@ -227,6 +227,7 @@ loan.funding_not_overdue: "该借款未逾期，无法处置"
 loan.invalid_default_action: "无效的逾期处置动作"
 loan.not_funding_owner: "该借款不属于你，无法操作"
 loan.invalid_repay_plan: "还款计划无效或当前不可调整"
+loan.lend_borrowed_not_allowed: "借来的额度不能用于挂放贷市场单"
 
 # Passkey messages
 passkey.create_failed: "无法创建 Passkey 凭证"

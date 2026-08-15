@@ -46,8 +46,11 @@ const PAGE_SIZE = 10
 
 function useTypeLabel() {
   const { t } = useTranslation()
-  return (type: LoanRecord['type']) =>
-    type === 'borrow' ? t('Borrow') : t('Repay')
+  return (type: LoanRecord['type']) => {
+    if (type === 'borrow') return t('Borrow')
+    if (type === 'credit') return t('Credit Change')
+    return t('Repay')
+  }
 }
 
 function useSourceLabel() {
@@ -55,8 +58,16 @@ function useSourceLabel() {
   return (source: LoanRecord['source']) => {
     if (source === 'checkin') return t('Check-in')
     if (source === 'ai') return t('AI Officer')
+    if (source === 'repay_bonus') return t('Repay Bonus')
+    if (source === 'fast_repay') return t('Fast Repay Penalty')
+    if (source === 'writeoff') return t('Write-off')
     return t('Manual')
   }
+}
+
+// credit 行的 Amount 是带符号的信用分变动 delta（+5/-2/-20），DebtAfter 是变动后信用分
+function formatSignedDelta(value: number) {
+  return value > 0 ? `+${value}` : `${value}`
 }
 
 export function LoanRecordsTable() {
@@ -141,7 +152,9 @@ export function LoanRecordsTable() {
                     </Badge>
                   </TableCell>
                   <TableCell className='font-medium tabular-nums'>
-                    {formatQuotaWithCurrency(record.amount)}
+                    {record.type === 'credit'
+                      ? formatSignedDelta(record.amount)
+                      : formatQuotaWithCurrency(record.amount)}
                   </TableCell>
                   <TableCell className='tabular-nums'>
                     {formatQuotaWithCurrency(record.interest_part)}
@@ -153,7 +166,9 @@ export function LoanRecordsTable() {
                     {formatQuotaWithCurrency(record.fee_part)}
                   </TableCell>
                   <TableCell className='tabular-nums'>
-                    {formatQuotaWithCurrency(record.debt_after)}
+                    {record.type === 'credit'
+                      ? String(record.debt_after)
+                      : formatQuotaWithCurrency(record.debt_after)}
                   </TableCell>
                   <TableCell className='text-muted-foreground'>
                     {sourceLabel(record.source)}

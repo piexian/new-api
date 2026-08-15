@@ -226,6 +226,7 @@ loan.funding_not_overdue: "This funding is not overdue and cannot be resolved"
 loan.invalid_default_action: "Invalid default resolution action"
 loan.not_funding_owner: "This funding does not belong to you"
 loan.invalid_repay_plan: "Invalid repayment plan or not adjustable at this time"
+loan.lend_borrowed_not_allowed: "Borrowed quota cannot be used to fund market offers"
 
 # Passkey messages
 passkey.create_failed: "Unable to create Passkey credential"

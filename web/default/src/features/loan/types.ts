@@ -74,16 +74,17 @@ export interface LoanStatus {
 }
 
 /**
- * Loan ledger record (borrow / repay)
+ * Loan ledger record (borrow / repay / credit score change)
  */
 export interface LoanRecord {
   id: number
-  type: 'borrow' | 'repay'
+  type: 'borrow' | 'repay' | 'credit'
   amount: number
   interest_part: number
   principal_part: number
   /** Early repayment fee (manual repay only; 0 otherwise) */
   fee_part: number
+  /** Debt after change; for type=credit this is the credit score after the change */
   debt_after: number
   source: 'manual' | 'checkin' | 'ai' | string
   ref_id: number

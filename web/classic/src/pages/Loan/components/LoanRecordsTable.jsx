@@ -25,6 +25,11 @@ import QueryError from './QueryError';
 
 const PAGE_SIZE = 10;
 
+const LOAN_RECORD_TAG_COLORS = { borrow: 'orange', repay: 'green', credit: 'blue' };
+
+// credit 行的 Amount 是带符号的信用分变动 delta（+5/-2/-20），DebtAfter 是变动后信用分
+const formatSignedDelta = (v) => (v > 0 ? `+${v}` : `${v}`);
+
 const LoanRecordsTable = ({ t, refreshKey }) => {
   const [page, setPage] = useState(1);
   const [items, setItems] = useState([]);
@@ -59,10 +64,17 @@ const LoanRecordsTable = ({ t, refreshKey }) => {
     fetchRecords(page);
   }, [page, refreshKey]);
 
-  const typeLabel = (type) => (type === 'borrow' ? t('借款') : t('还款'));
+  const typeLabel = (type) => {
+    if (type === 'borrow') return t('借款');
+    if (type === 'credit') return t('信用分变动');
+    return t('还款');
+  };
   const sourceLabel = (source) => {
     if (source === 'checkin') return t('签到');
     if (source === 'ai') return t('AI 专员');
+    if (source === 'repay_bonus') return t('按时还款加分');
+    if (source === 'fast_repay') return t('快速还款扣分');
+    if (source === 'writeoff') return t('核销扣分');
     return t('手动');
   };
 
@@ -77,7 +89,10 @@ const LoanRecordsTable = ({ t, refreshKey }) => {
         title: t('类型'),
         dataIndex: 'type',
         render: (v) => (
-          <Tag color={v === 'borrow' ? 'orange' : 'green'} size='small'>
+          <Tag
+            color={LOAN_RECORD_TAG_COLORS[v] || 'grey'}
+            size='small'
+          >
             {typeLabel(v)}
           </Tag>
         ),
@@ -85,7 +100,10 @@ const LoanRecordsTable = ({ t, refreshKey }) => {
       {
         title: t('金额'),
         dataIndex: 'amount',
-        render: (v) => renderQuota(v || 0),
+        render: (v, record) =>
+          record.type === 'credit'
+            ? formatSignedDelta(v)
+            : renderQuota(v || 0),
       },
       {
         title: t('利息部分'),
@@ -105,7 +123,8 @@ const LoanRecordsTable = ({ t, refreshKey }) => {
       {
         title: t('欠款余额'),
         dataIndex: 'debt_after',
-        render: (v) => renderQuota(v || 0),
+        render: (v, record) =>
+          record.type === 'credit' ? String(v) : renderQuota(v || 0),
       },
       {
         title: t('来源'),

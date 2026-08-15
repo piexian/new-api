@@ -6292,7 +6292,11 @@
     "Search by lender username or ID": "Tìm theo tên hoặc ID người cho vay",
     "Lender ID": "ID người cho vay",
     "Borrower ID": "ID người vay",
-    "Principal Remaining": "Gốc còn lại"
+    "Principal Remaining": "Gốc còn lại",
+    "Credit Change": "Thay đổi điểm tín dụng",
+    "Repay Bonus": "Thưởng trả nợ",
+    "Fast Repay Penalty": "Phạt trả nợ nhanh",
+    "Write-off": "Xóa nợ"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

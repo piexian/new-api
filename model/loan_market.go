@@ -232,6 +232,9 @@ var (
 	ErrLoanOfferNotActive     = errors.New("loan offer is not in an operable state")
 	ErrLoanNothingToWithdraw  = errors.New("loan offer has no idle balance to withdraw")
 
+	// 禁止二次挂市场（P1-10）：可放贷额度 = 实际余额 - 未还借款本金，超出即拒绝
+	ErrLoanLendBorrowedNotAllowed = errors.New("borrowed quota cannot be re-lent on the market")
+
 	// Task 12：逾期债权处置（spec §9）
 	ErrLoanFundingNotOverdue    = errors.New("loan funding is not overdue")            // 仅 overdue 可处置
 	ErrLoanInvalidDefaultAction = errors.New("invalid loan default action")            // 非法动作 / extendDays 越界
@@ -263,8 +266,9 @@ func AgreeLenderDisclaimer(userId int) error {
 //  1. 事务外校验：市场开关、模式、金额 decimal 解析（镜像 BorrowLoan：正数、最多两位
 //     小数、int32 上界）、利率区间、单笔上限、信用分门槛钳制；
 //  2. 事务内 lockForUpdate 锁 users 行：状态正常、余额充足 → 扣 quota；读/建贷款账户
-//     并校验免责声明 → 建 offer（AmountTotal=AmountAvailable=amount，扣款与建行同事务，
-//     失败整体回滚）；
+//     并校验免责声明 → 禁止二次挂市场（默认开启：可放贷额度 = 实际余额 - 未还借款本金，
+//     超出报 ErrLoanLendBorrowedNotAllowed；MarketAllowLendBorrowed=true 时跳过）→ 建
+//     offer（AmountTotal=AmountAvailable=amount，扣款与建行同事务，失败整体回滚）；
 //  3. 提交后异步同步 Redis 余额缓存（镜像 BorrowLoan 的副作用）。
 //
 // 校验规则：
@@ -352,6 +356,27 @@ func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rat
 		}
 		if acc.LenderDisclaimerAgreedAt == 0 {
 			return ErrLoanDisclaimerRequired
+		}
+
+		// 禁止二次挂市场（默认开启）：可放贷额度 = 实际余额 - 未还借款本金（floor 0）。
+		// 放贷人可能同时是借款人，其名下 active/overdue funding 的未还本金即借来的钱，
+		// 不得再用于放贷。用户行已 FOR UPDATE 锁定，还款/借款路径同样先锁用户行，
+		// 本查询与并发写序列化，读取一致。MarketAllowLendBorrowed=true 时跳过该检查。
+		if !loanSetting.MarketAllowLendBorrowed {
+			var outstanding int64
+			if err := tx.Model(&TokenLoanFunding{}).
+				Where("loan_user_id = ? AND status IN ?", lenderId, []string{LoanFundingActive, LoanFundingOverdue}).
+				Select("COALESCE(SUM(principal_remaining), 0)").
+				Row().Scan(&outstanding); err != nil {
+				return err
+			}
+			lendable := int64(user.Quota) - outstanding
+			if lendable < 0 {
+				lendable = 0
+			}
+			if int64(amount) > lendable {
+				return ErrLoanLendBorrowedNotAllowed
+			}
 		}
 
 		// 扣 quota 与建 offer 同一事务，失败整体回滚
@@ -619,14 +644,16 @@ func ResolveOverdueFunding(lenderId int, fundingId int64, action string, extendD
 //     offer 行缺失容忍跳过（生产代码无删除 offer 路径，仅防御）；
 //  4. 借款人侧（锁贷款账户，缺失防御性创建——有 funding 必有账户）：
 //     blacklisted_until_day = max(现值, today + BlacklistDaysOnDefault)，
-//     credit_score -= CreditDefaultPenalty（下限 -50 截断，P1-9）；
+//     credit_score -= CreditDefaultPenalty（下限 -50 截断，P1-9），并写一条
+//     type=credit 台账行（Amount=实际生效扣分，DebtAfter=扣分后信用分，Source=writeoff）；
 //  5. syncAccountFromFundings 汇总剩余 active/overdue fundings 回写账户投影，本笔核销
 //     债务从投影销毁（deflation，spec §9）。
 //
-// 未付利息在借款人侧直接免除（放贷人从未收到，无账可冲），核销不写任何台账行——
-// 决策不是资金变动。锁序：funding → offer → 借款人账户；与还款路径（用户 → 账户 →
-// funding）在 (账户, funding) 上存在理论锁序倒挂，并发同用户核销+还款时数据库检测
-// 死锁并中止一方事务（整体回滚，无数据损坏），调用方重试即可；v1 接受该瞬时失败。
+// 未付利息在借款人侧直接免除（放贷人从未收到，无账可冲），核销不写资金类台账行——
+// 决策不是资金变动，但信用分是用户可见的资信变动，必须留痕（credit 行）。锁序：
+// funding → offer → 借款人账户；与还款路径（用户 → 账户 → funding）在 (账户, funding)
+// 上存在理论锁序倒挂，并发同用户核销+还款时数据库检测死锁并中止一方事务（整体回滚，
+// 无数据损坏），调用方重试即可；v1 接受该瞬时失败。
 func writeoffFundingTx(tx *gorm.DB, f *TokenLoanFunding, now time.Time) error {
 	loanSetting := operation_setting.GetLoanSetting()
 
@@ -663,9 +690,13 @@ func writeoffFundingTx(tx *gorm.DB, f *TokenLoanFunding, now time.Time) error {
 	if bl := loanDay(now) + loanSetting.BlacklistDaysOnDefault; bl > borrowerAcc.BlacklistedUntilDay {
 		borrowerAcc.BlacklistedUntilDay = bl
 	}
+	before := borrowerAcc.CreditScore
 	borrowerAcc.CreditScore -= loanSetting.CreditDefaultPenalty
 	if borrowerAcc.CreditScore < -50 {
 		borrowerAcc.CreditScore = -50 // P1-9：下限 -50 截断
+	}
+	if err := writeCreditLedgerRowTx(tx, borrowerAcc, before, "writeoff", 0, now); err != nil {
+		return err
 	}
 
 	// 投影同步：written_off 债务从账户投影销毁（deflation），不再计入任何债务
