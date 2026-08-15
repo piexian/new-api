@@ -56,39 +56,42 @@ export function LoanPage() {
     !!status && status.terms_enabled && !status.terms_agreed
 
   return (
-    <SectionPageLayout>
-      <SectionPageLayout.Title>{t('Token Loan')}</SectionPageLayout.Title>
-      <SectionPageLayout.Content>
-        <div className='mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-5'>
-          {!isLoading && status && !status.enabled ? (
-            <Card className='py-0'>
-              <CardContent className='text-muted-foreground p-6 text-center text-sm'>
-                {t('The token loan feature is not enabled')}
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <div className='grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'>
-                <LoanStatusCard
-                  status={status}
-                  loading={isLoading}
-                  error={isError ? error.message : null}
-                  onRetry={() => refetch()}
-                />
-                <div className='flex flex-col gap-4'>
-                  <BorrowForm status={status} />
-                  {status && status.debt > 0 ? (
-                    <RepayForm status={status} />
-                  ) : null}
+    <>
+      <SectionPageLayout>
+        <SectionPageLayout.Title>{t('Token Loan')}</SectionPageLayout.Title>
+        <SectionPageLayout.Content>
+          <div className='mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-5'>
+            {!isLoading && status && !status.enabled ? (
+              <Card className='py-0'>
+                <CardContent className='text-muted-foreground p-6 text-center text-sm'>
+                  {t('The token loan feature is not enabled')}
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <div className='grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'>
+                  <LoanStatusCard
+                    status={status}
+                    loading={isLoading}
+                    error={isError ? error.message : null}
+                    onRetry={() => refetch()}
+                  />
+                  <div className='flex flex-col gap-4'>
+                    <BorrowForm status={status} />
+                    {status && status.debt > 0 ? (
+                      <RepayForm status={status} />
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-              <LoanRecordsTable />
-              {status?.ai_enabled ? <OfficerApplications /> : null}
-            </>
-          )}
-        </div>
-      </SectionPageLayout.Content>
+                <LoanRecordsTable />
+                {status?.ai_enabled ? <OfficerApplications /> : null}
+              </>
+            )}
+          </div>
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
 
+      {/* 与 SectionPageLayout 平级渲染：该布局只渲染 Title/Content 等具名插槽，额外子节点会被丢弃 */}
       <TermsDialog
         open={termsRequired}
         termsText={status?.terms_text ?? ''}
@@ -96,6 +99,6 @@ export function LoanPage() {
           queryClient.invalidateQueries({ queryKey: ['loan-status'] })
         }
       />
-    </SectionPageLayout>
+    </>
   )
 }
