@@ -27,8 +27,16 @@ import RepayForm from './components/RepayForm';
 import LoanRecordsTable from './components/LoanRecordsTable';
 import OfficerApplications from './components/OfficerApplications';
 import TermsModal from './components/TermsModal';
+import LendingMarket from './components/LendingMarket';
 
 const { Text, Title } = Typography;
+
+// 服务器本地日序号（unix/86400），用于黑名单到期判断
+const formatBlacklistDate = (dayNumber) => {
+  const d = new Date(dayNumber * 86400 * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 const Loan = () => {
   const { t } = useTranslation();
@@ -36,6 +44,9 @@ const Loan = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [recordsRefreshKey, setRecordsRefreshKey] = useState(0);
+  const [marketRefreshKey, setMarketRefreshKey] = useState(0);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [disclaimerAgreed, setDisclaimerAgreed] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     setLoading(true);
@@ -65,10 +76,24 @@ const Loan = () => {
   const handleBorrowed = (newStatus) => {
     if (newStatus) setStatus(newStatus);
     setRecordsRefreshKey((k) => k + 1);
+    setMarketRefreshKey((k) => k + 1);
+  };
+
+  // 市场浏览中选中挂单：定位到借款表单，本次借款优先定向匹配该挂单
+  const handleBorrowOrder = (offer) => {
+    setSelectedOrder(offer);
+    const el = document.getElementById('loan-borrow-form');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   const termsRequired =
     !!status && status.terms_enabled && !status.terms_agreed;
+
+  // 黑名单为服务器本地日序号（unix/86400），仅在未到期时展示
+  const todayDay = Math.floor(Date.now() / 1000 / 86400);
+  const blacklisted = !!status && status.blacklisted_until_day >= todayDay;
 
   const renderContent = () => {
     if (loading && !status) {
@@ -101,10 +126,30 @@ const Loan = () => {
     }
     return (
       <div className='flex flex-col gap-6'>
+        {status.has_overdue ? (
+          <div className='rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400'>
+            {t('您有逾期借款。利息与罚息会持续累计，直到还清。')}
+          </div>
+        ) : null}
+        {blacklisted ? (
+          <div className='rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400'>
+            {t('您已被禁止借款，直至 {{date}}。', {
+              date: formatBlacklistDate(status.blacklisted_until_day),
+            })}
+          </div>
+        ) : null}
         <div className='grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'>
           <LoanStatusCard t={t} status={status} />
           <div className='flex flex-col gap-6'>
-            <BorrowForm t={t} status={status} onBorrowed={handleBorrowed} />
+            <div id='loan-borrow-form' className='scroll-mt-4'>
+              <BorrowForm
+                t={t}
+                status={status}
+                onBorrowed={handleBorrowed}
+                presetOrder={selectedOrder}
+                onClearOrder={() => setSelectedOrder(null)}
+              />
+            </div>
             {status.debt > 0 ? (
               <RepayForm t={t} status={status} onRepaid={handleBorrowed} />
             ) : null}
@@ -112,6 +157,20 @@ const Loan = () => {
         </div>
         <LoanRecordsTable t={t} refreshKey={recordsRefreshKey} />
         {status.ai_enabled ? <OfficerApplications t={t} /> : null}
+        {status.market_enabled ? (
+          <LendingMarket
+            t={t}
+            disclaimerAgreed={
+              status.lender_disclaimer_agreed || disclaimerAgreed
+            }
+            onDisclaimerAgreed={() => {
+              setDisclaimerAgreed(true);
+              fetchStatus();
+            }}
+            onBorrowOrder={handleBorrowOrder}
+            refreshKey={marketRefreshKey}
+          />
+        ) : null}
       </div>
     );
   };

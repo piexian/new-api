@@ -41,12 +41,13 @@ import {
 import QueryError from './QueryError';
 
 const PAGE_SIZE = 10;
-const TOPIC_KEYS = ['credit', 'rate', 'grace', 'other'];
+const TOPIC_KEYS = ['credit', 'rate', 'grace', 'other', 'appeal'];
 
 const topicLabel = (t, topic) => {
   if (topic === 'credit') return t('提升额度');
   if (topic === 'rate') return t('降低利率');
   if (topic === 'grace') return t('延长免息期');
+  if (topic === 'appeal') return t('减免申诉');
   return t('其他');
 };
 

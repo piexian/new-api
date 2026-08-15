@@ -19,10 +19,19 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useState } from 'react';
 import { Avatar, Button, Card, Input, Typography } from '@douyinfe/semi-ui';
-import { HandCoins } from 'lucide-react';
+import { HandCoins, X } from 'lucide-react';
 import { API, renderQuota, showError, showSuccess } from '../../../helpers';
 
-const BorrowForm = ({ t, status, onBorrowed }) => {
+// 日利率展示与 default 主题一致（percent，最多两位小数）
+const formatDailyRate = (rate) => {
+  if (typeof rate !== 'number' || isNaN(rate)) return '-';
+  return Intl.NumberFormat(undefined, {
+    style: 'percent',
+    maximumFractionDigits: 2,
+  }).format(rate);
+};
+
+const BorrowForm = ({ t, status, onBorrowed, presetOrder, onClearOrder }) => {
   const [amount, setAmount] = useState('');
   const [fieldError, setFieldError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -55,12 +64,14 @@ const BorrowForm = ({ t, status, onBorrowed }) => {
     try {
       const res = await API.post('/api/user/loan/borrow', {
         amount_usd: value,
+        order_id: presetOrder?.id ?? 0,
       });
       const { success, message, data } = res.data;
       if (success) {
         showSuccess(t('借款成功'));
         setAmount('');
         onBorrowed?.(data);
+        onClearOrder?.();
       } else {
         // 后端错误信息已 i18n，直接展示
         showError(message);
@@ -111,6 +122,32 @@ const BorrowForm = ({ t, status, onBorrowed }) => {
         {termsBlocked ? (
           <div className='text-xs text-gray-500 dark:text-gray-400'>
             {t('请先同意借款条款后再借款')}
+          </div>
+        ) : null}
+        {presetOrder ? (
+          <div className='rounded-lg border bg-slate-50 dark:bg-slate-800 p-3 text-xs space-y-0.5'>
+            <div className='flex items-start justify-between gap-2'>
+              <div className='space-y-0.5'>
+                <p className='text-gray-500 dark:text-gray-400'>
+                  {t('正在从挂单 #{{id}} 借款', { id: presetOrder.id })}
+                </p>
+                <p>
+                  {t('固定利率')}: {formatDailyRate(presetOrder.rate_fixed)} ·{' '}
+                  {t('可用')}: {renderQuota(presetOrder.amount_available || 0)}
+                </p>
+                <p className='text-gray-500 dark:text-gray-400'>
+                  {t('若挂单额度不足以覆盖全额，剩余部分由平台兜底。')}
+                </p>
+              </div>
+              <Button
+                theme='borderless'
+                size='small'
+                icon={<X size={14} />}
+                onClick={() => onClearOrder?.()}
+                aria-label={t('清除挂单选择')}
+                className='shrink-0'
+              />
+            </div>
           </div>
         ) : null}
         <Button

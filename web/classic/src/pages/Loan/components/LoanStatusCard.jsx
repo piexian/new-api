@@ -92,6 +92,7 @@ const LoanStatusCard = ({ t, status }) => {
           label={t('日利率')}
           value={formatDailyRate(status?.daily_rate)}
         />
+        <StatusItem label={t('信用分')} value={status?.credit_score ?? 0} />
         <StatusItem
           label={t('免息期')}
           value={graceActive ? formatGraceDate(graceDay) : t('无')}
