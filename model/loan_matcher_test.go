@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -222,7 +223,7 @@ func TestLoanMatcherTruncation(t *testing.T) {
 	l3 := createLoanTestUser(t)
 	low := createMatcherOffer(t, l1.Id, LoanOfferModePool, LoanOfferStatusActive, 1000, 0.001, 0, 0, 0, -50)
 	mid := createMatcherOffer(t, l2.Id, LoanOfferModePool, LoanOfferStatusActive, 1000, 0.002, 0, 0, 0, -50)
-	createMatcherOffer(t, l3.Id, LoanOfferModePool, LoanOfferStatusActive, 1000, 0.003, 0, 0, 0, -50)
+	high := createMatcherOffer(t, l3.Id, LoanOfferModePool, LoanOfferStatusActive, 1000, 0.003, 0, 0, 0, -50)
 
 	// 场景 A：无定向单 → 保留两个最低利率，被截断金额不重新分配
 	plans, drops, err := runMatcher(t, borrower.Id, 80, 3000, 0, nil)
@@ -232,17 +233,19 @@ func TestLoanMatcherTruncation(t *testing.T) {
 	require.Equal(t, []int{low.Id, mid.Id}, []int{plans[0].OfferId, plans[1].OfferId})
 	require.Equal(t, int64(2000), planSum(plans)) // high 被截断，其额度不补位
 
-	// 场景 B：定向单（利率高于市场）优先保留，AI 计划排最后被截断
+	// 场景 B：定向单（利率高于市场）优先保留。清掉 mid/high，使固定利率吃完后
+	// 剩余仍够 AI 参与（否则 AI 因 remaining=0 根本不被处理，截断掉的是 mid）。
 	intended := createMatcherOffer(t, l1.Id, LoanOfferModeOrder, LoanOfferStatusActive, 1000, 0.005, 0, 0, 0, -50)
 	aiOffer := createMatcherOffer(t, l3.Id, LoanOfferModeAi, LoanOfferStatusActive, 2000, 0, 0.001, 0.002, 1000, -50)
 	ai := []FundingPlan{{OfferId: aiOffer.Id, LenderId: l3.Id, SourceType: LoanFundingAi, Amount: 500, Rate: 0.0015}}
+	require.NoError(t, DB.Where("id IN ?", []int{mid.Id, high.Id}).Delete(&TokenLoanOffer{}).Error)
 	plans, drops, err = runMatcher(t, borrower.Id, 80, 3000, intended.Id, ai)
 	require.NoError(t, err)
 	require.Empty(t, drops)
 	require.Len(t, plans, 2)
 	require.Equal(t, intended.Id, plans[0].OfferId) // 定向单第一
 	require.Equal(t, low.Id, plans[1].OfferId)      // 其次最低利率
-	require.Equal(t, int64(2000), planSum(plans))   // AI 计划被截断，缺额交调用方兜底
+	require.Equal(t, int64(2000), planSum(plans))   // AI 计划（500）排最后，截断时被丢弃，缺额交调用方兜底
 }
 
 // 过期定向单（closed / 非 order 模式 / 不存在）跳过并记录原因，落到统一市场，不报错
@@ -282,4 +285,72 @@ func TestLoanMatcherStaleIntendedFallsThrough(t *testing.T) {
 	require.Contains(t, drops[0], "不存在")
 	require.Len(t, plans, 2)
 	require.Equal(t, int64(2000), planSum(plans))
+}
+
+// 定向单部分覆盖时，统一市场不得再次吃同一 offer（consumedOfferIds 守卫）：
+// 定向阶段吃 min(剩余, available) 后，若剩余量足够大，统一市场按利率升序会再次
+// 触达该 offer——必须跳过，否则同一 offer 总分配会超过 amount_available，
+// Task 8 放款时二次校验必然失败
+func TestLoanMatcherIntendedOfferConsumedOnce(t *testing.T) {
+	resetLoanOffers(t)
+	borrower := createLoanTestUser(t)
+	l1 := createLoanTestUser(t)
+	l2 := createLoanTestUser(t)
+	// intended available 2000（rate 0.003），借款 5000：定向单吃满 2000 后剩余 3000，
+	// 统一市场先吃 P(0.001) 1000，随后触达 intended(0.003)——无守卫会再吃 2000
+	intended := createMatcherOffer(t, l1.Id, LoanOfferModeOrder, LoanOfferStatusActive, 2000, 0.003, 0, 0, 0, -50)
+	createMatcherOffer(t, l2.Id, LoanOfferModePool, LoanOfferStatusActive, 1000, 0.001, 0, 0, 0, -50)
+
+	plans, drops, err := runMatcher(t, borrower.Id, 80, 5000, intended.Id, nil)
+	require.NoError(t, err)
+	require.Empty(t, drops)
+	require.Len(t, plans, 2)
+	require.Equal(t, intended.Id, plans[0].OfferId) // 定向单优先
+	require.Equal(t, int64(2000), plans[0].Amount)
+	require.Equal(t, int64(1000), plans[1].Amount)
+	// intended 恰好出现一次，总分配 = available，不超
+	intendedCount, fromIntended := 0, int64(0)
+	for i := range plans {
+		if plans[i].OfferId == intended.Id {
+			intendedCount++
+			fromIntended += plans[i].Amount
+		}
+	}
+	require.Equal(t, 1, intendedCount)
+	require.Equal(t, int64(2000), fromIntended)
+	require.Equal(t, int64(3000), planSum(plans)) // 来源不足，缺额交调用方兜底
+}
+
+// AI 出资同一 offer 的多条计划按累计校验：联合不得超过 min(available, cap)，
+// 超出的条目剔除并记录原因（单条各自 ≤ 上限但联合超限的评审问题）
+func TestLoanMatcherAiCumulativePerOffer(t *testing.T) {
+	resetLoanOffers(t)
+	borrower := createLoanTestUser(t)
+	l1 := createLoanTestUser(t)
+	l2 := createLoanTestUser(t)
+	// o1：available 3000, cap 2000 → 按 cap 累计封顶
+	o1 := createMatcherOffer(t, l1.Id, LoanOfferModeAi, LoanOfferStatusActive, 3000, 0, 0.001, 0.002, 2000, -50)
+	// o2：available 1000, cap 0（防御不限）→ 按 available 累计封顶
+	o2 := createMatcherOffer(t, l2.Id, LoanOfferModeAi, LoanOfferStatusActive, 1000, 0, 0.001, 0.002, 0, -50)
+
+	ai := []FundingPlan{
+		{OfferId: o1.Id, LenderId: l1.Id, SourceType: LoanFundingAi, Amount: 1500, Rate: 0.0015}, // 有效：1500 ≤ 2000
+		{OfferId: o1.Id, LenderId: l1.Id, SourceType: LoanFundingAi, Amount: 1000, Rate: 0.0015}, // 累计 2500 > cap 2000 → 剔除
+		{OfferId: o1.Id, LenderId: l1.Id, SourceType: LoanFundingAi, Amount: 400, Rate: 0.0015},  // 累计 1900 ≤ 2000 → 有效
+		{OfferId: o2.Id, LenderId: l2.Id, SourceType: LoanFundingAi, Amount: 600, Rate: 0.0015},  // 有效：600 ≤ 1000
+		{OfferId: o2.Id, LenderId: l2.Id, SourceType: LoanFundingAi, Amount: 600, Rate: 0.0015},  // 累计 1200 > available 1000 → 剔除
+	}
+
+	plans, drops, err := runMatcher(t, borrower.Id, 80, 10000, 0, ai)
+	require.NoError(t, err)
+	require.Len(t, drops, 2)
+	require.Contains(t, strings.Join(drops, ";"), "超过剩余额度")
+	require.Len(t, plans, 3)
+	byOffer := map[int]int64{}
+	for i := range plans {
+		byOffer[plans[i].OfferId] += plans[i].Amount
+	}
+	require.Equal(t, int64(1900), byOffer[o1.Id]) // ≤ min(3000, 2000)
+	require.Equal(t, int64(600), byOffer[o2.Id])  // ≤ min(1000, ∞)
+	require.Equal(t, int64(2500), planSum(plans))
 }

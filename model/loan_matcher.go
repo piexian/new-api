@@ -35,9 +35,10 @@ type FundingPlan struct {
 //     平局）吃量，跳过 lender==borrower、信用分不足、amount_available==0
 //     及已在定向阶段消费过的 offer（同一 offer 不重复吃量，防止超 available 分配）；
 //  3. AI 出资方案（service 层事务外预先产出）：逐条校验 offer 存在且 active 且
-//     ai 模式、rate ∈ [rate_min, rate_max]、amount ≤ min(available, cap)，
-//     越界剔除并记录 drop 原因；有效条目在固定利率计划之后按给定顺序吃量，
-//     剩余不足时截断到最后剩余（AI 只参与剩余部分）。
+//     ai 模式、rate ∈ [rate_min, rate_max]，越界剔除并记录 drop 原因；并按 offer
+//     累计已投量动态校验 amount ≤ min(available, cap) - 累计（防止同一 offer 多条
+//     计划联合超额度）；有效条目在固定利率计划之后按给定顺序吃量，剩余不足时
+//     截断到最后剩余（AI 只参与剩余部分）。
 //
 // 计划总条数超过 MaxFundingsPerBorrow 时截断：保留定向单与低利率计划
 // （构造顺序即定向 → 利率升序 → AI 给定顺序，直接保留前缀）；被截断的金额
@@ -114,6 +115,7 @@ func MatchLoanFundings(tx *gorm.DB, borrowerId int, creditScore int, amount int6
 	}
 
 	// —— ③ AI 出资方案（固定利率之后参与，只覆盖剩余部分）——
+	aiConsumed := make(map[int]int64, 4) // 按 offer 累计已投量，防多条目联合超 available/cap
 	for i := range aiPriced {
 		if remaining <= 0 {
 			break
@@ -132,10 +134,20 @@ func MatchLoanFundings(tx *gorm.DB, borrowerId int, creditScore int, amount int6
 			dropReasons = append(dropReasons, reason)
 			continue
 		}
+		// 按 offer 累计校验：同一 offer 的多条 AI 计划联合不得超过 min(available, cap)，
+		// 否则 Task 8 放款时二次校验必然失败（available 不足）或超单笔上限
+		consumed := aiConsumed[offer.Id]
+		allowance := min(offer.AmountAvailable, perLoanLimit(offer.PerLoanCap)) - consumed
+		if allowance <= 0 || entry.Amount > allowance {
+			dropReasons = append(dropReasons, fmt.Sprintf("AI 出资 offer %d 金额 %d 超过剩余额度 %d（累计已投 %d）",
+				offer.Id, entry.Amount, allowance, consumed))
+			continue
+		}
 		take := entry.Amount
 		if take > remaining {
 			take = remaining // 剩余不足时截断到最后剩余，不超借
 		}
+		aiConsumed[offer.Id] = consumed + take
 		plans = append(plans, FundingPlan{
 			OfferId:    offer.Id,
 			LenderId:   offer.LenderId,
@@ -176,9 +188,10 @@ func intendedOrderTake(offer *TokenLoanOffer, borrowerId int, creditScore int, r
 	return min(remaining, offer.AmountAvailable, perLoanLimit(offer.PerLoanCap)), ""
 }
 
-// aiEntryValid AI 出资条目校验：通过返回 ""，否则返回 drop 原因。
+// aiEntryValid AI 出资条目静态校验：通过返回 ""，否则返回 drop 原因。
 // 校验范围：offer 存在且 active 且 ai 模式、rate ∈ [rate_min, rate_max]、
-// amount ≤ min(available, cap)；越界条目剔除并记录，缺额滑向官方兜底。
+// amount > 0；额度上限（amount ≤ min(available, cap)）不在此校验——
+// 由撮合循环按 offer 累计已投量动态校验（见 MatchLoanFundings ③）。
 func aiEntryValid(entry *FundingPlan, offer *TokenLoanOffer) string {
 	if offer.Mode != LoanOfferModeAi {
 		return fmt.Sprintf("AI 出资 offer %d 模式 %s，要求 ai", offer.Id, offer.Mode)
@@ -191,10 +204,6 @@ func aiEntryValid(entry *FundingPlan, offer *TokenLoanOffer) string {
 	}
 	if entry.Rate < offer.RateMin || entry.Rate > offer.RateMax {
 		return fmt.Sprintf("AI 出资 offer %d 利率 %v 越界 [%v, %v]", offer.Id, entry.Rate, offer.RateMin, offer.RateMax)
-	}
-	if entry.Amount > min(offer.AmountAvailable, perLoanLimit(offer.PerLoanCap)) {
-		return fmt.Sprintf("AI 出资 offer %d 金额 %d 超过 min(available %d, cap %d)",
-			offer.Id, entry.Amount, offer.AmountAvailable, offer.PerLoanCap)
 	}
 	return ""
 }
