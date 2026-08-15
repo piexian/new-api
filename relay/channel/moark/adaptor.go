@@ -34,6 +34,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if requestPath == "" && info.RelayFormat == types.RelayFormatClaude {
 		requestPath = "/v1/messages"
 	}
+	// Gemini 格式在非透传时会被转成 OpenAI 请求体，URL 需同步指向 chat/completions，
+	// 避免上游在 gemini 路径收到 openai body
+	if info.RelayFormat == types.RelayFormatGemini && !relaycommon.IsRequestPassThroughEnabled(info) {
+		requestPath = "/v1/chat/completions"
+	}
 	return moarkFullRequestURL(info.ChannelBaseUrl, requestPath, info.ChannelType), nil
 }
 

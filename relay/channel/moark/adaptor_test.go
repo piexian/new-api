@@ -118,3 +118,34 @@ func TestGetModelListIncludesModerationAndTaskModels(t *testing.T) {
 	require.Contains(t, models, "moark-text-moderation")
 	require.Contains(t, models, constant.MoarkTaskModel)
 }
+
+func TestGetRequestURLGeminiConvertedToChatCompletions(t *testing.T) {
+	t.Parallel()
+
+	// 非透传：gemini 请求体会被转成 OpenAI 格式，URL 必须指向 chat/completions
+	info := &relaycommon.RelayInfo{
+		RelayFormat:    types.RelayFormatGemini,
+		RequestURLPath: "/v1beta/models/gemini-3-flash:generateContent",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://api.moark.com",
+			ChannelType:    constant.ChannelTypeMoark,
+		},
+	}
+	got, err := (&Adaptor{}).GetRequestURL(info)
+	require.NoError(t, err)
+	require.Equal(t, "https://api.moark.com/v1/chat/completions", got)
+
+	// 透传模式：body 保持 gemini 格式，URL 保留原路径
+	infoPassThrough := &relaycommon.RelayInfo{
+		RelayFormat:    types.RelayFormatGemini,
+		RequestURLPath: "/v1beta/models/gemini-3-flash:generateContent",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://api.moark.com",
+			ChannelType:    constant.ChannelTypeMoark,
+			ChannelSetting: dto.ChannelSettings{PassThroughBodyEnabled: true},
+		},
+	}
+	got, err = (&Adaptor{}).GetRequestURL(infoPassThrough)
+	require.NoError(t, err)
+	require.Equal(t, "https://api.moark.com/v1beta/models/gemini-3-flash:generateContent", got)
+}
