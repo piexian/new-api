@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"gorm.io/gorm"
 )
 
 // settleFunding 单条 funding 惰性结算（spec §5，镜像 settle()），仅修改内存中的 f，
@@ -71,6 +72,60 @@ func ProjectFundingDebt(f *TokenLoanFunding, acc *TokenLoanAccount, now time.Tim
 	projected := *f
 	settleFunding(&projected, acc, now)
 	return projected.DebtQuota
+}
+
+// flipOverdueFundingsTx 逾期状态机（Task 11）：在写事务内把传入切片中「今天已过到期日
+// （loanDay(now) > DueDay）且仍有债务（DebtQuota > 0）」的 active funding 条件更新为
+// overdue 并落 penalty_started_day = loanDay(now)。
+//
+// 幂等性由条件更新保证（UPDATE ... WHERE id=? AND status='active'）：
+//   - RowsAffected==1：本次调用完成了翻转，同步回写内存切片元素；
+//   - RowsAffected==0：并发翻转抢先（或行已被其他路径改动），重读该行
+//     status/penalty_started_day 回填切片，不视为本次新翻转。
+//
+// 重复调用（同日二次、跨路径）天然为空操作。返回本次调用新翻转的 funding 子集（内存态），
+// 供信用分（Task 12）与平台资金处置（Task 15，按 SourceType==platform 过滤）消费；
+// 其余调用方可直接忽略返回值。
+//
+// 注意：翻转只改 status/penalty_started_day，不影响利息数学——settleFunding 的罚息
+// 由 today > DueDay 纯计算驱动、与 status 无关（见上），故翻转前后结算结果一致。
+func flipOverdueFundingsTx(tx *gorm.DB, userId int, fundings []TokenLoanFunding, now time.Time) ([]TokenLoanFunding, error) {
+	today := loanDay(now)
+	var flipped []TokenLoanFunding
+	for i := range fundings {
+		f := &fundings[i]
+		if f.Status != LoanFundingActive || today <= f.DueDay || f.DebtQuota <= 0 {
+			continue
+		}
+		res := tx.Model(&TokenLoanFunding{}).
+			Where("loan_user_id = ? AND id = ? AND status = ?", userId, f.Id, LoanFundingActive).
+			Updates(map[string]interface{}{
+				"status":              LoanFundingOverdue,
+				"penalty_started_day": today,
+				"updated_at":          now.Unix(),
+			})
+		if res.Error != nil {
+			return nil, res.Error
+		}
+		if res.RowsAffected == 1 {
+			// 本次调用完成翻转：内存切片同步，调用方后续（闸门/分配）看到 overdue 态
+			f.Status = LoanFundingOverdue
+			f.PenaltyStartedDay = today
+			f.UpdatedAt = now.Unix()
+			flipped = append(flipped, *f)
+			continue
+		}
+		// 并发翻转抢先：重读 status/penalty_started_day 回填切片，保证调用方视图与库内一致
+		var cur TokenLoanFunding
+		if err := tx.Select("status", "penalty_started_day", "updated_at").
+			Where("id = ?", f.Id).First(&cur).Error; err != nil {
+			return nil, err
+		}
+		f.Status = cur.Status
+		f.PenaltyStartedDay = cur.PenaltyStartedDay
+		f.UpdatedAt = cur.UpdatedAt
+	}
+	return flipped, nil
 }
 
 // syncAccountFromFundings 把给定 fundings 的债务/未还本金汇总回写账户投影

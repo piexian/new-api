@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // mkTestFunding 构造内存 funding（惰性结算测试隔离 DB，直接指定时钟字段）
@@ -249,4 +250,259 @@ func TestSyncAccountFromFundings(t *testing.T) {
 	require.Zero(t, acc.DebtQuota)
 	require.Zero(t, acc.PrincipalQuota)
 	require.Equal(t, today-2, acc.LastSettledDay)
+}
+
+// ===== Task 11: 逾期状态机（flipOverdueFundingsTx） =====
+
+// createFlipFunding 直接建一条 status=active 的 funding 行（时钟字段由 now 决定，
+// 翻转判定与结算解耦：LastSettledDay=loanDay(now)，结算分段长为 0、债务数值确定）。
+// DueDay = loanDay(now) + dueDayOffset；debt <= 0 时 Amount/本金/债务同取 0。
+func createFlipFunding(t *testing.T, userId int, now time.Time, dueDayOffset int, debt int64) TokenLoanFunding {
+	t.Helper()
+	f := TokenLoanFunding{
+		LoanUserId:         userId,
+		SourceType:         LoanFundingPlatform,
+		Amount:             debt,
+		PrincipalRemaining: debt,
+		DebtQuota:          debt,
+		LastSettledDay:     loanDay(now),
+		Rate:               0.001,
+		RepayPlan:          LoanRepayFull,
+		Status:             LoanFundingActive,
+		DueDay:             loanDay(now) + dueDayOffset,
+		CreatedAt:          now.Unix(),
+		UpdatedAt:          now.Unix(),
+	}
+	require.NoError(t, DB.Create(&f).Error)
+	return f
+}
+
+func TestFlipOverdueFundingsTx(t *testing.T) {
+	now := time.Date(2026, 8, 15, 10, 0, 0, 0, time.Local)
+	today := loanDay(now)
+
+	// ① 到期未清（active + 已过期 + 债务>0）→ 翻转，penalty_started_day 落账，
+	//    内存切片与库内行同步更新；返回本次新翻转的列表（含 SourceType，供 Task 15 过滤）
+	t.Run("active past due with debt flips", func(t *testing.T) {
+		user := createLoanTestUser(t)
+		cleanupLoanBorrowData(t, user.Id, 0)
+		f := createFlipFunding(t, user.Id, now, -1, 1000)
+
+		slice := []TokenLoanFunding{f}
+		var flipped []TokenLoanFunding
+		require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+			var err error
+			flipped, err = flipOverdueFundingsTx(tx, user.Id, slice, now)
+			return err
+		}))
+
+		require.Len(t, flipped, 1)
+		require.Equal(t, f.Id, flipped[0].Id)
+		require.Equal(t, LoanFundingOverdue, flipped[0].Status)
+		require.Equal(t, today, flipped[0].PenaltyStartedDay)
+		require.Equal(t, LoanFundingPlatform, flipped[0].SourceType, "新翻转列表保留 SourceType 供平台处置过滤")
+		// 内存切片同步
+		require.Equal(t, LoanFundingOverdue, slice[0].Status)
+		require.Equal(t, today, slice[0].PenaltyStartedDay)
+		// 库内落盘
+		var got TokenLoanFunding
+		require.NoError(t, DB.First(&got, f.Id).Error)
+		require.Equal(t, LoanFundingOverdue, got.Status)
+		require.Equal(t, today, got.PenaltyStartedDay)
+	})
+
+	// ② 幂等：同事务二次调用返回空（切片已 overdue）；新事务重读再翻也返回空
+	//    （条件更新命中 0 行），penalty_started_day 两次均不变
+	t.Run("idempotent second call returns empty", func(t *testing.T) {
+		user := createLoanTestUser(t)
+		cleanupLoanBorrowData(t, user.Id, 0)
+		f := createFlipFunding(t, user.Id, now, -1, 1000)
+		slice := []TokenLoanFunding{f}
+
+		var first, second []TokenLoanFunding
+		require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+			var err error
+			first, err = flipOverdueFundingsTx(tx, user.Id, slice, now)
+			if err != nil {
+				return err
+			}
+			second, err = flipOverdueFundingsTx(tx, user.Id, slice, now)
+			return err
+		}))
+		require.Len(t, first, 1)
+		require.Empty(t, second)
+
+		// 新事务重读（切片状态仍为库内 overdue）再翻 → 空，penalty_started_day 不变
+		var reload []TokenLoanFunding
+		require.NoError(t, DB.Where("loan_user_id = ? AND status IN ?",
+			user.Id, []string{LoanFundingActive, LoanFundingOverdue}).Find(&reload).Error)
+		require.Len(t, reload, 1)
+		require.Equal(t, LoanFundingOverdue, reload[0].Status)
+		var third []TokenLoanFunding
+		require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+			var err error
+			third, err = flipOverdueFundingsTx(tx, user.Id, reload, now)
+			return err
+		}))
+		require.Empty(t, third)
+
+		var got TokenLoanFunding
+		require.NoError(t, DB.First(&got, f.Id).Error)
+		require.Equal(t, today, got.PenaltyStartedDay)
+	})
+
+	// ③ 未到期不翻：今天到期（today == DueDay）尚不逾期，翻转判定要求 today > DueDay
+	t.Run("due today not yet overdue does not flip", func(t *testing.T) {
+		user := createLoanTestUser(t)
+		cleanupLoanBorrowData(t, user.Id, 0)
+		f := createFlipFunding(t, user.Id, now, 0, 1000)
+
+		slice := []TokenLoanFunding{f}
+		var flipped []TokenLoanFunding
+		require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+			var err error
+			flipped, err = flipOverdueFundingsTx(tx, user.Id, slice, now)
+			return err
+		}))
+		require.Empty(t, flipped)
+
+		var got TokenLoanFunding
+		require.NoError(t, DB.First(&got, f.Id).Error)
+		require.Equal(t, LoanFundingActive, got.Status)
+		require.Zero(t, got.PenaltyStartedDay)
+	})
+
+	// ④ 已过期但债务为 0 不翻：保持 active，等结清清账路径（debt=0 → repaid）处理
+	t.Run("past due with zero debt does not flip", func(t *testing.T) {
+		user := createLoanTestUser(t)
+		cleanupLoanBorrowData(t, user.Id, 0)
+		f := createFlipFunding(t, user.Id, now, -1, 0)
+
+		slice := []TokenLoanFunding{f}
+		var flipped []TokenLoanFunding
+		require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+			var err error
+			flipped, err = flipOverdueFundingsTx(tx, user.Id, slice, now)
+			return err
+		}))
+		require.Empty(t, flipped)
+
+		var got TokenLoanFunding
+		require.NoError(t, DB.First(&got, f.Id).Error)
+		require.Equal(t, LoanFundingActive, got.Status)
+		require.Zero(t, got.PenaltyStartedDay)
+	})
+
+	// ⑦ 并发翻转模拟：他事务已把行置为 overdue（本切片为过期读 active）→ 条件更新
+	//    命中 0 行 → 不视为新翻转，重读 status/penalty_started_day 回填切片
+	t.Run("concurrent flip wins and is not counted", func(t *testing.T) {
+		user := createLoanTestUser(t)
+		cleanupLoanBorrowData(t, user.Id, 0)
+		f := createFlipFunding(t, user.Id, now, -1, 1000)
+		// 模拟并发翻转已提交（penalty_started_day 由他事务落账）
+		require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("id = ?", f.Id).
+			Updates(map[string]interface{}{
+				"status":              LoanFundingOverdue,
+				"penalty_started_day": today - 2,
+			}).Error)
+
+		stale := []TokenLoanFunding{f} // 切片仍是创建时的 active
+		var flipped []TokenLoanFunding
+		require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+			var err error
+			flipped, err = flipOverdueFundingsTx(tx, user.Id, stale, now)
+			return err
+		}))
+		require.Empty(t, flipped)
+		// 切片回填库内最新状态
+		require.Equal(t, LoanFundingOverdue, stale[0].Status)
+		require.Equal(t, today-2, stale[0].PenaltyStartedDay)
+		// 库内保持不变（他事务的值不被覆盖）
+		var got TokenLoanFunding
+		require.NoError(t, DB.First(&got, f.Id).Error)
+		require.Equal(t, LoanFundingOverdue, got.Status)
+		require.Equal(t, today-2, got.PenaltyStartedDay)
+	})
+}
+
+// ⑤ 利息数学与 status 无关：同参数 funding 仅 status 不同（active vs overdue），
+//
+//	settleFunding 结果完全一致——罚息由 today > DueDay 纯计算驱动，翻转不改变利息
+func TestSettleFundingUnaffectedByStatus(t *testing.T) {
+	withDailyRate(t, 0.001)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.OverduePenaltyMultiplier = 2.0 })
+	today := loanDay(time.Now())
+
+	active := mkTestFunding(LoanFundingPool, LoanRepayFull, 1000000, 1000000, today-3, 0.001)
+	active.DueDay = today - 1
+	overdue := active
+	overdue.Status = LoanFundingOverdue
+	overdue.PenaltyStartedDay = today - 1
+
+	settleFunding(&active, nil, time.Now())
+	settleFunding(&overdue, nil, time.Now())
+
+	require.Equal(t, active.DebtQuota, overdue.DebtQuota)
+	require.Equal(t, active.LastSettledDay, overdue.LastSettledDay)
+	// round(Round(1000000 * 1.001^2) * 1.002) = round(1002001 * 1.002) = 1004005
+	require.Equal(t, int64(1004005), active.DebtQuota)
+	// 翻转后再次结算（同日）不二次计息：与翻转前结果一致
+	settleFunding(&overdue, nil, time.Now())
+	require.Equal(t, int64(1004005), overdue.DebtQuota)
+}
+
+// ⑥ 借款闸门：今天刚过期的 active funding 在 BorrowLoan 结算+翻转后阻断借款
+//
+//	（ErrLoanHasOverdue，杜绝借新还旧）；拒绝路径整体回滚，翻转不落痕
+func TestBorrowLoanGateBlocksJustOverdueFunding(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.TermsEnabled = false
+		s.MarketEnabled = false
+		s.MaxTotal = 1_000_000
+		s.LoanTermDays = 30
+	})
+	user := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, user.Id, 0)
+	now := time.Now()
+	// 昨天到期、今天尚未结清的 active funding：本次借款会在结算后翻转为 overdue，
+	// 闸门用翻转后的列表拒绝借款（此前闸门只拦已翻转的 overdue 行）
+	f := createFlipFunding(t, user.Id, now, -1, 100_000)
+
+	_, _, err := BorrowLoan(user.Id, "0.10", 0, nil)
+	require.ErrorIs(t, err, ErrLoanHasOverdue)
+
+	// 拒绝路径整体回滚：funding 仍 active（翻转幂等，下次写路径再翻），无新借款
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanFundingActive, got.Status)
+	require.Zero(t, got.PenaltyStartedDay)
+	var n int64
+	require.NoError(t, DB.Model(&TokenLoanRecord{}).Where("user_id = ?", user.Id).Count(&n).Error)
+	require.Zero(t, n)
+}
+
+// 逾期 → repaid 流转（spec 状态机）：active 的 funding 在签到路径先翻转 overdue，
+// 再被本次签到全额结清，最终状态必须是 repaid（distributeRepayment 在 debt 归零时
+// 无论先前 active/overdue 一律置 repaid，翻转挂接不得破坏该流转）
+func TestCheckinRepayClearsJustOverdueFundingToRepaid(t *testing.T) {
+	withCheckinSetting(t, 5000)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CheckinRepayEnabled = true
+	})
+	user := setupCheckinLoanUser(t)
+	// 昨天到期、今天仍 active 的 funding：签到结算后翻转 overdue，随后被 5000 奖励结清
+	f := createFlipFunding(t, user.Id, time.Now(), -1, 3000)
+	createLoanDebtAccount(t, user.Id, 3000, 3000)
+
+	_, repay, err := UserCheckin(user.Id)
+	require.NoError(t, err)
+	require.NotNil(t, repay)
+	require.Equal(t, int64(3000), repay.Amount)
+
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanFundingRepaid, got.Status)
+	require.Zero(t, got.DebtQuota)
+	require.Zero(t, got.PrincipalRemaining)
 }

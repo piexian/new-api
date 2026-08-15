@@ -56,6 +56,14 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 		}
 	}
 
+	// ①.5 逾期状态机（Task 11）：今天过期的 active funding 翻转为 overdue（幂等条件
+	// 更新，并发双还款不双翻）。翻转只改 status/penalty_started_day，不影响 ② 的
+	// pro-rata 分配（分配基于结算后 debt_quota，与 status 无关）；③ 中 debt 归零照常
+	// 置 repaid，故逾期 funding 全额结清自然完成 overdue → repaid 流转。
+	if _, err := flipOverdueFundingsTx(tx, acc.UserId, fundings, now); err != nil {
+		return nil, nil, err
+	}
+
 	// ② pro-rata 分配（最大余数法）：
 	//    floor_i = repay*debt_i/Σdebt（整数截断），余数按降序吃下 left = repay - Σfloor 的配额；
 	//    left < 参与条数；并列余数按 funding id 升序（确定性）。乘法用 big 精确计算，

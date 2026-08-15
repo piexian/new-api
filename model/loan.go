@@ -285,19 +285,14 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 			return ErrLoanTermsNotAgreed
 		}
 
-		// 借款闸门（P1-8）：黑名单未解除 / 存在 overdue funding 拒绝新借款，杜绝借新还旧。
-		// overdue 检查直接落在下面载入的 funding 列表上（含全部 overdue 行），省一次查询。
+		// 借款闸门（P1-8）：黑名单未解除拒绝新借款（overdue 闸门在结算+翻转之后校验，
+		// 使其能看到今天刚过期的 funding）。
 		if acc.BlacklistedUntilDay > loanDay(now) {
 			return ErrLoanBlacklisted
 		}
 		fundings, err := loadUserFundingsTx(tx, userId)
 		if err != nil {
 			return err
-		}
-		for i := range fundings {
-			if fundings[i].Status == LoanFundingOverdue {
-				return ErrLoanHasOverdue
-			}
 		}
 
 		// 惰性结算下沉到 funding（spec §5）：逐条 settleFunding（platform 传 acc 提供
@@ -309,6 +304,21 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 				if err := tx.Save(&fundings[i]).Error; err != nil {
 					return err
 				}
+			}
+		}
+
+		// 逾期状态机（Task 11）：今天过期的 active funding 在此翻转为 overdue 并落盘，
+		// 使闸门能看到"今天刚过期"的 funding，杜绝借新还旧。幂等条件更新；拒绝路径
+		// 整体回滚不落痕，下次写路径再翻。新翻转列表供 Task 12/15 消费，此处忽略。
+		if _, err := flipOverdueFundingsTx(tx, userId, fundings, now); err != nil {
+			return err
+		}
+
+		// 借款闸门（P1-8）：存在 overdue funding 拒绝新借款（黑名单已在上方校验）。
+		// 检查落在结算+翻转后的 funding 列表上（含今天刚翻转的与既有全部 overdue 行）。
+		for i := range fundings {
+			if fundings[i].Status == LoanFundingOverdue {
+				return ErrLoanHasOverdue
 			}
 		}
 

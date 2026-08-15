@@ -128,6 +128,12 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 						}
 					}
 				}
+				// 逾期状态机（Task 11）：今天过期的 active funding 在此翻转为 overdue
+				// （幂等），使签到路径的 funding 状态与到期日对齐；翻转不影响结算/分配
+				// 数学，逾期 funding 被本次签到全额结清时照常转 repaid。
+				if _, err := flipOverdueFundingsTx(tx, acc.UserId, fundings, now); err != nil {
+					return err
+				}
 				syncAccountFromFundings(acc, fundings)
 				if acc.DebtQuota > 0 {
 					// repay = min(奖励, Σ债务)：100% 扣还，超额仍入账
