@@ -6155,7 +6155,11 @@
     "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.": "繰り上げ返済には元金部分に {{rate}} の手数料がかかり、利息と合わせてウォレット残高から差し引かれます。",
     "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "繰り上げ返済 {{amount}}（利息 {{interest_part}}、元金 {{principal_part}}、手数料 {{fee_part}}、残債務 {{debt_after}}）",
     "AI loan officer closed application {{application_id}} (model {{model}}): credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days; reply: {{reply}}": "AI 担当者が申請 {{application_id}} をクローズ（モデル {{model}}）：限度額 {{credit_limit}} USD、日利率 {{daily_rate}}、無利息 {{interest_free_days}} 日。回答：{{reply}}",
-    "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})": "AI 担当者の申請 {{application_id}} は調整なしで自動クローズされました（モデル {{model}}）"
+    "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})": "AI 担当者の申請 {{application_id}} は調整なしで自動クローズされました（モデル {{model}}）",
+    "Default AgnesAI endpoint": "デフォルトの AgnesAI エンドポイント",
+    "AgnesAI Global": "AgnesAI (海外)",
+    "AgnesAI CN": "AgnesAI (中国)",
+    "The CN site and the global site use separate accounts and API keys. Choose the endpoint that matches your key.": "中国サイトとグローバルサイトではアカウントと API キーが共通ではありません。キーに対応するエンドポイントを選択してください。"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

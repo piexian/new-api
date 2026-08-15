@@ -6155,7 +6155,11 @@
     "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.": "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.",
     "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})",
     "AI loan officer closed application {{application_id}} (model {{model}}): credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days; reply: {{reply}}": "AI loan officer closed application {{application_id}} (model {{model}}): credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days; reply: {{reply}}",
-    "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})": "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})"
+    "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})": "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})",
+    "Default AgnesAI endpoint": "Default AgnesAI endpoint",
+    "AgnesAI Global": "AgnesAI Global",
+    "AgnesAI CN": "AgnesAI CN",
+    "The CN site and the global site use separate accounts and API keys. Choose the endpoint that matches your key.": "The CN site and the global site use separate accounts and API keys. Choose the endpoint that matches your key."
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

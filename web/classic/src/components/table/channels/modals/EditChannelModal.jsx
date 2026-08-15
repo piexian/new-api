@@ -29,6 +29,7 @@ import {
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   CHANNEL_OPTIONS,
+  CHANNEL_TYPE_AGNES_AI,
   CHANNEL_TYPE_CEREBRAS,
   CHANNEL_TYPE_OPENCODE,
   CHANNEL_TYPE_QWEN_TOKEN_PLAN,
@@ -145,6 +146,8 @@ const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL =
 const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan';
 const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn';
 const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai';
+const AGNES_AI_BASE_URL = 'https://apihub.agnes-ai.com';
+const AGNES_AI_CN_BASE_URL = 'https://api.agnes-ai.cn';
 const QWEN_TOKEN_PLAN_BASE_URL =
   'https://token-plan.cn-beijing.maas.aliyuncs.com';
 
@@ -556,7 +559,12 @@ const EditChannelModal = (props) => {
   };
 
   const handleApiConfigSecretClick = () => {
-    if (![25, 26, 45, CHANNEL_TYPE_OPENCODE].includes(inputs.type)) return;
+    if (
+      ![25, 26, 45, CHANNEL_TYPE_AGNES_AI, CHANNEL_TYPE_OPENCODE].includes(
+        inputs.type,
+      )
+    )
+      return;
     const next = doubaoApiClickCountRef.current + 1;
     doubaoApiClickCountRef.current = next;
     if (next >= 10) {
@@ -4058,7 +4066,9 @@ const EditChannelModal = (props) => {
                             (inputs.type !== CHANNEL_TYPE_OPENCODE ||
                               doubaoApiEditUnlocked) &&
                             (inputs.type !== 26 || doubaoApiEditUnlocked) &&
-                            (inputs.type !== 45 || doubaoApiEditUnlocked) && (
+                            (inputs.type !== 45 || doubaoApiEditUnlocked) &&
+                            (inputs.type !== CHANNEL_TYPE_AGNES_AI ||
+                              doubaoApiEditUnlocked) && (
                               <div>
                                 <Form.Input
                                   field='base_url'
@@ -4125,6 +4135,48 @@ const EditChannelModal = (props) => {
                               />
                             </div>
                           )}
+
+                          {inputs.type === CHANNEL_TYPE_AGNES_AI &&
+                            !doubaoApiEditUnlocked && (
+                              <div>
+                                <Form.Select
+                                  field='base_url'
+                                  label={
+                                    <span
+                                      onClick={handleApiConfigSecretClick}
+                                      style={{
+                                        cursor: 'pointer',
+                                        userSelect: 'none',
+                                      }}
+                                    >
+                                      {t('API地址')}
+                                    </span>
+                                  }
+                                  placeholder={t('请选择API地址')}
+                                  onChange={(value) =>
+                                    handleInputChange('base_url', value)
+                                  }
+                                  optionList={[
+                                    {
+                                      value: '',
+                                      label: t('默认 AgnesAI 地址'),
+                                    },
+                                    {
+                                      value: AGNES_AI_BASE_URL,
+                                      label: `${t('AgnesAI 国际站')} - ${AGNES_AI_BASE_URL}`,
+                                    },
+                                    {
+                                      value: AGNES_AI_CN_BASE_URL,
+                                      label: `${t('AgnesAI 国内站')} - ${AGNES_AI_CN_BASE_URL}`,
+                                    },
+                                  ]}
+                                  extraText={t(
+                                    '注意：国内站与国际站账号和 API Key 不通用，请选择与密钥匹配的站点地址',
+                                  )}
+                                  disabled={isIonetLocked}
+                                />
+                              </div>
+                            )}
 
                           {inputs.type === 22 && (
                             <div>

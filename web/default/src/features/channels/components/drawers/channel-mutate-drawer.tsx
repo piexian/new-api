@@ -207,7 +207,9 @@ const QWEN_TOKEN_PLAN_BASE_URL =
 const OPENCODE_GO_BASE_URL = 'opencode-go'
 const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn'
 const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai'
-const CUSTOM_BASE_URL_UNLOCK_TYPES = new Set([25, 26, 45, 65])
+const AGNES_AI_BASE_URL = 'https://apihub.agnes-ai.com'
+const AGNES_AI_CN_BASE_URL = 'https://api.agnes-ai.cn'
+const CUSTOM_BASE_URL_UNLOCK_TYPES = new Set([25, 26, 45, 63, 65])
 
 type ChannelMutateDrawerProps = {
   open: boolean
@@ -2778,6 +2780,115 @@ export function ChannelMutateDrawer({
                               />
                             )}
 
+                            {/* AgnesAI (type 63) */}
+                            {currentType === 63 && !customBaseUrlUnlocked && (
+                              <FormField
+                                control={form.control}
+                                name='base_url'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel
+                                      className='cursor-pointer select-none'
+                                      onClick={handleApiConfigSecretClick}
+                                    >
+                                      {t('API Base URL')}
+                                    </FormLabel>
+                                    <Select
+                                      onValueChange={(value) =>
+                                        field.onChange(
+                                          value === '__default__'
+                                            ? ''
+                                            : value || ''
+                                        )
+                                      }
+                                      value={
+                                        [
+                                          '',
+                                          AGNES_AI_BASE_URL,
+                                          AGNES_AI_CN_BASE_URL,
+                                        ].includes(String(field.value || ''))
+                                          ? field.value || '__default__'
+                                          : undefined
+                                      }
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent
+                                        alignItemWithTrigger={false}
+                                      >
+                                        <SelectGroup>
+                                          {field.value &&
+                                            ![
+                                              AGNES_AI_BASE_URL,
+                                              AGNES_AI_CN_BASE_URL,
+                                            ].includes(
+                                              String(field.value)
+                                            ) && (
+                                              <SelectItem
+                                                value={String(field.value)}
+                                              >
+                                                {String(field.value)}
+                                              </SelectItem>
+                                            )}
+                                          <SelectItem value='__default__'>
+                                            {t('Default AgnesAI endpoint')}
+                                          </SelectItem>
+                                          <SelectItem
+                                            value={AGNES_AI_BASE_URL}
+                                          >
+                                            {t('AgnesAI Global')}
+                                            {' - '}
+                                            {AGNES_AI_BASE_URL}
+                                          </SelectItem>
+                                          <SelectItem
+                                            value={AGNES_AI_CN_BASE_URL}
+                                          >
+                                            {t('AgnesAI CN')}
+                                            {' - '}
+                                            {AGNES_AI_CN_BASE_URL}
+                                          </SelectItem>
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormDescription>
+                                      {t(
+                                        'The CN site and the global site use separate accounts and API keys. Choose the endpoint that matches your key.'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
+                            {/* AgnesAI (type 63) - Custom API URL */}
+                            {currentType === 63 && customBaseUrlUnlocked && (
+                              <FormField
+                                control={form.control}
+                                name='base_url'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('API Base URL')}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder={AGNES_AI_BASE_URL}
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t(
+                                        'Enter custom API endpoint URL (proxy supported)'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
                             {/* Cloudflare Workers AI (type 39) */}
                             {currentType === 39 && (
                               <FormField
@@ -3235,7 +3346,7 @@ export function ChannelMutateDrawer({
                             )}
 
                             {/* General base_url for other types */}
-                            {![3, 8, 22, 25, 26, 36, 45, 65].includes(
+                            {![3, 8, 22, 25, 26, 36, 45, 63, 65].includes(
                               currentType
                             ) && (
                               <FormField

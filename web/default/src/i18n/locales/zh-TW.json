@@ -6155,7 +6155,11 @@
     "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.": "提前還款將按抵本部分收取 {{rate}} 手續費，與利息一併從錢包餘額扣除。",
     "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "詞元貸提前還款 {{amount}}（抵息 {{interest_part}}，抵本 {{principal_part}}，手續費 {{fee_part}}，剩餘債務 {{debt_after}}）",
     "AI loan officer closed application {{application_id}} (model {{model}}): credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days; reply: {{reply}}": "AI 業務員結案（工單 {{application_id}}，模型 {{model}}）：額度上限 {{credit_limit}} USD，日利率 {{daily_rate}}，免息 {{interest_free_days}} 天；結論：{{reply}}",
-    "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})": "AI 業務員工單 {{application_id}} 到期未達成調整，已自動結案（模型 {{model}}）"
+    "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})": "AI 業務員工單 {{application_id}} 到期未達成調整，已自動結案（模型 {{model}}）",
+    "Default AgnesAI endpoint": "預設 AgnesAI 端點",
+    "AgnesAI Global": "AgnesAI 國際站",
+    "AgnesAI CN": "AgnesAI 國內站",
+    "The CN site and the global site use separate accounts and API keys. Choose the endpoint that matches your key.": "國內站與國際站的帳號和 API Key 不通用，請選擇與金鑰匹配的站點地址。"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

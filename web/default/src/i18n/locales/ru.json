@@ -6155,7 +6155,11 @@
     "Early repayment incurs a {{rate}} fee on the principal part, charged from your wallet balance together with any interest.": "При досрочном погашении взимается комиссия {{rate}} с основной части долга; она списывается с баланса кошелька вместе с процентами.",
     "Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, fee {{fee_part}}, remaining debt {{debt_after}})": "Досрочное погашение {{amount}} (проценты {{interest_part}}, основной долг {{principal_part}}, комиссия {{fee_part}}, остаток долга {{debt_after}})",
     "AI loan officer closed application {{application_id}} (model {{model}}): credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days; reply: {{reply}}": "AI-агент закрыл заявку {{application_id}} (модель {{model}}): лимит {{credit_limit}} USD, ставка {{daily_rate}}, без процентов {{interest_free_days}} дн.; ответ: {{reply}}",
-    "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})": "Заявка {{application_id}} автоматически закрыта без изменений (модель {{model}})"
+    "AI loan officer application {{application_id}} auto-closed without adjustments (model {{model}})": "Заявка {{application_id}} автоматически закрыта без изменений (модель {{model}})",
+    "Default AgnesAI endpoint": "Конечная точка AgnesAI по умолчанию",
+    "AgnesAI Global": "AgnesAI (международный)",
+    "AgnesAI CN": "AgnesAI (Китай)",
+    "The CN site and the global site use separate accounts and API keys. Choose the endpoint that matches your key.": "Китайский и международный сайты используют разные аккаунты и API-ключи. Выберите адрес, соответствующий вашему ключу."
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",
