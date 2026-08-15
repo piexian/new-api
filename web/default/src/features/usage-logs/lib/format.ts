@@ -389,6 +389,15 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'subscription.bind': 'Bound a subscription',
   // Logs
   'log.clear': 'Cleared historical logs',
+  // Token loan
+  'loan.borrow':
+    'Borrowed {{amount_usd}} USD via token loan (outstanding debt {{debt_after}})',
+  'loan.repay':
+    'Early loan repayment of {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})',
+  'loan.checkin_repay':
+    'Check-in reward auto-repaid {{amount}} (interest {{interest_part}}, principal {{principal_part}}, remaining debt {{debt_after}})',
+  'loan.ai_decision':
+    'AI loan officer closed application {{application_id}}: credit limit {{credit_limit}} USD, daily rate {{daily_rate}}, interest-free {{interest_free_days}} days',
   // Generic middleware fallback
   generic: '{{method}} {{route}}',
 }

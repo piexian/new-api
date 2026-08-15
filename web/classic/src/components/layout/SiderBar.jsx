@@ -38,6 +38,7 @@ const routerMap = {
   topup: '/console/topup',
   invite: '/console/invite',
   user: '/console/user',
+  loan_admin: '/console/loan',
   ip_ban: '/console/ip_ban',
   risk_center: '/console/risk',
   subscription: '/console/subscription',
@@ -200,6 +201,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
+        text: t('词元贷管理'),
+        itemKey: 'loan_admin',
+        to: '/loan',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
         text: t('IP封禁管理'),
         itemKey: 'ip_ban',
         to: '/ip_ban',
@@ -222,6 +229,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
       const configVisible = isModuleVisible('admin', item.itemKey);
+      // 词元贷管理不依赖 SidebarModulesAdmin 配置（默认配置未收录该模块），对管理员始终可见
+      if (item.itemKey === 'loan_admin') return true;
       return configVisible;
     });
 

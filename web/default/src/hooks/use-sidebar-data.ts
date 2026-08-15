@@ -24,6 +24,7 @@ import {
   FlaskConical,
   Gift,
   Key,
+  Landmark,
   LayoutDashboard,
   ListTodo,
   Mail,
@@ -168,6 +169,11 @@ export function useSidebarData(): SidebarData {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Loan Management'),
+            url: '/loan-admin',
+            icon: Landmark,
           },
           {
             title: t('System Info'),

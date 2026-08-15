@@ -73,6 +73,7 @@ import Chat2Link from './pages/Chat2Link';
 import Midjourney from './pages/Midjourney';
 import Pricing from './pages/Pricing';
 import Loan from './pages/Loan';
+import AdminLoan from './pages/AdminLoan';
 import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
@@ -330,6 +331,15 @@ function App() {
               '/console/user',
               <AdminRoute>
                 <User />
+              </AdminRoute>,
+            )}
+          />
+          <Route
+            path='/console/loan'
+            element={routeGuard(
+              '/console/loan',
+              <AdminRoute>
+                <AdminLoan />
               </AdminRoute>,
             )}
           />
