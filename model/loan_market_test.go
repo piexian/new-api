@@ -1102,3 +1102,271 @@ func TestWrittenOffFundingExcludedFromRepayment(t *testing.T) {
 	require.Equal(t, LoanFundingRepaid, b.Status)
 	require.Zero(t, b.DebtQuota)
 }
+
+// ===== Task 14: repay_plan 调整（settle-first，spec §8） =====
+
+// createPlanFunding 建一条挂 offer 的 P2P funding（改档测试）：LastSettledDay=今天使
+// 结算不再计息、债务数值确定；debt > principal 表示含未付利息；plan 可指定
+func createPlanFunding(t *testing.T, borrowerId, lenderId, offerId int, principal, debt int64, plan string) *TokenLoanFunding {
+	t.Helper()
+	now := time.Now()
+	f := &TokenLoanFunding{
+		LoanUserId:         borrowerId,
+		SourceType:         LoanFundingPool,
+		OfferId:            offerId,
+		LenderId:           lenderId,
+		Amount:             principal,
+		PrincipalRemaining: principal,
+		DebtQuota:          debt,
+		LastSettledDay:     loanDay(now),
+		Rate:               0.001,
+		RepayPlan:          plan,
+		Status:             LoanFundingActive,
+		DueDay:             loanDay(now) + 30,
+		CreatedAt:          now.Unix(),
+		UpdatedAt:          now.Unix(),
+	}
+	require.NoError(t, DB.Create(f).Error)
+	return f
+}
+
+// createPlatformFunding 建一条 platform funding（LenderId==0，官方债权）：
+// LastSettledDay=今天使结算不再计息、债务数值确定
+func createPlatformFunding(t *testing.T, borrowerId int, principal, debt int64) *TokenLoanFunding {
+	t.Helper()
+	now := time.Now()
+	f := &TokenLoanFunding{
+		LoanUserId:         borrowerId,
+		SourceType:         LoanFundingPlatform,
+		Amount:             principal,
+		PrincipalRemaining: principal,
+		DebtQuota:          debt,
+		LastSettledDay:     loanDay(now),
+		Rate:               0.001,
+		RepayPlan:          LoanRepayFull,
+		Status:             LoanFundingActive,
+		DueDay:             loanDay(now) + 30,
+		CreatedAt:          now.Unix(),
+		UpdatedAt:          now.Unix(),
+	}
+	require.NoError(t, DB.Create(f).Error)
+	return f
+}
+
+// ① 放贷人改 principal_only：未付利息一次性核销（debt == principal），
+//
+//	账户投影（syncAccountFromFundings）立即反映核销与其余 funding
+func TestSetFundingRepayPlanPrincipalOnlyWriteoff(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+	createLoanDebtAccount(t, borrower.Id, 300_000, 315_000) // 预建账户，投影将被 funding 汇总覆盖
+	f := createPlanFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000, LoanRepayFull)
+	keep := createPlanFunding(t, borrower.Id, lender.Id, offer.Id, 100_000, 105_000, LoanRepayFull)
+
+	require.NoError(t, SetFundingRepayPlan(lender.Id, f.Id, LoanRepayPrincipalOnly))
+
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanRepayPrincipalOnly, got.RepayPlan)
+	require.Equal(t, int64(200_000), got.DebtQuota, "未付利息一次性核销，debt == principal")
+	var kept TokenLoanFunding
+	require.NoError(t, DB.First(&kept, keep.Id).Error)
+	require.Equal(t, LoanRepayFull, kept.RepayPlan)
+	require.Equal(t, int64(105_000), kept.DebtQuota, "其余 funding 不受影响")
+
+	// 账户投影立即同步：核销后 200_000 + 105_000（覆盖预建的 315_000）
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", borrower.Id).First(&acc).Error)
+	require.Equal(t, int64(305_000), acc.DebtQuota)
+	require.Equal(t, int64(300_000), acc.PrincipalQuota)
+	require.Equal(t, loanDay(time.Now()), acc.LastSettledDay)
+}
+
+// ② settle-first：3 天未结算的 funding 先按旧 plan（full）复利落账，再改档
+//
+//	interest_freeze；改档后债务冻结（次日不再增长，已结算利息不回溯）
+func TestSetFundingRepayPlanSettlesBeforeChange(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+
+	now := time.Now()
+	f := &TokenLoanFunding{
+		LoanUserId:         borrower.Id,
+		SourceType:         LoanFundingPool,
+		OfferId:            offer.Id,
+		LenderId:           lender.Id,
+		Amount:             200_000,
+		PrincipalRemaining: 200_000,
+		DebtQuota:          200_000,
+		LastSettledDay:     loanDay(now) - 3, // 3 天未结算
+		Rate:               0.001,
+		RepayPlan:          LoanRepayFull,
+		Status:             LoanFundingActive,
+		DueDay:             loanDay(now) + 30, // 未到期，无罚息分段
+		CreatedAt:          now.Unix(),
+		UpdatedAt:          now.Unix(),
+	}
+	require.NoError(t, DB.Create(f).Error)
+
+	require.NoError(t, SetFundingRepayPlan(lender.Id, f.Id, LoanRepayInterestFreeze))
+
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanRepayInterestFreeze, got.RepayPlan)
+	// 改档前 3 天利息已按旧 plan 复利落账：round(200000 * 1.001^3) = 200601
+	require.Equal(t, int64(200_601), got.DebtQuota)
+	require.Equal(t, loanDay(now), got.LastSettledDay)
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", borrower.Id).First(&acc).Error)
+	require.Equal(t, int64(200_601), acc.DebtQuota)
+
+	// 次日不再增长（interest_freeze 冻结）
+	require.Equal(t, int64(200_601), ProjectFundingDebt(&got, &acc, now.AddDate(0, 0, 1)))
+}
+
+// ③ AI 入口对 P2P funding 设 principal_only 一律拒绝（仅放贷人本人可核销利息），
+//
+//	拒绝不改动 funding
+func TestSetFundingRepayPlanByOfficerRejectsP2PPrincipalOnly(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+	f := createPlanFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000, LoanRepayFull)
+
+	err := SetFundingRepayPlanByOfficer(f.Id, LoanRepayPrincipalOnly)
+	require.ErrorIs(t, err, ErrLoanInvalidRepayPlan)
+
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanRepayFull, got.RepayPlan)
+	require.Equal(t, int64(210_000), got.DebtQuota)
+}
+
+// ④ AI 入口对 P2P：full→no_penalty→interest_freeze 单向降档允许（可跳档），
+//
+//	升档拒绝（freeze→full），同 plan 幂等
+func TestSetFundingRepayPlanByOfficerP2PDowngradeOnly(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+	f := createPlanFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000, LoanRepayFull)
+
+	require.NoError(t, SetFundingRepayPlanByOfficer(f.Id, LoanRepayNoPenalty))
+	require.NoError(t, SetFundingRepayPlanByOfficer(f.Id, LoanRepayInterestFreeze))
+
+	// 升档拒绝：interest_freeze → full
+	err := SetFundingRepayPlanByOfficer(f.Id, LoanRepayFull)
+	require.ErrorIs(t, err, ErrLoanInvalidRepayPlan)
+
+	// 同 plan 幂等：当前已是 interest_freeze，再次设 interest_freeze 为 no-op 允许
+	require.NoError(t, SetFundingRepayPlanByOfficer(f.Id, LoanRepayInterestFreeze))
+
+	// 跳档允许：放贷人升回 full 后，AI 直接 full→interest_freeze（跳过 no_penalty）
+	require.NoError(t, SetFundingRepayPlan(lender.Id, f.Id, LoanRepayFull))
+	require.NoError(t, SetFundingRepayPlanByOfficer(f.Id, LoanRepayInterestFreeze))
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanRepayInterestFreeze, got.RepayPlan)
+	require.Equal(t, int64(210_000), got.DebtQuota, "同日改档不结算，债务不变")
+}
+
+// ⑤ AI 入口对 platform funding：principal_only 允许（官方债权四档全可调）
+func TestSetFundingRepayPlanByOfficerPlatformPrincipalOnlyAllowed(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	pf := createPlatformFunding(t, borrower.Id, 300_000, 320_000)
+
+	require.NoError(t, SetFundingRepayPlanByOfficer(pf.Id, LoanRepayPrincipalOnly))
+
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, pf.Id).Error)
+	require.Equal(t, LoanRepayPrincipalOnly, got.RepayPlan)
+	require.Equal(t, int64(300_000), got.DebtQuota, "未付利息一次性核销")
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", borrower.Id).First(&acc).Error)
+	require.Equal(t, int64(300_000), acc.DebtQuota)
+	require.Equal(t, int64(300_000), acc.PrincipalQuota)
+}
+
+// ⑥ 非本人 / platform（LenderId==0）/ 不存在 / 非法 plan 一律拒绝，不改动 funding
+func TestSetFundingRepayPlanRejectsNonOwner(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	other := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	cleanupLoanBorrowData(t, borrower.Id, other.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+	f := createPlanFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000, LoanRepayFull)
+	pf := createPlatformFunding(t, borrower.Id, 100_000, 105_000)
+
+	// 他人（非 funding 放贷人）改档被拒
+	err := SetFundingRepayPlan(other.Id, f.Id, LoanRepayNoPenalty)
+	require.ErrorIs(t, err, ErrLoanNotFundingOwner)
+	// platform funding（LenderId==0）归 Task 15 官方流程，放贷人不可改档
+	err = SetFundingRepayPlan(lender.Id, pf.Id, LoanRepayInterestFreeze)
+	require.ErrorIs(t, err, ErrLoanNotFundingOwner)
+	// funding 不存在
+	err = SetFundingRepayPlan(lender.Id, 99999999, LoanRepayNoPenalty)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	// 非法 plan
+	err = SetFundingRepayPlan(lender.Id, f.Id, "bogus")
+	require.ErrorIs(t, err, ErrLoanInvalidRepayPlan)
+
+	// 所有被拒路径不改动 funding
+	for _, id := range []int64{f.Id, pf.Id} {
+		var got TokenLoanFunding
+		require.NoError(t, DB.First(&got, id).Error)
+		require.Equal(t, LoanRepayFull, got.RepayPlan)
+	}
+}
+
+// ⑦ repaid / written_off 终态 funding 不可改档（放贷人与 AI 入口同拒）
+func TestSetFundingRepayPlanRejectsTerminalStatus(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+	repaid := createPlanFunding(t, borrower.Id, lender.Id, offer.Id, 100_000, 100_000, LoanRepayFull)
+	writtenOff := createPlanFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000, LoanRepayFull)
+	require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("id = ?", repaid.Id).
+		Update("status", LoanFundingRepaid).Error)
+	require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("id = ?", writtenOff.Id).
+		Update("status", LoanFundingWrittenOff).Error)
+
+	require.ErrorIs(t, SetFundingRepayPlan(lender.Id, repaid.Id, LoanRepayNoPenalty), ErrLoanInvalidRepayPlan)
+	require.ErrorIs(t, SetFundingRepayPlan(lender.Id, writtenOff.Id, LoanRepayInterestFreeze), ErrLoanInvalidRepayPlan)
+	// AI 入口同样被拒
+	require.ErrorIs(t, SetFundingRepayPlanByOfficer(writtenOff.Id, LoanRepayNoPenalty), ErrLoanInvalidRepayPlan)
+
+	for _, id := range []int64{repaid.Id, writtenOff.Id} {
+		var got TokenLoanFunding
+		require.NoError(t, DB.First(&got, id).Error)
+		require.Equal(t, LoanRepayFull, got.RepayPlan)
+	}
+}
+
+// ⑧ no_penalty→full：AI 升档拒绝（不改动），放贷人升档允许
+func TestSetFundingRepayPlanUpgradeBoundary(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+	f := createPlanFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000, LoanRepayNoPenalty)
+
+	err := SetFundingRepayPlanByOfficer(f.Id, LoanRepayFull)
+	require.ErrorIs(t, err, ErrLoanInvalidRepayPlan)
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanRepayNoPenalty, got.RepayPlan, "AI 升档被拒不改动 funding")
+
+	require.NoError(t, SetFundingRepayPlan(lender.Id, f.Id, LoanRepayFull))
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanRepayFull, got.RepayPlan)
+}

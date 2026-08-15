@@ -236,6 +236,9 @@ var (
 	ErrLoanFundingNotOverdue    = errors.New("loan funding is not overdue")            // 仅 overdue 可处置
 	ErrLoanInvalidDefaultAction = errors.New("invalid loan default action")            // 非法动作 / extendDays 越界
 	ErrLoanNotFundingOwner      = errors.New("loan funding does not belong to lender") // 非本人或平台债权
+
+	// Task 14：repay_plan 调整（spec §8）
+	ErrLoanInvalidRepayPlan = errors.New("invalid loan repay plan") // 非法 plan / 终态 funding / P2P 越权改档
 )
 
 // AgreeLenderDisclaimer 幂等记录放贷人同意免责声明的时间（spec §4.3/§11）；
@@ -667,5 +670,131 @@ func maybeLiftBlacklistTx(tx *gorm.DB, acc *TokenLoanAccount, now time.Time) err
 		}
 	}
 	acc.BlacklistedUntilDay = 0
+	return nil
+}
+
+// ===== Task 14: repay_plan 调整（settle-first，spec §8） =====
+
+// repayPlanOrder P2P 单向降档顺序（AI 审批员入口仅前三级：full < no_penalty <
+// interest_freeze；principal_only 永远拒绝——见 SetFundingRepayPlanByOfficer）
+var repayPlanOrder = map[string]int{
+	LoanRepayFull:           0,
+	LoanRepayNoPenalty:      1,
+	LoanRepayInterestFreeze: 2,
+}
+
+// isValidRepayPlan plan 必须是四档常量之一
+func isValidRepayPlan(plan string) bool {
+	switch plan {
+	case LoanRepayFull, LoanRepayNoPenalty, LoanRepayInterestFreeze, LoanRepayPrincipalOnly:
+		return true
+	}
+	return false
+}
+
+// SetFundingRepayPlan 放贷人调整本人 P2P funding 的 repay_plan（spec §8 P0-2）：
+//   - 仅 funding 的 lender 本人（LenderId == lenderId）可调用；platform funding
+//     （LenderId==0）归 Task 15 官方流程，一律 ErrLoanNotFundingOwner（复用 Task 12 错误）；
+//   - plan 必须四档常量之一（ErrLoanInvalidRepayPlan）；funding 必须 active/overdue，
+//     repaid/written_off 终态不可改档（ErrLoanInvalidRepayPlan）；funding 不存在透出
+//     gorm.ErrRecordNotFound；
+//   - 同 plan 幂等（no-op，不结算不改动）；
+//   - 否则 settle-first 改档，见 setFundingRepayPlanTx。
+func SetFundingRepayPlan(lenderId int, fundingId int64, plan string) error {
+	if !isValidRepayPlan(plan) {
+		return ErrLoanInvalidRepayPlan
+	}
+	now := time.Now()
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var f TokenLoanFunding
+		if err := lockForUpdate(tx).Where("id = ?", fundingId).First(&f).Error; err != nil {
+			return err // gorm.ErrRecordNotFound 由 controller 映射
+		}
+		if f.LenderId != lenderId {
+			// 含 platform（LenderId==0）：官方债权归 Task 15 审批员流程，不放贷人自调
+			return ErrLoanNotFundingOwner
+		}
+		if f.Status != LoanFundingActive && f.Status != LoanFundingOverdue {
+			return ErrLoanInvalidRepayPlan
+		}
+		if f.RepayPlan == plan {
+			return nil // 幂等：已是目标 plan
+		}
+		return setFundingRepayPlanTx(tx, &f, plan, now)
+	})
+}
+
+// SetFundingRepayPlanByOfficer AI 审批员改档入口（Task 15 减免申诉裁决调用，spec §8 P0-2）：
+//   - platform funding（LenderId==0）：四档全允许；
+//   - P2P funding：仅允许 full → no_penalty → interest_freeze 单向降档（可跳档），
+//     principal_only 永远拒绝（仅放贷人本人可核销利息，防 prompt 注入批量免息），
+//     升档/同档以外的变更一律 ErrLoanInvalidRepayPlan；
+//   - 与放贷人入口相同：plan 合法性、active/overdue 状态、同 plan 幂等。
+func SetFundingRepayPlanByOfficer(fundingId int64, plan string) error {
+	if !isValidRepayPlan(plan) {
+		return ErrLoanInvalidRepayPlan
+	}
+	now := time.Now()
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var f TokenLoanFunding
+		if err := lockForUpdate(tx).Where("id = ?", fundingId).First(&f).Error; err != nil {
+			return err // gorm.ErrRecordNotFound 由 controller 映射
+		}
+		if f.Status != LoanFundingActive && f.Status != LoanFundingOverdue {
+			return ErrLoanInvalidRepayPlan
+		}
+		if f.LenderId != 0 { // P2P funding：权限边界
+			if plan == LoanRepayPrincipalOnly {
+				return ErrLoanInvalidRepayPlan // 永远拒绝（含同 plan 重试）
+			}
+			if f.RepayPlan == plan {
+				return nil // 幂等：已是目标 plan
+			}
+			cur, ok := repayPlanOrder[f.RepayPlan]
+			if !ok || cur >= repayPlanOrder[plan] {
+				return ErrLoanInvalidRepayPlan // 升档（或当前档未知）拒绝
+			}
+		} else if f.RepayPlan == plan {
+			return nil // platform 幂等
+		}
+		return setFundingRepayPlanTx(tx, &f, plan, now)
+	})
+}
+
+// setFundingRepayPlanTx 改档共用事务实现（settle-first，spec §8）：调用方已完成归属/
+// 权限/状态/幂等校验，这里按序执行：
+//  1. 读/锁借款人账户（有 funding 必有账户，缺失防御性创建，镜像 writeoffFundingTx），
+//     并以 acc 惰性结算到当天——先按旧 plan 结算，改档时点之前的利息/罚息不回溯
+//     （已结算利息保留）；platform funding 用账户有效利率与宽限（与 settleFunding
+//     全库语义一致），P2P 恒用自身利率（acc 仅 platform 分支消费）；
+//  2. principal_only：一次性核销未付利息，debt_quota := principal_remaining（此后冻结）；
+//  3. 写新 plan 落盘 funding；
+//  4. loadUserFundingsTx 汇总全部 active/overdue fundings 回写账户投影
+//     （syncAccountFromFundings），核销/改档立即反映到账户行。
+func setFundingRepayPlanTx(tx *gorm.DB, f *TokenLoanFunding, plan string, now time.Time) error {
+	acc, err := getOrCreateLoanAccountTx(tx, f.LoanUserId)
+	if err != nil {
+		return err
+	}
+	settleFunding(f, acc, now) // settle-first：按旧 plan 结算到今天
+	if plan == LoanRepayPrincipalOnly {
+		f.DebtQuota = f.PrincipalRemaining // 一次性核销未付利息，此后冻结
+	}
+	f.RepayPlan = plan
+	f.UpdatedAt = now.Unix()
+	if err := tx.Save(f).Error; err != nil {
+		return err
+	}
+
+	remaining, err := loadUserFundingsTx(tx, f.LoanUserId)
+	if err != nil {
+		return err
+	}
+	syncAccountFromFundings(acc, remaining)
+	acc.UpdatedAt = now.Unix()
+	if err := tx.Save(acc).Error; err != nil {
+		return err
+	}
+	common.SysLog(fmt.Sprintf("loan repay plan: funding %d repay_plan -> %s", f.Id, plan))
 	return nil
 }
