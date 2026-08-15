@@ -89,7 +89,13 @@ var operationLogTemplates = map[string]localizedLogText{
 	"subscription.plan_reset":      {ZH: "重置了套餐 ${plan_id} 的有效订阅", EN: "Reset active subscriptions for plan ${plan_id}"},
 	"subscription.user_plan_reset": {ZH: "重置了用户 ${target_user_id} 在套餐 ${plan_id} 下的有效订阅", EN: "Reset active plan ${plan_id} subscriptions for user ${target_user_id}"},
 	"log.clear":                    {ZH: "清除了历史日志", EN: "Cleared historical logs"},
-	"generic":                      {ZH: "${method} ${route}", EN: "${method} ${route}"},
+
+	"loan.borrow":        {ZH: "词元贷借入 ${amount_usd} USD（当前债务 ${debt_after}）", EN: "Borrowed ${amount_usd} USD via token loan (outstanding debt ${debt_after})"},
+	"loan.repay":         {ZH: "词元贷提前还款 ${amount}（抵息 ${interest_part}，抵本 ${principal_part}，剩余债务 ${debt_after}）", EN: "Early loan repayment of ${amount} (interest ${interest_part}, principal ${principal_part}, remaining debt ${debt_after})"},
+	"loan.checkin_repay": {ZH: "签到奖励自动还款 ${amount}（抵息 ${interest_part}，抵本 ${principal_part}，剩余债务 ${debt_after}）", EN: "Check-in reward auto-repaid ${amount} (interest ${interest_part}, principal ${principal_part}, remaining debt ${debt_after})"},
+	"loan.ai_decision":   {ZH: "AI 业务员结案（工单 ${application_id}）：额度上限 ${credit_limit} USD，日利率 ${daily_rate}，免息 ${interest_free_days} 天", EN: "AI loan officer closed application ${application_id}: credit limit ${credit_limit} USD, daily rate ${daily_rate}, interest-free ${interest_free_days} days"},
+
+	"generic": {ZH: "${method} ${route}", EN: "${method} ${route}"},
 }
 
 var newAPIErrorSummaries = map[string]localizedLogText{

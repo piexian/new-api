@@ -66,9 +66,15 @@ func DoCheckin(c *gin.Context) {
 		"quota_awarded": checkin.QuotaAwarded,
 		"checkin_date":  checkin.CheckinDate,
 	}
-	// 签到自动还款结果，无还款时不输出该 key
+	// 签到自动还款结果，无还款时不输出该 key；有还款时记入操作日志
 	if loanRepay != nil {
 		data["loan_repay"] = loanRepay
+		recordUserSecurityAudit(c, userId, "loan.checkin_repay", map[string]interface{}{
+			"amount":         logger.LogQuota(int(loanRepay.Amount)),
+			"interest_part":  logger.LogQuota(int(loanRepay.InterestPart)),
+			"principal_part": logger.LogQuota(int(loanRepay.PrincipalPart)),
+			"debt_after":     logger.LogQuota(int(loanRepay.DebtAfter)),
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

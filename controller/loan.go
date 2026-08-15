@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -174,6 +175,11 @@ func BorrowLoan(c *gin.Context) {
 		respondLoanError(c, err)
 		return
 	}
+	// 用户自助操作审计：归属用户本人，无 admin_info（同 recordUserSecurityAudit 语义）
+	recordUserSecurityAudit(c, userId, "loan.borrow", map[string]interface{}{
+		"amount_usd": amountUsd,
+		"debt_after": logger.LogQuota(int(acc.DebtQuota)),
+	})
 	common.ApiSuccess(c, buildLoanStatusData(operation_setting.GetLoanSetting(), acc, time.Now()))
 }
 
@@ -199,6 +205,12 @@ func RepayLoan(c *gin.Context) {
 		respondLoanError(c, err)
 		return
 	}
+	recordUserSecurityAudit(c, userId, "loan.repay", map[string]interface{}{
+		"amount":         logger.LogQuota(int(info.Amount)),
+		"interest_part":  logger.LogQuota(int(info.InterestPart)),
+		"principal_part": logger.LogQuota(int(info.PrincipalPart)),
+		"debt_after":     logger.LogQuota(int(info.DebtAfter)),
+	})
 	data := buildLoanStatusData(operation_setting.GetLoanSetting(), acc, time.Now())
 	data["repay"] = info
 	common.ApiSuccess(c, data)

@@ -201,6 +201,16 @@ func executeLoanDecision(app *model.TokenLoanApplication, setting *operation_set
 		common.SysError(fmt.Sprintf("loan officer decision apply failed for application %d: %v", app.Id, err))
 		return false
 	}
+	// 结案决定写入操作日志（归属用户，无操作者/IP 上下文）
+	decisionLogParams := map[string]interface{}{
+		"application_id":     app.Id,
+		"credit_limit":       clamped.CreditLimit,
+		"daily_rate":         clamped.DailyRate,
+		"interest_free_days": clamped.InterestFreeDays,
+	}
+	model.RecordOperationAuditLog(app.UserId,
+		model.RenderOperationLogContent("loan.ai_decision", decisionLogParams, model.LogLanguageEN),
+		"", "loan.ai_decision", decisionLogParams, nil, nil)
 	return true
 }
 

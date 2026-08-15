@@ -142,6 +142,10 @@ func SetApiRouter(router *gin.Engine) {
 			adminRoute := userRoute.Group("/")
 			adminRoute.Use(middleware.AdminAuth())
 			{
+				// Token loan admin query routes（只读；与用户自助路由同组，用 /loan/admin 前缀避开冲突）
+				adminRoute.GET("/loan/admin/accounts", controller.AdminGetLoanAccounts)
+				adminRoute.GET("/loan/admin/records", controller.AdminGetLoanRecords)
+				adminRoute.GET("/loan/admin/applications", controller.AdminGetLoanApplications)
 				adminRoute.GET("/", controller.GetAllUsers)
 				adminRoute.GET("/topup", controller.GetAllTopUps)
 				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
