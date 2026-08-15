@@ -334,6 +334,9 @@ func migrateDB() error {
 	if err := RefreshAllAffCodesOnce(); err != nil {
 		return err
 	}
+	if err := MigrateLoanToFundings(); err != nil {
+		return err
+	}
 	return nil
 }
 

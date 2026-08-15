@@ -1,5 +1,15 @@
 package model
 
+import (
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"gorm.io/gorm"
+)
+
 // ===== 借贷市场：资金供给方（offer）与投放记录（funding） =====
 
 // 撮合模式
@@ -86,4 +96,112 @@ type TokenLoanFunding struct {
 
 func (TokenLoanFunding) TableName() string {
 	return "token_loan_fundings"
+}
+
+// ===== Task 5: 存量迁移 =====
+
+// loanFundingMigrationOptionKey 迁移哨兵：credit_score 回填只执行一次。
+// 信用分系统（Task 11）上线后 credit_score==0 是罚分后的合法分值，
+// 严格禁止把 0 再次当作"未评估"整体重填为初始分。
+const loanFundingMigrationOptionKey = "LoanFundingMigratedV1"
+
+// MigrateLoanToFundings 存量迁移（spec §15，幂等可重入，每次启动可安全调用）：
+//  1. 全量账户先惰性 settle 到当前本地日并落盘——存量利息落定，LastSettledDay 前推；
+//  2. 对 settle 后仍 debt_quota > 0 且该用户尚无 platform funding 的账户，生成一条
+//     platform funding：
+//     Amount=PrincipalRemaining=PrincipalQuota、DebtQuota=settle 后债务、
+//     Rate=当时 effectiveRate(acc)、LastSettledDay=账户 LastSettledDay、
+//     DueDay=迁移日+LoanTermDays（>0 防御，见下）、RepayPlan=full、Status=active、
+//     SourceType=platform、BorrowEventId=0（无历史借款事件）、OfferId/LenderId=0、
+//     PenaltyStartedDay=0、时间戳=now。
+//     InterestFreeUntil 宽限留在账户行上，settleFunding 的 platform 分支会读取它
+//     （spec §15：存量宽限由 platform funding 继续承载，不复制到 funding 行）。
+//  3. credit_score=0 的账户回填 CreditInitial：仅首轮迁移执行（哨兵 Option 行，
+//     镜像 MigrateRedemptionMaxRedemptionsOnce），此后 credit_score==0 是罚分合法值，绝不重填。
+//
+// 全流程单事务，失败整体回滚、下次启动自动重试；funding 生成以「该用户无 platform funding」
+// 的存在性检查保证再入幂等，重复执行不会产生重复投放。
+func MigrateLoanToFundings() error {
+	now := time.Now()
+	created := 0
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		creditPending := true
+		var existing Option
+		if err := tx.Where("key = ?", loanFundingMigrationOptionKey).First(&existing).Error; err == nil {
+			creditPending = existing.Value != "true"
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		var accs []TokenLoanAccount
+		if err := tx.Find(&accs).Error; err != nil {
+			return err
+		}
+
+		loanSetting := operation_setting.GetLoanSetting()
+		today := loanDay(now)
+		// 防呆（评审发现）：LoanTermDays 被配置为 0/负值时 formula 会得到当日/过去到期日，
+		// full 计划下迁移当日即整段按罚息计息；至少推到明天，保证 DueDay>0 且当日不触发罚息。
+		dueDay := today + loanSetting.LoanTermDays
+		if dueDay <= today {
+			dueDay = today + 1
+		}
+
+		for i := range accs {
+			acc := &accs[i]
+			settle(acc, now)
+			if creditPending && acc.CreditScore == 0 {
+				acc.CreditScore = loanSetting.CreditInitial
+			}
+			if err := tx.Save(acc).Error; err != nil {
+				return err
+			}
+			if acc.DebtQuota <= 0 {
+				continue
+			}
+			var fundingCnt int64
+			if err := tx.Model(&TokenLoanFunding{}).
+				Where("loan_user_id = ? AND source_type = ?", acc.UserId, LoanFundingPlatform).
+				Count(&fundingCnt).Error; err != nil {
+				return err
+			}
+			if fundingCnt > 0 {
+				continue // 幂等：已转化过，不重复生成
+			}
+			if err := tx.Create(&TokenLoanFunding{
+				LoanUserId:         acc.UserId,
+				BorrowEventId:      0,
+				SourceType:         LoanFundingPlatform,
+				Amount:             acc.PrincipalQuota,
+				PrincipalRemaining: acc.PrincipalQuota,
+				DebtQuota:          acc.DebtQuota,
+				LastSettledDay:     acc.LastSettledDay,
+				Rate:               effectiveRate(acc),
+				RepayPlan:          LoanRepayFull,
+				Status:             LoanFundingActive,
+				DueDay:             dueDay,
+				CreatedAt:          now.Unix(),
+				UpdatedAt:          now.Unix(),
+			}).Error; err != nil {
+				return err
+			}
+			created++
+		}
+
+		if !creditPending {
+			return nil
+		}
+		opt := Option{Key: loanFundingMigrationOptionKey, Value: "true"}
+		if err := tx.FirstOrCreate(&opt, Option{Key: loanFundingMigrationOptionKey}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&Option{}).Where("key = ?", loanFundingMigrationOptionKey).Update("value", "true").Error
+	})
+	if err != nil {
+		return err
+	}
+	if created > 0 {
+		common.SysLog(fmt.Sprintf("loan funding migration: created %d platform funding(s) for legacy loans", created))
+	}
+	return nil
 }
