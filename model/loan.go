@@ -161,9 +161,11 @@ type LoanRepayInfo struct {
 	DebtAfter     int64 `json:"debt_after"`
 }
 
-// applyCheckinRepay 在已 settle 的账户上执行还款拆分（spec 4.2）：
+// applyCheckinRepay 在已 settle 的账户上执行账户级还款拆分（spec 4.2，旧语义）：
 // repay = min(award, debt)，先息后本。仅修改内存中的 acc，落盘由调用方负责；
 // 无债务或 award<=0 时返回 nil，此时 acc 仅有 settle 造成的内存变动、无需落盘。
+// 注意：Task 9 起还款分配已下沉到 funding（distributeRepayment），本函数仅供
+// checkin.go 的旧签到路径临时使用，Task 10 将替换其调用点后删除。
 func applyCheckinRepay(acc *TokenLoanAccount, award int64) *LoanRepayInfo {
 	if award <= 0 || acc.DebtQuota <= 0 {
 		return nil
@@ -514,11 +516,19 @@ func earlyRepayFee(acc *TokenLoanAccount, repay int64) int64 {
 	return int64(math.Round(float64(principalPart) * rate))
 }
 
-// RepayLoan 手动提前还款：从用户余额扣款偿还债务（先息后本，复用签到还款拆分），
-// 并按抵本部分收取手续费（RepayFeeRate，签到自动还款不收）。
+// RepayLoan 手动提前还款：从用户余额扣款偿还债务，按各 funding 结算后债务 pro-rata
+// 分配（最大余数法，先息后本），并按抵本部分收取手续费（RepayFeeRate，签到自动还款不收）。
 // amountUsd 为 "all"（忽略大小写）时偿还 min(债务, 余额能覆盖的本息费)；否则按 decimal 解析
 // （正数、最多两位小数），还款额 = min(金额, 债务)。余额不足以覆盖还款额+手续费时报
-// ErrLoanInsufficientBalance。账户/台账/余额扣款在同一事务，提交后异步同步缓存。
+// ErrLoanInsufficientBalance。
+//
+// 事务内：锁用户行 → 读/锁贷款账户（不为无贷用户建行）→ 锁全部 active/overdue fundings
+// （id 升序）→ 逐条 settleFunding 并落盘 → syncAccountFromFundings 同步账户投影（账户行
+// 从此是 fundings 的纯投影，earlyRepayFee 的账户级利息 = Σ funding 利息，公式保持有效）
+// → 还款额/手续费计算（既有逻辑）→ distributeRepayment（pro-rata 分配 + funding 行落盘）
+// → settleRepayAllocations（放贷人入账 + offer 回补 + 台账 repay 行）→ 落盘账户投影 →
+// 扣用户余额。全部同一事务，失败整体回滚。提交后异步同步缓存：借款人按还款额+手续费
+// 扣减，各放贷人按入账清单递增。
 func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo, error) {
 	loanSetting := operation_setting.GetLoanSetting()
 	if !loanSetting.Enabled {
@@ -548,6 +558,7 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 	now := time.Now()
 	var acc *TokenLoanAccount
 	var info *LoanRepayInfo
+	var credits []LenderCredit
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var user User
 		if err := tx.Select("id", "quota").Where("id = ?", userId).First(&user).Error; err != nil {
@@ -563,7 +574,24 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 		if acc == nil {
 			return ErrLoanNoDebt
 		}
-		settle(acc, now)
+		// 债务以 fundings 为准（Task 8 起账户行为投影）：锁全部 active/overdue fundings
+		// （id 升序）→ 逐条 settleFunding（platform 传 acc）→ 同步账户投影，据此计算
+		// 还款额与手续费。结算有变动的行立即落盘（与 BorrowLoan 同模式），避免分配后
+		// 未获配额的 funding 结算丢失
+		fundings, err := loadUserFundingsTx(tx, userId)
+		if err != nil {
+			return err
+		}
+		for i := range fundings {
+			before := fundings[i]
+			settleFunding(&fundings[i], acc, now)
+			if fundings[i].DebtQuota != before.DebtQuota || fundings[i].LastSettledDay != before.LastSettledDay {
+				if err := tx.Save(&fundings[i]).Error; err != nil {
+					return err
+				}
+			}
+		}
+		syncAccountFromFundings(acc, fundings)
 		if acc.DebtQuota <= 0 {
 			return ErrLoanNoDebt
 		}
@@ -595,31 +623,32 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 			return ErrLoanInsufficientBalance
 		}
 
-		// info 必非 nil：repay > 0 且债务 > 0
-		info = applyCheckinRepay(acc, repay)
+		// pro-rata 分配（结算幂等，不会二次计息；变更的 funding 行在此落盘）。
+		// info 必非 nil：repay > 0 且 Σdebt = acc.DebtQuota > 0
+		var allocs []RepayAllocation
+		info, allocs, err = distributeRepayment(tx, acc, fundings, repay, now)
+		if err != nil {
+			return err
+		}
+		if info == nil {
+			return ErrLoanNoDebt
+		}
 		info.FeePart = fee
+
+		// 放贷人入账 + offer 回补 + 台账 repay 行（同事务，失败整体回滚）
+		credits, err = settleRepayAllocations(tx, userId, allocs, "manual")
+		if err != nil {
+			return err
+		}
+
 		acc.UpdatedAt = now.Unix()
 		if err := tx.Save(acc).Error; err != nil {
 			return err
 		}
 
-		if err := tx.Create(&TokenLoanRecord{
-			UserId:        userId,
-			Type:          "repay",
-			Amount:        info.Amount,
-			InterestPart:  info.InterestPart,
-			PrincipalPart: info.PrincipalPart,
-			FeePart:       info.FeePart,
-			DebtAfter:     info.DebtAfter,
-			Source:        "manual",
-			CreatedAt:     now.Unix(),
-		}).Error; err != nil {
-			return err
-		}
-
-		// 余额扣款（还款额+手续费）与账户/台账同一事务，失败整体回滚
+		// 余额扣款（还款额+手续费）与账户/台账/funding/offer/放贷人入账同一事务，失败整体回滚
 		if err := tx.Model(&User{}).Where("id = ?", userId).
-			Update("quota", gorm.Expr("quota - ?", repay+fee)).Error; err != nil {
+			Update("quota", gorm.Expr("quota - ?", info.Amount+info.FeePart)).Error; err != nil {
 			return err
 		}
 		return nil
@@ -628,9 +657,13 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 		return nil, nil, err
 	}
 
-	// 事务提交后异步同步 Redis 余额缓存（镜像 BorrowLoan 的缓存副作用）
+	// 事务提交后异步同步 Redis 余额缓存（镜像 BorrowLoan 的缓存副作用）：
+	// 借款人按 还款额+手续费 扣减，各放贷人按入账清单递增
 	go func() {
 		_ = cacheDecrUserQuota(userId, info.Amount+info.FeePart)
+		for _, c := range credits {
+			_ = cacheIncrUserQuota(c.UserId, c.Amount)
+		}
 	}()
 	return acc, info, nil
 }

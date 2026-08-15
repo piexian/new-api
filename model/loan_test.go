@@ -526,8 +526,9 @@ func TestBorrowLoanQuotaCreditFailureRollsBackAll(t *testing.T) {
 	require.Equal(t, 0, u.Quota)
 }
 
-// setupRepayTestUser 创建带债务的还款测试用户：直接建行造 100000 债务（含 10000 利息），
-// 用户余额设为 balance，避免走借款流程的耦合
+// setupRepayTestUser 创建带债务的还款测试用户：直接建行造 debt 债务（含 interest 利息），
+// 用户余额设为 balance，避免走借款流程的耦合。Task 9 起债务以 funding 为准，因此同步创建
+// 一条匹配的 platform funding（账户行 = fundings 投影），保证 RepayLoan 走 funding 分配路径。
 func setupRepayTestUser(t *testing.T, debt, principal, balance int64) *User {
 	t.Helper()
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
@@ -535,6 +536,7 @@ func setupRepayTestUser(t *testing.T, debt, principal, balance int64) *User {
 		s.TermsEnabled = false
 	})
 	user := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, user.Id, 0)
 	now := time.Now()
 	require.NoError(t, DB.Create(&TokenLoanAccount{
 		UserId:         user.Id,
@@ -544,6 +546,22 @@ func setupRepayTestUser(t *testing.T, debt, principal, balance int64) *User {
 		CreatedAt:      now.Unix(),
 		UpdatedAt:      now.Unix(),
 	}).Error)
+	if debt > 0 {
+		require.NoError(t, DB.Create(&TokenLoanFunding{
+			LoanUserId:         user.Id,
+			SourceType:         LoanFundingPlatform,
+			Amount:             principal,
+			PrincipalRemaining: principal,
+			DebtQuota:          debt,
+			LastSettledDay:     loanDay(now),
+			Rate:               0.001,
+			RepayPlan:          LoanRepayFull,
+			Status:             LoanFundingActive,
+			DueDay:             loanDay(now) + 30,
+			CreatedAt:          now.Unix(),
+			UpdatedAt:          now.Unix(),
+		}).Error)
+	}
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).
 		Update("quota", balance).Error)
 	return user
@@ -596,6 +614,7 @@ func TestRepayLoanZeroQuotaAmountRejected(t *testing.T) {
 	// 回收 id 名下可能残留的贷款数据，避免与新建账户的主键冲突
 	require.NoError(t, DB.Where("user_id = ?", user.Id).Delete(&TokenLoanAccount{}).Error)
 	require.NoError(t, DB.Where("user_id = ?", user.Id).Delete(&TokenLoanRecord{}).Error)
+	require.NoError(t, DB.Where("loan_user_id = ?", user.Id).Delete(&TokenLoanFunding{}).Error)
 	now := time.Now()
 	require.NoError(t, DB.Create(&TokenLoanAccount{
 		UserId:         user.Id,
@@ -604,6 +623,21 @@ func TestRepayLoanZeroQuotaAmountRejected(t *testing.T) {
 		LastSettledDay: loanDay(now),
 		CreatedAt:      now.Unix(),
 		UpdatedAt:      now.Unix(),
+	}).Error)
+	// Task 9 起债务以 funding 为准：同步建一条匹配的 platform funding
+	require.NoError(t, DB.Create(&TokenLoanFunding{
+		LoanUserId:         user.Id,
+		SourceType:         LoanFundingPlatform,
+		Amount:             90000,
+		PrincipalRemaining: 90000,
+		DebtQuota:          100000,
+		LastSettledDay:     loanDay(now),
+		Rate:               0.001,
+		RepayPlan:          LoanRepayFull,
+		Status:             LoanFundingActive,
+		DueDay:             loanDay(now) + 30,
+		CreatedAt:          now.Unix(),
+		UpdatedAt:          now.Unix(),
 	}).Error)
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).
 		Update("quota", 500000).Error)
@@ -654,12 +688,13 @@ func TestRepayLoanPartialInterestFirst(t *testing.T) {
 	require.Equal(t, int64(60000), acc.PrincipalQuota)
 	require.Equal(t, int64(40000), acc.TotalRepaid)
 
-	// 台账与余额扣款（还款额 + 手续费）
+	// 台账改为 funding 粒度：一条 repay 行（挂 funding_id）；手续费不落台账
+	// （平台收入，仅体现在 info.FeePart 与余额扣款）
 	var rec TokenLoanRecord
 	require.NoError(t, DB.Where("user_id = ? AND type = ?", user.Id, "repay").First(&rec).Error)
 	require.Equal(t, "manual", rec.Source)
 	require.Equal(t, int64(40000), rec.Amount)
-	require.Equal(t, int64(3), rec.FeePart)
+	require.Zero(t, rec.FeePart)
 	require.Equal(t, int64(60000), rec.DebtAfter)
 	var u User
 	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)
