@@ -315,12 +315,17 @@ func convertBoraTools(openAITools []dto.ToolCallRequest, toolChoice any) ([]bora
 			if strings.TrimSpace(tool.Function.Name) == "" {
 				return nil, "", fmt.Errorf("tool %d requires function.name", index)
 			}
+			// bora 要求 parameters 必填，无参数工具给空 object schema
+			parameters := tool.Function.Parameters
+			if parameters == nil {
+				parameters = map[string]any{"type": "object", "properties": map[string]any{}}
+			}
 			tools = append(tools, boraTool{
 				Type: "function",
 				Function: &boraFunction{
 					Name:        tool.Function.Name,
 					Description: tool.Function.Description,
-					Parameters:  tool.Function.Parameters,
+					Parameters:  parameters,
 				},
 			})
 		case "code_interpreter", "image_generation", "web_search_premium":
