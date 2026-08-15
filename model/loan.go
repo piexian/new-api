@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -195,6 +196,8 @@ var (
 	ErrLoanUserDisabled        = errors.New("user account is not in normal status")
 	ErrLoanNoDebt              = errors.New("no outstanding loan debt")
 	ErrLoanInsufficientBalance = errors.New("insufficient balance to repay loan")
+	ErrLoanBlacklisted         = errors.New("loan user is blacklisted")      // 黑名单未解除（P1-8 借款闸门）
+	ErrLoanHasOverdue          = errors.New("loan user has overdue funding") // 存在 overdue funding（P1-8 借款闸门）
 )
 
 // isLoanDuplicateKeyErr 识别各数据库方言的主键/唯一键冲突错误
@@ -239,36 +242,46 @@ func AgreeLoanTerms(userId int) error {
 	})
 }
 
-// BorrowLoan 借款主流程：
+// BorrowLoan 借款主流程（Task 8 起按 funding 放款）：
 //  1. 事务外无状态校验：功能开关、amount_usd 解析（decimal，最多两位小数）、int32 上界
-//  2. 事务内 lockForUpdate 锁定账户 → settle → 条款/注册天数/额度校验 →
-//     更新账户 + 写台账 + 用户 quota 入账（镜像签到模式，同事务保证原子性）
+//  2. 事务内 lockForUpdate 锁定用户行 → 读/建贷款账户 + 条款校验 → 借款闸门（黑名单/
+//     逾期，P1-8）→ 全部 active/overdue fundings 惰性结算（settleFunding，替代旧 settle）
+//     → 额度校验（用 funding 汇总的同步债务，公式与旧版一致）→ 市场撮合（MarketEnabled
+//     时；定向挂单 → 统一市场 → AI 方案，来源不足由平台兜底）→ 先写台账 borrow 行取其 id
+//     作事件 id → 按计划放款（锁 offer 行二次校验并扣减 + 建 funding）→ 汇总回写账户
+//     → 用户 quota 入账（与账户/台账/funding 同一事务，失败整体回滚）
 //  3. 事务提交后异步同步 Redis 余额缓存，并重置额度提醒锁
 //     （对齐 IncreaseUserQuota 的副作用，model/user.go:1434）
-func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
+//
+// intendedOrderId > 0 时作为定向挂单意向传入撮合引擎（过期意向只跳过不阻断借款）；
+// aiPriced 为 AI 出资方案（Task 15 产出，此处只按计划放款）。返回最新账户与本次新建的
+// funding 列表（含 platform 兜底）。市场关闭时退化为纯官方放款：整笔金额生成一条
+// platform funding，行为与旧版借款一致。
+func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []FundingPlan) (*TokenLoanAccount, []TokenLoanFunding, error) {
 	loanSetting := operation_setting.GetLoanSetting()
 	if !loanSetting.Enabled {
-		return nil, ErrLoanDisabled
+		return nil, nil, ErrLoanDisabled
 	}
 
 	// amount_usd 为字符串，decimal 解析；非正数或超过两位小数一律拒绝
 	usd, err := decimal.NewFromString(amountUsd)
 	if err != nil || !usd.IsPositive() || usd.Exponent() < -2 {
-		return nil, ErrLoanInvalidAmount
+		return nil, nil, ErrLoanInvalidAmount
 	}
 	quotaDec := usd.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
 	amount, clamp := common.QuotaFromDecimalChecked(quotaDec)
 	if clamp != nil {
-		return nil, ErrLoanQuotaOverflow
+		return nil, nil, ErrLoanQuotaOverflow
 	}
 	// QuotaPerUnit 是运行时可调配置（model/option.go），换算后 amount 可能为 0，
 	// 必须显式拒绝，避免记下 0 额度借款
 	if amount <= 0 {
-		return nil, ErrLoanInvalidAmount
+		return nil, nil, ErrLoanInvalidAmount
 	}
 
 	now := time.Now()
 	var acc *TokenLoanAccount
+	var newFundings []TokenLoanFunding
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		// 事务内读用户当前值：状态、注册天数与余额 int32 上界校验
 		var user User
@@ -294,9 +307,37 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 			return ErrLoanTermsNotAgreed
 		}
 
-		settle(acc, now)
+		// 借款闸门（P1-8）：黑名单未解除 / 存在 overdue funding 拒绝新借款，杜绝借新还旧。
+		// overdue 检查直接落在下面载入的 funding 列表上（含全部 overdue 行），省一次查询。
+		if acc.BlacklistedUntilDay > loanDay(now) {
+			return ErrLoanBlacklisted
+		}
+		fundings, err := loadUserFundingsTx(tx, userId)
+		if err != nil {
+			return err
+		}
+		for i := range fundings {
+			if fundings[i].Status == LoanFundingOverdue {
+				return ErrLoanHasOverdue
+			}
+		}
 
-		// 个人上限覆盖全局；单次上限缺省跟随有效总额上限
+		// 惰性结算下沉到 funding（spec §5）：逐条 settleFunding（platform 传 acc 提供
+		// 有效利率与宽限期输入，P2P 用自身利率），仅持久化有变动的行
+		for i := range fundings {
+			before := fundings[i]
+			settleFunding(&fundings[i], acc, now)
+			if fundings[i].DebtQuota != before.DebtQuota || fundings[i].LastSettledDay != before.LastSettledDay {
+				if err := tx.Save(&fundings[i]).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		// 额度校验用 funding 汇总口径的同步债务（settle 后 Σ，内存投影不落盘），
+		// perBorrowCap/effectiveMax 公式与旧版逐字一致
+		synced := *acc
+		syncAccountFromFundings(&synced, fundings)
 		effectiveMax := loanSetting.MaxTotal
 		if acc.CustomMaxTotal > 0 {
 			effectiveMax = acc.CustomMaxTotal
@@ -305,25 +346,37 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 		if loanSetting.MaxPerBorrow > 0 {
 			perBorrowCap = loanSetting.MaxPerBorrow
 		}
-		if int64(amount) > perBorrowCap || acc.DebtQuota+int64(amount) > effectiveMax {
+		if int64(amount) > perBorrowCap || synced.DebtQuota+int64(amount) > effectiveMax {
 			return ErrLoanLimitExceeded
 		}
 
-		acc.PrincipalQuota += int64(amount)
-		acc.DebtQuota += int64(amount)
-		acc.TotalBorrowed += int64(amount)
-		acc.UpdatedAt = now.Unix()
-		if err := tx.Save(acc).Error; err != nil {
-			return err
+		// 撮合（只读 + 内存）：市场开启时定向挂单 → 统一市场 → AI 方案；来源不足部分
+		// 由平台兜底。dropReasons 供 Task 16 审计透出，业务性跳过不阻断借款。
+		var plans []FundingPlan
+		if loanSetting.MarketEnabled {
+			var dropReasons []string
+			plans, dropReasons, err = MatchLoanFundings(tx, userId, acc.CreditScore, int64(amount), intendedOrderId, aiPriced)
+			if err != nil {
+				return err
+			}
+			_ = dropReasons
+		}
+		if shortfall := int64(amount) - planTotal(plans); shortfall > 0 {
+			plans = append(plans, FundingPlan{
+				SourceType: LoanFundingPlatform,
+				Amount:     shortfall,
+				Rate:       effectiveRate(acc),
+			})
 		}
 
+		// 先写台账 borrow 行（Source=manual）取其 id 作为本次放款事件 id，再落 funding
 		record := &TokenLoanRecord{
 			UserId:        userId,
 			Type:          "borrow",
 			Amount:        int64(amount),
 			InterestPart:  0,
 			PrincipalPart: int64(amount),
-			DebtAfter:     acc.DebtQuota,
+			DebtAfter:     synced.DebtQuota + int64(amount),
 			Source:        "manual",
 			RefId:         0,
 			CreatedAt:     now.Unix(),
@@ -332,7 +385,26 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 			return err
 		}
 
-		// quota 入账与账户/台账同一事务（镜像签到模式），失败整体回滚
+		// 按计划放款：非 platform 计划锁 offer 行二次校验并扣减，随后逐条落 funding
+		newFundings, err = executeFundingPlans(tx, userId, int64(record.Id), plans, now)
+		if err != nil {
+			return err
+		}
+
+		// 重新载入全部 fundings（含新建）汇总回写账户投影并持久化；
+		// DebtQuota/PrincipalQuota 恒等于 Σ active/overdue fundings（spec §4.5）
+		all, err := loadUserFundingsTx(tx, userId)
+		if err != nil {
+			return err
+		}
+		syncAccountFromFundings(acc, all)
+		acc.TotalBorrowed += int64(amount)
+		acc.UpdatedAt = now.Unix()
+		if err := tx.Save(acc).Error; err != nil {
+			return err
+		}
+
+		// quota 入账与账户/台账/funding 同一事务（镜像签到模式），失败整体回滚
 		if err := tx.Model(&User{}).Where("id = ?", userId).
 			Update("quota", gorm.Expr("quota + ?", int64(amount))).Error; err != nil {
 			return err
@@ -340,7 +412,7 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 事务提交后异步同步 Redis 余额缓存；并重置额度提醒锁，
@@ -349,7 +421,82 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 		_ = cacheIncrUserQuota(userId, int64(amount))
 	}()
 	common.ResetQuotaNotificationSendLocks(userId, "wallet", 0)
-	return acc, nil
+	return acc, newFundings, nil
+}
+
+// loadUserFundingsTx 在事务内按 id 升序载入用户全部 active/overdue fundings（FOR UPDATE），
+// 供借款闸门、惰性结算与账户投影汇总共用
+func loadUserFundingsTx(tx *gorm.DB, userId int) ([]TokenLoanFunding, error) {
+	var fundings []TokenLoanFunding
+	err := lockForUpdate(tx).
+		Where("loan_user_id = ? AND status IN ?", userId, []string{LoanFundingActive, LoanFundingOverdue}).
+		Order("id ASC").
+		Find(&fundings).Error
+	return fundings, err
+}
+
+// planTotal 计划总金额（供平台兜底缺额计算）
+func planTotal(plans []FundingPlan) int64 {
+	var total int64
+	for i := range plans {
+		total += plans[i].Amount
+	}
+	return total
+}
+
+// executeFundingPlans 在事务内按撮合计划放款（spec §6）：
+//   - 非 platform 计划：lockForUpdate 重读 offer 行二次校验 amount_available >= plan.Amount
+//     （撮合已在同事务锁行，理论上不可能失败；失败返回错误整体回滚），随后扣减
+//     amount_available、累加 total_lent 并落库；
+//   - 逐条创建 funding 行：Amount=PrincipalRemaining=DebtQuota=plan.Amount、
+//     Rate=plan.Rate、LastSettledDay=loanDay(now)、DueDay=loanDay(now)+max(LoanTermDays,1)
+//     （LoanTermDays<=0 时至少推到明天，防当日到期即整段罚息）、RepayPlan=full、
+//     Status=active、BorrowEventId=本次借款事件 id、SourceType/OfferId/LenderId 取计划。
+//
+// 返回本次新建的 funding 列表（含 platform 兜底）。
+func executeFundingPlans(tx *gorm.DB, userId int, borrowEventId int64, plans []FundingPlan, now time.Time) ([]TokenLoanFunding, error) {
+	dueDay := loanDay(now) + max(operation_setting.GetLoanSetting().LoanTermDays, 1)
+	newFundings := make([]TokenLoanFunding, 0, len(plans))
+	for i := range plans {
+		plan := &plans[i]
+		if plan.SourceType != LoanFundingPlatform {
+			var offer TokenLoanOffer
+			if err := lockForUpdate(tx).Where("id = ?", plan.OfferId).First(&offer).Error; err != nil {
+				return nil, err
+			}
+			if offer.AmountAvailable < plan.Amount {
+				return nil, fmt.Errorf("loan offer %d available %d < plan amount %d", offer.Id, offer.AmountAvailable, plan.Amount)
+			}
+			offer.AmountAvailable -= plan.Amount
+			offer.TotalLent += plan.Amount
+			offer.UpdatedAt = now.Unix()
+			if err := tx.Save(&offer).Error; err != nil {
+				return nil, err
+			}
+		}
+		funding := TokenLoanFunding{
+			LoanUserId:         userId,
+			BorrowEventId:      borrowEventId,
+			SourceType:         plan.SourceType,
+			OfferId:            plan.OfferId,
+			LenderId:           plan.LenderId,
+			Amount:             plan.Amount,
+			PrincipalRemaining: plan.Amount,
+			DebtQuota:          plan.Amount,
+			LastSettledDay:     loanDay(now),
+			Rate:               plan.Rate,
+			RepayPlan:          LoanRepayFull,
+			Status:             LoanFundingActive,
+			DueDay:             dueDay,
+			CreatedAt:          now.Unix(),
+			UpdatedAt:          now.Unix(),
+		}
+		if err := tx.Create(&funding).Error; err != nil {
+			return nil, err
+		}
+		newFundings = append(newFundings, funding)
+	}
+	return newFundings, nil
 }
 
 // earlyRepayFee 手动提前还款手续费：按还款中的抵本部分 × 费率计算（四舍五入到整数 quota）。

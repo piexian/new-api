@@ -56,6 +56,8 @@ func setupLoanControllerTestDB(t *testing.T) *gorm.DB {
 		&model.TokenLoanRecord{},
 		&model.TokenLoanApplication{},
 		&model.TokenLoanApplicationMessage{},
+		&model.TokenLoanOffer{},
+		&model.TokenLoanFunding{},
 	); err != nil {
 		t.Fatalf("failed to migrate test tables: %v", err)
 	}

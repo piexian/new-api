@@ -34,7 +34,7 @@ func withLoanSetting(t *testing.T, mutate func(s *operation_setting.LoanSetting)
 // createLoanTestUser 创建借款测试用户（用户名唯一，避开 aff_code 唯一索引空值冲突）
 func createLoanTestUser(t *testing.T) *User {
 	t.Helper()
-	require.NoError(t, DB.AutoMigrate(&TokenLoanAccount{}, &TokenLoanRecord{}))
+	require.NoError(t, DB.AutoMigrate(&TokenLoanAccount{}, &TokenLoanRecord{}, &TokenLoanOffer{}, &TokenLoanFunding{}))
 	username := fmt.Sprintf("loan-test-%d", time.Now().UnixNano())
 	user := &User{
 		Username: username,
@@ -206,7 +206,7 @@ func TestBorrowLoanDisabled(t *testing.T) {
 		s.TermsEnabled = false
 	})
 	user := createLoanTestUser(t)
-	_, err := BorrowLoan(user.Id, "1.00")
+	_, _, err := BorrowLoan(user.Id, "1.00", 0, nil)
 	require.ErrorIs(t, err, ErrLoanDisabled)
 }
 
@@ -218,13 +218,13 @@ func TestBorrowLoanRejectsInvalidAmount(t *testing.T) {
 	user := createLoanTestUser(t)
 	// 非数字、负数、零、超过两位小数一律拒绝
 	for _, amt := range []string{"", "abc", "-1.00", "0", "0.00", "1.005", "0.001", "1.234"} {
-		_, err := BorrowLoan(user.Id, amt)
+		_, _, err := BorrowLoan(user.Id, amt, 0, nil)
 		require.ErrorIs(t, err, ErrLoanInvalidAmount, "amount %q should be rejected", amt)
 	}
 	// 两位小数与整数放行（但受额度上限约束，不能报金额错误）
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.MaxTotal = math.MaxInt64 })
 	for _, amt := range []string{"1.00", "0.01", "1.5", "2"} {
-		_, err := BorrowLoan(user.Id, amt)
+		_, _, err := BorrowLoan(user.Id, amt, 0, nil)
 		require.NotErrorIs(t, err, ErrLoanInvalidAmount, "amount %q should be accepted", amt)
 	}
 }
@@ -237,14 +237,14 @@ func TestBorrowLoanQuotaOverflow(t *testing.T) {
 	})
 	user := createLoanTestUser(t)
 	// 10000 USD * 500000 = 5e9 quota，超 int32 上界
-	_, err := BorrowLoan(user.Id, "10000.00")
+	_, _, err := BorrowLoan(user.Id, "10000.00", 0, nil)
 	require.ErrorIs(t, err, ErrLoanQuotaOverflow)
 
 	// 金额本身未超 int32，但 用户余额 + 借款 超上界
 	user2 := createLoanTestUser(t)
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", user2.Id).
 		Update("quota", math.MaxInt32-100).Error)
-	_, err = BorrowLoan(user2.Id, "1.00") // 500000 quota
+	_, _, err = BorrowLoan(user2.Id, "1.00", 0, nil) // 500000 quota
 	require.ErrorIs(t, err, ErrLoanQuotaOverflow)
 }
 
@@ -265,11 +265,11 @@ func TestBorrowLoanZeroQuotaAmountRejected(t *testing.T) {
 	common.QuotaPerUnit = 1
 	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
 
-	_, err := BorrowLoan(user.Id, "0.01") // 0.01 USD * 1 = 0.01 quota，取整为 0
+	_, _, err := BorrowLoan(user.Id, "0.01", 0, nil) // 0.01 USD * 1 = 0.01 quota，取整为 0
 	require.ErrorIs(t, err, ErrLoanInvalidAmount)
 
 	// 正数控制组：1.00 USD = 1 quota，仍可正常借款
-	acc, err := BorrowLoan(user.Id, "1.00")
+	acc, _, err := BorrowLoan(user.Id, "1.00", 0, nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), acc.DebtQuota)
 }
@@ -281,7 +281,7 @@ func TestBorrowLoanRequiresTermsAgreement(t *testing.T) {
 		s.MaxTotal = 500000
 	})
 	user := createLoanTestUser(t)
-	_, err := BorrowLoan(user.Id, "0.10")
+	_, _, err := BorrowLoan(user.Id, "0.10", 0, nil)
 	require.ErrorIs(t, err, ErrLoanTermsNotAgreed)
 }
 
@@ -313,7 +313,7 @@ func TestBorrowLoanSucceedsAfterTermsAgreement(t *testing.T) {
 	user := createLoanTestUser(t)
 	require.NoError(t, AgreeLoanTerms(user.Id))
 
-	acc, err := BorrowLoan(user.Id, "0.10") // 50000 quota
+	acc, _, err := BorrowLoan(user.Id, "0.10", 0, nil) // 50000 quota
 	require.NoError(t, err)
 	require.Equal(t, int64(50000), acc.PrincipalQuota)
 	require.Equal(t, int64(50000), acc.DebtQuota)
@@ -341,7 +341,7 @@ func TestBorrowLoanSucceedsWhenTermsDisabled(t *testing.T) {
 		s.MaxTotal = 500000
 	})
 	user := createLoanTestUser(t)
-	acc, err := BorrowLoan(user.Id, "0.10")
+	acc, _, err := BorrowLoan(user.Id, "0.10", 0, nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(50000), acc.DebtQuota)
 	require.Zero(t, acc.TermsAgreedAt)
@@ -357,13 +357,13 @@ func TestBorrowLoanExceedsMaxTotal(t *testing.T) {
 	user := createLoanTestUser(t)
 
 	// 单笔超总额上限
-	_, err := BorrowLoan(user.Id, "1.01") // 505000 > 500000
+	_, _, err := BorrowLoan(user.Id, "1.01", 0, nil) // 505000 > 500000
 	require.ErrorIs(t, err, ErrLoanLimitExceeded)
 
 	// 首笔成功后，debt + amount 超上限的第二笔被拒
-	_, err = BorrowLoan(user.Id, "0.60") // 300000
+	_, _, err = BorrowLoan(user.Id, "0.60", 0, nil) // 300000
 	require.NoError(t, err)
-	_, err = BorrowLoan(user.Id, "0.50") // 300000 + 250000 = 550000 > 500000
+	_, _, err = BorrowLoan(user.Id, "0.50", 0, nil) // 300000 + 250000 = 550000 > 500000
 	require.ErrorIs(t, err, ErrLoanLimitExceeded)
 
 	// 失败借款不落台账、不加余额
@@ -383,9 +383,9 @@ func TestBorrowLoanMaxPerBorrow(t *testing.T) {
 		s.MaxPerBorrow = 100000
 	})
 	user := createLoanTestUser(t)
-	_, err := BorrowLoan(user.Id, "0.30") // 150000 > 单次上限 100000
+	_, _, err := BorrowLoan(user.Id, "0.30", 0, nil) // 150000 > 单次上限 100000
 	require.ErrorIs(t, err, ErrLoanLimitExceeded)
-	_, err = BorrowLoan(user.Id, "0.20") // 100000，恰好等于上限放行
+	_, _, err = BorrowLoan(user.Id, "0.20", 0, nil) // 100000，恰好等于上限放行
 	require.NoError(t, err)
 }
 
@@ -406,7 +406,7 @@ func TestBorrowLoanCustomMaxTotalOverride(t *testing.T) {
 		UpdatedAt:      now.Unix(),
 	}).Error)
 
-	acc, err := BorrowLoan(user.Id, "1.50") // 750000：超全局但在个人上限内
+	acc, _, err := BorrowLoan(user.Id, "1.50", 0, nil) // 750000：超全局但在个人上限内
 	require.NoError(t, err)
 	require.Equal(t, int64(750000), acc.DebtQuota)
 }
@@ -419,13 +419,13 @@ func TestBorrowLoanRegisterTooNew(t *testing.T) {
 		s.MinRegisterDays = 30
 	})
 	user := createLoanTestUser(t)
-	_, err := BorrowLoan(user.Id, "0.10")
+	_, _, err := BorrowLoan(user.Id, "0.10", 0, nil)
 	require.ErrorIs(t, err, ErrLoanRegisterTooNew)
 
 	// 注册满 30 天后放行
 	old := time.Now().AddDate(0, 0, -31).Unix()
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("created_at", old).Error)
-	_, err = BorrowLoan(user.Id, "0.10")
+	_, _, err = BorrowLoan(user.Id, "0.10", 0, nil)
 	require.NoError(t, err)
 }
 
@@ -445,7 +445,7 @@ func TestBorrowLoanConcurrentRespectsCap(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			_, errs[idx] = BorrowLoan(user.Id, "0.60")
+			_, _, errs[idx] = BorrowLoan(user.Id, "0.60", 0, nil)
 		}(i)
 	}
 	wg.Wait()
@@ -483,7 +483,7 @@ func TestBorrowLoanUserDisabled(t *testing.T) {
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).
 		Update("status", common.UserStatusDisabled).Error)
 
-	_, err := BorrowLoan(user.Id, "0.10")
+	_, _, err := BorrowLoan(user.Id, "0.10", 0, nil)
 	require.ErrorIs(t, err, ErrLoanUserDisabled)
 
 	// 被拒后无账户、无台账、无余额变动
@@ -511,7 +511,7 @@ func TestBorrowLoanQuotaCreditFailureRollsBackAll(t *testing.T) {
 		_ = DB.Exec(`DROP TRIGGER IF EXISTS loan_test_block_quota_update`).Error
 	})
 
-	_, err := BorrowLoan(user.Id, "0.10")
+	_, _, err := BorrowLoan(user.Id, "0.10", 0, nil)
 	require.Error(t, err)
 
 	// 入账与账户/台账在同一事务：失败后账户行与台账都不存在、用户 quota 不变

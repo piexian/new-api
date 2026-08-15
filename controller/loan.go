@@ -171,7 +171,8 @@ func BorrowLoan(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
-	acc, err := model.BorrowLoan(userId, amountUsd)
+	// 定向挂单与 AI 出资方案暂不接线（Task 16），先以 0/nil 走纯平台/统一市场路径
+	acc, _, err := model.BorrowLoan(userId, amountUsd, 0, nil)
 	if err != nil {
 		respondLoanError(c, err)
 		return
