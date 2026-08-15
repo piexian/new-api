@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -115,6 +116,15 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 		header.Set("Content-Type", gin.MIMEJSON)
 	}
 	return nil
+}
+
+// 必须自己实现 DoRequest 并以 a 调 DoApiRequest：内嵌 openai.Adaptor.DoRequest
+// 会把内嵌实例传给 DoApiRequest，导致 GetRequestURL/SetupRequestHeader 覆写被绕过
+func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if useClaudeAPI(info) {
+		return channel.DoApiRequest(a, c, info, requestBody)
+	}
+	return a.Adaptor.DoRequest(c, info, requestBody)
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
