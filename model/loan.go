@@ -760,8 +760,8 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 		penaltyByFunding, _, penaltyTotal := computeFastRepayPenalties(allocs, now)
 		info.PenaltyPart = penaltyTotal
 
-		// 放贷人入账 + offer 回补 + 台账 repay 行（同事务，失败整体回滚）
-		credits, err = settleRepayAllocations(tx, userId, allocs, "manual", penaltyByFunding)
+		// 放贷人入账 + offer 回补 + 台账 repay 行（含 fee_part；同事务，失败整体回滚）
+		credits, err = settleRepayAllocations(tx, userId, allocs, "manual", penaltyByFunding, fee)
 		if err != nil {
 			return err
 		}

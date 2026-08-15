@@ -769,13 +769,13 @@ func TestRepayLoanPartialInterestFirst(t *testing.T) {
 	require.Equal(t, int64(60000), acc.PrincipalQuota)
 	require.Equal(t, int64(40000), acc.TotalRepaid)
 
-	// 台账改为 funding 粒度：一条 repay 行（挂 funding_id）；手续费不落台账
-	// （平台收入，仅体现在 info.FeePart 与余额扣款）
+	// 台账改为 funding 粒度：一条 repay 行（挂 funding_id）；手续费按抵本部分
+	// pro-rata 落台账（单行 funding 全额归属，fee=3）
 	var rec TokenLoanRecord
 	require.NoError(t, DB.Where("user_id = ? AND type = ?", user.Id, "repay").First(&rec).Error)
 	require.Equal(t, "manual", rec.Source)
 	require.Equal(t, int64(40000), rec.Amount)
-	require.Zero(t, rec.FeePart)
+	require.Equal(t, int64(3), rec.FeePart)
 	require.Equal(t, int64(60000), rec.DebtAfter)
 	var u User
 	require.NoError(t, DB.Select("quota").First(&u, user.Id).Error)

@@ -214,11 +214,13 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 //     合并进放贷人入账（与利息/本金同一 64 位上界校验，溢出整体回滚），并写入
 //     对应 repay 台账行的 penalty_part；platform funding 无惩罚（条款为 0，天然排除）；
 //   - 台账：每条 alloc 一行 repay 记录（FundingId/LenderId 冗余），Source 由调用方传入
-//     （manual / checkin），DebtAfter 取同事务内 funding 当前剩余债务。
+//     （manual / checkin），DebtAfter 取同事务内 funding 当前剩余债务；提前还款手续费
+//     （fee，签到恒为 0）按各 funding 抵本部分 pro-rata 拆分（最大余数法，Σ ≡ fee）
+//     落入各行 fee_part——手续费是平台收入，只记台账与借款人余额扣款，不产生放贷人入账。
 //
 // 锁序遵守全局约束 offers(id 升序) → users(id 升序)。返回按放贷人聚合的入账清单
 // （user id 升序，含惩罚），供提交后异步 cacheIncrUserQuota。
-func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, source string, penaltyByFunding map[int64]int64) ([]LenderCredit, error) {
+func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, source string, penaltyByFunding map[int64]int64, fee int64) ([]LenderCredit, error) {
 	now := time.Now()
 
 	// 预扫描：按 offer 归集利息累计与本金回补，仅锁定涉及的 offer 行（id 升序）
@@ -310,9 +312,10 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 		}
 	}
 
-	// 台账：每条 alloc 一行 repay（funding_id/lender_id 冗余）。手续费不落台账：
-	// 提前还款手续费是平台收入，仅体现在 LoanRepayInfo.FeePart 与借款人余额扣款。
+	// 台账：每条 alloc 一行 repay（funding_id/lender_id 冗余）。手续费按抵本部分
+	// pro-rata 拆入各行 fee_part（Σ ≡ fee，手动还款才可能有值，签到恒 0）；
 	// 秒结清惩罚落同一条 repay 行的 penalty_part（每 funding 携带自己的惩罚份额）。
+	feeParts := distributeFeeByPrincipal(allocs, fee)
 	for i := range allocs {
 		a := &allocs[i]
 		var f TokenLoanFunding
@@ -325,6 +328,7 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 			Amount:        a.Amount,
 			InterestPart:  a.InterestPart,
 			PrincipalPart: a.PrincipalPart,
+			FeePart:       feeParts[a.FundingId],
 			PenaltyPart:   penaltyByFunding[a.FundingId],
 			DebtAfter:     f.DebtQuota,
 			Source:        source,
@@ -342,6 +346,53 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 		out = append(out, LenderCredit{UserId: lid, Amount: credits[lid]})
 	}
 	return out, nil
+}
+
+// distributeFeeByPrincipal 把提前还款手续费按各 funding 的抵本部分 pro-rata 拆分
+// （最大余数法取整，big 精确除；并列余数按 funding id 升序，Σ ≡ fee）。
+// fee <= 0（签到/全抵息）或 Σ 抵本为 0 时返回空表。
+func distributeFeeByPrincipal(allocs []RepayAllocation, fee int64) map[int64]int64 {
+	parts := make(map[int64]int64)
+	if fee <= 0 {
+		return parts
+	}
+	var totalPrincipal int64
+	for i := range allocs {
+		totalPrincipal += allocs[i].PrincipalPart
+	}
+	if totalPrincipal <= 0 {
+		return parts
+	}
+	bigFee := big.NewInt(fee)
+	bigTotal := big.NewInt(totalPrincipal)
+	indices := make([]int, 0, len(allocs))
+	remainders := make([]int64, len(allocs))
+	var floorSum int64
+	for i := range allocs {
+		a := &allocs[i]
+		if a.PrincipalPart <= 0 {
+			continue
+		}
+		num := new(big.Int).Mul(bigFee, big.NewInt(a.PrincipalPart))
+		quo, rem := new(big.Int).QuoRem(num, bigTotal, new(big.Int))
+		parts[a.FundingId] = quo.Int64()
+		remainders[i] = rem.Int64()
+		floorSum += quo.Int64()
+		indices = append(indices, i)
+	}
+	if left := fee - floorSum; left > 0 {
+		sort.Slice(indices, func(x, y int) bool {
+			ix, iy := indices[x], indices[y]
+			if remainders[ix] != remainders[iy] {
+				return remainders[ix] > remainders[iy]
+			}
+			return allocs[ix].FundingId < allocs[iy].FundingId
+		})
+		for k := 0; k < int(left); k++ {
+			parts[allocs[indices[k]].FundingId]++
+		}
+	}
+	return parts
 }
 
 // ProjectFastRepayPenalty 只读估算：借款人此刻手动全额结清将触发的秒结清惩罚总额

@@ -220,7 +220,7 @@ func TestRepayLenderInterestOfferAvailableUnchangedTotal(t *testing.T) {
 	acc := &TokenLoanAccount{UserId: borrower.Id}
 	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now, "manual")
 	require.NoError(t, err)
-	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil)
+	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil, 0)
 	require.NoError(t, err)
 
 	// 放贷人入账 = 利息 20000
@@ -293,7 +293,7 @@ func TestRepayClosedOfferPrincipalToLender(t *testing.T) {
 	acc := &TokenLoanAccount{UserId: borrower.Id}
 	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now, "manual")
 	require.NoError(t, err)
-	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil)
+	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil, 0)
 	require.NoError(t, err)
 
 	// 利息 + 本金全部回放贷人余额
@@ -337,7 +337,7 @@ func TestRepayPlatformNoCredit(t *testing.T) {
 	acc := &TokenLoanAccount{UserId: borrower.Id}
 	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 40000, now, "manual")
 	require.NoError(t, err)
-	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil)
+	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil, 0)
 	require.NoError(t, err)
 	require.Empty(t, credits, "platform 本息归平台，无任何放贷人入账")
 
@@ -465,8 +465,29 @@ func TestRepayLoanEndToEndWithFee(t *testing.T) {
 	require.Equal(t, lender.Id, rec.LenderId)
 	require.Equal(t, int64(10000), rec.InterestPart)
 	require.Equal(t, int64(30000), rec.PrincipalPart)
-	require.Zero(t, rec.FeePart, "台账按 funding 记录分配，手续费仅体现在 info.FeePart")
+	require.Equal(t, int64(3), rec.FeePart, "手续费按抵本部分 pro-rata 落台账（单行 funding 全额归属）")
 	require.Equal(t, int64(270000), rec.DebtAfter)
+}
+
+// ⑩ 手续费按抵本部分 pro-rata 拆分：两 funding 抵本 [1, 2]，fee=2 → floor [0,1]，
+// 余 1 归小数余数最大的 funding1 → [1, 1]；Σ ≡ fee；fee=0 / 全抵息时为空表。
+func TestDistributeFeeByPrincipal(t *testing.T) {
+	allocs := []RepayAllocation{
+		{FundingId: 1, PrincipalPart: 1},
+		{FundingId: 2, PrincipalPart: 2},
+		{FundingId: 3, PrincipalPart: 0}, // 全抵息行不参与拆分
+	}
+	parts := distributeFeeByPrincipal(allocs, 2)
+	require.Equal(t, map[int64]int64{1: 1, 2: 1}, parts, "floor 后余数归小数余数最大的 funding")
+
+	var total int64
+	for _, v := range parts {
+		total += v
+	}
+	require.Equal(t, int64(2), total, "Σ fee_part ≡ fee")
+
+	require.Empty(t, distributeFeeByPrincipal(allocs, 0))
+	require.Empty(t, distributeFeeByPrincipal([]RepayAllocation{{FundingId: 9, PrincipalPart: 0}}, 5))
 }
 
 // ⑨ 还款额封顶在总债务：两条 funding 债务 [30000,70000]，还 200000（远超 100000）

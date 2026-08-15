@@ -148,7 +148,7 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 						return err
 					}
 					if info != nil {
-						credits, err := settleRepayAllocations(tx, userId, allocs, "checkin", nil)
+						credits, err := settleRepayAllocations(tx, userId, allocs, "checkin", nil, 0)
 						if err != nil {
 							return err
 						}
