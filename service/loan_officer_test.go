@@ -357,6 +357,44 @@ func TestExecuteLoanDecisionHighScoreGetsHigherCap(t *testing.T) {
 	assert.Equal(t, int64(10000000), capturedMaxTotal) // 高信用分用户拿到 $20
 }
 
+// TestExecuteLoanDecisionNoGrantWhenAtTierCap spec 点 1：用户个人上限已达档位上限时，
+// 再次申请即使 AI 给出更高额度也钳制为 0（不再授予），结案照常执行、账户上限不变。
+// （CreditLimit 是绝对值：钳 0 表示不修改 CustomMaxTotal，而非扣减。）
+func TestExecuteLoanDecisionNoGrantWhenAtTierCap(t *testing.T) {
+	withLoanOfficerSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CreditTierLimits = defaultCreditTiers
+	})
+	var decisionJSON string
+	var capturedMaxTotal int64
+	oldApply := applyLoanOfficerDecision
+	applyLoanOfficerDecision = func(appId int, json string, customMaxTotal int64, customDailyRate float64, interestFreeDays int) error {
+		decisionJSON = json
+		capturedMaxTotal = customMaxTotal
+		return nil
+	}
+	t.Cleanup(func() { applyLoanOfficerDecision = oldApply })
+
+	user, app := setupLoanOfficerApp(t)
+	now := time.Now().Unix()
+	require.NoError(t, model.DB.Create(&model.TokenLoanAccount{
+		UserId:         user.Id,
+		CustomMaxTotal: 2500000, // 已到 50 分档位上限 $5
+		CreditScore:    50,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}).Error)
+
+	closed, notice := executeLoanDecision(app, operation_setting.GetLoanSetting(), "已到上限", &LoanDecision{CreditLimit: 20, DailyRate: 0.0008, InterestFreeDays: 7})
+	require.True(t, closed)
+	assert.Equal(t, "", notice)
+	assert.Equal(t, int64(0), capturedMaxTotal)          // 不再授予：0 = 不修改 CustomMaxTotal
+	assert.Contains(t, decisionJSON, `"credit_limit":0`) // 决定 JSON 记录钳制后的值
+
+	var acc model.TokenLoanAccount
+	require.NoError(t, model.DB.Where("user_id = ?", user.Id).First(&acc).Error)
+	assert.Equal(t, int64(2500000), acc.CustomMaxTotal) // 账户上限未被修改
+}
+
 // TestLoanOfficerProfileIncludesCreditTier spec 点 4：system prompt 的用户档案需包含
 // 用户信用分与分级提额上限，让 AI 知道真实边界
 func TestLoanOfficerProfileIncludesCreditTier(t *testing.T) {
@@ -369,4 +407,31 @@ func TestLoanOfficerProfileIncludesCreditTier(t *testing.T) {
 	profile := buildLoanOfficerProfile(user.Id)
 	assert.Contains(t, profile, "信用分：50")
 	assert.Contains(t, profile, "分级提额上限：$5.00")
+	// CustomMaxTotal==0：个人上限展示"默认/0"，余量 = 档位上限 - 全局上限（此处 0）
+	assert.Contains(t, profile, "当前个人上限：默认/0")
+	assert.Contains(t, profile, "剩余可提空间：$0.00")
+}
+
+// TestLoanOfficerProfileIncludesHeadroom spec 点 4：档案需包含当前个人上限与剩余可提空间，
+// 让 AI 知道该用户距离档位上限还有多少余量
+func TestLoanOfficerProfileIncludesHeadroom(t *testing.T) {
+	withLoanOfficerSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CreditTierLimits = defaultCreditTiers
+		s.MaxTotal = 2500000
+	})
+	user, _ := setupLoanOfficerApp(t)
+	now := time.Now().Unix()
+	require.NoError(t, model.DB.Create(&model.TokenLoanAccount{
+		UserId:         user.Id,
+		CustomMaxTotal: 1000000, // 已授予 $2
+		CreditScore:    50,      // 50 分命中 [$0,$5] 档
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}).Error)
+
+	profile := buildLoanOfficerProfile(user.Id)
+	assert.Contains(t, profile, "信用分：50")
+	assert.Contains(t, profile, "分级提额上限：$5.00")
+	assert.Contains(t, profile, "当前个人上限：$2.00")
+	assert.Contains(t, profile, "剩余可提空间：$3.00")
 }

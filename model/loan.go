@@ -335,6 +335,12 @@ func BorrowLoan(userId int, amountUsd string, intendedOrderId int, aiPriced []Fu
 		effectiveMax := loanSetting.MaxTotal
 		if acc.CustomMaxTotal > 0 {
 			effectiveMax = acc.CustomMaxTotal
+			// 借款侧兜底：AI 授予的个人上限不得突破信用分档位上限（档位作用于
+			// CustomMaxTotal 累计值；CustomMaxTotal==0 的全局默认用户不受档位约束，
+			// 基础额度与 AI 授予分开）。acc 已加载（新账户带 CreditInitial），无需额外查询。
+			if tierMax := operation_setting.GetCreditTierMaxTotal(loanSetting, acc.CreditScore); tierMax < effectiveMax {
+				effectiveMax = tierMax
+			}
 		}
 		perBorrowCap := effectiveMax
 		if loanSetting.MaxPerBorrow > 0 {

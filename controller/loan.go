@@ -126,9 +126,13 @@ func buildLoanStatusData(setting *operation_setting.LoanSetting, acc *model.Toke
 		creditScore = acc.CreditScore
 		blacklistedUntilDay = acc.BlacklistedUntilDay
 		lenderDisclaimerAgreed = acc.LenderDisclaimerAgreedAt != 0
-		// 个人覆盖只降不升：上限直接覆盖，利率取较小者（与 model.effectiveRate 一致）
+		// 个人覆盖只降不升：上限直接覆盖，利率取较小者（与 model.effectiveRate 一致）；
+		// 个人 AI 授予上限同时受信用分档位封顶（与 BorrowLoan 借款侧兜底口径一致）
 		if acc.CustomMaxTotal > 0 {
 			effectiveMax = acc.CustomMaxTotal
+			if tierMax := operation_setting.GetCreditTierMaxTotal(setting, acc.CreditScore); tierMax < effectiveMax {
+				effectiveMax = tierMax
+			}
 		}
 		if acc.CustomDailyRate > 0 && acc.CustomDailyRate < setting.DailyRate {
 			dailyRate = acc.CustomDailyRate

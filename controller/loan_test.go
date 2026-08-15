@@ -252,6 +252,49 @@ func TestLoanGetStatusNoAccount(t *testing.T) {
 	}
 }
 
+// TestBuildLoanStatusDataTierCapsEffectiveMax spec 点 5：状态展示与借款侧兜底口径一致——
+// 个人 AI 授予上限超过信用分档位时，effective_max 展示被档位封顶；无个人上限用户不受影响
+func TestBuildLoanStatusDataTierCapsEffectiveMax(t *testing.T) {
+	db := setupLoanControllerTestDB(t)
+	withControllerLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.MaxTotal = 500000
+		s.CreditTierLimits = []operation_setting.CreditTierLimit{
+			{MinScore: -50, MaxTotal: 1000000},
+			{MinScore: 0, MaxTotal: 2500000},
+			{MinScore: 60, MaxTotal: 5000000},
+			{MinScore: 80, MaxTotal: 10000000},
+		}
+	})
+	user := seedLoanUser(t, db)
+	now := time.Now()
+	acc := &model.TokenLoanAccount{
+		UserId:         user.Id,
+		CustomMaxTotal: 10000000, // AI 曾授予 $20
+		CreditScore:    50,       // 掉分后档位只允许 $5（2500000）
+		LastSettledDay: model.LoanDayOf(now),
+		CreatedAt:      now.Unix(),
+		UpdatedAt:      now.Unix(),
+	}
+	data := buildLoanStatusData(operation_setting.GetLoanSetting(), acc, user.Id, now)
+	if got := data["effective_max"]; got != int64(2500000) {
+		t.Fatalf("expected effective_max 2500000, got %v", got)
+	}
+	if got := data["available"]; got != int64(2500000) {
+		t.Fatalf("expected available 2500000, got %v", got)
+	}
+
+	// 无个人上限（CustomMaxTotal==0）的用户不受档位封顶：effective_max 取全局默认上限
+	defaultUser := seedLoanUser(t, db)
+	data = buildLoanStatusData(operation_setting.GetLoanSetting(), &model.TokenLoanAccount{
+		UserId:      defaultUser.Id,
+		CreditScore: 50, // 档位更低，但不作用于默认上限
+	}, defaultUser.Id, now)
+	if got := data["effective_max"]; got != int64(500000) {
+		t.Fatalf("expected effective_max 500000 for default user, got %v", got)
+	}
+}
+
 // TestLoanRecordsPagination 台账分页（id 倒序 + 总数）
 func TestLoanRecordsPagination(t *testing.T) {
 	db := setupLoanControllerTestDB(t)

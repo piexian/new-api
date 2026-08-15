@@ -411,6 +411,62 @@ func TestBorrowLoanCustomMaxTotalOverride(t *testing.T) {
 	require.Equal(t, int64(750000), acc.DebtQuota)
 }
 
+// defaultBorrowCreditTiers 四档档位（与生产默认一致）：[-50,$2] [0,$5] [60,$10] [80,$20]
+var defaultBorrowCreditTiers = []operation_setting.CreditTierLimit{
+	{MinScore: -50, MaxTotal: 1000000},
+	{MinScore: 0, MaxTotal: 2500000},
+	{MinScore: 60, MaxTotal: 5000000},
+	{MinScore: 80, MaxTotal: 10000000},
+}
+
+// TestBorrowLoanTierCapBackstopOnCustomMaxTotal spec 点 3：借款侧兜底——AI 曾授予 $20
+// 但信用分掉到 50（档位 $5）时，个人上限被档位封顶，超出 $5 的借款拒绝（ErrLoanLimitExceeded）
+func TestBorrowLoanTierCapBackstopOnCustomMaxTotal(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.TermsEnabled = false
+		s.MaxTotal = 500000
+		s.MaxPerBorrow = 0
+		s.CreditTierLimits = defaultBorrowCreditTiers
+	})
+	user := createLoanTestUser(t)
+	now := time.Now()
+	require.NoError(t, DB.Create(&TokenLoanAccount{
+		UserId:         user.Id,
+		CustomMaxTotal: 10000000, // AI 曾授予 $20
+		CreditScore:    50,       // 掉分后档位只允许 $5（2500000 quota）
+		LastSettledDay: loanDay(now),
+		CreatedAt:      now.Unix(),
+		UpdatedAt:      now.Unix(),
+	}).Error)
+
+	// 超过档位上限 $5 → 拒绝
+	_, _, err := BorrowLoan(user.Id, "5.01", 0, nil)
+	require.ErrorIs(t, err, ErrLoanLimitExceeded)
+	// 恰好 $5 以内放行
+	acc, _, err := BorrowLoan(user.Id, "5.00", 0, nil)
+	require.NoError(t, err)
+	require.Equal(t, int64(2500000), acc.DebtQuota)
+}
+
+// TestBorrowLoanDefaultUserNotTierCapped spec 点 4：CustomMaxTotal==0 的全局默认用户
+// 不受信用分档位封顶（基础额度与 AI 授予分开），即便信用分档位更低
+func TestBorrowLoanDefaultUserNotTierCapped(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.TermsEnabled = false
+		s.MaxTotal = 5000000 // 全局上限 $10
+		s.MaxPerBorrow = 0
+		s.CreditTierLimits = defaultBorrowCreditTiers
+		s.CreditInitial = 50 // 新账户信用分 50 → 档位 $5，低于全局上限
+	})
+	user := createLoanTestUser(t)
+	// $6（3000000 quota）超 50 分档位 $5，但未超全局 $10 → 放行
+	acc, _, err := BorrowLoan(user.Id, "6.00", 0, nil)
+	require.NoError(t, err)
+	require.Equal(t, int64(3000000), acc.DebtQuota)
+}
+
 func TestBorrowLoanRegisterTooNew(t *testing.T) {
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
 		s.Enabled = true
