@@ -99,6 +99,7 @@ var operationLogTemplates = map[string]localizedLogText{
 	"loan.offer_create":      {ZH: "创建了放贷挂单（模式 ${mode}，金额 ${amount_usd} USD，固定日利率 ${rate_fixed}）", EN: "Created a lending offer (mode ${mode}, amount ${amount_usd} USD, fixed daily rate ${rate_fixed})"},
 	"loan.offer_close":       {ZH: "关闭了放贷挂单 ${offer_id}", EN: "Closed lending offer ${offer_id}"},
 	"loan.offer_withdraw":    {ZH: "撤回了放贷挂单 ${offer_id} 的闲置额度 ${refunded}", EN: "Withdrew idle quota ${refunded} from lending offer ${offer_id}"},
+	"loan.funding_matched":   {ZH: "借款撮合匹配了 ${count} 笔资金（共 ${amount_usd} USD）", EN: "Borrow matched ${count} funding(s), totaling ${amount_usd} USD"},
 	"loan.default_decision":  {ZH: "处置了逾期债权 ${funding_id}（动作 ${action}${extend_days}）", EN: "Resolved overdue funding ${funding_id} (action ${action}${extend_days})"},
 	"loan.repay_plan_change": {ZH: "调整了借款 ${funding_id} 的还款计划为 ${plan}", EN: "Changed repayment plan of funding ${funding_id} to ${plan}"},
 

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -225,7 +226,7 @@ func BorrowLoan(c *gin.Context) {
 			aiPriced, _ = service.PriceAiSpaceFundings(userId, amountUsdFloat, candidates)
 		}
 	}
-	acc, _, err := model.BorrowLoan(userId, amountUsd, orderId, aiPriced)
+	acc, fundings, err := model.BorrowLoan(userId, amountUsd, orderId, aiPriced)
 	if err != nil {
 		respondLoanError(c, err)
 		return
@@ -235,6 +236,23 @@ func BorrowLoan(c *gin.Context) {
 		"amount_usd": amountUsd,
 		"debt_after": logger.LogQuota(int(acc.DebtQuota)),
 	})
+	// 撮合审计：非 platform 部分即市场撮合命中（含 pool/order/ai），仅命中时记录，
+	// 纯平台兜底借款不产生噪音
+	matchedCount := 0
+	var matchedTotal int64
+	for i := range fundings {
+		if fundings[i].SourceType == model.LoanFundingPlatform {
+			continue
+		}
+		matchedCount++
+		matchedTotal += fundings[i].Amount
+	}
+	if matchedCount > 0 {
+		recordUserSecurityAudit(c, userId, "loan.funding_matched", map[string]interface{}{
+			"count":      matchedCount,
+			"amount_usd": fmt.Sprintf("%.2f", float64(matchedTotal)/common.QuotaPerUnit),
+		})
+	}
 	common.ApiSuccess(c, buildLoanStatusData(operation_setting.GetLoanSetting(), acc, userId, time.Now()))
 }
 
