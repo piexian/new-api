@@ -39,6 +39,9 @@ type LenderCredit struct {
 //  4. syncAccountFromFundings 回写账户投影（仅内存，落盘由调用方负责），并累计 TotalRepaid；
 //     4.5 黑名单出口（Task 12）：有 funding 本次结清时调用 maybeLiftBlacklistTx（永续全还清
 //     → 立即解除；核销窗口内不解锁），仅改内存 acc，落盘由调用方统一 Save。
+//  5. 信用分结算（Task 13）：本次转结清的 funding 所属借款事件（去重）调用
+//     scoreBorrowEventRepaidTx——事件全部结清才评分（按时还清加分 / 快速还清扣分 /
+//     逾期后还清与低于金额门槛均不计分），仅改内存 acc，落盘由调用方统一 Save。
 //
 // 返回还款结果（Amount/InterestPart/PrincipalPart/DebtAfter 来自同步后的账户投影）与逐条分配。
 // repay <= 0 或 Σdebt <= 0 时返回 (nil, nil, nil)，调用方须先保证有债务。
@@ -153,6 +156,20 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 	// ④ 账户投影回写（仅内存，落盘由调用方负责）
 	syncAccountFromFundings(acc, fundings)
 	acc.TotalRepaid += repay
+
+	// ③.5 信用分结算（Task 13）：本次转结清的 funding 所属借款事件（去重，事件级至多
+	//     评一次）在事件全部结清时结算信用分。仅改内存 acc，落盘由调用方统一 Save
+	scoredEvents := make(map[int64]struct{})
+	for i := range fundings {
+		if fundings[i].Status == LoanFundingRepaid && fundings[i].BorrowEventId > 0 {
+			scoredEvents[fundings[i].BorrowEventId] = struct{}{}
+		}
+	}
+	for eventId := range scoredEvents {
+		if err := scoreBorrowEventRepaidTx(tx, acc, eventId, now); err != nil {
+			return nil, nil, err
+		}
+	}
 
 	// ④.5 黑名单出口（Task 12）：有 funding 本次结清（→repaid）时检查是否满足解除条件
 	//     （永续全还清 → 立即解除；核销窗口内不解锁）。仅改内存 acc，落盘由调用方统一 Save
