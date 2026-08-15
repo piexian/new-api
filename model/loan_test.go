@@ -248,6 +248,32 @@ func TestBorrowLoanQuotaOverflow(t *testing.T) {
 	require.ErrorIs(t, err, ErrLoanQuotaOverflow)
 }
 
+// QuotaPerUnit 是运行时可调配置：调成 1 后，"0.01" USD 换算为 0 quota，
+// amount<=0 必须被 ErrLoanInvalidAmount 拒绝，不能放行 0 额度借款
+func TestBorrowLoanZeroQuotaAmountRejected(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.TermsEnabled = false
+		s.MaxTotal = math.MaxInt64
+	})
+	user := createLoanTestUser(t)
+	// 回收 id 名下可能残留的贷款数据，保证账户为新建
+	require.NoError(t, DB.Where("user_id = ?", user.Id).Delete(&TokenLoanAccount{}).Error)
+	require.NoError(t, DB.Where("user_id = ?", user.Id).Delete(&TokenLoanRecord{}).Error)
+
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 1
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+
+	_, err := BorrowLoan(user.Id, "0.01") // 0.01 USD * 1 = 0.01 quota，取整为 0
+	require.ErrorIs(t, err, ErrLoanInvalidAmount)
+
+	// 正数控制组：1.00 USD = 1 quota，仍可正常借款
+	acc, err := BorrowLoan(user.Id, "1.00")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), acc.DebtQuota)
+}
+
 func TestBorrowLoanRequiresTermsAgreement(t *testing.T) {
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
 		s.Enabled = true
@@ -558,6 +584,41 @@ func TestRepayLoanRejectsInvalidAmount(t *testing.T) {
 		_, _, err := RepayLoan(user.Id, amt)
 		require.ErrorIs(t, err, ErrLoanInvalidAmount, "amount %q should be rejected", amt)
 	}
+}
+
+// QuotaPerUnit 调成 1 后，"0.01" USD 换算为 0 quota，RepayLoan 必须拒绝
+func TestRepayLoanZeroQuotaAmountRejected(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.TermsEnabled = false
+	})
+	user := createLoanTestUser(t)
+	// 回收 id 名下可能残留的贷款数据，避免与新建账户的主键冲突
+	require.NoError(t, DB.Where("user_id = ?", user.Id).Delete(&TokenLoanAccount{}).Error)
+	require.NoError(t, DB.Where("user_id = ?", user.Id).Delete(&TokenLoanRecord{}).Error)
+	now := time.Now()
+	require.NoError(t, DB.Create(&TokenLoanAccount{
+		UserId:         user.Id,
+		PrincipalQuota: 90000,
+		DebtQuota:      100000,
+		LastSettledDay: loanDay(now),
+		CreatedAt:      now.Unix(),
+		UpdatedAt:      now.Unix(),
+	}).Error)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).
+		Update("quota", 500000).Error)
+
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 1
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+
+	_, _, err := RepayLoan(user.Id, "0.01") // 换算后 0 quota
+	require.ErrorIs(t, err, ErrLoanInvalidAmount)
+
+	// 正数控制组：1.00 USD = 1 quota，可正常还款（债务减 1）
+	acc, _, err := RepayLoan(user.Id, "1.00")
+	require.NoError(t, err)
+	require.Equal(t, int64(99999), acc.DebtQuota)
 }
 
 func TestRepayLoanInsufficientBalance(t *testing.T) {

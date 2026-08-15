@@ -256,8 +256,11 @@ func BorrowLoan(userId int, amountUsd string) (*TokenLoanAccount, error) {
 	if clamp != nil {
 		return nil, ErrLoanQuotaOverflow
 	}
-	// usd > 0 且 QuotaPerUnit = 500000，最小 0.01 USD = 5000 quota，
-	// 故此处 amount 必然 > 0，无需再判 amount <= 0
+	// QuotaPerUnit 是运行时可调配置（model/option.go），换算后 amount 可能为 0，
+	// 必须显式拒绝，避免记下 0 额度借款
+	if amount <= 0 {
+		return nil, ErrLoanInvalidAmount
+	}
 
 	now := time.Now()
 	var acc *TokenLoanAccount
@@ -384,6 +387,10 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 			return nil, nil, ErrLoanQuotaOverflow
 		}
 		amount = int64(a)
+		// 同 BorrowLoan：QuotaPerUnit 运行时可调，换算后可能为 0，显式拒绝
+		if amount <= 0 {
+			return nil, nil, ErrLoanInvalidAmount
+		}
 	}
 
 	now := time.Now()

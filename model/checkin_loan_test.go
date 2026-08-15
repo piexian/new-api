@@ -1,10 +1,12 @@
 package model
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
 )
@@ -242,4 +244,42 @@ func TestUserCheckinRepayQuotaFailureRollback(t *testing.T) {
 	hasChecked, err := HasCheckedInToday(user.Id)
 	require.NoError(t, err)
 	require.False(t, hasChecked)
+}
+
+// SQLite 回滚路径：IncreaseUserQuota 在写库前会异步递增 Redis 余额缓存，
+// 失败回滚时必须补偿递减，保证缓存 Quota 与 DB 一致（用 miniredis 观察缓存行为）
+func TestUserCheckinQuotaFailureCompensatesCache(t *testing.T) {
+	setupUserCacheVersionTest(t)
+	withCheckinSetting(t, 5000)
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CheckinRepayEnabled = true
+	})
+	user := setupCheckinLoanUser(t)
+	// 回收 id 名下可能残留的贷款数据，再建账
+	require.NoError(t, DB.Where("user_id = ?", user.Id).Delete(&TokenLoanAccount{}).Error)
+	require.NoError(t, DB.Where("user_id = ?", user.Id).Delete(&TokenLoanRecord{}).Error)
+	// 奖励 5000 > 债务 3000：走到 IncreaseUserQuota(净额 2000) 才失败
+	createLoanDebtAccount(t, user.Id, 2500, 3000)
+
+	// 预置用户缓存，Quota 与 DB 一致（0）。
+	// RedisHIncrBy 仅在 key 带 TTL 时才真正递增，需与生产缓存一致地设置过期时间
+	ctx := context.Background()
+	require.NoError(t, common.RDB.HSet(ctx, getUserCacheKey(user.Id), map[string]interface{}{
+		"Id":     user.Id,
+		"Role":   common.RoleCommonUser,
+		"Quota":  0,
+		"Status": common.UserStatusEnabled,
+	}).Err())
+	require.NoError(t, common.RDB.Expire(ctx, getUserCacheKey(user.Id), time.Duration(common.RedisKeyCacheSeconds())*time.Second).Err())
+
+	renameTableForFailure(t, "users")
+
+	_, _, err := UserCheckin(user.Id)
+	require.Error(t, err)
+
+	// 异步缓存递增与失败后的补偿递减相消（HINCRBY 可交换），最终回到 DB 值 0
+	require.Eventually(t, func() bool {
+		quota, err := common.RDB.HGet(ctx, getUserCacheKey(user.Id), "Quota").Int64()
+		return err == nil && quota == 0
+	}, time.Second, 10*time.Millisecond)
 }

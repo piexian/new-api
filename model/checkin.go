@@ -214,6 +214,9 @@ func userCheckinWithoutTransaction(checkin *Checkin, userId int, quotaAwarded in
 	// 步骤3: 增加用户额度（净额 = 奖励 - 还款）
 	// 使用 db=true 强制直接写入数据库，不使用批量更新
 	if err := IncreaseUserQuota(userId, netQuota, true); err != nil {
+		// IncreaseUserQuota 会在写库前异步递增 Redis 余额缓存（model/user.go:1434），
+		// 失败回滚时必须同步补偿递减，否则缓存与 DB 不一致（两者相消，与执行顺序无关）
+		_ = cacheDecrUserQuota(userId, int64(netQuota))
 		// 如果增加额度失败，需要回滚台账、账户与签到记录
 		if repayRecord != nil {
 			DB.Delete(repayRecord)
