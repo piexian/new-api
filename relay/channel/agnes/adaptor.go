@@ -11,15 +11,31 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	channelconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Adaptor struct {
 	openai.Adaptor
+}
+
+// agnes 原生支持 OpenAI/Responses/Anthropic 三种端点，Claude 格式直接透传 /v1/messages
+func useClaudeAPI(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
+		return true
+	}
+	return info.RelayFormat == types.RelayFormatClaude &&
+		info.RelayMode != relayconstant.RelayModeResponses &&
+		info.RelayMode != relayconstant.RelayModeResponsesCompact
 }
 
 type imageRequest struct {
@@ -47,6 +63,17 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if useClaudeAPI(info) {
+		baseURL := info.ChannelBaseUrl
+		if baseURL == "" {
+			baseURL = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeAgnesAI]
+		}
+		path := "/v1/messages"
+		if info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
+			path = "/v1/messages/count_tokens"
+		}
+		return relaycommon.GetFullRequestURL(baseURL, path, info.ChannelType), nil
+	}
 	if info != nil && info.RelayMode == relayconstant.RelayModeImagesEdits {
 		baseURL := info.ChannelBaseUrl
 		if baseURL == "" {
@@ -57,7 +84,26 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return a.Adaptor.GetRequestURL(info)
 }
 
+func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	if useClaudeAPI(info) {
+		adaptor := claude.Adaptor{}
+		return adaptor.ConvertClaudeRequest(c, info, request)
+	}
+	return a.Adaptor.ConvertClaudeRequest(c, info, request)
+}
+
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
+	if useClaudeAPI(info) {
+		channel.SetupApiRequestHeader(info, c, header)
+		header.Set("x-api-key", info.ApiKey)
+		anthropicVersion := c.Request.Header.Get("anthropic-version")
+		if anthropicVersion == "" {
+			anthropicVersion = "2023-06-01"
+		}
+		header.Set("anthropic-version", anthropicVersion)
+		claude.CommonClaudeHeadersOperation(c, header, info)
+		return nil
+	}
 	if err := a.Adaptor.SetupRequestHeader(c, header, info); err != nil {
 		return err
 	}
@@ -69,6 +115,14 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 		header.Set("Content-Type", gin.MIMEJSON)
 	}
 	return nil
+}
+
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if useClaudeAPI(info) {
+		adaptor := claude.Adaptor{}
+		return adaptor.DoResponse(c, resp, info)
+	}
+	return a.Adaptor.DoResponse(c, resp, info)
 }
 
 func (a *Adaptor) GetModelList() []string {

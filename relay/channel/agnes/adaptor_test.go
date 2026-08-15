@@ -240,3 +240,78 @@ func TestGetModelListIncludesCurrentAgnesModels(t *testing.T) {
 		}
 	}
 }
+
+func TestUseClaudeAPIRouting(t *testing.T) {
+	adaptor := &Adaptor{}
+	claudeInfo := &relaycommon.RelayInfo{
+		RelayFormat: "claude",
+		RelayMode:   relayconstant.RelayModeUnknown,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://apihub.agnes-ai.com",
+			ChannelType:    63,
+		},
+	}
+	url, err := adaptor.GetRequestURL(claudeInfo)
+	if err != nil {
+		t.Fatalf("get claude url: %v", err)
+	}
+	if url != "https://apihub.agnes-ai.com/v1/messages" {
+		t.Fatalf("unexpected claude url: %s", url)
+	}
+
+	countInfo := &relaycommon.RelayInfo{
+		RelayFormat: "claude",
+		RelayMode:   relayconstant.RelayModeClaudeCountTokens,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://api.agnes-ai.cn",
+			ChannelType:    63,
+		},
+	}
+	url, err = adaptor.GetRequestURL(countInfo)
+	if err != nil {
+		t.Fatalf("get count tokens url: %v", err)
+	}
+	if url != "https://api.agnes-ai.cn/v1/messages/count_tokens" {
+		t.Fatalf("unexpected count tokens url: %s", url)
+	}
+
+	openaiInfo := &relaycommon.RelayInfo{
+		RelayFormat:    "openai",
+		RelayMode:      relayconstant.RelayModeChatCompletions,
+		RequestURLPath: "/v1/chat/completions",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://apihub.agnes-ai.com",
+			ChannelType:    63,
+		},
+	}
+	url, err = adaptor.GetRequestURL(openaiInfo)
+	if err != nil {
+		t.Fatalf("get openai url: %v", err)
+	}
+	if url != "https://apihub.agnes-ai.com/v1/chat/completions" {
+		t.Fatalf("unexpected openai url: %s", url)
+	}
+}
+
+func TestClaudeHeadersUseAPIKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	header := http.Header{}
+	info := &relaycommon.RelayInfo{
+		RelayFormat: "claude",
+		RelayMode:   relayconstant.RelayModeUnknown,
+		ChannelMeta: &relaycommon.ChannelMeta{ApiKey: "test-agnes-key"},
+	}
+	if err := (&Adaptor{}).SetupRequestHeader(c, &header, info); err != nil {
+		t.Fatalf("setup headers: %v", err)
+	}
+	if got := header.Get("x-api-key"); got != "test-agnes-key" {
+		t.Fatalf("x-api-key = %q", got)
+	}
+	if got := header.Get("anthropic-version"); got != "2023-06-01" {
+		t.Fatalf("anthropic-version = %q", got)
+	}
+}

@@ -87,6 +87,13 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 			constant.EndpointTypeOpenAIResponse,
 			constant.EndpointTypeAnthropic,
 		}
+	case constant.ChannelTypeAgnesAI:
+		// agnes 原生支持 OpenAI / Responses / Anthropic 三种端点
+		endpointTypes = []constant.EndpointType{
+			constant.EndpointTypeOpenAI,
+			constant.EndpointTypeOpenAIResponse,
+			constant.EndpointTypeAnthropic,
+		}
 	case constant.ChannelTypeSora:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
 	default:
