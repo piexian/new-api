@@ -70,7 +70,7 @@ function useModeLabel() {
   return (mode: LoanOffer['mode']) => {
     if (mode === 'pool') return t('Pool')
     if (mode === 'ai') return t('AI')
-    return t('Order')
+    return t('Order (public listing)')
   }
 }
 

@@ -22,7 +22,10 @@ import type {
   ApiResponse,
   LoanAdminAccount,
   LoanAdminApplication,
+  LoanAdminFunding,
+  LoanAdminOffer,
   LoanAdminRecord,
+  LoanMarketOverview,
   PageInfo,
 } from './types'
 
@@ -72,5 +75,53 @@ export async function getAdminLoanApplications(
   const res = await api.get('/api/user/loan/admin/applications', {
     params: { p: page, page_size: pageSize, user_id: userId, status },
   })
+  return res.data
+}
+
+/**
+ * Get paginated lending market offers (keyword filters lender; a purely
+ * numeric keyword matches lender user id, otherwise fuzzy-matches username)
+ */
+export async function getAdminLoanOffers(
+  page: number,
+  pageSize: number,
+  keyword: string
+): Promise<ApiResponse<PageInfo<LoanAdminOffer>>> {
+  const res = await api.get('/api/user/loan/admin/offers', {
+    params: { p: page, page_size: pageSize, keyword },
+  })
+  return res.data
+}
+
+/**
+ * Get paginated lending market fundings (lender_id / loan_user_id > 0 filter
+ * by user; status is 'active' | 'overdue' | 'repaid' | 'written_off' or empty)
+ */
+export async function getAdminLoanFundings(
+  page: number,
+  pageSize: number,
+  lenderId: string,
+  loanUserId: string,
+  status: string
+): Promise<ApiResponse<PageInfo<LoanAdminFunding>>> {
+  const res = await api.get('/api/user/loan/admin/fundings', {
+    params: {
+      p: page,
+      page_size: pageSize,
+      lender_id: lenderId,
+      loan_user_id: loanUserId,
+      status,
+    },
+  })
+  return res.data
+}
+
+/**
+ * Get the lending market aggregate overview (read-only)
+ */
+export async function getAdminLoanMarketOverview(): Promise<
+  ApiResponse<LoanMarketOverview>
+> {
+  const res = await api.get('/api/user/loan/admin/market_overview')
   return res.data
 }

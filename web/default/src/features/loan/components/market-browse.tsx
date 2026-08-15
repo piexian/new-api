@@ -117,7 +117,9 @@ export function MarketBrowse(props: MarketBrowseProps) {
               </div>
             </div>
             <div className='flex items-center justify-end gap-2'>
-              <Badge variant='outline'>{t('Order')}</Badge>
+              <Badge variant='outline'>
+                {t('Order (public listing)')}
+              </Badge>
               <Button size='sm' onClick={() => props.onBorrow(offer)}>
                 {t('Borrow This')}
               </Button>

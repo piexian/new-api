@@ -72,6 +72,43 @@ const LOAN_TOPIC_TAG_COLORS = {
 };
 const LOAN_STATUS_TAG_COLORS = { open: 'blue', closed: 'grey' };
 
+// 借贷市场枚举值 -> 展示文案（Chinese key，由经典主题 i18n 翻译）
+const OFFER_MODE_LABELS = { pool: '资金池', ai: 'AI', order: '订单' };
+const OFFER_STATUS_LABELS = {
+  active: '生效',
+  paused: '已暂停',
+  closed: '已关闭',
+};
+const OFFER_STATUS_TAG_COLORS = {
+  active: 'green',
+  paused: 'orange',
+  closed: 'grey',
+};
+const FUNDING_STATUS_LABELS = {
+  active: '生效',
+  overdue: '逾期',
+  repaid: '已结清',
+  written_off: '已核销',
+};
+const FUNDING_STATUS_TAG_COLORS = {
+  active: 'blue',
+  overdue: 'red',
+  repaid: 'green',
+  written_off: 'grey',
+};
+const FUNDING_SOURCE_LABELS = {
+  platform: '平台',
+  pool: '资金池',
+  ai: 'AI',
+  order: '订单',
+};
+const REPAY_PLAN_LABELS = {
+  full: '全额（复利）',
+  no_penalty: '免罚息',
+  interest_freeze: '停止计息',
+  principal_only: '只还本金',
+};
+
 // 日利率展示为百分比（与用户端一致），最多两位小数
 const formatDailyRate = (rate) => {
   if (typeof rate !== 'number' || Number.isNaN(rate)) return '-';
@@ -556,6 +593,464 @@ const LoanApplicationsTab = () => {
   );
 };
 
+// 借贷市场总览：冻结闲置 / 在贷本金 / 累计利息 / 逾期笔数 / 在售挂单
+const MarketOverviewTab = () => {
+  const { t } = useTranslation();
+  const [overview, setOverview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchOverview = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await API.get('/api/user/loan/admin/market_overview');
+      const { success, message, data } = res.data;
+      if (success) {
+        setOverview(data);
+      } else {
+        setError(message || t('加载失败'));
+      }
+    } catch (err) {
+      setError(err.message || t('加载失败'));
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchOverview();
+  }, []);
+
+  const stats = overview
+    ? [
+        {
+          label: t('冻结闲置'),
+          value: renderQuota(overview.frozen_idle || 0),
+        },
+        {
+          label: t('在贷本金'),
+          value: renderQuota(overview.in_loan_principal || 0),
+        },
+        {
+          label: t('累计利息'),
+          value: renderQuota(overview.total_interest_earned || 0),
+        },
+        {
+          label: t('逾期笔数'),
+          value: (overview.overdue_fundings || 0).toLocaleString(),
+        },
+        {
+          label: t('在售挂单'),
+          value: (overview.active_offers || 0).toLocaleString(),
+        },
+      ]
+    : [];
+
+  return (
+    <Card className='!rounded-2xl'>
+      {loading && !overview ? (
+        <div className='grid gap-3 grid-cols-2 md:grid-cols-5'>
+          {['a', 'b', 'c', 'd', 'e'].map((slot) => (
+            <div
+              key={slot}
+              className='h-20 bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse'
+            />
+          ))}
+        </div>
+      ) : error && !overview ? (
+        <div className='py-8 text-center text-sm text-gray-500'>
+          {error}
+          <div className='mt-3'>
+            <Button
+              type='primary'
+              theme='solid'
+              size='small'
+              onClick={fetchOverview}
+            >
+              {t('重试')}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className='grid gap-3 grid-cols-2 md:grid-cols-5'>
+            {stats.map((item) => (
+              <div
+                key={item.label}
+                className='rounded-xl border border-gray-200 dark:border-gray-700 p-3'
+              >
+                <div className='text-xs text-gray-500 dark:text-gray-400'>
+                  {item.label}
+                </div>
+                <div className='mt-1.5 font-mono font-semibold text-base sm:text-lg tabular-nums break-all'>
+                  {item.value}
+                </div>
+              </div>
+            ))}
+          </div>
+          {overview &&
+          Object.keys(overview.offers_by_status || {}).length > 0 ? (
+            <div className='mt-3 text-sm text-gray-500 dark:text-gray-400'>
+              {t('各状态挂单数')}:{' '}
+              {Object.entries(overview.offers_by_status)
+                .map(
+                  ([status, count]) =>
+                    `${t(OFFER_STATUS_LABELS[status] || status)}: ${Number(count).toLocaleString()}`,
+                )
+                .join(' · ')}
+            </div>
+          ) : null}
+        </>
+      )}
+    </Card>
+  );
+};
+
+// 放贷挂单列表：keyword 过滤放贷人（纯数字按用户ID，否则用户名模糊匹配）
+const LoanOffersTab = () => {
+  const { t } = useTranslation();
+  const [keyword, setKeyword] = useState('');
+  const {
+    items,
+    total,
+    loading,
+    load,
+    activePage,
+    pageSize,
+    setPageSize,
+    isMobile,
+  } = useLoanAdminData({
+    url: '/api/user/loan/admin/offers',
+    buildParams: (filters) => {
+      const params = {};
+      if (filters.keyword) params.keyword = filters.keyword;
+      return params;
+    },
+  });
+
+  const columns = useMemo(
+    () => [
+      { title: t('编号'), dataIndex: 'id', width: 80 },
+      { title: t('放贷人ID'), dataIndex: 'lender_id', width: 100 },
+      { title: t('用户名'), dataIndex: 'username', width: 150 },
+      {
+        title: t('模式'),
+        dataIndex: 'mode',
+        render: (v) => (
+          <Tag color='grey' size='small'>
+            {t(OFFER_MODE_LABELS[v] || v)}
+          </Tag>
+        ),
+        width: 90,
+      },
+      {
+        title: t('状态'),
+        dataIndex: 'status',
+        render: (v) => (
+          <Tag color={OFFER_STATUS_TAG_COLORS[v] || 'grey'} size='small'>
+            {t(OFFER_STATUS_LABELS[v] || v)}
+          </Tag>
+        ),
+        width: 90,
+      },
+      {
+        title: t('挂出总额'),
+        dataIndex: 'amount_total',
+        render: (v) => renderQuota(v || 0),
+        width: 130,
+      },
+      {
+        title: t('可用额度'),
+        dataIndex: 'amount_available',
+        render: (v) => renderQuota(v || 0),
+        width: 130,
+      },
+      {
+        title: t('利率'),
+        dataIndex: 'rate_fixed',
+        render: (v, record) =>
+          v > 0
+            ? formatDailyRate(v)
+            : `${formatDailyRate(record.rate_min)}-${formatDailyRate(record.rate_max)}`,
+        width: 130,
+      },
+      {
+        title: t('单笔上限'),
+        dataIndex: 'per_loan_cap',
+        render: (v) => renderQuota(v || 0),
+        width: 130,
+      },
+      {
+        title: t('信用门槛'),
+        dataIndex: 'min_credit_score',
+        render: (v) => (v === -50 ? t('不限') : v),
+        width: 100,
+      },
+      {
+        title: t('累计放出'),
+        dataIndex: 'total_lent',
+        render: (v) => renderQuota(v || 0),
+        width: 130,
+      },
+      {
+        title: t('累计利息'),
+        dataIndex: 'total_interest_earned',
+        render: (v) => renderQuota(v || 0),
+        width: 130,
+      },
+      {
+        title: t('创建时间'),
+        dataIndex: 'created_at',
+        render: (v) => timestamp2string(v),
+        width: 170,
+      },
+      {
+        title: t('更新时间'),
+        dataIndex: 'updated_at',
+        render: (v) => timestamp2string(v),
+        width: 170,
+      },
+    ],
+    [t],
+  );
+
+  const pagination = createCardProPagination({
+    currentPage: activePage,
+    pageSize,
+    total,
+    onPageChange: (page) => load(page, pageSize, { keyword }),
+    onPageSizeChange: (size) => {
+      localStorage.setItem('page-size', String(size));
+      setPageSize(size);
+      load(1, size, { keyword });
+    },
+    isMobile,
+    t,
+  });
+
+  return (
+    <Card className='!rounded-2xl'>
+      <div className='flex flex-col md:flex-row gap-2 mb-4'>
+        <Input
+          value={keyword}
+          placeholder={t('搜索放贷人用户名或ID')}
+          onChange={(v) => setKeyword(v)}
+          onEnter={() => load(1, pageSize, { keyword })}
+          style={{ maxWidth: 320 }}
+        />
+        <Button
+          theme='solid'
+          type='primary'
+          onClick={() => load(1, pageSize, { keyword })}
+        >
+          {t('搜索')}
+        </Button>
+      </div>
+      <Table
+        size='small'
+        columns={columns}
+        dataSource={items}
+        rowKey='id'
+        loading={loading}
+        empty={t('暂无数据')}
+        scroll={{ x: 'max-content' }}
+        pagination={false}
+      />
+      <div className='mt-4'>{pagination}</div>
+    </Card>
+  );
+};
+
+// 投放记录：可按放贷人ID / 借款人ID / 状态过滤
+const LoanFundingsTab = () => {
+  const { t } = useTranslation();
+  const [lenderId, setLenderId] = useState(null);
+  const [loanUserId, setLoanUserId] = useState(null);
+  const [status, setStatus] = useState('');
+  const {
+    items,
+    total,
+    loading,
+    load,
+    activePage,
+    pageSize,
+    setPageSize,
+    isMobile,
+  } = useLoanAdminData({
+    url: '/api/user/loan/admin/fundings',
+    buildParams: (filters) => {
+      const params = {};
+      if (filters.lenderId != null && filters.lenderId !== '') {
+        params.lender_id = String(filters.lenderId);
+      }
+      if (filters.loanUserId != null && filters.loanUserId !== '') {
+        params.loan_user_id = String(filters.loanUserId);
+      }
+      if (filters.status) params.status = filters.status;
+      return params;
+    },
+  });
+
+  const userCell = (id, username) => (
+    <div className='leading-tight'>
+      <div className='text-sm'>{username || '-'}</div>
+      <div className='text-xs text-gray-400'>#{id}</div>
+    </div>
+  );
+
+  const columns = useMemo(
+    () => [
+      { title: t('编号'), dataIndex: 'id', width: 80 },
+      {
+        title: t('放贷人'),
+        dataIndex: 'lender_id',
+        render: (v, record) => userCell(v, record.lender_username),
+        width: 150,
+      },
+      {
+        title: t('借款人'),
+        dataIndex: 'loan_user_id',
+        render: (v, record) => userCell(v, record.borrower_username),
+        width: 150,
+      },
+      {
+        title: t('来源'),
+        dataIndex: 'source_type',
+        render: (v) => (
+          <Tag color='grey' size='small'>
+            {t(FUNDING_SOURCE_LABELS[v] || v)}
+          </Tag>
+        ),
+        width: 100,
+      },
+      {
+        title: t('金额'),
+        dataIndex: 'amount',
+        render: (v) => renderQuota(v || 0),
+        width: 120,
+      },
+      {
+        title: t('未还本金'),
+        dataIndex: 'principal_remaining',
+        render: (v) => renderQuota(v || 0),
+        width: 130,
+      },
+      {
+        title: t('债务总额'),
+        dataIndex: 'debt_quota',
+        render: (v) => renderQuota(v || 0),
+        width: 130,
+      },
+      {
+        title: t('利率'),
+        dataIndex: 'rate',
+        render: (v) => formatDailyRate(v),
+        width: 100,
+      },
+      {
+        title: t('还款计划'),
+        dataIndex: 'repay_plan',
+        render: (v) => t(REPAY_PLAN_LABELS[v] || v),
+        width: 110,
+      },
+      {
+        title: t('状态'),
+        dataIndex: 'status',
+        render: (v) => (
+          <Tag color={FUNDING_STATUS_TAG_COLORS[v] || 'grey'} size='small'>
+            {t(FUNDING_STATUS_LABELS[v] || v)}
+          </Tag>
+        ),
+        width: 90,
+      },
+      {
+        title: t('应还日期'),
+        dataIndex: 'due_day',
+        render: (v) => (v ? formatLoanDay(v) : '-'),
+        width: 110,
+      },
+      {
+        title: t('创建时间'),
+        dataIndex: 'created_at',
+        render: (v) => timestamp2string(v),
+        width: 170,
+      },
+      {
+        title: t('更新时间'),
+        dataIndex: 'updated_at',
+        render: (v) => timestamp2string(v),
+        width: 170,
+      },
+    ],
+    [t],
+  );
+
+  const pagination = createCardProPagination({
+    currentPage: activePage,
+    pageSize,
+    total,
+    onPageChange: (page) =>
+      load(page, pageSize, { lenderId, loanUserId, status }),
+    onPageSizeChange: (size) => {
+      localStorage.setItem('page-size', String(size));
+      setPageSize(size);
+      load(1, size, { lenderId, loanUserId, status });
+    },
+    isMobile,
+    t,
+  });
+
+  return (
+    <Card className='!rounded-2xl'>
+      <div className='flex flex-col md:flex-row gap-2 mb-4'>
+        <InputNumber
+          value={lenderId}
+          placeholder={t('输入放贷人ID')}
+          onChange={(v) => setLenderId(v)}
+          style={{ maxWidth: 180 }}
+        />
+        <InputNumber
+          value={loanUserId}
+          placeholder={t('输入借款人ID')}
+          onChange={(v) => setLoanUserId(v)}
+          style={{ maxWidth: 180 }}
+        />
+        <Select
+          value={status}
+          onChange={(v) => setStatus(v)}
+          placeholder={t('全部')}
+          optionList={[
+            { value: '', label: t('全部') },
+            { value: 'active', label: t('生效') },
+            { value: 'overdue', label: t('逾期') },
+            { value: 'repaid', label: t('已结清') },
+            { value: 'written_off', label: t('已核销') },
+          ]}
+          style={{ width: 130 }}
+        />
+        <Button
+          theme='solid'
+          type='primary'
+          onClick={() => load(1, pageSize, { lenderId, loanUserId, status })}
+        >
+          {t('搜索')}
+        </Button>
+      </div>
+      <Table
+        size='small'
+        columns={columns}
+        dataSource={items}
+        rowKey='id'
+        loading={loading}
+        empty={t('暂无数据')}
+        scroll={{ x: 'max-content' }}
+        pagination={false}
+      />
+      <div className='mt-4'>{pagination}</div>
+    </Card>
+  );
+};
+
 const AdminLoan = () => {
   const { t } = useTranslation();
 
@@ -565,7 +1060,9 @@ const AdminLoan = () => {
         <Title heading={3} className='!mb-1'>
           {t('词元贷管理')}
         </Title>
-        <Text type='secondary'>{t('管理词元贷账户、台账与业务员工单')}</Text>
+        <Text type='secondary'>
+          {t('管理词元贷账户、台账、业务员工单与借贷市场')}
+        </Text>
       </div>
 
       <Tabs type='line' defaultActiveKey='accounts'>
@@ -577,6 +1074,15 @@ const AdminLoan = () => {
         </TabPane>
         <TabPane tab={t('业务员工单')} itemKey='applications'>
           <LoanApplicationsTab />
+        </TabPane>
+        <TabPane tab={t('市场总览')} itemKey='overview'>
+          <MarketOverviewTab />
+        </TabPane>
+        <TabPane tab={t('放贷挂单')} itemKey='offers'>
+          <LoanOffersTab />
+        </TabPane>
+        <TabPane tab={t('投放记录')} itemKey='fundings'>
+          <LoanFundingsTab />
         </TabPane>
       </Tabs>
     </div>

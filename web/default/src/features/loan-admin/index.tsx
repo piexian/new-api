@@ -24,9 +24,19 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { LoanAccountsTable } from './components/loan-accounts-table'
 import { LoanApplicationsTable } from './components/loan-applications-table'
+import { LoanFundingsTable } from './components/loan-fundings-table'
+import { LoanOffersTable } from './components/loan-offers-table'
 import { LoanRecordsTable } from './components/loan-records-table'
+import { MarketOverviewCards } from './components/market-overview-cards'
 
-const LOAN_ADMIN_TABS = ['accounts', 'records', 'applications'] as const
+const LOAN_ADMIN_TABS = [
+  'accounts',
+  'records',
+  'applications',
+  'overview',
+  'offers',
+  'fundings',
+] as const
 
 type LoanAdminTab = (typeof LOAN_ADMIN_TABS)[number]
 
@@ -52,11 +62,19 @@ export function LoanAdminPage() {
               <TabsTrigger value='applications'>
                 {t('Applications')}
               </TabsTrigger>
+              <TabsTrigger value='overview'>
+                {t('Market Overview')}
+              </TabsTrigger>
+              <TabsTrigger value='offers'>{t('Offers')}</TabsTrigger>
+              <TabsTrigger value='fundings'>{t('Fundings')}</TabsTrigger>
             </TabsList>
           </Tabs>
           {activeTab === 'accounts' ? <LoanAccountsTable /> : null}
           {activeTab === 'records' ? <LoanRecordsTable /> : null}
           {activeTab === 'applications' ? <LoanApplicationsTable /> : null}
+          {activeTab === 'overview' ? <MarketOverviewCards /> : null}
+          {activeTab === 'offers' ? <LoanOffersTable /> : null}
+          {activeTab === 'fundings' ? <LoanFundingsTable /> : null}
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>

@@ -96,3 +96,65 @@ export interface LoanAdminApplication {
   created_at: number
   updated_at: number
 }
+
+/**
+ * Lending market offer with lender username (admin cross-user view).
+ * Money fields are int64 quota ($1 = quotaPerUnit); rate fields are daily
+ * rate fractions (0.001 = 0.1%/day); min_credit_score -50 = no limit.
+ */
+export interface LoanAdminOffer {
+  id: number
+  lender_id: number
+  username: string
+  mode: 'pool' | 'ai' | 'order'
+  status: 'active' | 'paused' | 'closed'
+  amount_total: number
+  amount_available: number
+  rate_fixed: number
+  rate_min: number
+  rate_max: number
+  per_loan_cap: number
+  min_credit_score: number
+  total_lent: number
+  total_interest_earned: number
+  created_at: number
+  updated_at: number
+}
+
+/**
+ * Lending market funding record with lender/borrower usernames (admin
+ * cross-user view). Money fields are int64 quota.
+ */
+export interface LoanAdminFunding {
+  id: number
+  loan_user_id: number
+  borrow_event_id: number
+  source_type: 'platform' | 'pool' | 'ai' | 'order'
+  offer_id: number
+  lender_id: number
+  amount: number
+  principal_remaining: number
+  debt_quota: number
+  last_settled_day: number
+  rate: number
+  repay_plan: 'full' | 'no_penalty' | 'interest_freeze' | 'principal_only'
+  status: 'active' | 'overdue' | 'repaid' | 'written_off'
+  due_day: number
+  penalty_started_day: number
+  created_at: number
+  updated_at: number
+  lender_username: string
+  borrower_username: string
+}
+
+/**
+ * Lending market aggregate overview (admin read-only)
+ */
+export interface LoanMarketOverview {
+  offers_by_status: Record<string, number>
+  frozen_idle: number
+  in_loan_principal: number
+  total_interest_earned: number
+  overdue_fundings: number
+  active_offers: number
+}

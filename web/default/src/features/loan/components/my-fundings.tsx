@@ -79,7 +79,7 @@ function useSourceLabel() {
   return (source: LoanFunding['source_type']) => {
     if (source === 'pool') return t('Pool')
     if (source === 'ai') return t('AI')
-    if (source === 'order') return t('Order')
+    if (source === 'order') return t('Order (public listing)')
     return t('Platform')
   }
 }
