@@ -236,11 +236,9 @@ func convertBoraInputs(messages []dto.Message) (string, []boraInput, error) {
 			if message.ToolCallId != "" {
 				return "", nil, fmt.Errorf("message %d: assistant messages cannot contain tool_call_id", index)
 			}
-			if text != "" || message.GetReasoningContent() != "" {
-				reasoning := message.GetReasoningContent()
-				if reasoning != "" {
-					text = "[thinking]\n" + reasoning + "\n\n" + text
-				}
+			// 历史 reasoning 不回传：bora 输入不支持结构化 thinking，
+			// 拼成文本会导致模型模仿 "[thinking]" 格式并漏进正文
+			if text != "" {
 				content := namedConversationText("assistant", message.Name, text)
 				inputs = append(inputs, boraInput{
 					Object:  "entry",
