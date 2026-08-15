@@ -3,10 +3,12 @@ package model
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -62,7 +64,7 @@ type TokenLoanOffer struct {
 	RateMin             float64 `json:"rate_min"`                                      // 区间利率下限
 	RateMax             float64 `json:"rate_max"`                                      // 区间利率上限
 	PerLoanCap          int64   `json:"per_loan_cap" gorm:"bigint"`                    // 单笔上限
-	MinCreditScore      int     `json:"min_credit_score"`                              // 最低可借信用分，0 = 不限
+	MinCreditScore      int     `json:"min_credit_score"`                              // 最低可借信用分，-50 = 不限（spec §4.1；0 是罚分后的合法分值）
 	TotalLent           int64   `json:"total_lent" gorm:"bigint"`                      // 累计放出
 	TotalInterestEarned int64   `json:"total_interest_earned" gorm:"bigint"`           // 累计利息收入
 	CreatedAt           int64   `json:"created_at" gorm:"bigint"`                      // 秒级时间戳
@@ -215,4 +217,281 @@ func MigrateLoanToFundings() error {
 		common.SysLog(fmt.Sprintf("loan funding migration: created %d platform funding(s) for legacy loans", created))
 	}
 	return nil
+}
+
+// ===== Task 6: offer 生命周期 =====
+
+// 借贷市场哨兵错误，controller 层映射为 i18n 响应。
+// 金额类错误复用 model/loan.go 的 ErrLoanInvalidAmount / ErrLoanInsufficientBalance /
+// ErrLoanQuotaOverflow / ErrLoanUserDisabled。
+var (
+	ErrLoanMarketDisabled     = errors.New("loan market is disabled")
+	ErrLoanDisclaimerRequired = errors.New("lender disclaimer not agreed")
+	ErrLoanOfferNotFound      = errors.New("loan offer not found")
+	ErrLoanOfferInvalidParams = errors.New("invalid loan offer parameters")
+	ErrLoanOfferNotActive     = errors.New("loan offer is not in an operable state")
+	ErrLoanNothingToWithdraw  = errors.New("loan offer has no idle balance to withdraw")
+)
+
+// AgreeLenderDisclaimer 幂等记录放贷人同意免责声明的时间（spec §4.3/§11）；
+// 账户不存在时顺带创建，镜像 AgreeLoanTerms。
+func AgreeLenderDisclaimer(userId int) error {
+	now := time.Now()
+	return DB.Transaction(func(tx *gorm.DB) error {
+		acc, err := getOrCreateLoanAccountTxSafe(tx, userId)
+		if err != nil {
+			return err
+		}
+		if acc.LenderDisclaimerAgreedAt != 0 {
+			return nil // 幂等：已同意不覆盖首次时间
+		}
+		acc.LenderDisclaimerAgreedAt = now.Unix()
+		acc.UpdatedAt = now.Unix()
+		return tx.Save(acc).Error
+	})
+}
+
+// CreateLoanOffer 放贷人挂出供给单（spec §3.1/§4.1）：
+//  1. 事务外校验：市场开关、模式、金额 decimal 解析（镜像 BorrowLoan：正数、最多两位
+//     小数、int32 上界）、利率区间、单笔上限、信用分门槛钳制；
+//  2. 事务内 lockForUpdate 锁 users 行：状态正常、余额充足 → 扣 quota；读/建贷款账户
+//     并校验免责声明 → 建 offer（AmountTotal=AmountAvailable=amount，扣款与建行同事务，
+//     失败整体回滚）；
+//  3. 提交后异步同步 Redis 余额缓存（镜像 BorrowLoan 的副作用）。
+//
+// 校验规则：
+//   - pool/order：rateFixed ∈ [LenderRateMin, LenderRateMax]；perLoanCap=0 时取
+//     PerLoanCapDefault 缺省（可能仍为 0 = 不限）；
+//   - ai：rateMin/rateMax 区间 ⊆ [LenderRateMin, LenderRateMax] 且 perLoanCap > 0；
+//   - minCreditScore 钳制到 [-50, 100]，低于 -50 视为"不限制"。
+func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rateMin, rateMax float64, perLoanCap int64, minCreditScore int) (*TokenLoanOffer, error) {
+	loanSetting := operation_setting.GetLoanSetting()
+	if !loanSetting.MarketEnabled {
+		return nil, ErrLoanMarketDisabled
+	}
+	if mode != LoanOfferModePool && mode != LoanOfferModeAi && mode != LoanOfferModeOrder {
+		return nil, ErrLoanOfferInvalidParams
+	}
+
+	// 金额解析与 BorrowLoan 同一套：非正数或超过两位小数一律拒绝
+	usd, err := decimal.NewFromString(amountUsd)
+	if err != nil || !usd.IsPositive() || usd.Exponent() < -2 {
+		return nil, ErrLoanInvalidAmount
+	}
+	quotaDec := usd.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	amount, clamp := common.QuotaFromDecimalChecked(quotaDec)
+	if clamp != nil {
+		return nil, ErrLoanQuotaOverflow
+	}
+	// QuotaPerUnit 是运行时可调配置（model/option.go），换算后 amount 可能为 0，必须显式拒绝
+	if amount <= 0 {
+		return nil, ErrLoanInvalidAmount
+	}
+	if int64(amount) < loanSetting.LenderMinAmount {
+		return nil, ErrLoanOfferInvalidParams
+	}
+	// 挂出金额必须落在 int32 quota 上界内（clamp 后恒成立，防御性校验）
+	if int64(amount) > common.MaxQuota {
+		return nil, ErrLoanQuotaOverflow
+	}
+
+	var rateFixedVal float64
+	switch mode {
+	case LoanOfferModePool, LoanOfferModeOrder:
+		rf, err := strconv.ParseFloat(rateFixed, 64)
+		if err != nil || rf < loanSetting.LenderRateMin || rf > loanSetting.LenderRateMax {
+			return nil, ErrLoanOfferInvalidParams
+		}
+		rateFixedVal = rf
+	case LoanOfferModeAi:
+		if rateMin > rateMax || rateMin < loanSetting.LenderRateMin || rateMax > loanSetting.LenderRateMax {
+			return nil, ErrLoanOfferInvalidParams
+		}
+		if perLoanCap <= 0 {
+			return nil, ErrLoanOfferInvalidParams
+		}
+	}
+	// pool/order 的 perLoanCap=0 表示跟随全局缺省；ai 已强制 perLoanCap>0，无需替换
+	if perLoanCap == 0 && mode != LoanOfferModeAi {
+		perLoanCap = loanSetting.PerLoanCapDefault
+	}
+	// 信用分门槛钳制 [-50, 100]；-50 即"不限制"（spec §4.1）
+	if minCreditScore < -50 {
+		minCreditScore = -50
+	} else if minCreditScore > 100 {
+		minCreditScore = 100
+	}
+
+	now := time.Now()
+	var offer *TokenLoanOffer
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		// 事务内锁 users 行：状态与余额（同 BorrowLoan 的读模式 + FOR UPDATE，
+		// 并发同放贷人挂单在行锁上串行，扣减不丢失）
+		var user User
+		if err := lockForUpdate(tx).Select("id", "quota", "status").Where("id = ?", lenderId).First(&user).Error; err != nil {
+			return err
+		}
+		if user.Status != common.UserStatusEnabled {
+			return ErrLoanUserDisabled
+		}
+		if int64(user.Quota) < int64(amount) {
+			return ErrLoanInsufficientBalance
+		}
+
+		acc, err := getOrCreateLoanAccountTxSafe(tx, lenderId)
+		if err != nil {
+			return err
+		}
+		if acc.LenderDisclaimerAgreedAt == 0 {
+			return ErrLoanDisclaimerRequired
+		}
+
+		// 扣 quota 与建 offer 同一事务，失败整体回滚
+		if err := tx.Model(&User{}).Where("id = ?", lenderId).
+			Update("quota", gorm.Expr("quota - ?", amount)).Error; err != nil {
+			return err
+		}
+		offer = &TokenLoanOffer{
+			LenderId:        lenderId,
+			Mode:            mode,
+			Status:          LoanOfferStatusActive,
+			AmountTotal:     int64(amount),
+			AmountAvailable: int64(amount),
+			RateFixed:       rateFixedVal,
+			RateMin:         rateMin,
+			RateMax:         rateMax,
+			PerLoanCap:      perLoanCap,
+			MinCreditScore:  minCreditScore,
+			CreatedAt:       now.Unix(),
+			UpdatedAt:       now.Unix(),
+		}
+		return tx.Create(offer).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// 事务提交后异步同步 Redis 余额缓存（镜像 BorrowLoan 的缓存副作用）
+	go func() {
+		_ = cacheDecrUserQuota(lenderId, int64(amount))
+	}()
+	return offer, nil
+}
+
+// SetLoanOfferStatus offer 状态流转：仅 active ⇄ paused（关闭是终态，走 CloseLoanOffer）。
+// 已关闭的 offer 再操作报 ErrLoanOfferNotActive；非法目标状态报 ErrLoanOfferInvalidParams；
+// 非本人 offer 一律 ErrLoanOfferNotFound（not-found-not-forbidden，与 GetLoanApplicationById 同风格）。
+func SetLoanOfferStatus(lenderId int, offerId int, status string) error {
+	if status != LoanOfferStatusActive && status != LoanOfferStatusPaused {
+		return ErrLoanOfferInvalidParams
+	}
+	now := time.Now()
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var offer TokenLoanOffer
+		if err := lockForUpdate(tx).Where("id = ? AND lender_id = ?", offerId, lenderId).First(&offer).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrLoanOfferNotFound
+			}
+			return err
+		}
+		if offer.Status == LoanOfferStatusClosed {
+			return ErrLoanOfferNotActive
+		}
+		if offer.Status == status {
+			return nil // 幂等：已是目标状态
+		}
+		return tx.Model(&TokenLoanOffer{}).Where("id = ?", offerId).
+			Updates(map[string]interface{}{"status": status, "updated_at": now.Unix()}).Error
+	})
+}
+
+// CloseLoanOffer 关闭 offer（终态，spec §4.1）：事务内锁 offer 行，闲置额度
+// AmountAvailable 退回用户余额，amount_total 同步核减（钱离开 offer 账面，与核销
+// "amount_total 同步减"同语义，保持不变式 amount_total = amount_available + Σ 未还本金），
+// 存续 funding 不受影响（后续本金直接回放贷人余额属 Task 9 还款分配）。提交后异步同步余额缓存。
+func CloseLoanOffer(lenderId int, offerId int) error {
+	_, err := closeOrWithdrawOffer(lenderId, offerId, true)
+	return err
+}
+
+// WithdrawLoanOffer 撤回 offer 的全部闲置额度到用户余额（v1 简化：撤回后 offer 保留原状态，
+// AmountAvailable=0 且不支持再充值），amount_total 同步核减；返回撤回额度。
+func WithdrawLoanOffer(lenderId int, offerId int) (int64, error) {
+	return closeOrWithdrawOffer(lenderId, offerId, false)
+}
+
+// closeOrWithdrawOffer 关闭/撤回共用实现：锁 offer 行（归属校验内置 WHERE，非本人一律
+// ErrLoanOfferNotFound）→ 校验状态与闲置额度 → 退回余额（int32 上界校验镜像 BorrowLoan
+// 的 quota+amount 检查）→ 核减 amount_total / 清零 amount_available。
+func closeOrWithdrawOffer(lenderId int, offerId int, closing bool) (int64, error) {
+	now := time.Now()
+	var refunded int64
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var offer TokenLoanOffer
+		if err := lockForUpdate(tx).Where("id = ? AND lender_id = ?", offerId, lenderId).First(&offer).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrLoanOfferNotFound
+			}
+			return err
+		}
+		if offer.Status == LoanOfferStatusClosed {
+			return ErrLoanOfferNotActive
+		}
+		refund := offer.AmountAvailable
+		if !closing && refund <= 0 {
+			return ErrLoanNothingToWithdraw
+		}
+		if refund > 0 {
+			var user User
+			if err := lockForUpdate(tx).Select("id", "quota").Where("id = ?", lenderId).First(&user).Error; err != nil {
+				return err
+			}
+			// 入账走 int32 上界校验（镜像 BorrowLoan 的 quota+amount 检查）
+			if int64(user.Quota)+refund > common.MaxQuota {
+				return ErrLoanQuotaOverflow
+			}
+			if err := tx.Model(&User{}).Where("id = ?", lenderId).
+				Update("quota", gorm.Expr("quota + ?", refund)).Error; err != nil {
+				return err
+			}
+		}
+		updates := map[string]interface{}{
+			"amount_available": int64(0),
+			"amount_total":     offer.AmountTotal - refund,
+			"updated_at":       now.Unix(),
+		}
+		if closing {
+			updates["status"] = LoanOfferStatusClosed
+		}
+		if err := tx.Model(&TokenLoanOffer{}).Where("id = ?", offerId).Updates(updates).Error; err != nil {
+			return err
+		}
+		refunded = refund
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	if refunded > 0 {
+		go func() {
+			_ = cacheIncrUserQuota(lenderId, refunded)
+		}()
+	}
+	return refunded, nil
+}
+
+// GetUserLoanOffers 返回放贷人全部 offer，id 倒序（最新在前）
+func GetUserLoanOffers(lenderId int) ([]TokenLoanOffer, error) {
+	var offers []TokenLoanOffer
+	err := DB.Where("lender_id = ?", lenderId).Order("id DESC").Find(&offers).Error
+	return offers, err
+}
+
+// GetLoanOfferById 按 id 查询 offer（管理端只读），不存在时透出 gorm.ErrRecordNotFound
+func GetLoanOfferById(id int) (*TokenLoanOffer, error) {
+	var offer TokenLoanOffer
+	if err := DB.First(&offer, id).Error; err != nil {
+		return nil, err
+	}
+	return &offer, nil
 }
