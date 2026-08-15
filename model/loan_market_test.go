@@ -126,13 +126,14 @@ func platformFundingsOf(t *testing.T, userId int) []TokenLoanFunding {
 
 // TestMigrateLoanToFundings 存量迁移测试（spec §15 + plan Task 5）：
 //   - 预置 4 类账户：带宽限（interest_free_until）、无宽限、债务为 0、已有 P2P funding 仍带债务
-//   - 迁移后断言：全量账户 settle 落盘（LastSettledDay 前推、settle 计息正确、宽限内不计息）；
+//   - 首轮迁移断言：全量账户 settle 落盘（LastSettledDay 前推、settle 计息正确、宽限内不计息）；
 //     platform funding 字段逐一正确；债务 0 账户不生成 funding；已有 P2P funding 的账户仍补一条
 //     platform funding（存在性守卫只认 source_type=platform）；credit_score==0 全部回填
-//     CreditInitial；二次执行不产生重复 funding（幂等）
+//     CreditInitial
 //   - 宽限承载：宽限账户的 funding 在宽限期内经 ProjectFundingDebt 结算不计息，
 //     无宽限账户同期照常计息
-//   - 哨兵：回填只做一次——置位后再建的 0 分账户（即使带债务）不再被重填
+//   - 一次性守卫：哨兵置位后二次执行必须是全量 no-op——过期未结算的新账户（LastSettledDay
+//     落后 3 天、有债务、0 分）经再运行不得被 settle、不得建 funding、不得回填 credit
 func TestMigrateLoanToFundings(t *testing.T) {
 	withDailyRate(t, 0.001)
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
@@ -272,36 +273,47 @@ func TestMigrateLoanToFundings(t *testing.T) {
 	expected3 := int64(math.Round(float64(nf.DebtQuota) * math.Pow(1.001, 3)))
 	require.Equal(t, expected3, ProjectFundingDebt(&nf, &normalAfter, day3))
 
-	// —— 幂等：二次执行不产生重复 funding ——
+	// —— 一次性守卫：二次执行必须是全量 no-op ——
+	// 哨兵置位后再建的过期未结算账户（LastSettledDay 落后 3 天、有债务、0 分）：
+	// 迁移不得再 settle/转化 funding/回填 credit——函数入口即返回。
+	// （若退化为"每次启动全量 settle"，此账户债务会被复利 3 天并生成 funding，测试即失败）
 	fundingTotal := func() int64 {
 		var n int64
 		require.NoError(t, DB.Model(&TokenLoanFunding{}).Count(&n).Error)
 		return n
 	}
+	staleUser := createLoanTestUser(t)
+	require.NoError(t, DB.Where("loan_user_id = ?", staleUser.Id).Delete(&TokenLoanFunding{}).Error)
+	require.NoError(t, DB.Where("user_id = ?", staleUser.Id).Delete(&TokenLoanAccount{}).Error)
+	const staleDebt = int64(123_456)
+	require.NoError(t, DB.Create(&TokenLoanAccount{
+		UserId:         staleUser.Id,
+		PrincipalQuota: staleDebt,
+		DebtQuota:      staleDebt,
+		LastSettledDay: today - 3,
+		CreatedAt:      now.Unix(),
+		UpdatedAt:      now.Unix(),
+	}).Error)
+
 	before := fundingTotal()
 	require.NoError(t, MigrateLoanToFundings())
-	require.Equal(t, before, fundingTotal(), "二次迁移不得新增 funding")
+	require.Equal(t, before, fundingTotal(), "哨兵置位后迁移不得新增 funding")
+	var stale TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", staleUser.Id).First(&stale).Error)
+	require.Equal(t, staleDebt, stale.DebtQuota, "哨兵置位后不得再 settle（债务保持未复利）")
+	require.Equal(t, today-3, stale.LastSettledDay, "哨兵置位后不得推进结算时钟")
+	require.Zero(t, stale.CreditScore, "回填只执行一次，不得重填 0 分")
+	require.Empty(t, platformFundingsOf(t, staleUser.Id), "哨兵置位后不得转化 funding")
+
+	// 再跑一次仍为 no-op：债务与首次 no-op 运行一致、各自用户 funding 条数不变
+	require.NoError(t, MigrateLoanToFundings())
+	var staleAgain TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", staleUser.Id).First(&staleAgain).Error)
+	require.Equal(t, stale.DebtQuota, staleAgain.DebtQuota, "两次迁移后债务必须一致")
+	require.Equal(t, before, fundingTotal(), "第三次迁移仍不得新增 funding")
 	for _, uid := range []int{graceUser.Id, normalUser.Id, p2pUser.Id} {
 		require.Len(t, platformFundingsOf(t, uid), 1)
 	}
 	require.Empty(t, platformFundingsOf(t, debtFreeUser.Id))
-
-	// —— 哨兵：credit 回填只做一次 ——
-	// 哨兵置位后再建的 0 分账户（即使带债务可被转化 funding）不得被重填为初始分
-	lateUser := createLoanTestUser(t)
-	require.NoError(t, DB.Where("loan_user_id = ?", lateUser.Id).Delete(&TokenLoanFunding{}).Error)
-	require.NoError(t, DB.Where("user_id = ?", lateUser.Id).Delete(&TokenLoanAccount{}).Error)
-	require.NoError(t, DB.Create(&TokenLoanAccount{
-		UserId:         lateUser.Id,
-		PrincipalQuota: 10_000,
-		DebtQuota:      10_000,
-		LastSettledDay: today,
-		CreatedAt:      now.Unix(),
-		UpdatedAt:      now.Unix(),
-	}).Error)
-	require.NoError(t, MigrateLoanToFundings())
-	var late TokenLoanAccount
-	require.NoError(t, DB.Where("user_id = ?", lateUser.Id).First(&late).Error)
-	require.Zero(t, late.CreditScore, "回填只执行一次，不得重填 0 分")
-	require.Len(t, platformFundingsOf(t, lateUser.Id), 1, "新债务仍应被转化为 platform funding")
+	require.Empty(t, platformFundingsOf(t, staleUser.Id))
 }

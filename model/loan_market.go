@@ -100,12 +100,13 @@ func (TokenLoanFunding) TableName() string {
 
 // ===== Task 5: 存量迁移 =====
 
-// loanFundingMigrationOptionKey 迁移哨兵：credit_score 回填只执行一次。
+// loanFundingMigrationOptionKey 迁移哨兵：迁移整体只执行一次（含 credit_score 回填）。
 // 信用分系统（Task 11）上线后 credit_score==0 是罚分后的合法分值，
 // 严格禁止把 0 再次当作"未评估"整体重填为初始分。
 const loanFundingMigrationOptionKey = "LoanFundingMigratedV1"
 
-// MigrateLoanToFundings 存量迁移（spec §15，幂等可重入，每次启动可安全调用）：
+// MigrateLoanToFundings 存量迁移（spec §15）：一次性迁移，哨兵 Option 行
+// （loanFundingMigrationOptionKey）置位后每次启动直接返回，不做任何动作。
 //  1. 全量账户先惰性 settle 到当前本地日并落盘——存量利息落定，LastSettledDay 前推；
 //  2. 对 settle 后仍 debt_quota > 0 且该用户尚无 platform funding 的账户，生成一条
 //     platform funding：
@@ -116,17 +117,27 @@ const loanFundingMigrationOptionKey = "LoanFundingMigratedV1"
 //     PenaltyStartedDay=0、时间戳=now。
 //     InterestFreeUntil 宽限留在账户行上，settleFunding 的 platform 分支会读取它
 //     （spec §15：存量宽限由 platform funding 继续承载，不复制到 funding 行）。
-//  3. credit_score=0 的账户回填 CreditInitial：仅首轮迁移执行（哨兵 Option 行，
-//     镜像 MigrateRedemptionMaxRedemptionsOnce），此后 credit_score==0 是罚分合法值，绝不重填。
+//  3. credit_score=0 的账户回填 CreditInitial（与第 1、2 步同轮完成）。
 //
-// 全流程单事务，失败整体回滚、下次启动自动重试；funding 生成以「该用户无 platform funding」
-// 的存在性检查保证再入幂等，重复执行不会产生重复投放。
+// 一次性是关键约束而非省事：Task 9 之后 TokenLoanAccount 的 DebtQuota 成为 fundings 的
+// 纯投影（syncAccountFromFundings），若每次启动仍对账户做惰性结算，会与 funding 时钟
+// 独立复利、双重计息。迁移只在部署时跑一次；失败整体回滚、哨兵不落库，下次启动自动重试。
 func MigrateLoanToFundings() error {
+	// 哨兵已置位：整体一次性迁移已完成，直接返回（先于任何 settle，保证零副作用）
+	var existing Option
+	if err := DB.Where("key = ?", loanFundingMigrationOptionKey).First(&existing).Error; err == nil {
+		if existing.Value == "true" {
+			return nil
+		}
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
 	now := time.Now()
 	created := 0
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		// 事务内二次确认哨兵：并发首启时避免重复回填（与既有 Once 迁移模式一致）
 		creditPending := true
-		var existing Option
 		if err := tx.Where("key = ?", loanFundingMigrationOptionKey).First(&existing).Error; err == nil {
 			creditPending = existing.Value != "true"
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
