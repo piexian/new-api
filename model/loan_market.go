@@ -231,6 +231,11 @@ var (
 	ErrLoanOfferInvalidParams = errors.New("invalid loan offer parameters")
 	ErrLoanOfferNotActive     = errors.New("loan offer is not in an operable state")
 	ErrLoanNothingToWithdraw  = errors.New("loan offer has no idle balance to withdraw")
+
+	// Task 12：逾期债权处置（spec §9）
+	ErrLoanFundingNotOverdue    = errors.New("loan funding is not overdue")            // 仅 overdue 可处置
+	ErrLoanInvalidDefaultAction = errors.New("invalid loan default action")            // 非法动作 / extendDays 越界
+	ErrLoanNotFundingOwner      = errors.New("loan funding does not belong to lender") // 非本人或平台债权
 )
 
 // AgreeLenderDisclaimer 幂等记录放贷人同意免责声明的时间（spec §4.3/§11）；
@@ -494,4 +499,173 @@ func GetLoanOfferById(id int) (*TokenLoanOffer, error) {
 		return nil, err
 	}
 	return &offer, nil
+}
+
+// ===== Task 12: 逾期债权处置（延长/核销/永续）+ 黑名单出口 =====
+
+// 逾期债权处置动作（spec §9）
+const (
+	LoanDefaultActionExtend    = "extend"    // 延长：改写 due_day，status → active（已计罚息保留）
+	LoanDefaultActionWriteoff  = "writeoff"  // 核销：终态 written_off，债务销毁 + 拉黑 + 扣分
+	LoanDefaultActionPerpetual = "perpetual" // 永续：保持 overdue 继续计息，仅记录决策
+)
+
+// ResolveOverdueFunding 放贷人对本人逾期债权三选一处置（spec §9）：
+//   - 仅 funding 的 lender 本人（LenderId == lenderId）可调用；platform funding
+//     （LenderId==0）归 Task 15 官方流程（AI 审批员），一律 ErrLoanNotFundingOwner；
+//   - 仅 status == overdue 可处置，否则 ErrLoanFundingNotOverdue；funding 不存在透出
+//     gorm.ErrRecordNotFound；
+//   - extend：extendDays ∈ (0, LoanTermDays]，DueDay = loanDay(now) + extendDays，
+//     status → active；PenaltyStartedDay 保留（历史记录），按时还清加分的基准即新
+//     DueDay（Task 13 读 max(due_day)）；
+//   - writeoff：见 writeoffFundingTx（核销债务销毁 + offer 核减 + 拉黑 + 扣分）；
+//   - perpetual：funding 状态不变（保持 overdue 继续计息，签到继续 100% 扣还），仅
+//     SysLog 记录决策——决策不是资金变动，不写台账；审计日志属 Task 17 controller 侧。
+func ResolveOverdueFunding(lenderId int, fundingId int64, action string, extendDays int) error {
+	loanSetting := operation_setting.GetLoanSetting()
+	now := time.Now()
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var f TokenLoanFunding
+		if err := lockForUpdate(tx).Where("id = ?", fundingId).First(&f).Error; err != nil {
+			return err // gorm.ErrRecordNotFound 由 controller 映射
+		}
+		if f.LenderId != lenderId {
+			// 含 platform（LenderId==0）：官方债权归 Task 15 审批员流程，不放贷人自处
+			return ErrLoanNotFundingOwner
+		}
+		if f.Status != LoanFundingOverdue {
+			return ErrLoanFundingNotOverdue
+		}
+
+		switch action {
+		case LoanDefaultActionExtend:
+			if extendDays <= 0 || extendDays > loanSetting.LoanTermDays {
+				return ErrLoanInvalidDefaultAction
+			}
+			f.DueDay = loanDay(now) + extendDays
+			f.Status = LoanFundingActive
+			f.UpdatedAt = now.Unix()
+			return tx.Save(&f).Error
+		case LoanDefaultActionWriteoff:
+			return writeoffFundingTx(tx, &f, now)
+		case LoanDefaultActionPerpetual:
+			common.SysLog(fmt.Sprintf("loan default decision: funding %d marked perpetual (stays overdue, keeps accruing)", f.Id))
+			return nil
+		default:
+			return ErrLoanInvalidDefaultAction
+		}
+	})
+}
+
+// writeoffFundingTx 核销事务（f 为已锁定的 overdue P2P funding）：
+//  1. settleFunding(f, nil, now) 冻结最终债务——P2P 用自身利率，acc 仅 platform 分支
+//     使用故传 nil；冻结的债务留在 funding 行作历史记录，不在任何路径偿还；
+//  2. funding → written_off 终态落盘；
+//  3. offer 侧（锁 offer 行，offer 可能已关闭，两态同处理）：amount_total -=
+//     principal_remaining（floor 0 防御）。钱在放款时已离开 offer 账面
+//     （amount_available 已扣减），此处核减 amount_total 维持不变式
+//     amount_total = amount_available + Σ(active/overdue 本金)；
+//     offer 行缺失容忍跳过（生产代码无删除 offer 路径，仅防御）；
+//  4. 借款人侧（锁贷款账户，缺失防御性创建——有 funding 必有账户）：
+//     blacklisted_until_day = max(现值, today + BlacklistDaysOnDefault)，
+//     credit_score -= CreditDefaultPenalty（下限 -50 截断，P1-9）；
+//  5. syncAccountFromFundings 汇总剩余 active/overdue fundings 回写账户投影，本笔核销
+//     债务从投影销毁（deflation，spec §9）。
+//
+// 未付利息在借款人侧直接免除（放贷人从未收到，无账可冲），核销不写任何台账行——
+// 决策不是资金变动。锁序：funding → offer → 借款人账户；与还款路径（用户 → 账户 →
+// funding）在 (账户, funding) 上存在理论锁序倒挂，并发同用户核销+还款时数据库检测
+// 死锁并中止一方事务（整体回滚，无数据损坏），调用方重试即可；v1 接受该瞬时失败。
+func writeoffFundingTx(tx *gorm.DB, f *TokenLoanFunding, now time.Time) error {
+	loanSetting := operation_setting.GetLoanSetting()
+
+	settleFunding(f, nil, now) // 冻结最终债务（P2P 利率，无平台分支）
+	f.Status = LoanFundingWrittenOff
+	f.UpdatedAt = now.Unix()
+	if err := tx.Save(f).Error; err != nil {
+		return err
+	}
+
+	if f.OfferId > 0 {
+		var offer TokenLoanOffer
+		err := lockForUpdate(tx).Where("id = ?", f.OfferId).First(&offer).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err == nil {
+			reduced := offer.AmountTotal - f.PrincipalRemaining
+			if reduced < 0 {
+				reduced = 0 // floor 防御，维持 amount_total >= 0
+			}
+			offer.AmountTotal = reduced
+			offer.UpdatedAt = now.Unix()
+			if err := tx.Save(&offer).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	borrowerAcc, err := getOrCreateLoanAccountTx(tx, f.LoanUserId)
+	if err != nil {
+		return err
+	}
+	if bl := loanDay(now) + loanSetting.BlacklistDaysOnDefault; bl > borrowerAcc.BlacklistedUntilDay {
+		borrowerAcc.BlacklistedUntilDay = bl
+	}
+	borrowerAcc.CreditScore -= loanSetting.CreditDefaultPenalty
+	if borrowerAcc.CreditScore < -50 {
+		borrowerAcc.CreditScore = -50 // P1-9：下限 -50 截断
+	}
+
+	// 投影同步：written_off 债务从账户投影销毁（deflation），不再计入任何债务
+	remaining, err := loadUserFundingsTx(tx, f.LoanUserId)
+	if err != nil {
+		return err
+	}
+	syncAccountFromFundings(borrowerAcc, remaining)
+	borrowerAcc.UpdatedAt = now.Unix()
+	return tx.Save(borrowerAcc).Error
+}
+
+// maybeLiftBlacklistTx 黑名单出口（spec §9）：在 distributeRepayment 的 repaid 分支调用，
+// 还款后若满足解除条件则清零 BlacklistedUntilDay。规则（评审钉死，见 plan Task 12）：
+//   - 仅当 acc.BlacklistedUntilDay > 0 且用户已无任何 overdue funding（全部还清）时考虑解除；
+//   - 追加守卫：当前黑名单不得由「窗口仍在运行」的核销设置——存在 written_off funding 且
+//     其核销落账日 >= 黑名单起始日（blacklist_start = BlacklistedUntilDay -
+//     BlacklistDaysOnDefault）时不解锁。核销拉黑不可逆（核销不可逆），必须跑满窗口自然到期；
+//   - 永续全还清 → 立即解除：永续路径不产生 written_off 行，只要无 overdue 即满足守卫，
+//     BlacklistedUntilDay 立即清零（还款激励）。
+//
+// 推导注记：blacklist_start 由 max(现值, today+N) 反推，最新一次核销的落账日恒 >= 该
+// 起始日，故只要存在 written_off 行（黑名单由核销触发）就永不提前解除——这正是"核销
+// 不可逆"；提前解除仅发生在无 written_off 的黑名单上（如外部/历史置位，或永续路径下
+// 黑名单并非由本次核销窗口引发），窗口自然过完后 BorrowLoan 闸门
+// （blacklisted_until_day > today）本就放行，此处清零仅为状态整洁。
+//
+// 仅修改内存 acc（BlacklistedUntilDay），落盘由调用方统一 tx.Save(acc)。
+func maybeLiftBlacklistTx(tx *gorm.DB, acc *TokenLoanAccount, now time.Time) error {
+	if acc.BlacklistedUntilDay <= 0 {
+		return nil
+	}
+	hasOverdue, err := HasOverdueFundings(tx, acc.UserId)
+	if err != nil {
+		return err
+	}
+	if hasOverdue {
+		return nil
+	}
+	start := acc.BlacklistedUntilDay - operation_setting.GetLoanSetting().BlacklistDaysOnDefault
+	var writtenOff []TokenLoanFunding
+	if err := tx.Select("updated_at").
+		Where("loan_user_id = ? AND status = ?", acc.UserId, LoanFundingWrittenOff).
+		Find(&writtenOff).Error; err != nil {
+		return err
+	}
+	for _, f := range writtenOff {
+		if loanDay(time.Unix(f.UpdatedAt, 0)) >= start {
+			return nil // 核销窗口仍在运行，不提前解除
+		}
+	}
+	acc.BlacklistedUntilDay = 0
+	return nil
 }

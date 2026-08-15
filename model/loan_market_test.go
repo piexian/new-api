@@ -741,3 +741,364 @@ func TestGetUserLoanOffersAndGetLoanOfferById(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, otherOffers)
 }
+
+// ===== Task 12: 逾期债权处置（延长/核销/永续）+ 黑名单出口 =====
+
+// createP2POverdueFunding 建一条挂 offer 的 overdue P2P funding（处置测试）：
+// LastSettledDay=今天使结算不再计息，债务数值确定；debt > principal 表示含未付利息
+func createP2POverdueFunding(t *testing.T, borrowerId, lenderId, offerId int, principal, debt int64) *TokenLoanFunding {
+	t.Helper()
+	now := time.Now()
+	day := loanDay(now)
+	f := &TokenLoanFunding{
+		LoanUserId:         borrowerId,
+		SourceType:         LoanFundingPool,
+		OfferId:            offerId,
+		LenderId:           lenderId,
+		Amount:             principal,
+		PrincipalRemaining: principal,
+		DebtQuota:          debt,
+		LastSettledDay:     day,
+		Rate:               0.001,
+		RepayPlan:          LoanRepayFull,
+		Status:             LoanFundingOverdue,
+		DueDay:             day - 5,
+		PenaltyStartedDay:  day - 5,
+		CreatedAt:          now.Unix(),
+		UpdatedAt:          now.Unix(),
+	}
+	require.NoError(t, DB.Create(f).Error)
+	return f
+}
+
+// ① 非 owner / platform / 不存在的 funding 一律拒绝（ErrLoanNotFundingOwner /
+//
+//	gorm.ErrRecordNotFound），且 funding 状态不被改动
+func TestResolveOverdueFundingRejectsNonOwner(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	other := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	cleanupLoanBorrowData(t, borrower.Id, other.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+	f := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000)
+
+	// 他人（非 funding 放贷人）处置被拒
+	err := ResolveOverdueFunding(other.Id, f.Id, LoanDefaultActionExtend, 10)
+	require.ErrorIs(t, err, ErrLoanNotFundingOwner)
+
+	// funding 不存在
+	err = ResolveOverdueFunding(lender.Id, 99999999, LoanDefaultActionExtend, 10)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+
+	// platform funding（LenderId==0）归 Task 15 官方流程，放贷人不可处置
+	pf := createFlipFunding(t, borrower.Id, time.Now(), -1, 1000)
+	require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("id = ?", pf.Id).
+		Update("status", LoanFundingOverdue).Error)
+	err = ResolveOverdueFunding(lender.Id, pf.Id, LoanDefaultActionPerpetual, 0)
+	require.ErrorIs(t, err, ErrLoanNotFundingOwner)
+
+	// 所有被拒路径都不改动 funding 状态
+	for _, id := range []int64{f.Id, pf.Id} {
+		var got TokenLoanFunding
+		require.NoError(t, DB.First(&got, id).Error)
+		require.Equal(t, LoanFundingOverdue, got.Status)
+	}
+}
+
+// ② 非 overdue 状态拒绝（active / repaid 均报 ErrLoanFundingNotOverdue）
+func TestResolveOverdueFundingRejectsNonOverdue(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+	active := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000)
+	require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("id = ?", active.Id).
+		Update("status", LoanFundingActive).Error)
+
+	err := ResolveOverdueFunding(lender.Id, active.Id, LoanDefaultActionExtend, 10)
+	require.ErrorIs(t, err, ErrLoanFundingNotOverdue)
+
+	repaid := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 100_000, 105_000)
+	require.NoError(t, DB.Model(&TokenLoanFunding{}).Where("id = ?", repaid.Id).
+		Update("status", LoanFundingRepaid).Error)
+	err = ResolveOverdueFunding(lender.Id, repaid.Id, LoanDefaultActionWriteoff, 0)
+	require.ErrorIs(t, err, ErrLoanFundingNotOverdue)
+}
+
+// ③ 核销全链路：funding → written_off（冻结债务保留作历史，不偿还）；offer 侧
+//
+//	amount_total -= principal_remaining；借款人拉黑（today + BlacklistDaysOnDefault）、
+//	扣分（50-20=30）；syncAccountFromFundings 后投影销毁核销债务；无任何台账行
+func TestResolveOverdueFundingWriteoff(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.BlacklistDaysOnDefault = 30
+		s.CreditDefaultPenalty = 20
+	})
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+	createLoanDebtAccount(t, borrower.Id, 200_000, 210_000)
+	require.NoError(t, DB.Model(&TokenLoanAccount{}).Where("user_id = ?", borrower.Id).
+		Update("credit_score", 50).Error)
+	f := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000)
+
+	require.NoError(t, ResolveOverdueFunding(lender.Id, f.Id, LoanDefaultActionWriteoff, 0))
+
+	// funding：written_off 终态；冻结债务留在行上作历史（销毁的是账户投影与 offer 账面）
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanFundingWrittenOff, got.Status)
+	require.Equal(t, int64(210_000), got.DebtQuota)
+
+	// offer：amount_total -= 200_000（钱离开 offer 账面）
+	var o TokenLoanOffer
+	require.NoError(t, DB.First(&o, offer.Id).Error)
+	require.Equal(t, int64(800_000), o.AmountTotal)
+	require.Equal(t, int64(1_000_000), o.AmountAvailable, "闲置额度不动（核销不影响未放款部分）")
+
+	// 借款人：拉黑 + 扣分 + 投影销毁
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", borrower.Id).First(&acc).Error)
+	require.Equal(t, loanDay(time.Now())+30, acc.BlacklistedUntilDay)
+	require.Equal(t, 30, acc.CreditScore)
+	require.Zero(t, acc.DebtQuota, "核销债务从投影销毁（deflation）")
+	require.Zero(t, acc.PrincipalQuota)
+
+	// 决策不是资金变动：不写任何台账行
+	var n int64
+	require.NoError(t, DB.Model(&TokenLoanRecord{}).Where("user_id = ?", borrower.Id).Count(&n).Error)
+	require.Zero(t, n)
+}
+
+// ③b 信用分扣分下限 -50 截断（P1-9）：-40 - 20 → -50，不继续下探
+func TestResolveOverdueFundingWriteoffClampsCreditAtMinus50(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.CreditDefaultPenalty = 20
+	})
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 500_000, 0.001)
+	createLoanDebtAccount(t, borrower.Id, 100_000, 105_000)
+	require.NoError(t, DB.Model(&TokenLoanAccount{}).Where("user_id = ?", borrower.Id).
+		Update("credit_score", -40).Error)
+	f := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 100_000, 105_000)
+
+	require.NoError(t, ResolveOverdueFunding(lender.Id, f.Id, LoanDefaultActionWriteoff, 0))
+
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", borrower.Id).First(&acc).Error)
+	require.Equal(t, -50, acc.CreditScore)
+}
+
+// ④ 已关闭 offer 的核销同样核减 amount_total（floor 0 防御：amount_total < 本金时归零）
+func TestResolveOverdueFundingWriteoffClosedOfferFloorsTotal(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.BlacklistDaysOnDefault = 30 })
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 100_000, 0.001)
+	require.NoError(t, DB.Model(&TokenLoanOffer{}).Where("id = ?", offer.Id).
+		Updates(map[string]interface{}{
+			"status":       LoanOfferStatusClosed,
+			"amount_total": int64(100_000), // 账面已小于单笔本金，测试 floor
+		}).Error)
+	f := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000)
+
+	require.NoError(t, ResolveOverdueFunding(lender.Id, f.Id, LoanDefaultActionWriteoff, 0))
+
+	var o TokenLoanOffer
+	require.NoError(t, DB.First(&o, offer.Id).Error)
+	require.Equal(t, LoanOfferStatusClosed, o.Status)
+	require.Zero(t, o.AmountTotal, "amount_total - 200_000 后 floor 到 0")
+}
+
+// ⑤ 延长：due_day 前移、status → active、penalty_started_day 保留（历史）；
+//
+//	extendDays 越界（0 / > LoanTermDays）与非法动作报 ErrLoanInvalidDefaultAction
+func TestResolveOverdueFundingExtend(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.LoanTermDays = 30 })
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 2_000_000, 0.001)
+	today := loanDay(time.Now())
+
+	ok := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000)
+	require.NoError(t, ResolveOverdueFunding(lender.Id, ok.Id, LoanDefaultActionExtend, 10))
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, ok.Id).Error)
+	require.Equal(t, LoanFundingActive, got.Status)
+	require.Equal(t, today+10, got.DueDay)
+	require.Equal(t, today-5, got.PenaltyStartedDay, "已计罚息起始日保留（历史记录）")
+
+	// 上界 LoanTermDays=30 允许
+	maxDays := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000)
+	require.NoError(t, ResolveOverdueFunding(lender.Id, maxDays.Id, LoanDefaultActionExtend, 30))
+
+	// extendDays=0 拒绝
+	zero := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000)
+	err := ResolveOverdueFunding(lender.Id, zero.Id, LoanDefaultActionExtend, 0)
+	require.ErrorIs(t, err, ErrLoanInvalidDefaultAction)
+
+	// extendDays 超过 LoanTermDays 拒绝
+	over := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000)
+	err = ResolveOverdueFunding(lender.Id, over.Id, LoanDefaultActionExtend, 31)
+	require.ErrorIs(t, err, ErrLoanInvalidDefaultAction)
+
+	// 非法动作拒绝
+	bad := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000)
+	err = ResolveOverdueFunding(lender.Id, bad.Id, "delete", 0)
+	require.ErrorIs(t, err, ErrLoanInvalidDefaultAction)
+
+	// 被拒路径不改动 funding
+	for _, id := range []int64{zero.Id, over.Id, bad.Id} {
+		var f TokenLoanFunding
+		require.NoError(t, DB.First(&f, id).Error)
+		require.Equal(t, LoanFundingOverdue, f.Status)
+		require.Equal(t, today-5, f.DueDay)
+	}
+}
+
+// ⑥ 永续：funding 状态零变化（保持 overdue 继续计息），仅记录决策返回成功
+func TestResolveOverdueFundingPerpetualKeepsState(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 500_000, 0.001)
+	f := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 100_000, 105_000)
+
+	require.NoError(t, ResolveOverdueFunding(lender.Id, f.Id, LoanDefaultActionPerpetual, 0))
+
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanFundingOverdue, got.Status)
+	require.Equal(t, f.DebtQuota, got.DebtQuota)
+	require.Equal(t, f.DueDay, got.DueDay)
+	require.Equal(t, f.PenaltyStartedDay, got.PenaltyStartedDay)
+	var o TokenLoanOffer
+	require.NoError(t, DB.First(&o, offer.Id).Error)
+	require.Equal(t, int64(500_000), o.AmountTotal, "永续不改动 offer 账面")
+}
+
+// ⑦ 黑名单出口（永续全还清 → 立即解除）：黑名单置位（非核销触发，无 written_off 行）+
+//
+//	一条 overdue（永续）funding，全额还清后 distributeRepayment 的 repaid 分支经
+//	maybeLiftBlacklistTx 清零 blacklisted_until_day
+func TestBlacklistLiftsWhenPerpetualFundingsFullyRepaid(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.BlacklistDaysOnDefault = 30 })
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 500_000, 0.001)
+	createLoanDebtAccount(t, borrower.Id, 100_000, 100_000)
+	// 黑名单置位（30 天窗口内）+ 永续 funding：窗口内仍应提前解除（还款激励）
+	require.NoError(t, DB.Model(&TokenLoanAccount{}).Where("user_id = ?", borrower.Id).
+		Update("blacklisted_until_day", loanDay(time.Now())+30).Error)
+	f := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 100_000, 100_000)
+
+	now := time.Now()
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		acc, err := getLoanAccountTx(tx, borrower.Id)
+		require.NoError(t, err)
+		require.NotNil(t, acc)
+		fundings, err := loadUserFundingsTx(tx, borrower.Id)
+		require.NoError(t, err)
+		info, _, err := distributeRepayment(tx, acc, fundings, 100_000, now)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		require.Equal(t, int64(100_000), info.Amount)
+		require.NoError(t, tx.Save(acc).Error) // 真实调用方（RepayLoan/签到）统一落盘账户
+		return nil
+	}))
+
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", borrower.Id).First(&acc).Error)
+	require.Zero(t, acc.BlacklistedUntilDay, "永续 funding 全部还清 → 黑名单立即解除")
+	require.Zero(t, acc.DebtQuota)
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanFundingRepaid, got.Status)
+}
+
+// ⑧ 核销拉黑不可逆：核销（written_off 行落账日 >= blacklist_start）后窗口运行期内，
+//
+//	剩余 overdue funding 全部还清也不得提前解除（maybeLiftBlacklistTx 守卫拦截）
+func TestBlacklistNotLiftedRightAfterWriteoff(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.BlacklistDaysOnDefault = 30
+		s.CreditDefaultPenalty = 20
+	})
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+	createLoanDebtAccount(t, borrower.Id, 300_000, 315_000)
+	fA := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000) // 待核销
+	fB := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 100_000, 105_000) // 永续，待还清
+	require.NoError(t, ResolveOverdueFunding(lender.Id, fA.Id, LoanDefaultActionWriteoff, 0))
+
+	now := time.Now()
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		acc, err := getLoanAccountTx(tx, borrower.Id)
+		require.NoError(t, err)
+		fundings, err := loadUserFundingsTx(tx, borrower.Id)
+		require.NoError(t, err)
+		require.Len(t, fundings, 1, "核销后的 funding 已退出 active/overdue 集合")
+		info, _, err := distributeRepayment(tx, acc, fundings, 105_000, now)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		require.NoError(t, tx.Save(acc).Error)
+		return nil
+	}))
+
+	var acc TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", borrower.Id).First(&acc).Error)
+	require.Equal(t, loanDay(time.Now())+30, acc.BlacklistedUntilDay,
+		"核销拉黑窗口运行期内不提前解除（written_off 行落账日 >= blacklist_start）")
+	require.Zero(t, acc.DebtQuota)
+	var b TokenLoanFunding
+	require.NoError(t, DB.First(&b, fB.Id).Error)
+	require.Equal(t, LoanFundingRepaid, b.Status)
+}
+
+// ⑨ written_off funding 被排除出还款分配：loadUserFundingsTx 只载 active/overdue，
+//
+//	核销行的冻结债务永远不被分配/偿还（deflation，spec §9）
+func TestWrittenOffFundingExcludedFromRepayment(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	lender := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, lender.Id)
+	offer := createBorrowOffer(t, lender.Id, 1_000_000, 0.001)
+	createLoanDebtAccount(t, borrower.Id, 300_000, 315_000)
+	fA := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 200_000, 210_000)
+	fB := createP2POverdueFunding(t, borrower.Id, lender.Id, offer.Id, 100_000, 105_000)
+	require.NoError(t, ResolveOverdueFunding(lender.Id, fA.Id, LoanDefaultActionWriteoff, 0))
+
+	now := time.Now()
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		acc, err := getLoanAccountTx(tx, borrower.Id)
+		require.NoError(t, err)
+		fundings, err := loadUserFundingsTx(tx, borrower.Id)
+		require.NoError(t, err)
+		require.Len(t, fundings, 1)
+		require.Equal(t, fB.Id, fundings[0].Id)
+		info, allocs, err := distributeRepayment(tx, acc, fundings, 105_000, now)
+		require.NoError(t, err)
+		require.NotNil(t, info)
+		require.Len(t, allocs, 1)
+		require.Equal(t, fB.Id, allocs[0].FundingId)
+		require.NoError(t, tx.Save(acc).Error)
+		return nil
+	}))
+
+	var a, b TokenLoanFunding
+	require.NoError(t, DB.First(&a, fA.Id).Error)
+	require.NoError(t, DB.First(&b, fB.Id).Error)
+	require.Equal(t, LoanFundingWrittenOff, a.Status)
+	require.Equal(t, int64(210_000), a.DebtQuota, "核销债务从未被分配/偿还")
+	require.Equal(t, LoanFundingRepaid, b.Status)
+	require.Zero(t, b.DebtQuota)
+}

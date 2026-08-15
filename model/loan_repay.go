@@ -36,7 +36,9 @@ type LenderCredit struct {
 //     长期复利债务下 int64 乘法溢出），Σ 分配 ≡ repay 且每条分配 <= 自身债务；
 //  3. 每条内先息后本：payInterest = min(alloc, debt-principal)；debt -= alloc、
 //     principal -= payInterest，debt 归零 → status = repaid；分配变动的行落盘；
-//  4. syncAccountFromFundings 回写账户投影（仅内存，落盘由调用方负责），并累计 TotalRepaid。
+//  4. syncAccountFromFundings 回写账户投影（仅内存，落盘由调用方负责），并累计 TotalRepaid；
+//     4.5 黑名单出口（Task 12）：有 funding 本次结清时调用 maybeLiftBlacklistTx（永续全还清
+//     → 立即解除；核销窗口内不解锁），仅改内存 acc，落盘由调用方统一 Save。
 //
 // 返回还款结果（Amount/InterestPart/PrincipalPart/DebtAfter 来自同步后的账户投影）与逐条分配。
 // repay <= 0 或 Σdebt <= 0 时返回 (nil, nil, nil)，调用方须先保证有债务。
@@ -113,6 +115,7 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 	// ③ 每条内先息后本；更新 funding 行并落盘，生成分配明细
 	allocs := make([]RepayAllocation, 0, len(fundings))
 	var totalInterest, totalPrincipal int64
+	repaidAny := false // 是否有 funding 本次结清（黑名单解除钩子触发条件）
 	for i := range fundings {
 		f := &fundings[i]
 		if f.DebtQuota <= 0 {
@@ -129,6 +132,7 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 		f.PrincipalRemaining -= payPrincipal
 		if f.DebtQuota == 0 {
 			f.Status = LoanFundingRepaid
+			repaidAny = true
 		}
 		if err := tx.Save(f).Error; err != nil {
 			return nil, nil, err
@@ -149,6 +153,14 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 	// ④ 账户投影回写（仅内存，落盘由调用方负责）
 	syncAccountFromFundings(acc, fundings)
 	acc.TotalRepaid += repay
+
+	// ④.5 黑名单出口（Task 12）：有 funding 本次结清（→repaid）时检查是否满足解除条件
+	//     （永续全还清 → 立即解除；核销窗口内不解锁）。仅改内存 acc，落盘由调用方统一 Save
+	if repaidAny {
+		if err := maybeLiftBlacklistTx(tx, acc, now); err != nil {
+			return nil, nil, err
+		}
+	}
 
 	info := &LoanRepayInfo{
 		Amount:        repay,
