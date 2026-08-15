@@ -17,6 +17,9 @@ type AdminLoanAccountItem struct {
 
 // AdminGetLoanAccounts 分页返回全部贷款账户（updated_at 倒序），附用户名与实时投影债务。
 // keyword 为纯数字时同时匹配 user_id，否则按用户名模糊匹配；为空不过滤。
+// 债务按逐 funding 投影（spec §5：每条 funding 各有其利率/宽限/罚息，账户级混合利率
+// 投影已失真）：载入本页用户全部 active/overdue fundings，逐条 ProjectFundingDebt
+// 后按用户求和（platform 传账户行提供有效利率/宽限输入，P2P 传 nil）。只读不落盘。
 func AdminGetLoanAccounts(page, pageSize int, keyword string) ([]AdminLoanAccountItem, int64, error) {
 	if page < 1 {
 		page = 1
@@ -50,10 +53,39 @@ func AdminGetLoanAccounts(page, pageSize int, keyword string) ([]AdminLoanAccoun
 		return nil, 0, err
 	}
 
-	// 只读投影当前时刻债务，不落盘
+	// 逐 funding 投影债务（只读，不落盘）：账户行已带全（token_loan_accounts.*），
+	// platform funding 直接用该账户行提供利率/宽限输入，P2P 传 nil
 	now := time.Now()
-	for i := range items {
-		items[i].DebtNow, items[i].InterestNow = ProjectLoanStatus(&items[i].TokenLoanAccount, now)
+	if len(items) > 0 {
+		userIds := make([]int, 0, len(items))
+		for i := range items {
+			userIds = append(userIds, items[i].UserId)
+		}
+		var fundings []TokenLoanFunding
+		if err := DB.Where("loan_user_id IN ? AND status IN ?", userIds, []string{LoanFundingActive, LoanFundingOverdue}).
+			Order("id ASC").Find(&fundings).Error; err != nil {
+			return nil, 0, err
+		}
+		byUser := make(map[int][]TokenLoanFunding, len(items))
+		for i := range fundings {
+			f := fundings[i]
+			byUser[f.LoanUserId] = append(byUser[f.LoanUserId], f)
+		}
+		for i := range items {
+			item := &items[i]
+			var debt, principal int64
+			for j := range byUser[item.UserId] {
+				f := &byUser[item.UserId][j]
+				var acc *TokenLoanAccount
+				if f.SourceType == LoanFundingPlatform {
+					acc = &item.TokenLoanAccount
+				}
+				debt += ProjectFundingDebt(f, acc, now)
+				principal += f.PrincipalRemaining
+			}
+			item.DebtNow = debt
+			item.InterestNow = debt - principal
+		}
 	}
 	return items, total, nil
 }

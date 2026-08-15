@@ -10,8 +10,9 @@ import (
 )
 
 // LoanDecision AI 业务员的结案决定，金额字段单位为 USD（落库前由编排层换算为 quota）。
-// FundingId/RepayPlan 为减免申诉专用字段（Task 15）：funding_id > 0 时走改档路径
-// （SetFundingRepayPlanByOfficer），经典字段不参与；funding_id == 0 走经典路径。
+// FundingId/RepayPlan 为减免申诉（appeal 话题）专用字段（Task 15）：仅 appeal 话题工单的
+// funding_id > 0 走改档路径（SetFundingRepayPlanByOfficer），经典字段不参与；
+// 其余情况走经典路径（经典话题的申诉字段在 executeLoanDecision 内被清零，防跨话题越权改档）。
 type LoanDecision struct {
 	CreditLimit      float64 `json:"credit_limit"`
 	DailyRate        float64 `json:"daily_rate"`

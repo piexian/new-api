@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -22,7 +23,7 @@ type TokenLoanAccount struct {
 	CustomMaxTotal           int64   `json:"custom_max_total" gorm:"bigint"`            // AI 授予的个人总额上限覆盖，0 = 用全局配置
 	CustomDailyRate          float64 `json:"custom_daily_rate"`                         // AI 授予的个人日利率覆盖，0 = 用全局配置
 	InterestFreeUntil        int     `json:"interest_free_until"`                       // 宽限期截止 loanDay（该日之前不计息），0 = 无
-	CreditScore              int     `json:"credit_score"`                              // 贷方信用分，0 = 未评估（回填 credit_initial 属迁移任务）
+	CreditScore              int     `json:"credit_score"`                              // 贷方信用分，0 = 未评估（仅迁移前存量账户；新账户建行即 credit_initial）
 	BlacklistedUntilDay      int     `json:"blacklisted_until_day"`                     // 信用拉黑截止 loanDay，0 = 未拉黑
 	TermsAgreedAt            int64   `json:"terms_agreed_at" gorm:"bigint"`             // 同意借款条款的时间戳，0 = 未同意
 	LenderDisclaimerAgreedAt int64   `json:"lender_disclaimer_agreed_at" gorm:"bigint"` // 同意放贷免责声明的时间戳，0 = 未同意
@@ -133,6 +134,7 @@ func getOrCreateLoanAccountTx(tx *gorm.DB, userId int) (*TokenLoanAccount, error
 	now := time.Now()
 	acc = &TokenLoanAccount{
 		UserId:         userId,
+		CreditScore:    operation_setting.GetLoanSetting().CreditInitial, // 新账户直接带初始信用分（存量 0 = 未评估，回填属迁移任务）
 		LastSettledDay: loanDay(now),
 		CreatedAt:      now.Unix(),
 		UpdatedAt:      now.Unix(),
@@ -451,34 +453,51 @@ func planTotal(plans []FundingPlan) int64 {
 
 // executeFundingPlans 在事务内按撮合计划放款（spec §6）：
 //   - 非 platform 计划：lockForUpdate 重读 offer 行二次校验 amount_available >= plan.Amount
-//     （撮合已在同事务锁行，理论上不可能失败；失败返回错误整体回滚），随后扣减
-//     amount_available、累加 total_lent 并落库；
+//     （撮合是只读快照，available 可能已被并发借款占用，故此处必须加锁重验；
+//     校验失败返回错误整体回滚），随后扣减 amount_available、累加 total_lent 并落库；
 //   - 逐条创建 funding 行：Amount=PrincipalRemaining=DebtQuota=plan.Amount、
 //     Rate=plan.Rate、LastSettledDay=loanDay(now)、DueDay=loanDay(now)+max(LoanTermDays,1)
 //     （LoanTermDays<=0 时至少推到明天，防当日到期即整段罚息）、RepayPlan=full、
 //     Status=active、BorrowEventId=本次借款事件 id、SourceType/OfferId/LenderId 取计划。
 //
+// 锁序遵守全局约束 offers(id 升序)：offer 锁定与扣减先按 OfferId 升序集中完成
+// （与 settleRepayAllocations 的 offers(id 升序) 一致，避免并发借款与还款 AB-BA 死锁；
+// 同一 offer 的多条计划相邻处理，后一条读到前一条扣减后的 available），
+// funding 行再按计划原始顺序创建（借款事件内顺序稳定，行为不变）。
+//
 // 返回本次新建的 funding 列表（含 platform 兜底）。
 func executeFundingPlans(tx *gorm.DB, userId int, borrowEventId int64, plans []FundingPlan, now time.Time) ([]TokenLoanFunding, error) {
 	dueDay := loanDay(now) + max(operation_setting.GetLoanSetting().LoanTermDays, 1)
+
+	// 第一遍：非 platform 计划按 OfferId 升序锁定并扣减 offer 行（全局锁序
+	// offers(id 升序)）；同一 offer 的多条计划相邻处理，后一条读到前一条扣减后的 available。
+	offerPlans := make([]*FundingPlan, 0, len(plans))
+	for i := range plans {
+		if plans[i].SourceType != LoanFundingPlatform {
+			offerPlans = append(offerPlans, &plans[i])
+		}
+	}
+	sort.Slice(offerPlans, func(a, b int) bool { return offerPlans[a].OfferId < offerPlans[b].OfferId })
+	for _, plan := range offerPlans {
+		var offer TokenLoanOffer
+		if err := lockForUpdate(tx).Where("id = ?", plan.OfferId).First(&offer).Error; err != nil {
+			return nil, err
+		}
+		if offer.AmountAvailable < plan.Amount {
+			return nil, fmt.Errorf("loan offer %d available %d < plan amount %d", offer.Id, offer.AmountAvailable, plan.Amount)
+		}
+		offer.AmountAvailable -= plan.Amount
+		offer.TotalLent += plan.Amount
+		offer.UpdatedAt = now.Unix()
+		if err := tx.Save(&offer).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	// 第二遍：按计划原始顺序创建 funding 行（含 platform 兜底），事件内顺序稳定
 	newFundings := make([]TokenLoanFunding, 0, len(plans))
 	for i := range plans {
 		plan := &plans[i]
-		if plan.SourceType != LoanFundingPlatform {
-			var offer TokenLoanOffer
-			if err := lockForUpdate(tx).Where("id = ?", plan.OfferId).First(&offer).Error; err != nil {
-				return nil, err
-			}
-			if offer.AmountAvailable < plan.Amount {
-				return nil, fmt.Errorf("loan offer %d available %d < plan amount %d", offer.Id, offer.AmountAvailable, plan.Amount)
-			}
-			offer.AmountAvailable -= plan.Amount
-			offer.TotalLent += plan.Amount
-			offer.UpdatedAt = now.Unix()
-			if err := tx.Save(&offer).Error; err != nil {
-				return nil, err
-			}
-		}
 		funding := TokenLoanFunding{
 			LoanUserId:         userId,
 			BorrowEventId:      borrowEventId,

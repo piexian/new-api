@@ -354,3 +354,51 @@ func TestLoanMatcherAiCumulativePerOffer(t *testing.T) {
 	require.Equal(t, int64(600), byOffer[o2.Id])  // ≤ min(1000, ∞)
 	require.Equal(t, int64(2500), planSum(plans))
 }
+
+// AI 出资条目的信用分门槛（P1-2，spec §6）：与 ①② 阶段一致，
+// 低于 offer.MinCreditScore 的条目剔除并记录原因（-50 = 不限）
+func TestLoanMatcherAiCreditScoreFilter(t *testing.T) {
+	resetLoanOffers(t)
+	borrower := createLoanTestUser(t)
+	l1 := createLoanTestUser(t)
+	l2 := createLoanTestUser(t)
+	// 门槛 90 > 借款人 70 → 剔除
+	highBar := createMatcherOffer(t, l1.Id, LoanOfferModeAi, LoanOfferStatusActive, 2000, 0, 0.001, 0.002, 1000, 90)
+	// 门槛 60 ≤ 借款人 70 → 有效
+	pass := createMatcherOffer(t, l2.Id, LoanOfferModeAi, LoanOfferStatusActive, 2000, 0, 0.001, 0.002, 1000, 60)
+
+	ai := []FundingPlan{
+		{OfferId: highBar.Id, LenderId: l1.Id, SourceType: LoanFundingAi, Amount: 800, Rate: 0.0015},
+		{OfferId: pass.Id, LenderId: l2.Id, SourceType: LoanFundingAi, Amount: 800, Rate: 0.0015},
+	}
+	plans, drops, err := runMatcher(t, borrower.Id, 70, 10000, 0, ai)
+	require.NoError(t, err)
+	require.Len(t, drops, 1)
+	require.Contains(t, drops[0], "信用分门槛")
+	require.Len(t, plans, 1)
+	require.Equal(t, pass.Id, plans[0].OfferId)
+	require.Equal(t, int64(800), plans[0].Amount)
+}
+
+// AI 出资条目 lender == borrower 防御（P1-2，spec §6）：撮合器自洽，
+// 放贷人不得向本人出资，此类条目剔除并记录原因（不依赖上游候选过滤）
+func TestLoanMatcherAiSkipsOwnOffer(t *testing.T) {
+	resetLoanOffers(t)
+	borrower := createLoanTestUser(t)
+	l2 := createLoanTestUser(t)
+	// 借款人自己的 ai offer → 剔除
+	own := createMatcherOffer(t, borrower.Id, LoanOfferModeAi, LoanOfferStatusActive, 2000, 0, 0.001, 0.002, 1000, -50)
+	other := createMatcherOffer(t, l2.Id, LoanOfferModeAi, LoanOfferStatusActive, 2000, 0, 0.001, 0.002, 1000, -50)
+
+	ai := []FundingPlan{
+		{OfferId: own.Id, LenderId: borrower.Id, SourceType: LoanFundingAi, Amount: 800, Rate: 0.0015},
+		{OfferId: other.Id, LenderId: l2.Id, SourceType: LoanFundingAi, Amount: 800, Rate: 0.0015},
+	}
+	plans, drops, err := runMatcher(t, borrower.Id, 80, 10000, 0, ai)
+	require.NoError(t, err)
+	require.Len(t, drops, 1)
+	require.Contains(t, drops[0], "属于借款人本人")
+	require.Len(t, plans, 1)
+	require.Equal(t, other.Id, plans[0].OfferId)
+	require.Equal(t, int64(800), plans[0].Amount)
+}

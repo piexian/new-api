@@ -313,6 +313,43 @@ func TestRunLoanOfficerRoundAppealTopicClassicDecisionStillApplies(t *testing.T)
 	assert.Equal(t, int64(5_000_000), acc.CustomMaxTotal) // 10 USD × 500000
 }
 
+// 经典话题工单不得被 funding_id 改档（P2-4）：模型即使带出申诉字段也走经典路径
+// （申诉字段清零），appeal 改档路径只对 appeal 话题开放
+func TestRunLoanOfficerRoundClassicTopicIgnoresAppealFields(t *testing.T) {
+	withLoanOfficerSetting(t, nil)
+	user, _ := setupLoanOfficerMarketTest(t)
+	f := createOfficerFunding(t, user.Id, 777, model.LoanFundingPool, model.LoanRepayFull, model.LoanFundingActive)
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+		// 经典话题不注入申诉上下文（buildAppealContext 只在 appeal 话题触发）
+		assert.NotContains(t, messages[0].Content, "用户当前借款明细")
+		return fmt.Sprintf("```json\n{\"action\":\"close\",\"reply\":\"已批准\",\"decision\":{\"credit_limit\":10,\"daily_rate\":0,\"interest_free_days\":0,\"funding_id\":%d,\"repay_plan\":\"no_penalty\"}}\n```", f.Id), nil
+	})
+	// 经典话题（credit）工单：即使模型带出 funding_id/repay_plan，也必须走经典路径
+	app, err := model.CreateLoanApplication(user.Id, "credit", "officer-a")
+	require.NoError(t, err)
+	reply, closed, err := RunLoanOfficerRound(user.Id, app, "我要提额")
+	require.NoError(t, err)
+	assert.True(t, closed)
+	assert.Equal(t, "已批准", reply)
+
+	// appeal 路径未被触发：funding 的还款计划保持 full（未发生改档）
+	var got model.TokenLoanFunding
+	require.NoError(t, model.DB.First(&got, f.Id).Error)
+	assert.Equal(t, model.LoanRepayFull, got.RepayPlan)
+
+	// 经典路径照常生效：credit_limit 被应用为 CustomMaxTotal
+	var acc model.TokenLoanAccount
+	require.NoError(t, model.DB.Where("user_id = ?", user.Id).First(&acc).Error)
+	assert.Equal(t, int64(5_000_000), acc.CustomMaxTotal) // 10 USD × 500000
+
+	// 落库决定中申诉字段被清零（经典决定，非改档决定）
+	var appRow model.TokenLoanApplication
+	require.NoError(t, model.DB.Where("id = ?", app.Id).First(&appRow).Error)
+	assert.Equal(t, model.LoanAppStatusClosed, appRow.Status)
+	assert.Contains(t, appRow.Decision, `"funding_id":0`)
+	assert.Contains(t, appRow.Decision, `"repay_plan":""`)
+}
+
 // ===== 官方逾期处置 =====
 
 func TestParseDisposalOutput(t *testing.T) {

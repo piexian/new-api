@@ -201,9 +201,17 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 // executeLoanDecision 钳制并单事务执行结案决定；执行失败时整体回滚、工单保持 open，
 // 返回 false（该回复按普通回复展示，spec 5.3）。第二返回值是减免申诉被拒的提示文本
 // （空 = 无），由调用方并入 assistant 回复展示给用户。
+// 话题路由：funding_id/repay_plan 是减免申诉（appeal）专属字段，只有 appeal 话题工单
+// 的 funding_id > 0 才走改档路径；经典话题即使模型带出申诉字段也清零走经典路径，
+// 防止经典工单被跨话题改档。
 func executeLoanDecision(app *model.TokenLoanApplication, setting *operation_setting.LoanSetting, displayText string, decision *LoanDecision) (bool, string) {
 	clamped := ClampLoanDecision(decision, setting)
-	// 减免申诉决定（funding_id > 0）：走改档路径（executeAppealDecision），经典字段不参与
+	// 减免申诉决定（funding_id > 0）仅对 appeal 话题生效：经典话题清零申诉字段，
+	// 走经典路径（经典工单不因模型输出申诉字段而被改档）
+	if app.Topic != loanAppTopicAppeal {
+		clamped.FundingId = 0
+		clamped.RepayPlan = ""
+	}
 	if clamped.FundingId > 0 {
 		return executeAppealDecision(app, setting, displayText, clamped)
 	}

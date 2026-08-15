@@ -6,16 +6,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
 )
 
-// createAdminLoanTestAccount 建行造债并返回用户名，供管理端查询测试使用
+// createAdminLoanTestAccount 建行造债并返回用户名，供管理端查询测试使用。
+// 同步建一条等额 platform funding（LastSettledDay=今天，当日投影无利息），
+// 使账户级债务与逐 funding 投影口径一致（spec §4.5 不变式）。
 func createAdminLoanTestAccount(t *testing.T, debt int64) (*User, *TokenLoanAccount) {
 	t.Helper()
-	require.NoError(t, DB.AutoMigrate(&TokenLoanAccount{}, &TokenLoanRecord{}, &TokenLoanApplication{}))
+	require.NoError(t, DB.AutoMigrate(&TokenLoanAccount{}, &TokenLoanRecord{}, &TokenLoanApplication{}, &TokenLoanFunding{}))
 	user := createLoanTestUser(t)
-	// SQLite 会复用被删用户的 id，其名下可能残留贷款账户，先清掉再建行
+	// SQLite 会复用被删用户的 id，其名下可能残留贷款账户/投放记录，先清掉再建行
 	require.NoError(t, DB.Where("user_id = ?", user.Id).Delete(&TokenLoanAccount{}).Error)
+	require.NoError(t, DB.Where("loan_user_id = ?", user.Id).Delete(&TokenLoanFunding{}).Error)
 	now := time.Now()
 	acc := &TokenLoanAccount{
 		UserId:         user.Id,
@@ -26,6 +30,25 @@ func createAdminLoanTestAccount(t *testing.T, debt int64) (*User, *TokenLoanAcco
 		UpdatedAt:      now.Unix(),
 	}
 	require.NoError(t, DB.Create(acc).Error)
+	require.NoError(t, DB.Create(&TokenLoanFunding{
+		LoanUserId:         user.Id,
+		SourceType:         LoanFundingPlatform,
+		Amount:             debt,
+		PrincipalRemaining: debt,
+		DebtQuota:          debt,
+		LastSettledDay:     loanDay(now),
+		Rate:               0.001,
+		RepayPlan:          LoanRepayFull,
+		Status:             LoanFundingActive,
+		DueDay:             loanDay(now) + 10,
+		CreatedAt:          now.Unix(),
+		UpdatedAt:          now.Unix(),
+	}).Error)
+	// 清理本行：offer_id=0 的 platform funding 不影响按 offer 聚合的用例，
+	// 但共享库中残留 funding 行仍会累积，删净保持用例自洽
+	t.Cleanup(func() {
+		require.NoError(t, DB.Where("loan_user_id = ?", user.Id).Delete(&TokenLoanFunding{}).Error)
+	})
 	return user, acc
 }
 
@@ -324,4 +347,98 @@ func TestAdminLoanMarketOverview(t *testing.T) {
 	require.Zero(t, overview.TotalInterestEarned)
 	require.Zero(t, overview.OverdueFundings)
 	require.Zero(t, overview.ActiveOffers)
+}
+
+// 管理端账户债务按逐 funding 投影求和（P2-5）：同一用户两条不同利率的 P2P funding，
+// DebtNow = Σ ProjectFundingDebt（各自利率，不穿透账户）；platform funding 用账户行
+// 的有效利率/宽限输入。账户级混合利率投影会失真，故不再使用 ProjectLoanStatus。
+func TestAdminGetLoanAccountsDebtNowSumsPerFunding(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.DailyRate = 0.001 })
+	require.NoError(t, DB.AutoMigrate(&TokenLoanAccount{}, &TokenLoanFunding{}))
+	borrower := createLoanTestUser(t)
+	// 清掉复用 id 可能残留的账户行与投放行
+	require.NoError(t, DB.Where("user_id = ?", borrower.Id).Delete(&TokenLoanAccount{}).Error)
+	require.NoError(t, DB.Where("loan_user_id = ?", borrower.Id).Delete(&TokenLoanFunding{}).Error)
+	// 测试结束清理本用例的账户行与投放行：共享内存库中残留的 offer_id 行会污染
+	// 后续用例（SQLite rowid 复用），必须删净
+	t.Cleanup(func() {
+		require.NoError(t, DB.Where("loan_user_id = ?", borrower.Id).Delete(&TokenLoanFunding{}).Error)
+		require.NoError(t, DB.Where("user_id = ?", borrower.Id).Delete(&TokenLoanAccount{}).Error)
+	})
+	now := time.Now()
+	day := loanDay(now)
+	// 账户行：自定义日利率 0.0005（低于全局），platform funding 投影时使用
+	acc := &TokenLoanAccount{
+		UserId:          borrower.Id,
+		CustomDailyRate: 0.0005,
+		LastSettledDay:  day,
+		CreatedAt:       now.Unix(),
+		UpdatedAt:       now.Unix(),
+	}
+	require.NoError(t, DB.Create(acc).Error)
+
+	seed := func(sourceType string, principal int64, rate float64, lastSettledDay int) *TokenLoanFunding {
+		t.Helper()
+		f := &TokenLoanFunding{
+			LoanUserId:         borrower.Id,
+			SourceType:         sourceType,
+			OfferId:            1,
+			LenderId:           999,
+			Amount:             principal,
+			PrincipalRemaining: principal,
+			DebtQuota:          principal,
+			LastSettledDay:     lastSettledDay,
+			Rate:               rate,
+			RepayPlan:          LoanRepayFull,
+			Status:             LoanFundingActive,
+			DueDay:             day + 10,
+			CreatedAt:          now.Unix(),
+			UpdatedAt:          now.Unix(),
+		}
+		require.NoError(t, DB.Create(f).Error)
+		return f
+	}
+	// 两条不同利率的 P2P funding（各自利率复利，不穿透账户）
+	f1 := seed(LoanFundingPool, 100000, 0.001, day-3)
+	f2 := seed(LoanFundingOrder, 200000, 0.003, day-5)
+	// 一条 platform funding（用账户有效利率 0.0005，无视自身 Rate）
+	seed(LoanFundingPlatform, 100000, 0.002, day-2)
+
+	items, total, err := AdminGetLoanAccounts(1, 100, fmt.Sprintf("%d", borrower.Id))
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, total, int64(1))
+	var item *AdminLoanAccountItem
+	for i := range items {
+		if items[i].UserId == borrower.Id {
+			item = &items[i]
+			break
+		}
+	}
+	require.NotNil(t, item)
+
+	// 期望 = 逐 funding 投影求和（platform 传账户行，P2P 传 nil）
+	var wantDebt, wantPrincipal int64
+	wantDebt += ProjectFundingDebt(f1, nil, time.Now())
+	wantDebt += ProjectFundingDebt(f2, nil, time.Now())
+	wantDebt += ProjectFundingDebt(&TokenLoanFunding{
+		LoanUserId:         borrower.Id,
+		SourceType:         LoanFundingPlatform,
+		Amount:             100000,
+		PrincipalRemaining: 100000,
+		DebtQuota:          100000,
+		LastSettledDay:     day - 2,
+		Rate:               0.002,
+		RepayPlan:          LoanRepayFull,
+		Status:             LoanFundingActive,
+		DueDay:             day + 10,
+	}, acc, time.Now())
+	wantPrincipal = 100000 + 200000 + 100000
+	require.Equal(t, wantDebt, item.DebtNow)
+	require.Equal(t, wantDebt-wantPrincipal, item.InterestNow)
+
+	// 与账户级投影区分：账户 DebtQuota 恒 0（未回写 funding 汇总），
+	// 若仍用 ProjectLoanStatus 会得到 0 而非逐 funding 求和——证明走的是 per-funding 口径
+	var accRow TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", borrower.Id).First(&accRow).Error)
+	require.NotEqual(t, accRow.DebtQuota, item.DebtNow)
 }

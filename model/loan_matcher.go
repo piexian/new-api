@@ -23,11 +23,14 @@ type FundingPlan struct {
 }
 
 // MatchLoanFundings 撮合引擎：为一次借款分配资金投放计划。
-// 只读 + 内存计算，**不改库**；必须在调用方事务内调用（caller 已锁 borrower 行），
-// 内部经 lockForUpdate 锁定 offer 行，保证 Task 8 放款时读到与撮合一致的行。
+// 只读 + 内存计算，**不改库**、**不加行锁**（普通 SELECT 快照）；必须在调用方事务内
+// 调用（caller 已锁 borrower 行）。offer 行不加锁：撮合结果只是分配依据，放款阶段
+// executeFundingPlans 会在同事务内 lockForUpdate 重读 offer 二次校验 amount_available，
+// 锁序统一由放款阶段按 offers(id 升序) 保证，避免与还款路径（settleRepayAllocations
+// 同样 offers(id 升序)）形成 AB-BA 死锁。
 //
 // 分配顺序（spec §6 两阶段 + AI 参与）：
-//  1. 定向挂单（intendedOrderId > 0）：锁该 offer，校验 order 模式、active、
+//  1. 定向挂单（intendedOrderId > 0）：读该 offer，校验 order 模式、active、
 //     lender != borrower、信用分门槛、amount_available > 0 后按
 //     min(剩余, available, cap>0?cap:∞) 吃量，利率 = rate_fixed；
 //     任一校验失败仅跳过并记录 drop 原因，不使整笔借款失败（过期意向不阻断借款）；
@@ -35,7 +38,8 @@ type FundingPlan struct {
 //     平局）吃量，跳过 lender==borrower、信用分不足、amount_available==0
 //     及已在定向阶段消费过的 offer（同一 offer 不重复吃量，防止超 available 分配）；
 //  3. AI 出资方案（service 层事务外预先产出）：逐条校验 offer 存在且 active 且
-//     ai 模式、rate ∈ [rate_min, rate_max]，越界剔除并记录 drop 原因；并按 offer
+//     ai 模式、lender != 借款人本人、信用分门槛、rate ∈ [rate_min, rate_max]，
+//     越界剔除并记录 drop 原因；并按 offer
 //     累计已投量动态校验 amount ≤ min(available, cap) - 累计（防止同一 offer 多条
 //     计划联合超额度）；有效条目在固定利率计划之后按给定顺序吃量，剩余不足时
 //     截断到最后剩余（AI 只参与剩余部分）。
@@ -55,7 +59,7 @@ func MatchLoanFundings(tx *gorm.DB, borrowerId int, creditScore int, amount int6
 	// —— ① 定向挂单 ——
 	if intendedOrderId > 0 {
 		var offer TokenLoanOffer
-		err := lockForUpdate(tx).Where("id = ?", intendedOrderId).First(&offer).Error
+		err := tx.Where("id = ?", intendedOrderId).First(&offer).Error
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				dropReasons = append(dropReasons, fmt.Sprintf("定向挂单 offer %d 不存在", intendedOrderId))
@@ -80,7 +84,7 @@ func MatchLoanFundings(tx *gorm.DB, borrowerId int, creditScore int, amount int6
 	// —— ② 统一市场（pool/order 固定利率）——
 	if remaining > 0 {
 		var offers []TokenLoanOffer
-		if err := lockForUpdate(tx).
+		if err := tx.
 			Where("status = ? AND mode IN ? AND amount_available > 0", LoanOfferStatusActive, []string{LoanOfferModePool, LoanOfferModeOrder}).
 			Order("rate_fixed ASC").Order("id ASC").Find(&offers).Error; err != nil {
 			return nil, dropReasons, err
@@ -122,7 +126,7 @@ func MatchLoanFundings(tx *gorm.DB, borrowerId int, creditScore int, amount int6
 		}
 		entry := &aiPriced[i]
 		var offer TokenLoanOffer
-		if err := lockForUpdate(tx).Where("id = ?", entry.OfferId).First(&offer).Error; err != nil {
+		if err := tx.Where("id = ?", entry.OfferId).First(&offer).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				dropReasons = append(dropReasons, fmt.Sprintf("AI 出资 offer %d 不存在", entry.OfferId))
 			} else {
@@ -130,7 +134,7 @@ func MatchLoanFundings(tx *gorm.DB, borrowerId int, creditScore int, amount int6
 			}
 			continue
 		}
-		if reason := aiEntryValid(entry, &offer); reason != "" {
+		if reason := aiEntryValid(entry, &offer, borrowerId, creditScore); reason != "" {
 			dropReasons = append(dropReasons, reason)
 			continue
 		}
@@ -189,15 +193,22 @@ func intendedOrderTake(offer *TokenLoanOffer, borrowerId int, creditScore int, r
 }
 
 // aiEntryValid AI 出资条目静态校验：通过返回 ""，否则返回 drop 原因。
-// 校验范围：offer 存在且 active 且 ai 模式、rate ∈ [rate_min, rate_max]、
-// amount > 0；额度上限（amount ≤ min(available, cap)）不在此校验——
-// 由撮合循环按 offer 累计已投量动态校验（见 MatchLoanFundings ③）。
-func aiEntryValid(entry *FundingPlan, offer *TokenLoanOffer) string {
+// 校验范围：offer 存在且 active 且 ai 模式、放贷人不得为借款人本人（与 ①② 阶段一致，
+// 撮合器自洽，不依赖上游候选过滤）、借款人信用分须达 offer.MinCreditScore（-50 = 不限）、
+// rate ∈ [rate_min, rate_max]、amount > 0；额度上限（amount ≤ min(available, cap)）
+// 不在此校验——由撮合循环按 offer 累计已投量动态校验（见 MatchLoanFundings ③）。
+func aiEntryValid(entry *FundingPlan, offer *TokenLoanOffer, borrowerId int, creditScore int) string {
 	if offer.Mode != LoanOfferModeAi {
 		return fmt.Sprintf("AI 出资 offer %d 模式 %s，要求 ai", offer.Id, offer.Mode)
 	}
 	if offer.Status != LoanOfferStatusActive {
 		return fmt.Sprintf("AI 出资 offer %d 状态 %s，要求 active", offer.Id, offer.Status)
+	}
+	if offer.LenderId == borrowerId {
+		return fmt.Sprintf("AI 出资 offer %d 属于借款人本人", offer.Id)
+	}
+	if offer.MinCreditScore > -50 && creditScore < offer.MinCreditScore {
+		return fmt.Sprintf("AI 出资 offer %d 信用分门槛 %d 高于借款人 %d", offer.Id, offer.MinCreditScore, creditScore)
 	}
 	if entry.Amount <= 0 {
 		return fmt.Sprintf("AI 出资 offer %d 金额 %d 非正数", offer.Id, entry.Amount)

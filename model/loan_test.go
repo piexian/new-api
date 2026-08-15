@@ -770,3 +770,28 @@ func TestRepayLoanFeeOnlyOnPrincipal(t *testing.T) {
 	require.Equal(t, int64(0), info.PrincipalPart)
 	require.Equal(t, int64(0), info.FeePart)
 }
+
+// 新账户建行即带初始信用分（P1-1）：任意真实账户创建路径（同意条款 / 同意放贷声明）
+// 都应产出 credit_initial，而不是 0（0 仅保留给迁移前的存量账户）
+func TestGetOrCreateLoanAccountSetsCreditInitial(t *testing.T) {
+	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.CreditInitial = 66 })
+
+	// 路径一：同意借款条款
+	u1 := createLoanTestUser(t)
+	require.NoError(t, AgreeLoanTerms(u1.Id))
+	var acc1 TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", u1.Id).First(&acc1).Error)
+	require.Equal(t, 66, acc1.CreditScore)
+
+	// 路径二：同意放贷免责声明
+	u2 := createLoanTestUser(t)
+	require.NoError(t, AgreeLenderDisclaimer(u2.Id))
+	var acc2 TokenLoanAccount
+	require.NoError(t, DB.Where("user_id = ?", u2.Id).First(&acc2).Error)
+	require.Equal(t, 66, acc2.CreditScore)
+
+	// 幂等路径不重置信用分：再次同意不改写 CreditScore
+	require.NoError(t, AgreeLoanTerms(u1.Id))
+	require.NoError(t, DB.Where("user_id = ?", u1.Id).First(&acc1).Error)
+	require.Equal(t, 66, acc1.CreditScore)
+}
