@@ -427,7 +427,7 @@ func TestRepayLoanEndToEndWithFee(t *testing.T) {
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", lender.Id).Update("quota", 0).Error)
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", borrower.Id).Update("quota", 500000).Error)
 
-	acc, info, err := RepayLoan(borrower.Id, "0.08") // 40000 quota
+	acc, info, _, err := RepayLoan(borrower.Id, "0.08") // 40000 quota
 	require.NoError(t, err)
 	require.Equal(t, int64(40000), info.Amount)
 	require.Equal(t, int64(10000), info.InterestPart)

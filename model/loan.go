@@ -550,11 +550,12 @@ func earlyRepayFee(acc *TokenLoanAccount, repay int64) int64 {
 // → 还款额/手续费计算（既有逻辑）→ distributeRepayment（pro-rata 分配 + funding 行落盘）
 // → settleRepayAllocations（放贷人入账 + offer 回补 + 台账 repay 行）→ 落盘账户投影 →
 // 扣用户余额。全部同一事务，失败整体回滚。提交后异步同步缓存：借款人按还款额+手续费
-// 扣减，各放贷人按入账清单递增。
-func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo, error) {
+// 扣减，各放贷人按入账清单递增。第三返回值 credits 为按放贷人聚合的入账清单（含利息与
+// 已关闭 offer 的本金回补），供 controller 写入充值日志。
+func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo, []LenderCredit, error) {
 	loanSetting := operation_setting.GetLoanSetting()
 	if !loanSetting.Enabled {
-		return nil, nil, ErrLoanDisabled
+		return nil, nil, nil, ErrLoanDisabled
 	}
 
 	repayAll := strings.EqualFold(strings.TrimSpace(amountUsd), "all")
@@ -563,17 +564,17 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 		// 与 BorrowLoan 同一套金额解析：非正数或超过两位小数一律拒绝
 		usd, err := decimal.NewFromString(amountUsd)
 		if err != nil || !usd.IsPositive() || usd.Exponent() < -2 {
-			return nil, nil, ErrLoanInvalidAmount
+			return nil, nil, nil, ErrLoanInvalidAmount
 		}
 		quotaDec := usd.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
 		a, clamp := common.QuotaFromDecimalChecked(quotaDec)
 		if clamp != nil {
-			return nil, nil, ErrLoanQuotaOverflow
+			return nil, nil, nil, ErrLoanQuotaOverflow
 		}
 		amount = int64(a)
 		// 同 BorrowLoan：QuotaPerUnit 运行时可调，换算后可能为 0，显式拒绝
 		if amount <= 0 {
-			return nil, nil, ErrLoanInvalidAmount
+			return nil, nil, nil, ErrLoanInvalidAmount
 		}
 	}
 
@@ -677,7 +678,7 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 		return nil
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// 事务提交后异步同步 Redis 余额缓存（镜像 BorrowLoan 的缓存副作用）：
@@ -690,7 +691,7 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 	}()
 	// 本次新翻转的 platform 逾期 funding 异步派发官方处置（Task 15，提交后派发）
 	dispatchPlatformOverdueAsync(flipped)
-	return acc, info, nil
+	return acc, info, credits, nil
 }
 
 // GetUserLoanRecords 分页返回用户台账，id 倒序（最新在前），page 从 1 开始；附总数用于分页

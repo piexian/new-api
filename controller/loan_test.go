@@ -52,6 +52,7 @@ func setupLoanControllerTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(
 		&model.User{},
 		&model.Checkin{},
+		&model.Log{},
 		&model.TokenLoanAccount{},
 		&model.TokenLoanRecord{},
 		&model.TokenLoanApplication{},

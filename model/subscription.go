@@ -1099,7 +1099,7 @@ func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, cal
 			common.SysLog(fmt.Sprintf("failed to update user group cache after wallet subscription purchase: user_id=%d, group=%s, error=%v", userId, upgradeGroup, err))
 		}
 	}
-	RecordTopupLog(userId, fmt.Sprintf("使用钱包余额购买套餐成功，套餐: %s，支付金额: %.2f", planTitle, order.Money), callerIp, "wallet", "wallet")
+	RecordTopupLog(userId, fmt.Sprintf("使用钱包余额购买套餐成功，套餐: %s，支付金额: %.2f", planTitle, order.Money), callerIp, "wallet", "wallet", "") // 服务端流程无请求上下文，User-Agent 留空
 	if completedEvent != nil {
 		emitSubscriptionCompleted(*completedEvent)
 	}
@@ -1251,7 +1251,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	}
 	if logUserId > 0 {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
-		RecordTopupLog(logUserId, msg, callerIp, logPaymentMethod, expectedPaymentProvider)
+		RecordTopupLog(logUserId, msg, callerIp, logPaymentMethod, expectedPaymentProvider, "") // 支付回调无请求上下文，User-Agent 留空
 	}
 	if completedEvent != nil {
 		emitSubscriptionCompleted(*completedEvent)

@@ -572,7 +572,7 @@ func TestRepayLoanDisabled(t *testing.T) {
 		s.Enabled = false
 	})
 	user := createLoanTestUser(t)
-	_, _, err := RepayLoan(user.Id, "1.00")
+	_, _, _, err := RepayLoan(user.Id, "1.00")
 	require.ErrorIs(t, err, ErrLoanDisabled)
 }
 
@@ -581,7 +581,7 @@ func TestRepayLoanNoAccount(t *testing.T) {
 		s.Enabled = true
 	})
 	user := createLoanTestUser(t)
-	_, _, err := RepayLoan(user.Id, "1.00")
+	_, _, _, err := RepayLoan(user.Id, "1.00")
 	require.ErrorIs(t, err, ErrLoanNoDebt)
 
 	// 不存在的账户不得被还款路径创建
@@ -592,14 +592,14 @@ func TestRepayLoanNoAccount(t *testing.T) {
 
 func TestRepayLoanZeroDebt(t *testing.T) {
 	user := setupRepayTestUser(t, 0, 0, 100000)
-	_, _, err := RepayLoan(user.Id, "1.00")
+	_, _, _, err := RepayLoan(user.Id, "1.00")
 	require.ErrorIs(t, err, ErrLoanNoDebt)
 }
 
 func TestRepayLoanRejectsInvalidAmount(t *testing.T) {
 	user := setupRepayTestUser(t, 100000, 90000, 500000)
 	for _, amt := range []string{"", "abc", "-1.00", "0", "0.00", "1.005", "0.001"} {
-		_, _, err := RepayLoan(user.Id, amt)
+		_, _, _, err := RepayLoan(user.Id, amt)
 		require.ErrorIs(t, err, ErrLoanInvalidAmount, "amount %q should be rejected", amt)
 	}
 }
@@ -646,11 +646,11 @@ func TestRepayLoanZeroQuotaAmountRejected(t *testing.T) {
 	common.QuotaPerUnit = 1
 	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
 
-	_, _, err := RepayLoan(user.Id, "0.01") // 换算后 0 quota
+	_, _, _, err := RepayLoan(user.Id, "0.01") // 换算后 0 quota
 	require.ErrorIs(t, err, ErrLoanInvalidAmount)
 
 	// 正数控制组：1.00 USD = 1 quota，可正常还款（债务减 1）
-	acc, _, err := RepayLoan(user.Id, "1.00")
+	acc, _, _, err := RepayLoan(user.Id, "1.00")
 	require.NoError(t, err)
 	require.Equal(t, int64(99999), acc.DebtQuota)
 }
@@ -658,7 +658,7 @@ func TestRepayLoanZeroQuotaAmountRejected(t *testing.T) {
 func TestRepayLoanInsufficientBalance(t *testing.T) {
 	// 债务 100000，余额只有 30000，显式还 0.10 USD（50000）被拒
 	user := setupRepayTestUser(t, 100000, 90000, 30000)
-	_, _, err := RepayLoan(user.Id, "0.10")
+	_, _, _, err := RepayLoan(user.Id, "0.10")
 	require.ErrorIs(t, err, ErrLoanInsufficientBalance)
 
 	// 拒绝后债务、余额、台账均无变化
@@ -677,7 +677,7 @@ func TestRepayLoanPartialInterestFirst(t *testing.T) {
 	// 债务 100000（本金 90000 + 利息 10000），还 0.08 USD = 40000：先抵息 10000 再抵本 30000，
 	// 手续费 = round(30000 * 0.0001) = 3
 	user := setupRepayTestUser(t, 100000, 90000, 500000)
-	acc, info, err := RepayLoan(user.Id, "0.08")
+	acc, info, _, err := RepayLoan(user.Id, "0.08")
 	require.NoError(t, err)
 	require.Equal(t, int64(40000), info.Amount)
 	require.Equal(t, int64(10000), info.InterestPart)
@@ -705,7 +705,7 @@ func TestRepayLoanAll(t *testing.T) {
 	// 余额充足：all 全额还清（金额不受两位小数限制，精确到 quota）
 	// 手续费 = round(90001 * 0.0001) = 9
 	user := setupRepayTestUser(t, 100001, 90001, 500000)
-	acc, info, err := RepayLoan(user.Id, "all")
+	acc, info, _, err := RepayLoan(user.Id, "all")
 	require.NoError(t, err)
 	require.Equal(t, int64(100001), info.Amount)
 	require.Equal(t, int64(9), info.FeePart)
@@ -720,7 +720,7 @@ func TestRepayLoanAllClampedByBalance(t *testing.T) {
 	// 余额不足覆盖债务：all 只还余额能覆盖的部分（还款额 + 手续费 <= 余额）
 	// 迭代收敛：repay 39997 + fee round(29997*0.0001)=3 = 40000
 	user := setupRepayTestUser(t, 100000, 90000, 40000)
-	acc, info, err := RepayLoan(user.Id, "ALL") // 大小写不敏感
+	acc, info, _, err := RepayLoan(user.Id, "ALL") // 大小写不敏感
 	require.NoError(t, err)
 	require.Equal(t, int64(39997), info.Amount)
 	require.Equal(t, int64(3), info.FeePart)
@@ -732,14 +732,14 @@ func TestRepayLoanAllClampedByBalance(t *testing.T) {
 
 func TestRepayLoanAllZeroBalance(t *testing.T) {
 	user := setupRepayTestUser(t, 100000, 90000, 0)
-	_, _, err := RepayLoan(user.Id, "all")
+	_, _, _, err := RepayLoan(user.Id, "all")
 	require.ErrorIs(t, err, ErrLoanInsufficientBalance)
 }
 
 func TestRepayLoanExplicitAmountClampedToDebt(t *testing.T) {
 	// 显式金额超过债务时按债务截断；手续费 = round(50000 * 0.0001) = 5
 	user := setupRepayTestUser(t, 50000, 50000, 500000)
-	acc, info, err := RepayLoan(user.Id, "1.00") // 500000 quota > 债务 50000
+	acc, info, _, err := RepayLoan(user.Id, "1.00") // 500000 quota > 债务 50000
 	require.NoError(t, err)
 	require.Equal(t, int64(50000), info.Amount)
 	require.Equal(t, int64(5), info.FeePart)
@@ -753,7 +753,7 @@ func TestRepayLoanFeeDisabled(t *testing.T) {
 	// 费率为 0 时不收手续费，行为与旧版一致
 	user := setupRepayTestUser(t, 100000, 90000, 500000)
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.RepayFeeRate = 0 })
-	_, info, err := RepayLoan(user.Id, "0.08")
+	_, info, _, err := RepayLoan(user.Id, "0.08")
 	require.NoError(t, err)
 	require.Equal(t, int64(0), info.FeePart)
 	var u User
@@ -764,7 +764,7 @@ func TestRepayLoanFeeDisabled(t *testing.T) {
 func TestRepayLoanFeeOnlyOnPrincipal(t *testing.T) {
 	// 还款全部抵息时无抵本部分，手续费为 0
 	user := setupRepayTestUser(t, 100000, 90000, 500000)
-	_, info, err := RepayLoan(user.Id, "0.01") // 5000 quota，全抵息（利息 10000）
+	_, info, _, err := RepayLoan(user.Id, "0.01") // 5000 quota，全抵息（利息 10000）
 	require.NoError(t, err)
 	require.Equal(t, int64(5000), info.InterestPart)
 	require.Equal(t, int64(0), info.PrincipalPart)

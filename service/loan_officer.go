@@ -191,7 +191,7 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 		}
 		model.RecordOperationAuditLog(app.UserId,
 			model.RenderOperationLogContent("loan.ai_close", closeLogParams, model.LogLanguageEN),
-			"", "loan.ai_close", closeLogParams, nil, nil)
+			"", "loan.ai_close", closeLogParams, nil, nil, "") // 后台流程无请求上下文，User-Agent 留空
 		touchLoanApplication(app.Id)
 		return displayText, true, nil
 	}
@@ -253,7 +253,7 @@ func executeLoanDecision(app *model.TokenLoanApplication, setting *operation_set
 	}
 	model.RecordOperationAuditLog(app.UserId,
 		model.RenderOperationLogContent("loan.ai_decision", decisionLogParams, model.LogLanguageEN),
-		"", "loan.ai_decision", decisionLogParams, nil, nil)
+		"", "loan.ai_decision", decisionLogParams, nil, nil, "") // 后台流程无请求上下文，User-Agent 留空
 	return true, ""
 }
 

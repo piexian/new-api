@@ -598,7 +598,8 @@ func TestSetLoanOfferStatusTransitions(t *testing.T) {
 	require.ErrorIs(t, SetLoanOfferStatus(lender.Id, 999999, LoanOfferStatusPaused), ErrLoanOfferNotFound)
 
 	// 关闭后暂停/恢复被拒
-	require.NoError(t, CloseLoanOffer(lender.Id, offer.Id))
+	_, err = CloseLoanOffer(lender.Id, offer.Id)
+	require.NoError(t, err)
 	require.ErrorIs(t, SetLoanOfferStatus(lender.Id, offer.Id, LoanOfferStatusPaused), ErrLoanOfferNotActive)
 	require.ErrorIs(t, SetLoanOfferStatus(lender.Id, offer.Id, LoanOfferStatusActive), ErrLoanOfferNotActive)
 }
@@ -616,7 +617,8 @@ func TestCloseLoanOfferRefundsIdleAndKeepsInvariant(t *testing.T) {
 	// 关闭前不变式成立：2 USD = available 0.6 USD + Σ 本金 0.4 USD
 	require.Equal(t, offer.AmountTotal, offer.AmountAvailable+activeOrOverduePrincipalSum(t, offer.Id))
 
-	require.NoError(t, CloseLoanOffer(lender.Id, offer.Id))
+	_, err = CloseLoanOffer(lender.Id, offer.Id)
+	require.NoError(t, err)
 
 	var got TokenLoanOffer
 	require.NoError(t, DB.First(&got, offer.Id).Error)
@@ -640,9 +642,11 @@ func TestCloseLoanOfferTwiceRejected(t *testing.T) {
 	lender := setupMarketLender(t, quotaOf(t, "10.00"))
 	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50)
 	require.NoError(t, err)
-	require.NoError(t, CloseLoanOffer(lender.Id, offer.Id))
+	_, err = CloseLoanOffer(lender.Id, offer.Id)
+	require.NoError(t, err)
 	// 重复关闭与关闭后撤回均被拒
-	require.ErrorIs(t, CloseLoanOffer(lender.Id, offer.Id), ErrLoanOfferNotActive)
+	_, err = CloseLoanOffer(lender.Id, offer.Id)
+	require.ErrorIs(t, err, ErrLoanOfferNotActive)
 	_, err = WithdrawLoanOffer(lender.Id, offer.Id)
 	require.ErrorIs(t, err, ErrLoanOfferNotActive)
 }
@@ -686,10 +690,12 @@ func TestCloseAndWithdrawOwnership(t *testing.T) {
 	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50)
 	require.NoError(t, err)
 
-	require.ErrorIs(t, CloseLoanOffer(other.Id, offer.Id), ErrLoanOfferNotFound)
+	_, err = CloseLoanOffer(other.Id, offer.Id)
+	require.ErrorIs(t, err, ErrLoanOfferNotFound)
 	_, err = WithdrawLoanOffer(other.Id, offer.Id)
 	require.ErrorIs(t, err, ErrLoanOfferNotFound)
-	require.ErrorIs(t, CloseLoanOffer(lender.Id, 999999), ErrLoanOfferNotFound)
+	_, err = CloseLoanOffer(lender.Id, 999999)
+	require.ErrorIs(t, err, ErrLoanOfferNotFound)
 	// 非本人操作不产生副作用
 	var got TokenLoanOffer
 	require.NoError(t, DB.First(&got, offer.Id).Error)
@@ -705,7 +711,8 @@ func TestCloseLoanOfferQuotaOverflow(t *testing.T) {
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", lender.Id).
 		Update("quota", int64(common.MaxQuota)-100).Error)
 	// 关闭退回 1e6 → 2147483547 + 1000000 超 int32 上界
-	require.ErrorIs(t, CloseLoanOffer(lender.Id, offer.Id), ErrLoanQuotaOverflow)
+	_, err = CloseLoanOffer(lender.Id, offer.Id)
+	require.ErrorIs(t, err, ErrLoanQuotaOverflow)
 	// 失败后 offer 保持 active、余额不变
 	var got TokenLoanOffer
 	require.NoError(t, DB.First(&got, offer.Id).Error)

@@ -48,24 +48,25 @@ func HasCheckedInToday(userId int) (bool, error) {
 	return count > 0, err
 }
 
-// UserCheckin 执行用户签到，返回签到记录与签到自动还款结果（无还款时 loanRepay 为 nil）
+// UserCheckin 执行用户签到，返回签到记录、签到自动还款结果（无还款时 loanRepay 为 nil）
+// 与放贷人入账清单（按放贷人聚合，供 controller 写入充值日志；无入账时为空切片）。
 // 所有数据库共用单一事务路径：GORM 事务在 SQLite 单写者模型下同样可用（BorrowLoan/
 // RepayLoan 同模式），事务内一律经 tx 访问 DB（lockForUpdate 在 SQLite 下退化为普通
 // 查询）。旧版为 SQLite 单独保留的顺序执行 + 手动回滚分支，Task 10 起还款涉及多行写
 // （funding/offer/放贷人入账）手动回滚难以保全，已合并删除。
-func UserCheckin(userId int) (*Checkin, *LoanRepayInfo, error) {
+func UserCheckin(userId int) (*Checkin, *LoanRepayInfo, []LenderCredit, error) {
 	setting := operation_setting.GetCheckinSetting()
 	if !setting.Enabled {
-		return nil, nil, errors.New("签到功能未启用")
+		return nil, nil, nil, errors.New("签到功能未启用")
 	}
 
 	// 检查今天是否已签到
 	hasChecked, err := HasCheckedInToday(userId)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if hasChecked {
-		return nil, nil, errors.New("今日已签到")
+		return nil, nil, nil, errors.New("今日已签到")
 	}
 
 	// 计算随机额度奖励
@@ -96,7 +97,7 @@ func UserCheckin(userId int) (*Checkin, *LoanRepayInfo, error) {
 //     奖励 - repay，奖励大于债务时超额仍入账，还款恒不超债务），逾期仅经 settleFunding
 //     的罚息放大债务，不改变分配公式，故无需按 overdue 分支处理；
 //  3. 事务内入账净额（奖励 - 还款），杜绝"先全额发放再扣款"的崩溃漏出窗口。
-func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) (*Checkin, *LoanRepayInfo, error) {
+func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) (*Checkin, *LoanRepayInfo, []LenderCredit, error) {
 	var repayInfo *LoanRepayInfo
 	var lenderCredits []LenderCredit
 	netQuota := quotaAwarded
@@ -174,7 +175,7 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 	})
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// 事务提交后异步同步缓存：借款人按净额递增，各放贷人按入账清单递增
@@ -188,7 +189,7 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 	// 本次新翻转的 platform 逾期 funding 异步派发官方处置（Task 15，提交后派发）
 	dispatchPlatformOverdueAsync(flipped)
 
-	return checkin, repayInfo, nil
+	return checkin, repayInfo, lenderCredits, nil
 }
 
 // GetUserCheckinStats 获取用户签到统计信息

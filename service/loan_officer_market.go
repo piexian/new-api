@@ -213,7 +213,7 @@ func executeAppealDecision(app *model.TokenLoanApplication, setting *operation_s
 	}
 	model.RecordOperationAuditLog(app.UserId,
 		model.RenderOperationLogContent("loan.ai_decision", decisionLogParams, model.LogLanguageEN),
-		"", "loan.ai_decision", decisionLogParams, nil, nil)
+		"", "loan.ai_decision", decisionLogParams, nil, nil, "") // 后台流程无请求上下文，User-Agent 留空
 	return true, notice
 }
 

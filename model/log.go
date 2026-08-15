@@ -221,8 +221,9 @@ func RecordLoginLog(userId int, username string, content string, ip string, acti
 	}
 }
 
-// RecordOperationAuditLog 记录管理和高危操作审计日志。
-func RecordOperationAuditLog(logUserId int, content string, ip string, action string, params map[string]interface{}, adminInfo map[string]interface{}, auditInfo map[string]interface{}) {
+// RecordOperationAuditLog 记录管理和高危操作审计日志。userAgent 为操作者请求的
+// User-Agent；后台流程无请求上下文时传空串。
+func RecordOperationAuditLog(logUserId int, content string, ip string, action string, params map[string]interface{}, adminInfo map[string]interface{}, auditInfo map[string]interface{}, userAgent string) {
 	username, _ := GetUsernameById(logUserId, false)
 	other := map[string]interface{}{
 		"op": buildOpField(action, params),
@@ -240,6 +241,7 @@ func RecordOperationAuditLog(logUserId int, content string, ip string, action st
 		Type:      LogTypeManage,
 		Content:   content,
 		Ip:        ip,
+		UserAgent: strings.TrimSpace(userAgent),
 		Other:     common.MapToJsonStr(other),
 	}
 	if err := createLog(log); err != nil {
@@ -284,7 +286,7 @@ func ChannelManageLogExistsSince(channelId int, content string, since int64) boo
 	return count > 0
 }
 
-func RecordTopupLog(userId int, content string, callerIp string, paymentMethod string, callbackPaymentMethod string) {
+func RecordTopupLog(userId int, content string, callerIp string, paymentMethod string, callbackPaymentMethod string, userAgent string) {
 	username, _ := GetUsernameById(userId, false)
 	adminInfo := map[string]interface{}{
 		"server_ip":               common.GetIp(),
@@ -304,6 +306,7 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 		Type:      LogTypeTopup,
 		Content:   content,
 		Ip:        callerIp,
+		UserAgent: strings.TrimSpace(userAgent),
 		Other:     common.MapToJsonStr(other),
 	}
 	err := createLog(log)

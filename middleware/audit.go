@@ -134,6 +134,7 @@ func finishAdminAudit(c *gin.Context, writer *auditResponseWriter) {
 	operatorName := c.GetString("username")
 	operatorRole := c.GetInt("role")
 	ip := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
 	status := writer.Status()
 	success := auditResponseSuccess(status, writer.body.Bytes())
 
@@ -176,7 +177,7 @@ func finishAdminAudit(c *gin.Context, writer *auditResponseWriter) {
 	}
 
 	gopool.Go(func() {
-		model.RecordOperationAuditLog(operatorId, content, ip, action, opParams, adminInfo, auditInfo)
+		model.RecordOperationAuditLog(operatorId, content, ip, action, opParams, adminInfo, auditInfo, userAgent)
 	})
 }
 

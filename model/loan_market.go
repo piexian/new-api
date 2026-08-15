@@ -417,9 +417,9 @@ func SetLoanOfferStatus(lenderId int, offerId int, status string) error {
 // AmountAvailable 退回用户余额，amount_total 同步核减（钱离开 offer 账面，与核销
 // "amount_total 同步减"同语义，保持不变式 amount_total = amount_available + Σ 未还本金），
 // 存续 funding 不受影响（后续本金直接回放贷人余额属 Task 9 还款分配）。提交后异步同步余额缓存。
-func CloseLoanOffer(lenderId int, offerId int) error {
-	_, err := closeOrWithdrawOffer(lenderId, offerId, true)
-	return err
+// 返回退回的闲置额度（无闲置额度时返回 0），供 controller 写入充值日志。
+func CloseLoanOffer(lenderId int, offerId int) (int64, error) {
+	return closeOrWithdrawOffer(lenderId, offerId, true)
 }
 
 // WithdrawLoanOffer 撤回 offer 的全部闲置额度到用户余额（v1 简化：撤回后 offer 保留原状态，

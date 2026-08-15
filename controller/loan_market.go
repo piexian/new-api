@@ -120,13 +120,18 @@ func CloseLoanMarketOffer(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
-	if err := model.CloseLoanOffer(userId, offerId); err != nil {
+	refunded, err := model.CloseLoanOffer(userId, offerId)
+	if err != nil {
 		respondLoanError(c, err)
 		return
 	}
 	recordUserSecurityAudit(c, userId, "loan.offer_close", map[string]interface{}{
 		"offer_id": offerId,
 	})
+	// 关闭退回的闲置额度计入充值日志（无闲置额度时不产生资金移动，不记日志）
+	if refunded > 0 {
+		model.RecordTopupLog(userId, fmt.Sprintf("词元贷放贷资金退回，额度: %v", logger.LogQuota(int(refunded))), c.ClientIP(), "loan", "loan", c.GetHeader("User-Agent"))
+	}
 	common.ApiSuccess(c, nil)
 }
 
@@ -146,6 +151,8 @@ func WithdrawLoanMarketOffer(c *gin.Context) {
 		"offer_id": offerId,
 		"refunded": logger.LogQuota(int(refunded)),
 	})
+	// 撤回的闲置额度计入充值日志（成功撤回时 refunded 恒 > 0）
+	model.RecordTopupLog(userId, fmt.Sprintf("词元贷放贷资金退回，额度: %v", logger.LogQuota(int(refunded))), c.ClientIP(), "loan", "loan", c.GetHeader("User-Agent"))
 	common.ApiSuccess(c, gin.H{"refunded": refunded})
 }
 

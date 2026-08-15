@@ -253,6 +253,12 @@ func BorrowLoan(c *gin.Context) {
 			"amount_usd": fmt.Sprintf("%.2f", float64(matchedTotal)/common.QuotaPerUnit),
 		})
 	}
+	// 借款入账计入充值日志：借得额度 = Σ fundings.Amount（模型层已换算为整数 quota）
+	var borrowedQuota int64
+	for i := range fundings {
+		borrowedQuota += fundings[i].Amount
+	}
+	model.RecordTopupLog(userId, fmt.Sprintf("词元贷借款入账，额度: %v", logger.LogQuota(int(borrowedQuota))), c.ClientIP(), "loan", "loan", c.GetHeader("User-Agent"))
 	common.ApiSuccess(c, buildLoanStatusData(operation_setting.GetLoanSetting(), acc, userId, time.Now()))
 }
 
@@ -273,7 +279,7 @@ func RepayLoan(c *gin.Context) {
 		return
 	}
 	userId := c.GetInt("id")
-	acc, info, err := model.RepayLoan(userId, amountUsd)
+	acc, info, credits, err := model.RepayLoan(userId, amountUsd)
 	if err != nil {
 		respondLoanError(c, err)
 		return
@@ -285,6 +291,11 @@ func RepayLoan(c *gin.Context) {
 		"fee_part":       logger.LogQuota(int(info.FeePart)),
 		"debt_after":     logger.LogQuota(int(info.DebtAfter)),
 	})
+	// 放贷收益入账计入充值日志；此处 IP/User-Agent 为还款方（借款人）的请求上下文，
+	// 即触发本次放贷人入账的请求方
+	for _, credit := range credits {
+		model.RecordTopupLog(credit.UserId, fmt.Sprintf("词元贷放贷收益入账，额度: %v（借款人还款）", logger.LogQuota(int(credit.Amount))), c.ClientIP(), "loan", "loan", c.GetHeader("User-Agent"))
+	}
 	data := buildLoanStatusData(operation_setting.GetLoanSetting(), acc, userId, time.Now())
 	data["repay"] = info
 	common.ApiSuccess(c, data)

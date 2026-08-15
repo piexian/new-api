@@ -53,7 +53,7 @@ func DoCheckin(c *gin.Context) {
 
 	userId := c.GetInt("id")
 
-	checkin, loanRepay, err := model.UserCheckin(userId)
+	checkin, loanRepay, lenderCredits, err := model.UserCheckin(userId)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -75,6 +75,11 @@ func DoCheckin(c *gin.Context) {
 			"principal_part": logger.LogQuota(int(loanRepay.PrincipalPart)),
 			"debt_after":     logger.LogQuota(int(loanRepay.DebtAfter)),
 		})
+	}
+	// 签到自动还款触发的放贷收益入账计入充值日志；此处 IP/User-Agent 为签到者
+	// （借款人）的请求上下文，即触发本次入账的请求方
+	for _, credit := range lenderCredits {
+		model.RecordTopupLog(credit.UserId, fmt.Sprintf("词元贷放贷收益入账，额度: %v（借款人还款）", logger.LogQuota(int(credit.Amount))), c.ClientIP(), "loan", "loan", c.GetHeader("User-Agent"))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

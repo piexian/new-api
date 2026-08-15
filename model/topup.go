@@ -229,7 +229,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		return errors.New("充值失败，请稍后重试")
 	}
 
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe, "") // 服务端支付回调无请求上下文，User-Agent 留空
 	emitTopUpCompleted(TopUpCompletedEvent{
 		UserId:          topUp.UserId,
 		OrderNo:         topUp.TradeNo,
@@ -401,7 +401,7 @@ func SearchAllTopUps(keyword string, pageInfo *common.PageInfo) (topups []*TopUp
 }
 
 // ManualCompleteTopUp 管理员手动完成订单并给用户充值
-func ManualCompleteTopUp(tradeNo string, callerIp string) error {
+func ManualCompleteTopUp(tradeNo string, callerIp string, userAgent string) error {
 	if tradeNo == "" {
 		return errors.New("未提供订单号")
 	}
@@ -480,8 +480,8 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		return err
 	}
 
-	// 事务外记录日志，避免阻塞
-	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+	// 事务外记录日志，避免阻塞；补单由管理员请求触发，User-Agent 一并记录（需求 A）
+	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin", userAgent)
 	if completedEvent != nil {
 		emitTopUpCompleted(*completedEvent)
 	}
@@ -558,7 +558,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		return errors.New("充值失败，请稍后重试")
 	}
 
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem, "") // 服务端支付回调无请求上下文，User-Agent 留空
 	emitTopUpCompleted(TopUpCompletedEvent{
 		UserId:          topUp.UserId,
 		OrderNo:         topUp.TradeNo,
@@ -630,7 +630,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
-		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo, "") // 服务端支付回调无请求上下文，User-Agent 留空
 		emitTopUpCompleted(TopUpCompletedEvent{
 			UserId:          topUp.UserId,
 			OrderNo:         topUp.TradeNo,
@@ -701,7 +701,7 @@ func RechargeWaffoPancake(tradeNo string, callerIp string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
-		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffoPancake)
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffoPancake, "") // 服务端支付回调无请求上下文，User-Agent 留空
 		emitTopUpCompleted(TopUpCompletedEvent{
 			UserId:          topUp.UserId,
 			OrderNo:         topUp.TradeNo,
