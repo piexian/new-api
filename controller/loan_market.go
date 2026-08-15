@@ -56,17 +56,20 @@ func GetLoanMarketOffers(c *gin.Context) {
 }
 
 type createLoanOfferRequest struct {
-	Mode           string  `json:"mode"`
-	AmountUsd      string  `json:"amount_usd"`
-	RateFixed      string  `json:"rate_fixed"`
-	RateMin        float64 `json:"rate_min"`
-	RateMax        float64 `json:"rate_max"`
-	PerLoanCap     int64   `json:"per_loan_cap"`
-	MinCreditScore int     `json:"min_credit_score"`
+	Mode                string  `json:"mode"`
+	AmountUsd           string  `json:"amount_usd"`
+	RateFixed           string  `json:"rate_fixed"`
+	RateMin             float64 `json:"rate_min"`
+	RateMax             float64 `json:"rate_max"`
+	PerLoanCap          int64   `json:"per_loan_cap"`
+	MinCreditScore      int     `json:"min_credit_score"`
+	FastRepayPenaltyUsd string  `json:"fast_repay_penalty_usd"` // 秒结清固定惩罚额度（USD，空 = 0 不收），decimal 解析与 amount 同模式
+	FastRepayWindowDays int     `json:"fast_repay_window_days"` // 秒结清窗口天数，0 = 仅当天；∈ [0, 365]
 }
 
 // CreateLoanMarketOffer 挂出放贷供给单（rate_fixed 用字符串传递保留精度，
-// 由 model 层按模式校验区间/上限，见 model.CreateLoanOffer）
+// 由 model 层按模式校验区间/上限，见 model.CreateLoanOffer；秒结清惩罚条款
+// fast_repay_penalty_usd / fast_repay_window_days 亦由 model 层校验）
 func CreateLoanMarketOffer(c *gin.Context) {
 	var req createLoanOfferRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -76,15 +79,18 @@ func CreateLoanMarketOffer(c *gin.Context) {
 	userId := c.GetInt("id")
 	offer, err := model.CreateLoanOffer(userId, strings.TrimSpace(req.Mode),
 		strings.TrimSpace(req.AmountUsd), strings.TrimSpace(req.RateFixed),
-		req.RateMin, req.RateMax, req.PerLoanCap, req.MinCreditScore)
+		req.RateMin, req.RateMax, req.PerLoanCap, req.MinCreditScore,
+		strings.TrimSpace(req.FastRepayPenaltyUsd), req.FastRepayWindowDays)
 	if err != nil {
 		respondLoanError(c, err)
 		return
 	}
 	recordUserSecurityAudit(c, userId, "loan.offer_create", map[string]interface{}{
-		"mode":       offer.Mode,
-		"amount_usd": fmt.Sprintf("%.2f", float64(offer.AmountTotal)/common.QuotaPerUnit),
-		"rate_fixed": fmt.Sprintf("%v", offer.RateFixed),
+		"mode":                   offer.Mode,
+		"amount_usd":             fmt.Sprintf("%.2f", float64(offer.AmountTotal)/common.QuotaPerUnit),
+		"rate_fixed":             fmt.Sprintf("%v", offer.RateFixed),
+		"fast_repay_penalty_usd": fmt.Sprintf("%.2f", float64(offer.FastRepayPenaltyQuota)/common.QuotaPerUnit),
+		"fast_repay_window_days": offer.FastRepayWindowDays,
 	})
 	common.ApiSuccess(c, offer)
 }
@@ -174,11 +180,13 @@ func GetLoanMarketList(c *gin.Context) {
 			return
 		}
 		items = append(items, gin.H{
-			"id":                  o.Id,
-			"amount_available":    o.AmountAvailable,
-			"rate_fixed":          o.RateFixed,
-			"min_credit_score":    o.MinCreditScore,
-			"lender_credit_score": score,
+			"id":                       o.Id,
+			"amount_available":         o.AmountAvailable,
+			"rate_fixed":               o.RateFixed,
+			"min_credit_score":         o.MinCreditScore,
+			"lender_credit_score":      score,
+			"fast_repay_penalty_quota": o.FastRepayPenaltyQuota,
+			"fast_repay_window_days":   o.FastRepayWindowDays,
 		})
 	}
 	common.ApiSuccess(c, gin.H{"offers": items})
@@ -210,20 +218,22 @@ func GetLoanMarketFundings(c *gin.Context) {
 			return
 		}
 		items = append(items, gin.H{
-			"id":                    f.Id,
-			"loan_user_id":          f.LoanUserId,
-			"source_type":           f.SourceType,
-			"offer_id":              f.OfferId,
-			"amount":                f.Amount,
-			"principal_remaining":   f.PrincipalRemaining,
-			"repaid_principal":      f.Amount - f.PrincipalRemaining,
-			"debt":                  debt,
-			"rate":                  f.Rate,
-			"repay_plan":            f.RepayPlan,
-			"status":                f.Status,
-			"due_day":               f.DueDay,
-			"created_at":            f.CreatedAt,
-			"borrower_credit_score": score,
+			"id":                       f.Id,
+			"loan_user_id":             f.LoanUserId,
+			"source_type":              f.SourceType,
+			"offer_id":                 f.OfferId,
+			"amount":                   f.Amount,
+			"principal_remaining":      f.PrincipalRemaining,
+			"repaid_principal":         f.Amount - f.PrincipalRemaining,
+			"debt":                     debt,
+			"rate":                     f.Rate,
+			"repay_plan":               f.RepayPlan,
+			"status":                   f.Status,
+			"due_day":                  f.DueDay,
+			"created_at":               f.CreatedAt,
+			"borrower_credit_score":    score,
+			"fast_repay_penalty_quota": f.FastRepayPenaltyQuota,
+			"fast_repay_window_days":   f.FastRepayWindowDays,
 		})
 	}
 	pageInfo.SetTotal(int(total))

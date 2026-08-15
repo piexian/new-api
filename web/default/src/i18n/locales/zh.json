@@ -6296,7 +6296,17 @@
     "Credit Change": "信用分变动",
     "Repay Bonus": "按时还款加分",
     "Fast Repay Penalty": "快速还款扣分",
-    "Write-off": "核销扣分"
+    "Write-off": "核销扣分",
+    "0 means only same-day full repayment is penalized": "0 表示仅当天全额还清才计罚",
+    "Fast Penalty": "秒结清惩罚",
+    "Fast-Settle Penalty": "秒结清惩罚",
+    "Fast-Settle Penalty (USD)": "秒结清惩罚额度（USD）",
+    "Fast-Settle Window (Days)": "秒结清窗口（天）",
+    "Fast-settle window must be between 0 and 365 days": "秒结清窗口必须在 0 到 365 天之间",
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty": "借款人于窗口内全额还清时收取的固定惩罚额度；留空 = 不收取",
+    "Please enter a valid non-negative penalty amount": "请输入有效的非负惩罚额度",
+    "Repay Result": "还款结果",
+    "Same day": "仅当天"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

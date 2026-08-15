@@ -40,7 +40,6 @@ import { formatTimestamp } from '@/lib/format'
 
 import { getAdminLoanRecords } from '../api'
 import type { LoanAdminRecord } from '../types'
-
 import { QueryErrorState } from './query-error'
 import { TablePagination } from './table-pagination'
 import { UserCell } from './user-cell'
@@ -134,6 +133,7 @@ export function LoanRecordsTable() {
                 <TableHead>{t('Interest Part')}</TableHead>
                 <TableHead>{t('Principal Part')}</TableHead>
                 <TableHead>{t('Fee')}</TableHead>
+                <TableHead>{t('Fast-Settle Penalty')}</TableHead>
                 <TableHead>{t('Debt After')}</TableHead>
                 <TableHead>{t('Source')}</TableHead>
                 <TableHead>{t('Ref ID')}</TableHead>
@@ -146,10 +146,17 @@ export function LoanRecordsTable() {
                     {formatTimestamp(record.created_at)}
                   </TableCell>
                   <TableCell>
-                    <UserCell username={record.username} userId={record.user_id} />
+                    <UserCell
+                      username={record.username}
+                      userId={record.user_id}
+                    />
                   </TableCell>
                   <TableCell>
-                    <Badge variant={record.type === 'borrow' ? 'default' : 'secondary'}>
+                    <Badge
+                      variant={
+                        record.type === 'borrow' ? 'default' : 'secondary'
+                      }
+                    >
                       {typeLabel(record.type)}
                     </Badge>
                   </TableCell>
@@ -166,6 +173,9 @@ export function LoanRecordsTable() {
                   </TableCell>
                   <TableCell className='tabular-nums'>
                     {formatQuotaWithCurrency(record.fee_part)}
+                  </TableCell>
+                  <TableCell className='tabular-nums'>
+                    {formatQuotaWithCurrency(record.penalty_part)}
                   </TableCell>
                   <TableCell className='tabular-nums'>
                     {record.type === 'credit'
@@ -223,7 +233,12 @@ export function LoanRecordsTable() {
               placeholder={t('Filter by user ID')}
               className='h-8 w-40 sm:w-44'
             />
-            <Button type='submit' variant='outline' size='sm' className='h-8 px-2.5'>
+            <Button
+              type='submit'
+              variant='outline'
+              size='sm'
+              className='h-8 px-2.5'
+            >
               <Search className='h-3.5 w-3.5' />
               {t('Search')}
             </Button>

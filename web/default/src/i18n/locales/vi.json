@@ -6296,7 +6296,17 @@
     "Credit Change": "Thay đổi điểm tín dụng",
     "Repay Bonus": "Thưởng trả nợ",
     "Fast Repay Penalty": "Phạt trả nợ nhanh",
-    "Write-off": "Xóa nợ"
+    "Write-off": "Xóa nợ",
+    "0 means only same-day full repayment is penalized": "0 nghĩa là chỉ tính phạt khi trả hết trong cùng ngày",
+    "Fast Penalty": "Phí trả nợ sớm",
+    "Fast-Settle Penalty": "Phí trả nợ sớm",
+    "Fast-Settle Penalty (USD)": "Phí trả nợ sớm (USD)",
+    "Fast-Settle Window (Days)": "Cửa sổ trả nợ sớm (ngày)",
+    "Fast-settle window must be between 0 and 365 days": "Cửa sổ trả nợ sớm phải từ 0 đến 365 ngày",
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty": "Phí cố định tính khi người vay trả hết trong cửa sổ; để trống = không thu",
+    "Please enter a valid non-negative penalty amount": "Vui lòng nhập số tiền phạt không âm hợp lệ",
+    "Repay Result": "Kết quả trả nợ",
+    "Same day": "Cùng ngày"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

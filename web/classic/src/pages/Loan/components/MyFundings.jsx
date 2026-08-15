@@ -69,6 +69,16 @@ const statusTag = (t, status) => {
   );
 };
 
+// 秒结清惩罚条款展示：0 = 不收；窗口 0 = 仅当天
+const penaltyText = (t, funding) => {
+  if (!funding.fast_repay_penalty_quota) return t('不收');
+  const windowText =
+    funding.fast_repay_window_days === 0
+      ? t('仅当天')
+      : t('{{days}} 天', { days: funding.fast_repay_window_days });
+  return `${renderQuota(funding.fast_repay_penalty_quota)} / ${windowText}`;
+};
+
 const repayPlanLabel = (t, plan) => {
   if (plan === 'full') return t('全额（复利）');
   if (plan === 'no_penalty') return t('免罚息');
@@ -242,6 +252,13 @@ const MyFundings = ({ t, refreshKey }) => {
           <span className='text-gray-500 dark:text-gray-400'>
             {formatDailyRate(v)}
           </span>
+        ),
+      },
+      {
+        title: t('秒结清惩罚'),
+        dataIndex: 'fast_repay_penalty_quota',
+        render: (v, record) => (
+          <span className='tabular-nums'>{penaltyText(t, record)}</span>
         ),
       },
       {

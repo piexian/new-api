@@ -6296,7 +6296,17 @@
     "Credit Change": "Changement de crédit",
     "Repay Bonus": "Bonus de remboursement",
     "Fast Repay Penalty": "Pénalité de remboursement rapide",
-    "Write-off": "Radiation"
+    "Write-off": "Radiation",
+    "0 means only same-day full repayment is penalized": "0 signifie qu'un seul remboursement intégral le jour même est pénalisé",
+    "Fast Penalty": "Pénalité de remboursement rapide",
+    "Fast-Settle Penalty": "Pénalité de remboursement rapide",
+    "Fast-Settle Penalty (USD)": "Pénalité de remboursement rapide (USD)",
+    "Fast-Settle Window (Days)": "Fenêtre de remboursement rapide (jours)",
+    "Fast-settle window must be between 0 and 365 days": "La fenêtre de remboursement rapide doit être comprise entre 0 et 365 jours",
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty": "Pénalité fixe facturée lorsqu'un emprunteur rembourse intégralement dans la fenêtre ; vide = aucune",
+    "Please enter a valid non-negative penalty amount": "Veuillez saisir un montant de pénalité non négatif valide",
+    "Repay Result": "Résultat du remboursement",
+    "Same day": "Même jour"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

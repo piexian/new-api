@@ -220,7 +220,7 @@ func TestRepayLenderInterestOfferAvailableUnchangedTotal(t *testing.T) {
 	acc := &TokenLoanAccount{UserId: borrower.Id}
 	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now)
 	require.NoError(t, err)
-	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual")
+	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil)
 	require.NoError(t, err)
 
 	// 放贷人入账 = 利息 20000
@@ -293,7 +293,7 @@ func TestRepayClosedOfferPrincipalToLender(t *testing.T) {
 	acc := &TokenLoanAccount{UserId: borrower.Id}
 	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now)
 	require.NoError(t, err)
-	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual")
+	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil)
 	require.NoError(t, err)
 
 	// 利息 + 本金全部回放贷人余额
@@ -337,7 +337,7 @@ func TestRepayPlatformNoCredit(t *testing.T) {
 	acc := &TokenLoanAccount{UserId: borrower.Id}
 	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 40000, now)
 	require.NoError(t, err)
-	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual")
+	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil)
 	require.NoError(t, err)
 	require.Empty(t, credits, "platform 本息归平台，无任何放贷人入账")
 

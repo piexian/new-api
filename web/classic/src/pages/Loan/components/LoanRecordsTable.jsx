@@ -25,7 +25,11 @@ import QueryError from './QueryError';
 
 const PAGE_SIZE = 10;
 
-const LOAN_RECORD_TAG_COLORS = { borrow: 'orange', repay: 'green', credit: 'blue' };
+const LOAN_RECORD_TAG_COLORS = {
+  borrow: 'orange',
+  repay: 'green',
+  credit: 'blue',
+};
 
 // credit 行的 Amount 是带符号的信用分变动 delta（+5/-2/-20），DebtAfter 是变动后信用分
 const formatSignedDelta = (v) => (v > 0 ? `+${v}` : `${v}`);
@@ -89,10 +93,7 @@ const LoanRecordsTable = ({ t, refreshKey }) => {
         title: t('类型'),
         dataIndex: 'type',
         render: (v) => (
-          <Tag
-            color={LOAN_RECORD_TAG_COLORS[v] || 'grey'}
-            size='small'
-          >
+          <Tag color={LOAN_RECORD_TAG_COLORS[v] || 'grey'} size='small'>
             {typeLabel(v)}
           </Tag>
         ),
@@ -101,9 +102,7 @@ const LoanRecordsTable = ({ t, refreshKey }) => {
         title: t('金额'),
         dataIndex: 'amount',
         render: (v, record) =>
-          record.type === 'credit'
-            ? formatSignedDelta(v)
-            : renderQuota(v || 0),
+          record.type === 'credit' ? formatSignedDelta(v) : renderQuota(v || 0),
       },
       {
         title: t('利息部分'),
@@ -118,6 +117,11 @@ const LoanRecordsTable = ({ t, refreshKey }) => {
       {
         title: t('手续费'),
         dataIndex: 'fee_part',
+        render: (v) => renderQuota(v || 0),
+      },
+      {
+        title: t('秒结清惩罚'),
+        dataIndex: 'penalty_part',
         render: (v) => renderQuota(v || 0),
       },
       {

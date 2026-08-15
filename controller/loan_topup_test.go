@@ -68,7 +68,7 @@ func TestLoanRepayWritesLenderTopupLog(t *testing.T) {
 	borrower := seedLoanUser(t, db)
 	require.NoError(t, db.Model(&model.User{}).Where("id = ?", lender.Id).Update("quota", 2000000).Error)
 	require.NoError(t, model.AgreeLenderDisclaimer(lender.Id))
-	offer, err := model.CreateLoanOffer(lender.Id, model.LoanOfferModePool, "2.00", "0.001", 0, 0, 0, -50)
+	offer, err := model.CreateLoanOffer(lender.Id, model.LoanOfferModePool, "2.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
 
 	// P2P funding：本金 300000 + 利息 10000，LastSettledDay=今天（当天不计息，债务确定）

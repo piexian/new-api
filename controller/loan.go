@@ -291,6 +291,7 @@ func RepayLoan(c *gin.Context) {
 		"interest_part":  logger.LogQuota(int(info.InterestPart)),
 		"principal_part": logger.LogQuota(int(info.PrincipalPart)),
 		"fee_part":       logger.LogQuota(int(info.FeePart)),
+		"penalty_part":   logger.LogQuota(int(info.PenaltyPart)),
 		"debt_after":     logger.LogQuota(int(info.DebtAfter)),
 	})
 	// 放贷收益入账计入充值日志；此处 IP/User-Agent 为还款方（借款人）的请求上下文，

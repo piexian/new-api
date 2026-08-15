@@ -6296,7 +6296,17 @@
     "Credit Change": "Изменение кредитного рейтинга",
     "Repay Bonus": "Бонус за погашение",
     "Fast Repay Penalty": "Штраф за досрочное погашение",
-    "Write-off": "Списание"
+    "Write-off": "Списание",
+    "0 means only same-day full repayment is penalized": "0 означает, что штраф применяется только при полном погашении в тот же день",
+    "Fast Penalty": "Штраф за досрочное погашение",
+    "Fast-Settle Penalty": "Штраф за досрочное погашение",
+    "Fast-Settle Penalty (USD)": "Штраф за досрочное погашение (USD)",
+    "Fast-Settle Window (Days)": "Окно досрочного погашения (дни)",
+    "Fast-settle window must be between 0 and 365 days": "Окно досрочного погашения должно быть от 0 до 365 дней",
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty": "Фиксированный штраф при полном погашении займа в пределах окна; пусто = не взимается",
+    "Please enter a valid non-negative penalty amount": "Введите допустимую неотрицательную сумму штрафа",
+    "Repay Result": "Результат погашения",
+    "Same day": "Тот же день"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

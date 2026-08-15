@@ -6296,7 +6296,17 @@
     "Credit Change": "信用スコア変更",
     "Repay Bonus": "返済ボーナス",
     "Fast Repay Penalty": "早期返済ペナルティ",
-    "Write-off": "貸倒償却"
+    "Write-off": "貸倒償却",
+    "0 means only same-day full repayment is penalized": "0 は当日中の完済のみが対象となることを意味します",
+    "Fast Penalty": "即時完済ペナルティ",
+    "Fast-Settle Penalty": "即時完済ペナルティ",
+    "Fast-Settle Penalty (USD)": "即時完済ペナルティ（USD）",
+    "Fast-Settle Window (Days)": "即時完済ウィンドウ（日）",
+    "Fast-settle window must be between 0 and 365 days": "即時完済ウィンドウは 0 から 365 日の範囲で指定してください",
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty": "借り手がウィンドウ内に全額返済した場合に請求される固定ペナルティ。空欄 = なし",
+    "Please enter a valid non-negative penalty amount": "有効な非負のペナルティ額を入力してください",
+    "Repay Result": "返済結果",
+    "Same day": "当日のみ"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -54,21 +55,23 @@ const (
 
 // TokenLoanOffer 借贷市场供给方（放贷人）挂出的可撮合资金 offer
 type TokenLoanOffer struct {
-	Id                  int     `json:"id" gorm:"primaryKey;autoIncrement"`
-	LenderId            int     `json:"lender_id" gorm:"not null;index"`               // 放贷人 user id
-	Mode                string  `json:"mode" gorm:"type:varchar(16);not null"`         // pool / ai / order
-	Status              string  `json:"status" gorm:"type:varchar(16);not null;index"` // active / paused / closed
-	AmountTotal         int64   `json:"amount_total" gorm:"bigint"`                    // 挂出总额
-	AmountAvailable     int64   `json:"amount_available" gorm:"bigint"`                // 剩余可撮合额度
-	RateFixed           float64 `json:"rate_fixed"`                                    // 固定日利率（0 = 走区间竞价）
-	RateMin             float64 `json:"rate_min"`                                      // 区间利率下限
-	RateMax             float64 `json:"rate_max"`                                      // 区间利率上限
-	PerLoanCap          int64   `json:"per_loan_cap" gorm:"bigint"`                    // 单笔上限
-	MinCreditScore      int     `json:"min_credit_score"`                              // 最低可借信用分，-50 = 不限（spec §4.1；0 是罚分后的合法分值）
-	TotalLent           int64   `json:"total_lent" gorm:"bigint"`                      // 累计放出
-	TotalInterestEarned int64   `json:"total_interest_earned" gorm:"bigint"`           // 累计利息收入
-	CreatedAt           int64   `json:"created_at" gorm:"bigint"`                      // 秒级时间戳
-	UpdatedAt           int64   `json:"updated_at" gorm:"bigint"`                      // 秒级时间戳
+	Id                    int     `json:"id" gorm:"primaryKey;autoIncrement"`
+	LenderId              int     `json:"lender_id" gorm:"not null;index"`               // 放贷人 user id
+	Mode                  string  `json:"mode" gorm:"type:varchar(16);not null"`         // pool / ai / order
+	Status                string  `json:"status" gorm:"type:varchar(16);not null;index"` // active / paused / closed
+	AmountTotal           int64   `json:"amount_total" gorm:"bigint"`                    // 挂出总额
+	AmountAvailable       int64   `json:"amount_available" gorm:"bigint"`                // 剩余可撮合额度
+	RateFixed             float64 `json:"rate_fixed"`                                    // 固定日利率（0 = 走区间竞价）
+	RateMin               float64 `json:"rate_min"`                                      // 区间利率下限
+	RateMax               float64 `json:"rate_max"`                                      // 区间利率上限
+	PerLoanCap            int64   `json:"per_loan_cap" gorm:"bigint"`                    // 单笔上限
+	MinCreditScore        int     `json:"min_credit_score"`                              // 最低可借信用分，-50 = 不限（spec §4.1；0 是罚分后的合法分值）
+	FastRepayPenaltyQuota int64   `json:"fast_repay_penalty_quota" gorm:"bigint"`        // 秒结清固定惩罚额度，0 = 不收（借款人窗口内手动全额提前还清时收取）
+	FastRepayWindowDays   int     `json:"fast_repay_window_days"`                        // 秒结清窗口天数，0 = 仅当天（loanDay 差 ≤ 窗口才计罚）
+	TotalLent             int64   `json:"total_lent" gorm:"bigint"`                      // 累计放出
+	TotalInterestEarned   int64   `json:"total_interest_earned" gorm:"bigint"`           // 累计利息收入
+	CreatedAt             int64   `json:"created_at" gorm:"bigint"`                      // 秒级时间戳
+	UpdatedAt             int64   `json:"updated_at" gorm:"bigint"`                      // 秒级时间戳
 }
 
 func (TokenLoanOffer) TableName() string {
@@ -77,23 +80,25 @@ func (TokenLoanOffer) TableName() string {
 
 // TokenLoanFunding 单笔放贷投放记录：一次借款事件对应一条，记录资金去向与还款状态
 type TokenLoanFunding struct {
-	Id                 int64   `json:"id" gorm:"primaryKey;autoIncrement"`
-	LoanUserId         int     `json:"loan_user_id" gorm:"not null;index"`            // 借款人 user id
-	BorrowEventId      int64   `json:"borrow_event_id" gorm:"bigint"`                 // 关联借款事件 id，0 = 非事件驱动（如平台直放）
-	SourceType         string  `json:"source_type" gorm:"type:varchar(16);not null"`  // platform / pool / ai / order
-	OfferId            int     `json:"offer_id" gorm:"index"`                         // 关联 offer id，platform 时为 0
-	LenderId           int     `json:"lender_id" gorm:"index"`                        // 实际放贷方 user id，platform 时为 0
-	Amount             int64   `json:"amount" gorm:"bigint"`                          // 投放本金
-	PrincipalRemaining int64   `json:"principal_remaining" gorm:"bigint"`             // 未还本金
-	DebtQuota          int64   `json:"debt_quota" gorm:"bigint"`                      // 未还本息总额（含利息）
-	LastSettledDay     int     `json:"last_settled_day"`                              // 上次惰性结算的 loanDay
-	Rate               float64 `json:"rate"`                                          // 实际执行的日利率
-	RepayPlan          string  `json:"repay_plan" gorm:"type:varchar(16);not null"`   // full / no_penalty / interest_freeze / principal_only
-	Status             string  `json:"status" gorm:"type:varchar(16);not null;index"` // active / overdue / repaid / written_off
-	DueDay             int     `json:"due_day"`                                       // 应还日 loanDay，0 = 未定
-	PenaltyStartedDay  int     `json:"penalty_started_day"`                           // 罚息起始 loanDay，0 = 无
-	CreatedAt          int64   `json:"created_at" gorm:"bigint"`                      // 秒级时间戳
-	UpdatedAt          int64   `json:"updated_at" gorm:"bigint"`                      // 秒级时间戳
+	Id                    int64   `json:"id" gorm:"primaryKey;autoIncrement"`
+	LoanUserId            int     `json:"loan_user_id" gorm:"not null;index"`            // 借款人 user id
+	BorrowEventId         int64   `json:"borrow_event_id" gorm:"bigint"`                 // 关联借款事件 id，0 = 非事件驱动（如平台直放）
+	SourceType            string  `json:"source_type" gorm:"type:varchar(16);not null"`  // platform / pool / ai / order
+	OfferId               int     `json:"offer_id" gorm:"index"`                         // 关联 offer id，platform 时为 0
+	LenderId              int     `json:"lender_id" gorm:"index"`                        // 实际放贷方 user id，platform 时为 0
+	Amount                int64   `json:"amount" gorm:"bigint"`                          // 投放本金
+	PrincipalRemaining    int64   `json:"principal_remaining" gorm:"bigint"`             // 未还本金
+	DebtQuota             int64   `json:"debt_quota" gorm:"bigint"`                      // 未还本息总额（含利息）
+	LastSettledDay        int     `json:"last_settled_day"`                              // 上次惰性结算的 loanDay
+	Rate                  float64 `json:"rate"`                                          // 实际执行的日利率
+	RepayPlan             string  `json:"repay_plan" gorm:"type:varchar(16);not null"`   // full / no_penalty / interest_freeze / principal_only
+	Status                string  `json:"status" gorm:"type:varchar(16);not null;index"` // active / overdue / repaid / written_off
+	DueDay                int     `json:"due_day"`                                       // 应还日 loanDay，0 = 未定
+	PenaltyStartedDay     int     `json:"penalty_started_day"`                           // 罚息起始 loanDay，0 = 无
+	FastRepayPenaltyQuota int64   `json:"fast_repay_penalty_quota" gorm:"bigint"`        // 秒结清固定惩罚额度（放款时从 offer 复制），0 = 不收
+	FastRepayWindowDays   int     `json:"fast_repay_window_days"`                        // 秒结清窗口天数（放款时从 offer 复制），0 = 仅当天
+	CreatedAt             int64   `json:"created_at" gorm:"bigint"`                      // 秒级时间戳
+	UpdatedAt             int64   `json:"updated_at" gorm:"bigint"`                      // 秒级时间戳
 }
 
 func (TokenLoanFunding) TableName() string {
@@ -264,7 +269,9 @@ func AgreeLenderDisclaimer(userId int) error {
 
 // CreateLoanOffer 放贷人挂出供给单（spec §3.1/§4.1）：
 //  1. 事务外校验：市场开关、模式、金额 decimal 解析（镜像 BorrowLoan：正数、最多两位
-//     小数、int32 上界）、利率区间、单笔上限、信用分门槛钳制；
+//     小数、int32 上界）、利率区间、单笔上限、信用分门槛钳制；秒结清惩罚参数校验
+//     （fastRepayPenaltyUsd 可为空 = 0 不收；非负、最多两位小数；窗口 ∈ [0, 365]，
+//     非法一律 ErrLoanOfferInvalidParams）；
 //  2. 事务内 lockForUpdate 锁 users 行：状态正常、余额充足 → 扣 quota；读/建贷款账户
 //     并校验免责声明 → 禁止二次挂市场（默认开启：可放贷额度 = 实际余额 - 未还借款本金，
 //     超出报 ErrLoanLendBorrowedNotAllowed；MarketAllowLendBorrowed=true 时跳过）→ 建
@@ -276,7 +283,7 @@ func AgreeLenderDisclaimer(userId int) error {
 //     PerLoanCapDefault 缺省（可能仍为 0 = 不限）；
 //   - ai：rateMin/rateMax 区间 ⊆ [LenderRateMin, LenderRateMax] 且 perLoanCap > 0；
 //   - minCreditScore 钳制到 [-50, 100]，低于 -50 视为"不限制"。
-func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rateMin, rateMax float64, perLoanCap int64, minCreditScore int) (*TokenLoanOffer, error) {
+func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rateMin, rateMax float64, perLoanCap int64, minCreditScore int, fastRepayPenaltyUsd string, fastRepayWindowDays int) (*TokenLoanOffer, error) {
 	loanSetting := operation_setting.GetLoanSetting()
 	if !loanSetting.MarketEnabled {
 		return nil, ErrLoanMarketDisabled
@@ -305,6 +312,26 @@ func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rat
 	// 挂出金额必须落在 int32 quota 上界内（clamp 后恒成立，防御性校验）
 	if int64(amount) > common.MaxQuota {
 		return nil, ErrLoanQuotaOverflow
+	}
+
+	// 秒结清惩罚参数（放贷人自定条款，随放款复制到 funding）：
+	//   - fastRepayPenaltyUsd 为空视为 "0"（不收取）；decimal 解析必须非负、最多两位小数；
+	//   - fastRepayWindowDays ∈ [0, 365]，0 = 仅当天结清才计罚；
+	// 非法一律 ErrLoanOfferInvalidParams（与挂单参数同级，不占用金额类哨兵错误）。
+	penaltyUsd := strings.TrimSpace(fastRepayPenaltyUsd)
+	if penaltyUsd == "" {
+		penaltyUsd = "0"
+	}
+	penaltyDec, err := decimal.NewFromString(penaltyUsd)
+	if err != nil || penaltyDec.IsNegative() || penaltyDec.Exponent() < -2 {
+		return nil, ErrLoanOfferInvalidParams
+	}
+	penaltyQuota, clamp := common.QuotaFromDecimalChecked(penaltyDec.Mul(decimal.NewFromFloat(common.QuotaPerUnit)))
+	if clamp != nil {
+		return nil, ErrLoanOfferInvalidParams
+	}
+	if fastRepayWindowDays < 0 || fastRepayWindowDays > 365 {
+		return nil, ErrLoanOfferInvalidParams
 	}
 
 	var rateFixedVal float64
@@ -385,18 +412,20 @@ func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rat
 			return err
 		}
 		offer = &TokenLoanOffer{
-			LenderId:        lenderId,
-			Mode:            mode,
-			Status:          LoanOfferStatusActive,
-			AmountTotal:     int64(amount),
-			AmountAvailable: int64(amount),
-			RateFixed:       rateFixedVal,
-			RateMin:         rateMin,
-			RateMax:         rateMax,
-			PerLoanCap:      perLoanCap,
-			MinCreditScore:  minCreditScore,
-			CreatedAt:       now.Unix(),
-			UpdatedAt:       now.Unix(),
+			LenderId:              lenderId,
+			Mode:                  mode,
+			Status:                LoanOfferStatusActive,
+			AmountTotal:           int64(amount),
+			AmountAvailable:       int64(amount),
+			RateFixed:             rateFixedVal,
+			RateMin:               rateMin,
+			RateMax:               rateMax,
+			PerLoanCap:            perLoanCap,
+			MinCreditScore:        minCreditScore,
+			FastRepayPenaltyQuota: int64(penaltyQuota),
+			FastRepayWindowDays:   fastRepayWindowDays,
+			CreatedAt:             now.Unix(),
+			UpdatedAt:             now.Unix(),
 		}
 		return tx.Create(offer).Error
 	})

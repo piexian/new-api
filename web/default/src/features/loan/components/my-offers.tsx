@@ -95,6 +95,19 @@ function formatDailyRate(rate: number): string {
   return formatPercent(rate * 100)
 }
 
+// 秒结清惩罚条款展示：0 = 不收；窗口 0 = 仅当天
+function penaltyText(
+  offer: LoanOffer,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  if (!offer.fast_repay_penalty_quota) return t('None')
+  const windowText =
+    offer.fast_repay_window_days === 0
+      ? t('Same day')
+      : t('{{days}} days', { days: offer.fast_repay_window_days })
+  return `${formatQuotaWithCurrency(offer.fast_repay_penalty_quota)} / ${windowText}`
+}
+
 export function MyOffers(props: MyOffersProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -216,6 +229,7 @@ export function MyOffers(props: MyOffersProps) {
               <TableHead>{t('Total Lent')}</TableHead>
               <TableHead>{t('Interest Earned')}</TableHead>
               <TableHead>{t('Rate')}</TableHead>
+              <TableHead>{t('Fast Penalty')}</TableHead>
               <TableHead>{t('Min Credit')}</TableHead>
               <TableHead>{t('Created At')}</TableHead>
               <TableHead className='text-right'>{t('Actions')}</TableHead>
@@ -256,6 +270,9 @@ export function MyOffers(props: MyOffersProps) {
                   {offer.mode === 'ai'
                     ? `${formatDailyRate(offer.rate_min)} – ${formatDailyRate(offer.rate_max)}`
                     : formatDailyRate(offer.rate_fixed)}
+                </TableCell>
+                <TableCell className='tabular-nums'>
+                  {penaltyText(offer, t)}
                 </TableCell>
                 <TableCell className='text-muted-foreground tabular-nums'>
                   {offer.min_credit_score === -50

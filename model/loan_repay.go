@@ -13,15 +13,21 @@ import (
 // ===== Task 9: 还款按 funding pro-rata 分配 =====
 
 // RepayAllocation 单条 funding 的还款分配：还款额按各 funding 结算后债务 pro-rata 拆分
-// （最大余数法，Σ Amount ≡ 还款额），每条内先息后本
+// （最大余数法，Σ Amount ≡ 还款额），每条内先息后本。
+// Repaid 标记该 funding 是否在本次分配中转结清（debt 归零 → status=repaid）；
+// 秒结清惩罚判定需要 funding 侧字段（窗口按 CreatedAt、条款取放款时从 offer 复制的值）。
 type RepayAllocation struct {
-	FundingId     int64
-	LenderId      int
-	OfferId       int
-	SourceType    string
-	Amount        int64
-	InterestPart  int64
-	PrincipalPart int64
+	FundingId             int64
+	LenderId              int
+	OfferId               int
+	SourceType            string
+	Amount                int64
+	InterestPart          int64
+	PrincipalPart         int64
+	Repaid                bool
+	CreatedAt             int64
+	FastRepayPenaltyQuota int64
+	FastRepayWindowDays   int
 }
 
 // LenderCredit 事务内放贷人余额入账清单（按放贷人聚合），供提交后异步同步 Redis 缓存
@@ -137,7 +143,8 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 		payPrincipal := alloc - payInterest
 		f.DebtQuota -= alloc
 		f.PrincipalRemaining -= payPrincipal
-		if f.DebtQuota == 0 {
+		repaid := f.DebtQuota == 0
+		if repaid {
 			f.Status = LoanFundingRepaid
 			repaidAny = true
 		}
@@ -147,13 +154,17 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 		totalInterest += payInterest
 		totalPrincipal += payPrincipal
 		allocs = append(allocs, RepayAllocation{
-			FundingId:     f.Id,
-			LenderId:      f.LenderId,
-			OfferId:       f.OfferId,
-			SourceType:    f.SourceType,
-			Amount:        alloc,
-			InterestPart:  payInterest,
-			PrincipalPart: payPrincipal,
+			FundingId:             f.Id,
+			LenderId:              f.LenderId,
+			OfferId:               f.OfferId,
+			SourceType:            f.SourceType,
+			Amount:                alloc,
+			InterestPart:          payInterest,
+			PrincipalPart:         payPrincipal,
+			Repaid:                repaid,
+			CreatedAt:             f.CreatedAt,
+			FastRepayPenaltyQuota: f.FastRepayPenaltyQuota,
+			FastRepayWindowDays:   f.FastRepayWindowDays,
 		})
 	}
 
@@ -198,12 +209,15 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 //   - 本金：offer 非 closed → 回补 offer.AmountAvailable（amount_total 不变）；
 //     offer closed → 计入放贷人余额且 amount_total -= 本金（钱离开 offer 账面）；
 //     platform → 无入账；
+//   - 秒结清惩罚（penaltyByFunding，按 funding id 给出本次转结清 funding 的惩罚额度）：
+//     合并进放贷人入账（与利息/本金同一 MaxQuota 上界校验，溢出整体回滚），并写入
+//     对应 repay 台账行的 penalty_part；platform funding 无惩罚（条款为 0，天然排除）；
 //   - 台账：每条 alloc 一行 repay 记录（FundingId/LenderId 冗余），Source 由调用方传入
 //     （manual / checkin），DebtAfter 取同事务内 funding 当前剩余债务。
 //
 // 锁序遵守全局约束 offers(id 升序) → users(id 升序)。返回按放贷人聚合的入账清单
-// （user id 升序），供提交后异步 cacheIncrUserQuota。
-func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, source string) ([]LenderCredit, error) {
+// （user id 升序，含惩罚），供提交后异步 cacheIncrUserQuota。
+func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, source string, penaltyByFunding map[int64]int64) ([]LenderCredit, error) {
 	now := time.Now()
 
 	// 预扫描：按 offer 归集利息累计与本金回补，仅锁定涉及的 offer 行（id 升序）
@@ -246,7 +260,9 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 		offerStatus[oid] = offer.Status
 	}
 
-	// 入账归集：利息（非 platform）+ closed offer 的本金；platform 本息归平台（债务销毁）
+	// 入账归集：利息（非 platform）+ closed offer 的本金 + 秒结清惩罚；platform 本息归
+	// 平台（债务销毁）。惩罚并入同一 credits map，MaxQuota 上界校验统一生效（溢出整笔
+	// 还款回滚，绝不让余额静默截断），入账清单返回值自然携带惩罚供缓存/充值日志使用。
 	credits := make(map[int]int64)
 	for i := range allocs {
 		a := &allocs[i]
@@ -263,6 +279,9 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 		}
 		if a.PrincipalPart > 0 && offerStatus[a.OfferId] == LoanOfferStatusClosed {
 			credits[a.LenderId] += a.PrincipalPart
+		}
+		if p := penaltyByFunding[a.FundingId]; p > 0 {
+			credits[a.LenderId] += p
 		}
 	}
 
@@ -290,7 +309,8 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 	}
 
 	// 台账：每条 alloc 一行 repay（funding_id/lender_id 冗余）。手续费不落台账：
-	// 提前还款手续费是平台收入，仅体现在 LoanRepayInfo.FeePart 与借款人余额扣款
+	// 提前还款手续费是平台收入，仅体现在 LoanRepayInfo.FeePart 与借款人余额扣款。
+	// 秒结清惩罚落同一条 repay 行的 penalty_part（每 funding 携带自己的惩罚份额）。
 	for i := range allocs {
 		a := &allocs[i]
 		var f TokenLoanFunding
@@ -303,6 +323,7 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 			Amount:        a.Amount,
 			InterestPart:  a.InterestPart,
 			PrincipalPart: a.PrincipalPart,
+			PenaltyPart:   penaltyByFunding[a.FundingId],
 			DebtAfter:     f.DebtQuota,
 			Source:        source,
 			FundingId:     a.FundingId,
@@ -319,4 +340,34 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 		out = append(out, LenderCredit{UserId: lid, Amount: credits[lid]})
 	}
 	return out, nil
+}
+
+// computeFastRepayPenalties 计算手动提前还款的秒结清惩罚（仅 model.RepayLoan 调用；
+// 签到自动还款经 checkin 路径不经过本函数，恒不触发）：
+//   - 仅对本次分配中转结清（Repaid=true）的 funding 计罚；
+//   - 窗口判定：loanDay(now) - loanDay(funding.CreatedAt) <= FastRepayWindowDays
+//     （0 = 仅当天结清才计罚；放款日与还款日同本地日时差为 0）；
+//   - FastRepayPenaltyQuota <= 0（未设置条款）或 LenderId <= 0（platform 无放贷人）
+//     不计罚。
+//
+// 返回：按 funding id 的惩罚额（写台账 penalty_part）、按放贷人的惩罚聚合（并入入账
+// 清单）、惩罚总额（借款人余额扣减 + LoanRepayInfo.PenaltyPart）。
+func computeFastRepayPenalties(allocs []RepayAllocation, now time.Time) (map[int64]int64, map[int]int64, int64) {
+	today := loanDay(now)
+	byFunding := make(map[int64]int64)
+	byLender := make(map[int]int64)
+	var total int64
+	for i := range allocs {
+		a := &allocs[i]
+		if !a.Repaid || a.FastRepayPenaltyQuota <= 0 || a.LenderId <= 0 {
+			continue
+		}
+		if today-loanDay(time.Unix(a.CreatedAt, 0)) > a.FastRepayWindowDays {
+			continue
+		}
+		byFunding[a.FundingId] = a.FastRepayPenaltyQuota
+		byLender[a.LenderId] += a.FastRepayPenaltyQuota
+		total += a.FastRepayPenaltyQuota
+	}
+	return byFunding, byLender, total
 }

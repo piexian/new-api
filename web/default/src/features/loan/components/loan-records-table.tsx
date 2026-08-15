@@ -39,7 +39,6 @@ import { formatTimestamp } from '@/lib/format'
 
 import { getLoanRecords } from '../api'
 import type { LoanRecord } from '../types'
-
 import { QueryErrorState } from './query-error'
 
 const PAGE_SIZE = 10
@@ -95,10 +94,7 @@ export function LoanRecordsTable() {
   const content = (() => {
     if (isError) {
       return (
-        <QueryErrorState
-          message={error.message}
-          onRetry={() => refetch()}
-        />
+        <QueryErrorState message={error.message} onRetry={() => refetch()} />
       )
     }
 
@@ -132,6 +128,7 @@ export function LoanRecordsTable() {
                 <TableHead>{t('Interest Part')}</TableHead>
                 <TableHead>{t('Principal Part')}</TableHead>
                 <TableHead>{t('Fee')}</TableHead>
+                <TableHead>{t('Fast-Settle Penalty')}</TableHead>
                 <TableHead>{t('Debt After')}</TableHead>
                 <TableHead>{t('Source')}</TableHead>
               </TableRow>
@@ -164,6 +161,9 @@ export function LoanRecordsTable() {
                   </TableCell>
                   <TableCell className='tabular-nums'>
                     {formatQuotaWithCurrency(record.fee_part)}
+                  </TableCell>
+                  <TableCell className='tabular-nums'>
+                    {formatQuotaWithCurrency(record.penalty_part)}
                   </TableCell>
                   <TableCell className='tabular-nums'>
                     {record.type === 'credit'

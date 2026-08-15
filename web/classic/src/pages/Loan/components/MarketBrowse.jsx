@@ -31,6 +31,16 @@ const formatDailyRate = (rate) => {
   }).format(rate);
 };
 
+// 秒结清惩罚条款展示：0 = 不收；窗口 0 = 仅当天
+const penaltyText = (t, offer) => {
+  if (!offer.fast_repay_penalty_quota) return t('不收');
+  const windowText =
+    offer.fast_repay_window_days === 0
+      ? t('仅当天')
+      : t('{{days}} 天', { days: offer.fast_repay_window_days });
+  return `${renderQuota(offer.fast_repay_penalty_quota)} · ${windowText}`;
+};
+
 const OfferStat = ({ label, value, strong }) => (
   <div>
     <div className='text-xs text-gray-500 dark:text-gray-400'>{label}</div>
@@ -97,7 +107,7 @@ const MarketBrowse = ({ t, onBorrow, refreshKey }) => {
               bodyStyle={{ padding: '12px' }}
             >
               <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'>
-                <div className='grid gap-2 text-sm sm:grid-cols-4'>
+                <div className='grid gap-2 text-sm sm:grid-cols-5'>
                   <OfferStat
                     label={t('可用')}
                     value={renderQuota(offer.amount_available || 0)}
@@ -118,6 +128,10 @@ const MarketBrowse = ({ t, onBorrow, refreshKey }) => {
                   <OfferStat
                     label={t('放贷人信用分')}
                     value={offer.lender_credit_score}
+                  />
+                  <OfferStat
+                    label={t('秒结清惩罚')}
+                    value={penaltyText(t, offer)}
                   />
                 </div>
                 <div className='flex items-center justify-end gap-2'>

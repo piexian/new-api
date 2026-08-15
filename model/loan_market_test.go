@@ -440,7 +440,7 @@ func TestAgreeLenderDisclaimerIdempotent(t *testing.T) {
 func TestCreateLoanOfferMarketDisabled(t *testing.T) {
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.MarketEnabled = false })
 	lender := createLoanTestUser(t)
-	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50)
+	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.ErrorIs(t, err, ErrLoanMarketDisabled)
 }
 
@@ -449,7 +449,7 @@ func TestCreateLoanOfferDisclaimerRequired(t *testing.T) {
 	// 撤销免责声明：删除账户行后 getOrCreateLoanAccountTxSafe 会重建（AgreedAt=0）
 	require.NoError(t, DB.Where("user_id = ?", lender.Id).Delete(&TokenLoanAccount{}).Error)
 
-	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50)
+	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.ErrorIs(t, err, ErrLoanDisclaimerRequired)
 
 	// 拒绝后不落 offer、不动余额、不留账户（事务整体回滚）
@@ -468,29 +468,29 @@ func TestCreateLoanOfferRejectsInvalidAmount(t *testing.T) {
 	lender := setupMarketLender(t, quotaOf(t, "10.00"))
 	// 非数字、非正数、超过两位小数一律拒绝
 	for _, amt := range []string{"", "abc", "-1.00", "0", "0.00", "1.005", "0.001", "1.234"} {
-		_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, amt, "0.001", 0, 0, 0, -50)
+		_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, amt, "0.001", 0, 0, 0, -50, "", 0)
 		require.ErrorIs(t, err, ErrLoanInvalidAmount, "amount %q should be rejected", amt)
 	}
 	// 低于最小入池金额（LenderMinAmount=50000）
-	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.05", "0.001", 0, 0, 0, -50)
+	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.05", "0.001", 0, 0, 0, -50, "", 0)
 	require.ErrorIs(t, err, ErrLoanOfferInvalidParams)
 	// int32 上界：10000 USD × 500000 = 5e9 quota 超 MaxQuota
-	_, err = CreateLoanOffer(lender.Id, LoanOfferModePool, "10000.00", "0.001", 0, 0, 0, -50)
+	_, err = CreateLoanOffer(lender.Id, LoanOfferModePool, "10000.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.ErrorIs(t, err, ErrLoanQuotaOverflow)
 }
 
 func TestCreateLoanOfferRejectsInvalidParams(t *testing.T) {
 	lender := setupMarketLender(t, quotaOf(t, "10.00"))
 	// 非法模式
-	_, err := CreateLoanOffer(lender.Id, "bogus", "1.00", "0.001", 0, 0, 0, -50)
+	_, err := CreateLoanOffer(lender.Id, "bogus", "1.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.ErrorIs(t, err, ErrLoanOfferInvalidParams)
 	// pool：rateFixed 低于下限 / 高于上限 / 非数字一律拒绝
 	for _, rf := range []string{"0.0004", "0.0031", "abc"} {
-		_, err = CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", rf, 0, 0, 0, -50)
+		_, err = CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", rf, 0, 0, 0, -50, "", 0)
 		require.ErrorIs(t, err, ErrLoanOfferInvalidParams, "rateFixed %q should be rejected", rf)
 	}
 	// order 同 pool 校验
-	_, err = CreateLoanOffer(lender.Id, LoanOfferModeOrder, "1.00", "0.004", 0, 0, 0, -50)
+	_, err = CreateLoanOffer(lender.Id, LoanOfferModeOrder, "1.00", "0.004", 0, 0, 0, -50, "", 0)
 	require.ErrorIs(t, err, ErrLoanOfferInvalidParams)
 	// ai：区间越界 / 区间倒挂 / perLoanCap<=0 一律拒绝
 	for _, tc := range []struct {
@@ -503,14 +503,14 @@ func TestCreateLoanOfferRejectsInvalidParams(t *testing.T) {
 		{0.001, 0.002, 0},       // 单笔上限必须 > 0
 		{0.001, 0.002, -100},    // 负数拒绝
 	} {
-		_, err = CreateLoanOffer(lender.Id, LoanOfferModeAi, "1.00", "", tc.rateMin, tc.rateMax, tc.cap, -50)
+		_, err = CreateLoanOffer(lender.Id, LoanOfferModeAi, "1.00", "", tc.rateMin, tc.rateMax, tc.cap, -50, "", 0)
 		require.ErrorIs(t, err, ErrLoanOfferInvalidParams, "ai %+v should be rejected", tc)
 	}
 }
 
 func TestCreateLoanOfferInsufficientBalance(t *testing.T) {
 	lender := setupMarketLender(t, quotaOf(t, "1.00"))
-	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "2.00", "0.001", 0, 0, 0, -50)
+	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "2.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.ErrorIs(t, err, ErrLoanInsufficientBalance)
 
 	// 拒绝后不落 offer、不动余额
@@ -526,7 +526,7 @@ func TestCreateLoanOfferUserDisabled(t *testing.T) {
 	lender := setupMarketLender(t, quotaOf(t, "10.00"))
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", lender.Id).
 		Update("status", common.UserStatusDisabled).Error)
-	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50)
+	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.ErrorIs(t, err, ErrLoanUserDisabled)
 }
 
@@ -541,7 +541,7 @@ func TestCreateLoanOfferAtomicityOnQuotaFailure(t *testing.T) {
 		_ = DB.Exec(`DROP TRIGGER IF EXISTS loan_market_test_block_quota_update`).Error
 	})
 
-	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50)
+	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.Error(t, err)
 
 	// 扣款与建 offer 同一事务：失败后 offer 不落库、余额不变
@@ -558,7 +558,7 @@ func TestCreateLoanOfferHappyPath(t *testing.T) {
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.PerLoanCapDefault = 200000 })
 
 	// pool：rateFixed 落库、perLoanCap=0 走全局缺省、MinCreditScore 低于 -50 钳制到 -50
-	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "2.00", "0.001", 0, 0, 0, -100)
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "2.00", "0.001", 0, 0, 0, -100, "", 0)
 	require.NoError(t, err)
 	require.NotZero(t, offer.Id)
 	require.Equal(t, lender.Id, offer.LenderId)
@@ -579,7 +579,7 @@ func TestCreateLoanOfferHappyPath(t *testing.T) {
 	require.Equal(t, quotaOf(t, "8.00"), int64(u.Quota))
 
 	// ai：区间与 perLoanCap 原样落库、RateFixed=0、MinCreditScore 超过 100 钳制到 100
-	offer2, err := CreateLoanOffer(lender.Id, LoanOfferModeAi, "1.00", "0.001", 0.0008, 0.002, 300000, 150)
+	offer2, err := CreateLoanOffer(lender.Id, LoanOfferModeAi, "1.00", "0.001", 0.0008, 0.002, 300000, 150, "", 0)
 	require.NoError(t, err)
 	require.Equal(t, 0.0008, offer2.RateMin)
 	require.Equal(t, 0.002, offer2.RateMax)
@@ -588,7 +588,7 @@ func TestCreateLoanOfferHappyPath(t *testing.T) {
 	require.Equal(t, 100, offer2.MinCreditScore, "超过 100 钳制到 100")
 
 	// order 也走固定利率路径
-	offer3, err := CreateLoanOffer(lender.Id, LoanOfferModeOrder, "1.00", "0.0015", 0, 0, 0, -50)
+	offer3, err := CreateLoanOffer(lender.Id, LoanOfferModeOrder, "1.00", "0.0015", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
 	require.Equal(t, 0.0015, offer3.RateFixed)
 	require.Equal(t, int64(200000), offer3.PerLoanCap)
@@ -603,11 +603,11 @@ func TestCreateLoanOfferRejectsRelendingBorrowedQuota(t *testing.T) {
 	require.NoError(t, DB.Where("loan_user_id = ?", lender.Id).Delete(&TokenLoanFunding{}).Error)
 	createActiveBorrowerFunding(t, lender.Id, 600_000)
 
-	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.90", "0.001", 0, 0, 0, -50)
+	_, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.90", "0.001", 0, 0, 0, -50, "", 0)
 	require.ErrorIs(t, err, ErrLoanLendBorrowedNotAllowed)
 
 	// 恰好等于可放贷额度的挂单放行
-	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.80", "0.001", 0, 0, 0, -50)
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.80", "0.001", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
 	require.Equal(t, int64(400_000), offer.AmountTotal)
 
@@ -627,7 +627,7 @@ func TestCreateLoanOfferAllowsRelendingWhenToggleEnabled(t *testing.T) {
 	createActiveBorrowerFunding(t, lender.Id, 600_000)
 	withLoanSetting(t, func(s *operation_setting.LoanSetting) { s.MarketAllowLendBorrowed = true })
 
-	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.90", "0.001", 0, 0, 0, -50)
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.90", "0.001", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
 	require.Equal(t, int64(450_000), offer.AmountTotal)
 }
@@ -637,14 +637,14 @@ func TestCreateLoanOfferUnaffectedWithoutDebt(t *testing.T) {
 	lender := setupMarketLender(t, 1_000_000)
 	require.NoError(t, DB.Where("loan_user_id = ?", lender.Id).Delete(&TokenLoanFunding{}).Error)
 
-	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.90", "0.001", 0, 0, 0, -50)
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "0.90", "0.001", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
 	require.Equal(t, int64(450_000), offer.AmountTotal)
 }
 
 func TestSetLoanOfferStatusTransitions(t *testing.T) {
 	lender := setupMarketLender(t, quotaOf(t, "10.00"))
-	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50)
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
 
 	require.NoError(t, SetLoanOfferStatus(lender.Id, offer.Id, LoanOfferStatusPaused))
@@ -681,7 +681,7 @@ func TestCloseLoanOfferRefundsIdleAndKeepsInvariant(t *testing.T) {
 	require.NoError(t, DB.Where("lender_id = ? OR loan_user_id = ?", lender.Id, borrower.Id).
 		Delete(&TokenLoanFunding{}).Error)
 
-	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "2.00", "0.001", 0, 0, 0, -50)
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "2.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
 	f1 := createOfferFunding(t, offer, borrower.Id, quotaOf(t, "0.30")) // 150000
 	createOfferFunding(t, offer, borrower.Id, quotaOf(t, "0.10"))       // 50000
@@ -711,7 +711,7 @@ func TestCloseLoanOfferRefundsIdleAndKeepsInvariant(t *testing.T) {
 
 func TestCloseLoanOfferTwiceRejected(t *testing.T) {
 	lender := setupMarketLender(t, quotaOf(t, "10.00"))
-	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50)
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
 	_, err = CloseLoanOffer(lender.Id, offer.Id)
 	require.NoError(t, err)
@@ -728,7 +728,7 @@ func TestWithdrawLoanOffer(t *testing.T) {
 	require.NoError(t, DB.Where("lender_id = ? OR loan_user_id = ?", lender.Id, borrower.Id).
 		Delete(&TokenLoanFunding{}).Error)
 
-	offer, err := CreateLoanOffer(lender.Id, LoanOfferModeAi, "3.00", "", 0.0008, 0.002, quotaOf(t, "1.00"), -50)
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModeAi, "3.00", "", 0.0008, 0.002, quotaOf(t, "1.00"), -50, "", 0)
 	require.NoError(t, err)
 	createOfferFunding(t, offer, borrower.Id, quotaOf(t, "0.50"))
 	createOfferFunding(t, offer, borrower.Id, quotaOf(t, "0.25"))
@@ -758,7 +758,7 @@ func TestWithdrawLoanOffer(t *testing.T) {
 func TestCloseAndWithdrawOwnership(t *testing.T) {
 	lender := setupMarketLender(t, quotaOf(t, "10.00"))
 	other := createLoanTestUser(t)
-	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50)
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
 
 	_, err = CloseLoanOffer(other.Id, offer.Id)
@@ -776,7 +776,7 @@ func TestCloseAndWithdrawOwnership(t *testing.T) {
 
 func TestCloseLoanOfferQuotaOverflow(t *testing.T) {
 	lender := setupMarketLender(t, quotaOf(t, "10.00"))
-	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "2.00", "0.001", 0, 0, 0, -50)
+	offer, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "2.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
 	// 挂出期间余额暴涨（模拟其他入账）到 int32 上界附近
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", lender.Id).
@@ -795,9 +795,9 @@ func TestCloseLoanOfferQuotaOverflow(t *testing.T) {
 
 func TestGetUserLoanOffersAndGetLoanOfferById(t *testing.T) {
 	lender := setupMarketLender(t, quotaOf(t, "10.00"))
-	o1, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50)
+	o1, err := CreateLoanOffer(lender.Id, LoanOfferModePool, "1.00", "0.001", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
-	o2, err := CreateLoanOffer(lender.Id, LoanOfferModeOrder, "2.00", "0.002", 0, 0, 0, -50)
+	o2, err := CreateLoanOffer(lender.Id, LoanOfferModeOrder, "2.00", "0.002", 0, 0, 0, -50, "", 0)
 	require.NoError(t, err)
 
 	offers, err := GetUserLoanOffers(lender.Id)

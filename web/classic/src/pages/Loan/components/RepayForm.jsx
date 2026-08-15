@@ -27,6 +27,8 @@ const RepayForm = ({ t, status, onRepaid }) => {
   const [fieldError, setFieldError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [balance, setBalance] = useState(null);
+  // 最近一次还款的结果拆分（后端 repay 字段），有惩罚时高亮展示
+  const [lastRepay, setLastRepay] = useState(null);
   // 手续费说明"不再显示"标记（localStorage，按浏览器记住）
   const [feeNoticeHidden, setFeeNoticeHidden] = useState(
     () => localStorage.getItem('loan-repay-fee-notice-hidden') === '1',
@@ -69,6 +71,7 @@ const RepayForm = ({ t, status, onRepaid }) => {
       if (success) {
         showSuccess(t('还款成功'));
         setAmount('');
+        setLastRepay(data?.repay ?? null);
         fetchBalance();
         onRepaid?.(data);
       } else {
@@ -159,6 +162,69 @@ const RepayForm = ({ t, status, onRepaid }) => {
             </div>
           </div>
         )}
+        {lastRepay ? (
+          <div className='rounded-lg border p-3 text-xs space-y-1.5 bg-gray-50 dark:bg-gray-800'>
+            <Typography.Text type='tertiary' size='small'>
+              <span className='font-medium'>{t('还款结果')}</span>
+            </Typography.Text>
+            <div className='flex items-center justify-between gap-3'>
+              <Typography.Text type='tertiary' size='small'>
+                {t('还款')}
+              </Typography.Text>
+              <Typography.Text size='small' className='tabular-nums'>
+                {renderQuota(lastRepay.amount || 0)}
+              </Typography.Text>
+            </div>
+            <div className='flex items-center justify-between gap-3'>
+              <Typography.Text type='tertiary' size='small'>
+                {t('利息部分')}
+              </Typography.Text>
+              <Typography.Text size='small' className='tabular-nums'>
+                {renderQuota(lastRepay.interest_part || 0)}
+              </Typography.Text>
+            </div>
+            <div className='flex items-center justify-between gap-3'>
+              <Typography.Text type='tertiary' size='small'>
+                {t('本金部分')}
+              </Typography.Text>
+              <Typography.Text size='small' className='tabular-nums'>
+                {renderQuota(lastRepay.principal_part || 0)}
+              </Typography.Text>
+            </div>
+            {lastRepay.fee_part > 0 ? (
+              <div className='flex items-center justify-between gap-3'>
+                <Typography.Text type='tertiary' size='small'>
+                  {t('手续费')}
+                </Typography.Text>
+                <Typography.Text size='small' className='tabular-nums'>
+                  {renderQuota(lastRepay.fee_part)}
+                </Typography.Text>
+              </div>
+            ) : null}
+            {lastRepay.penalty_part > 0 ? (
+              <div className='flex items-center justify-between gap-3'>
+                <Typography.Text type='tertiary' size='small'>
+                  {t('秒结清惩罚')}
+                </Typography.Text>
+                <Typography.Text
+                  size='small'
+                  type='danger'
+                  className='tabular-nums'
+                >
+                  {renderQuota(lastRepay.penalty_part)}
+                </Typography.Text>
+              </div>
+            ) : null}
+            <div className='flex items-center justify-between gap-3'>
+              <Typography.Text type='tertiary' size='small'>
+                {t('欠款余额')}
+              </Typography.Text>
+              <Typography.Text size='small' className='tabular-nums'>
+                {renderQuota(lastRepay.debt_after || 0)}
+              </Typography.Text>
+            </div>
+          </div>
+        ) : null}
         <div className='flex gap-2'>
           <Button
             type='primary'

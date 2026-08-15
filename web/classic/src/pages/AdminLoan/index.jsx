@@ -68,7 +68,11 @@ const LOAN_STATUS_LABELS = {
   closed: '已结案',
 };
 
-const LOAN_TYPE_TAG_COLORS = { borrow: 'orange', repay: 'green', credit: 'blue' };
+const LOAN_TYPE_TAG_COLORS = {
+  borrow: 'orange',
+  repay: 'green',
+  credit: 'blue',
+};
 // credit 台账行的 Amount 是带符号的信用分变动 delta（+5/-2/-20），DebtAfter 是变动后信用分
 const formatSignedDelta = (v) => (v > 0 ? `+${v}` : `${v}`);
 const LOAN_TOPIC_TAG_COLORS = {
@@ -376,9 +380,7 @@ const LoanRecordsTab = () => {
         title: t('金额'),
         dataIndex: 'amount',
         render: (v, record) =>
-          record.type === 'credit'
-            ? formatSignedDelta(v)
-            : renderQuota(v || 0),
+          record.type === 'credit' ? formatSignedDelta(v) : renderQuota(v || 0),
         width: 120,
       },
       {
@@ -396,6 +398,12 @@ const LoanRecordsTab = () => {
       {
         title: t('手续费'),
         dataIndex: 'fee_part',
+        render: (v) => renderQuota(v || 0),
+        width: 120,
+      },
+      {
+        title: t('秒结清惩罚'),
+        dataIndex: 'penalty_part',
         render: (v) => renderQuota(v || 0),
         width: 120,
       },

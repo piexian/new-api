@@ -6296,7 +6296,17 @@
     "Credit Change": "Credit Change",
     "Repay Bonus": "Repay Bonus",
     "Fast Repay Penalty": "Fast Repay Penalty",
-    "Write-off": "Write-off"
+    "Write-off": "Write-off",
+    "0 means only same-day full repayment is penalized": "0 means only same-day full repayment is penalized",
+    "Fast Penalty": "Fast Penalty",
+    "Fast-Settle Penalty": "Fast-Settle Penalty",
+    "Fast-Settle Penalty (USD)": "Fast-Settle Penalty (USD)",
+    "Fast-Settle Window (Days)": "Fast-Settle Window (Days)",
+    "Fast-settle window must be between 0 and 365 days": "Fast-settle window must be between 0 and 365 days",
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty": "Penalty charged when a borrower fully repays within the window; empty = no penalty",
+    "Please enter a valid non-negative penalty amount": "Please enter a valid non-negative penalty amount",
+    "Repay Result": "Repay Result",
+    "Same day": "Same day"
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

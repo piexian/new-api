@@ -44,13 +44,35 @@ import { formatPercent } from '@/lib/format'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { repayLoan } from '../api'
-import type { LoanStatus } from '../types'
+import type { LoanRepayResult, LoanStatus } from '../types'
 
 // 提前还款手续费说明的"不再显示"标记（localStorage，按浏览器记住）
 const FEE_NOTICE_HIDDEN_KEY = 'loan-repay-fee-notice-hidden'
 
 interface RepayFormProps {
   status?: LoanStatus
+}
+
+// 还款结果明细行
+function BreakdownRow({
+  label,
+  value,
+  emphasis,
+}: {
+  label: string
+  value: string
+  emphasis?: boolean
+}) {
+  return (
+    <div className='flex items-center justify-between gap-3'>
+      <span className='text-muted-foreground'>{label}</span>
+      <span
+        className={`tabular-nums ${emphasis ? 'text-destructive font-medium' : ''}`}
+      >
+        {value}
+      </span>
+    </div>
+  )
 }
 
 // schema 需要 t() 文案，在组件内构建
@@ -79,6 +101,8 @@ export function RepayForm(props: RepayFormProps) {
   const [feeNoticeHidden, setFeeNoticeHidden] = useState(
     () => localStorage.getItem(FEE_NOTICE_HIDDEN_KEY) === '1'
   )
+  // 最近一次还款的结果拆分（后端 repay 字段），有惩罚时高亮展示
+  const [lastRepay, setLastRepay] = useState<LoanRepayResult | null>(null)
 
   const schema = useMemo(() => buildSchema(t), [t])
 
@@ -109,6 +133,7 @@ export function RepayForm(props: RepayFormProps) {
     queryClient.setQueryData(['loan-status'], data)
     queryClient.invalidateQueries({ queryKey: ['loan-records'] })
     queryClient.invalidateQueries({ queryKey: ['user-self-quota'] })
+    setLastRepay(data.repay ?? null)
     form.reset()
   }
 
@@ -208,6 +233,42 @@ export function RepayForm(props: RepayFormProps) {
                 >
                   {t("Don't show again")}
                 </Button>
+              </div>
+            ) : null}
+            {lastRepay ? (
+              <div className='bg-muted/30 space-y-1.5 rounded-lg border p-3 text-xs'>
+                <p className='text-muted-foreground font-medium'>
+                  {t('Repay Result')}
+                </p>
+                <BreakdownRow
+                  label={t('Repaid')}
+                  value={formatQuotaWithCurrency(lastRepay.amount)}
+                />
+                <BreakdownRow
+                  label={t('Interest')}
+                  value={formatQuotaWithCurrency(lastRepay.interest_part)}
+                />
+                <BreakdownRow
+                  label={t('Principal')}
+                  value={formatQuotaWithCurrency(lastRepay.principal_part)}
+                />
+                {lastRepay.fee_part > 0 ? (
+                  <BreakdownRow
+                    label={t('Fee')}
+                    value={formatQuotaWithCurrency(lastRepay.fee_part)}
+                  />
+                ) : null}
+                {lastRepay.penalty_part > 0 ? (
+                  <BreakdownRow
+                    label={t('Fast-Settle Penalty')}
+                    value={formatQuotaWithCurrency(lastRepay.penalty_part)}
+                    emphasis
+                  />
+                ) : null}
+                <BreakdownRow
+                  label={t('Debt After')}
+                  value={formatQuotaWithCurrency(lastRepay.debt_after)}
+                />
               </div>
             ) : null}
             <div className='flex flex-col gap-2 sm:flex-row'>

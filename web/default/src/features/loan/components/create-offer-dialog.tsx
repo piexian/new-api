@@ -107,6 +107,21 @@ function buildSchema(t: (key: string) => string) {
           const n = Number(v)
           return Number.isInteger(n) && n >= -50 && n <= 100
         }, t('Credit score must be between -50 and 100')),
+      fastRepayPenalty: z
+        .string()
+        .trim()
+        .refine(
+          (v) => v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0),
+          t('Please enter a valid non-negative penalty amount')
+        ),
+      fastRepayWindowDays: z
+        .string()
+        .trim()
+        .refine((v) => {
+          if (v === '') return true
+          const n = Number(v)
+          return Number.isInteger(n) && n >= 0 && n <= 365
+        }, t('Fast-settle window must be between 0 and 365 days')),
     })
     .refine((v) => v.mode !== 'ai' || Number(v.rateMin) <= Number(v.rateMax), {
       path: ['rateMax'],
@@ -141,6 +156,8 @@ export function CreateOfferDialog(props: CreateOfferDialogProps) {
       rateMax: '0.3',
       perLoanCap: '',
       minCreditScore: '-50',
+      fastRepayPenalty: '',
+      fastRepayWindowDays: '',
     },
   })
 
@@ -171,6 +188,11 @@ export function CreateOfferDialog(props: CreateOfferDialogProps) {
             ? Math.round(Number(values.perLoanCap) * quotaPerUnit)
             : 0,
         min_credit_score: Number(values.minCreditScore),
+        fast_repay_penalty_usd: values.fastRepayPenalty.trim(),
+        fast_repay_window_days:
+          values.fastRepayWindowDays.trim() === ''
+            ? 0
+            : Number(values.fastRepayWindowDays),
       })
       if (res.success) {
         toast.success(t('Offer created'))
@@ -356,6 +378,56 @@ export function CreateOfferDialog(props: CreateOfferDialogProps) {
               </FormItem>
             )}
           />
+
+          <div className='grid gap-4 sm:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='fastRepayPenalty'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Fast-Settle Penalty (USD)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      step='any'
+                      placeholder='0.00'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Penalty charged when a borrower fully repays within the window; empty = no penalty'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='fastRepayWindowDays'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Fast-Settle Window (Days)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      max={365}
+                      step={1}
+                      placeholder='0'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t('0 means only same-day full repayment is penalized')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         </form>
       </Form>
     </Dialog>

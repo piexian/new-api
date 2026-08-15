@@ -80,6 +80,8 @@ const CreateOfferDialog = ({ t, visible, onClose, onCreated }) => {
   const [rateMax, setRateMax] = useState('0.3');
   const [perLoanCap, setPerLoanCap] = useState('');
   const [minCreditScore, setMinCreditScore] = useState('-50');
+  const [fastRepayPenalty, setFastRepayPenalty] = useState('');
+  const [fastRepayWindowDays, setFastRepayWindowDays] = useState('');
   const [fieldError, setFieldError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -93,6 +95,8 @@ const CreateOfferDialog = ({ t, visible, onClose, onCreated }) => {
       setRateMax('0.3');
       setPerLoanCap('');
       setMinCreditScore('-50');
+      setFastRepayPenalty('');
+      setFastRepayWindowDays('');
       setFieldError('');
       setSubmitting(false);
     }
@@ -132,6 +136,19 @@ const CreateOfferDialog = ({ t, visible, onClose, onCreated }) => {
     if (!isValidCreditScore(minCreditScore)) {
       return t('信用分必须在 -50 到 100 之间');
     }
+    if (
+      fastRepayPenalty.trim() !== '' &&
+      (!Number.isFinite(Number(fastRepayPenalty)) ||
+        Number(fastRepayPenalty) < 0)
+    ) {
+      return t('请输入有效的非负惩罚额度');
+    }
+    if (fastRepayWindowDays.trim() !== '') {
+      const wd = Number(fastRepayWindowDays);
+      if (!Number.isInteger(wd) || wd < 0 || wd > 365) {
+        return t('秒结清窗口必须在 0 到 365 天之间');
+      }
+    }
     return '';
   };
 
@@ -154,6 +171,9 @@ const CreateOfferDialog = ({ t, visible, onClose, onCreated }) => {
             ? Math.round(Number(perLoanCap || 0) * getQuotaPerUnit())
             : 0,
         min_credit_score: Number(minCreditScore),
+        fast_repay_penalty_usd: fastRepayPenalty.trim(),
+        fast_repay_window_days:
+          fastRepayWindowDays.trim() === '' ? 0 : Number(fastRepayWindowDays),
       };
       const res = await API.post('/api/user/loan/market/offers', payload);
       const { success, message } = res.data;
@@ -323,6 +343,56 @@ const CreateOfferDialog = ({ t, visible, onClose, onCreated }) => {
           />
           <div className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
             {t('-50 表示不限，0 到 100 表示要求的最低分数')}
+          </div>
+        </div>
+
+        <div className='grid grid-cols-2 gap-3'>
+          <div>
+            <Typography.Text strong className='block mb-1'>
+              {t('秒结清惩罚额度（USD）')}
+            </Typography.Text>
+            <InputNumber
+              min={0}
+              precision={2}
+              value={
+                fastRepayPenalty === '' ? undefined : Number(fastRepayPenalty)
+              }
+              onChange={(v) =>
+                setFastRepayPenalty(
+                  v === null || v === undefined ? '' : String(v),
+                )
+              }
+              style={{ width: '100%' }}
+              placeholder='0.00'
+            />
+            <div className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+              {t('借款人于窗口内全额还清时收取的固定惩罚额度；留空 = 不收取')}
+            </div>
+          </div>
+          <div>
+            <Typography.Text strong className='block mb-1'>
+              {t('秒结清窗口（天）')}
+            </Typography.Text>
+            <InputNumber
+              min={0}
+              max={365}
+              precision={0}
+              value={
+                fastRepayWindowDays === ''
+                  ? undefined
+                  : Number(fastRepayWindowDays)
+              }
+              onChange={(v) =>
+                setFastRepayWindowDays(
+                  v === null || v === undefined ? '' : String(v),
+                )
+              }
+              style={{ width: '100%' }}
+              placeholder='0'
+            />
+            <div className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+              {t('0 表示仅当天全额还清才计罚')}
+            </div>
           </div>
         </div>
 

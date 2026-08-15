@@ -33,6 +33,19 @@ interface MarketBrowseProps {
   onBorrow: (offer: MarketOffer) => void
 }
 
+// 秒结清惩罚条款展示：0 = 不收；窗口 0 = 仅当天
+function penaltyText(
+  offer: MarketOffer,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  if (!offer.fast_repay_penalty_quota) return t('None')
+  const windowText =
+    offer.fast_repay_window_days === 0
+      ? t('Same day')
+      : t('{{days}} days', { days: offer.fast_repay_window_days })
+  return `${formatQuotaWithCurrency(offer.fast_repay_penalty_quota)} · ${windowText}`
+}
+
 export function MarketBrowse(props: MarketBrowseProps) {
   const { t } = useTranslation()
 
@@ -82,7 +95,7 @@ export function MarketBrowse(props: MarketBrowseProps) {
             key={offer.id}
             className='hover:bg-muted/50 grid gap-3 rounded-lg border p-3 transition-colors sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center'
           >
-            <div className='grid gap-2 text-sm sm:grid-cols-4'>
+            <div className='grid gap-2 text-sm sm:grid-cols-5'>
               <div>
                 <p className='text-muted-foreground text-xs'>
                   {t('Available')}
@@ -115,11 +128,15 @@ export function MarketBrowse(props: MarketBrowseProps) {
                 </p>
                 <p className='tabular-nums'>{offer.lender_credit_score}</p>
               </div>
+              <div>
+                <p className='text-muted-foreground text-xs'>
+                  {t('Fast Penalty')}
+                </p>
+                <p className='tabular-nums'>{penaltyText(offer, t)}</p>
+              </div>
             </div>
             <div className='flex items-center justify-end gap-2'>
-              <Badge variant='outline'>
-                {t('Order (public listing)')}
-              </Badge>
+              <Badge variant='outline'>{t('Order (public listing)')}</Badge>
               <Button size='sm' onClick={() => props.onBorrow(offer)}>
                 {t('Borrow This')}
               </Button>

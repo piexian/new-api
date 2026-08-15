@@ -118,6 +118,19 @@ function formatDay(day: number): string {
   return dayjs.unix(day * 86400).format('YYYY-MM-DD')
 }
 
+// 秒结清惩罚条款展示：0 = 不收；窗口 0 = 仅当天
+function penaltyText(
+  funding: LoanFunding,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  if (!funding.fast_repay_penalty_quota) return t('None')
+  const windowText =
+    funding.fast_repay_window_days === 0
+      ? t('Same day')
+      : t('{{days}} days', { days: funding.fast_repay_window_days })
+  return `${formatQuotaWithCurrency(funding.fast_repay_penalty_quota)} / ${windowText}`
+}
+
 export function MyFundings() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -249,6 +262,7 @@ export function MyFundings() {
                 <TableHead>{t('Repaid Principal')}</TableHead>
                 <TableHead>{t('Current Debt')}</TableHead>
                 <TableHead>{t('Rate')}</TableHead>
+                <TableHead>{t('Fast Penalty')}</TableHead>
                 <TableHead>{t('Due Date')}</TableHead>
                 <TableHead>{t('Borrower Credit')}</TableHead>
                 <TableHead>{t('Status')}</TableHead>
@@ -284,6 +298,9 @@ export function MyFundings() {
                     </TableCell>
                     <TableCell className='text-muted-foreground'>
                       {formatPercent(funding.rate * 100)}
+                    </TableCell>
+                    <TableCell className='tabular-nums'>
+                      {penaltyText(funding, t)}
                     </TableCell>
                     <TableCell className='text-muted-foreground text-xs'>
                       {formatDay(funding.due_day)}

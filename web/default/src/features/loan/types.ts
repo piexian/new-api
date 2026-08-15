@@ -71,6 +71,24 @@ export interface LoanStatus {
   has_overdue: boolean
   /** Whether the user agreed to the lender disclaimer */
   lender_disclaimer_agreed: boolean
+  /** Repay breakdown returned by a successful manual repay (absent otherwise) */
+  repay?: LoanRepayResult
+}
+
+/**
+ * Repay result breakdown returned in the repay response (`data.repay`).
+ * All money fields are int64 quota; `penalty_part` is the fast-settle
+ * penalty total charged for fundings repaid within the lender window.
+ */
+export interface LoanRepayResult {
+  amount: number
+  interest_part: number
+  principal_part: number
+  /** Early repayment fee (manual repay only) */
+  fee_part: number
+  /** Fast-settle penalty total (0 when no funding was penalized) */
+  penalty_part: number
+  debt_after: number
 }
 
 /**
@@ -84,6 +102,8 @@ export interface LoanRecord {
   principal_part: number
   /** Early repayment fee (manual repay only; 0 otherwise) */
   fee_part: number
+  /** Fast-settle penalty (manual repay within the lender window only; 0 otherwise) */
+  penalty_part: number
   /** Debt after change; for type=credit this is the credit score after the change */
   debt_after: number
   source: 'manual' | 'checkin' | 'ai' | string
@@ -171,6 +191,10 @@ export interface LoanOffer {
   rate_max: number
   per_loan_cap: number
   min_credit_score: number
+  /** Fast-settle penalty quota charged per fully-repaid funding inside the window (0 = none) */
+  fast_repay_penalty_quota: number
+  /** Fast-settle window in days (0 = same day only) */
+  fast_repay_window_days: number
   total_lent: number
   total_interest_earned: number
   created_at: number
@@ -185,6 +209,10 @@ export interface MarketOffer {
   rate_fixed: number
   min_credit_score: number
   lender_credit_score: number
+  /** Fast-settle penalty quota charged per fully-repaid funding inside the window (0 = none) */
+  fast_repay_penalty_quota: number
+  /** Fast-settle window in days (0 = same day only) */
+  fast_repay_window_days: number
 }
 
 export const LOAN_FUNDING_SOURCE_KEYS = [
@@ -230,6 +258,10 @@ export interface LoanFunding {
   due_day: number
   created_at: number
   borrower_credit_score: number
+  /** Fast-settle penalty quota charged if fully repaid inside the window (0 = none) */
+  fast_repay_penalty_quota: number
+  /** Fast-settle window in days (0 = same day only) */
+  fast_repay_window_days: number
 }
 
 /** Payload for creating a loan market offer */
@@ -241,6 +273,10 @@ export interface CreateLoanOfferPayload {
   rate_max: number
   per_loan_cap: number
   min_credit_score: number
+  /** Fast-settle penalty in USD (empty string = 0, no penalty) */
+  fast_repay_penalty_usd: string
+  /** Fast-settle window in days, 0 = same day only */
+  fast_repay_window_days: number
 }
 
 /** Overdue resolution actions available to the lender */

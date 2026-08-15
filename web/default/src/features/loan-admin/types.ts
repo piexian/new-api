@@ -75,6 +75,8 @@ export interface LoanAdminRecord {
   interest_part: number
   principal_part: number
   fee_part: number
+  /** Fast-settle penalty (manual repay within the lender window only; 0 otherwise) */
+  penalty_part: number
   /** Debt after change; for type=credit this is the credit score after the change */
   debt_after: number
   source: 'manual' | 'checkin' | 'ai' | string

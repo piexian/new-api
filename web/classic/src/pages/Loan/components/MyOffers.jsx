@@ -63,6 +63,16 @@ const formatDailyRate = (rate) => {
   }).format(rate);
 };
 
+// 秒结清惩罚条款展示：0 = 不收；窗口 0 = 仅当天
+const penaltyText = (t, offer) => {
+  if (!offer.fast_repay_penalty_quota) return t('不收');
+  const windowText =
+    offer.fast_repay_window_days === 0
+      ? t('仅当天')
+      : t('{{days}} 天', { days: offer.fast_repay_window_days });
+  return `${renderQuota(offer.fast_repay_penalty_quota)} / ${windowText}`;
+};
+
 const actionSuccessMessage = (t, action) => {
   if (action === 'pause') return t('挂单已暂停');
   if (action === 'resume') return t('挂单已恢复');
@@ -242,6 +252,13 @@ const MyOffers = ({ t, disclaimerAgreed, onDisclaimerAgreed, refreshKey }) => {
               ? `${formatDailyRate(record.rate_min)} – ${formatDailyRate(record.rate_max)}`
               : formatDailyRate(v)}
           </span>
+        ),
+      },
+      {
+        title: t('秒结清惩罚'),
+        dataIndex: 'fast_repay_penalty_quota',
+        render: (v, record) => (
+          <span className='tabular-nums'>{penaltyText(t, record)}</span>
         ),
       },
       {

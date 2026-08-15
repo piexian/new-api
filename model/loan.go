@@ -46,6 +46,7 @@ type TokenLoanRecord struct {
 	InterestPart  int64  `json:"interest_part" gorm:"bigint"`             // 其中抵息部分（borrow 为 0；credit 恒为 0）
 	PrincipalPart int64  `json:"principal_part" gorm:"bigint"`            // 其中抵本部分（borrow 为 amount；credit 恒为 0）
 	FeePart       int64  `json:"fee_part" gorm:"bigint"`                  // 提前还款手续费（仅手动还款可能 > 0；credit 恒为 0）
+	PenaltyPart   int64  `json:"penalty_part" gorm:"bigint"`              // 秒结清惩罚（仅手动提前还款可能 > 0；credit 恒为 0）
 	DebtAfter     int64  `json:"debt_after" gorm:"bigint"`                // 变动后债务总额；type=credit 时复用为变动后信用分
 	Source        string `json:"source" gorm:"type:varchar(16);not null"` // manual / checkin / ai / repay_bonus / fast_repay / writeoff
 	RefId         int64  `json:"ref_id" gorm:"bigint"`                    // source=ai 时为申请 id；credit 时为借款事件 id（writeoff 为 0）；其余为 0
@@ -159,7 +160,8 @@ type LoanRepayInfo struct {
 	Amount        int64 `json:"amount"`
 	InterestPart  int64 `json:"interest_part"`
 	PrincipalPart int64 `json:"principal_part"`
-	FeePart       int64 `json:"fee_part"` // 提前还款手续费（签到自动还款恒为 0）
+	FeePart       int64 `json:"fee_part"`     // 提前还款手续费（签到自动还款恒为 0）
+	PenaltyPart   int64 `json:"penalty_part"` // 秒结清惩罚总额（签到自动还款恒为 0）
 	DebtAfter     int64 `json:"debt_after"`
 }
 
@@ -455,6 +457,8 @@ func planTotal(plans []FundingPlan) int64 {
 //   - 非 platform 计划：lockForUpdate 重读 offer 行二次校验 amount_available >= plan.Amount
 //     （撮合是只读快照，available 可能已被并发借款占用，故此处必须加锁重验；
 //     校验失败返回错误整体回滚），随后扣减 amount_available、累加 total_lent 并落库；
+//     秒结清惩罚条款（FastRepayPenaltyQuota/FastRepayWindowDays）在此从 offer 复制到
+//     funding（撮合引擎不感知惩罚，放款阶段以 offer 行锁定后的值为准）；
 //   - 逐条创建 funding 行：Amount=PrincipalRemaining=DebtQuota=plan.Amount、
 //     Rate=plan.Rate、LastSettledDay=loanDay(now)、DueDay=loanDay(now)+max(LoanTermDays,1)
 //     （LoanTermDays<=0 时至少推到明天，防当日到期即整段罚息）、RepayPlan=full、
@@ -478,6 +482,11 @@ func executeFundingPlans(tx *gorm.DB, userId int, borrowEventId int64, plans []F
 		}
 	}
 	sort.Slice(offerPlans, func(a, b int) bool { return offerPlans[a].OfferId < offerPlans[b].OfferId })
+	// 秒结清条款按 offer 记录，供第二遍建 funding 时复制（platform 兜底无 offer，恒为 0）
+	offerPenalties := make(map[int]struct {
+		quota  int64
+		window int
+	}, len(offerPlans))
 	for _, plan := range offerPlans {
 		var offer TokenLoanOffer
 		if err := lockForUpdate(tx).Where("id = ?", plan.OfferId).First(&offer).Error; err != nil {
@@ -492,28 +501,37 @@ func executeFundingPlans(tx *gorm.DB, userId int, borrowEventId int64, plans []F
 		if err := tx.Save(&offer).Error; err != nil {
 			return nil, err
 		}
+		offerPenalties[offer.Id] = struct {
+			quota  int64
+			window int
+		}{
+			quota: offer.FastRepayPenaltyQuota, window: offer.FastRepayWindowDays,
+		}
 	}
 
 	// 第二遍：按计划原始顺序创建 funding 行（含 platform 兜底），事件内顺序稳定
 	newFundings := make([]TokenLoanFunding, 0, len(plans))
 	for i := range plans {
 		plan := &plans[i]
+		penalty := offerPenalties[plan.OfferId]
 		funding := TokenLoanFunding{
-			LoanUserId:         userId,
-			BorrowEventId:      borrowEventId,
-			SourceType:         plan.SourceType,
-			OfferId:            plan.OfferId,
-			LenderId:           plan.LenderId,
-			Amount:             plan.Amount,
-			PrincipalRemaining: plan.Amount,
-			DebtQuota:          plan.Amount,
-			LastSettledDay:     loanDay(now),
-			Rate:               plan.Rate,
-			RepayPlan:          LoanRepayFull,
-			Status:             LoanFundingActive,
-			DueDay:             dueDay,
-			CreatedAt:          now.Unix(),
-			UpdatedAt:          now.Unix(),
+			LoanUserId:            userId,
+			BorrowEventId:         borrowEventId,
+			SourceType:            plan.SourceType,
+			OfferId:               plan.OfferId,
+			LenderId:              plan.LenderId,
+			Amount:                plan.Amount,
+			PrincipalRemaining:    plan.Amount,
+			DebtQuota:             plan.Amount,
+			LastSettledDay:        loanDay(now),
+			Rate:                  plan.Rate,
+			RepayPlan:             LoanRepayFull,
+			Status:                LoanFundingActive,
+			DueDay:                dueDay,
+			FastRepayPenaltyQuota: penalty.quota,
+			FastRepayWindowDays:   penalty.window,
+			CreatedAt:             now.Unix(),
+			UpdatedAt:             now.Unix(),
 		}
 		if err := tx.Create(&funding).Error; err != nil {
 			return nil, err
@@ -542,16 +560,22 @@ func earlyRepayFee(acc *TokenLoanAccount, repay int64) int64 {
 // 分配（最大余数法，先息后本），并按抵本部分收取手续费（RepayFeeRate，签到自动还款不收）。
 // amountUsd 为 "all"（忽略大小写）时偿还 min(债务, 余额能覆盖的本息费)；否则按 decimal 解析
 // （正数、最多两位小数），还款额 = min(金额, 债务)。余额不足以覆盖还款额+手续费时报
-// ErrLoanInsufficientBalance。
+// ErrLoanInsufficientBalance（秒结清惩罚不参与该校验，见下）。
+//
+// 秒结清惩罚（放贷人自定义条款）：本次转结清的 funding 若仍在惩罚窗口内（loanDay 差 ≤
+// FastRepayWindowDays）且惩罚额度 > 0，按 funding 逐条计罚——Σ 惩罚在余额扣款阶段一并
+// 扣除（gorm.Expr("quota - ?")，不校验余额，允许扣成负数），按 funding 写入台账
+// penalty_part，按放贷人并入 LenderCredit（利息/本金同一 MaxQuota 上界校验）。
 //
 // 事务内：锁用户行 → 读/锁贷款账户（不为无贷用户建行）→ 锁全部 active/overdue fundings
 // （id 升序）→ 逐条 settleFunding 并落盘 → syncAccountFromFundings 同步账户投影（账户行
 // 从此是 fundings 的纯投影，earlyRepayFee 的账户级利息 = Σ funding 利息，公式保持有效）
 // → 还款额/手续费计算（既有逻辑）→ distributeRepayment（pro-rata 分配 + funding 行落盘）
-// → settleRepayAllocations（放贷人入账 + offer 回补 + 台账 repay 行）→ 落盘账户投影 →
-// 扣用户余额。全部同一事务，失败整体回滚。提交后异步同步缓存：借款人按还款额+手续费
-// 扣减，各放贷人按入账清单递增。第三返回值 credits 为按放贷人聚合的入账清单（含利息与
-// 已关闭 offer 的本金回补），供 controller 写入充值日志。
+// → 惩罚计算（computeFastRepayPenalties）→ settleRepayAllocations（放贷人入账 + offer 回补
+// + 台账 repay 行含 penalty_part）→ 落盘账户投影 → 扣用户余额（含惩罚）。全部同一事务，
+// 失败整体回滚。提交后异步同步缓存：借款人按还款额+手续费+惩罚扣减，各放贷人按入账清单
+// 递增。第三返回值 credits 为按放贷人聚合的入账清单（含利息、已关闭 offer 的本金回补与
+// 秒结清惩罚），供 controller 写入充值日志。
 func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo, []LenderCredit, error) {
 	loanSetting := operation_setting.GetLoanSetting()
 	if !loanSetting.Enabled {
@@ -659,8 +683,16 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 		}
 		info.FeePart = fee
 
+		// 秒结清惩罚（仅手动还款触发；签到自动还款经 checkin 路径不经过本函数）：
+		// 识别本次转结清且仍在惩罚窗口内的 funding，Σ 惩罚从借款人余额扣除（不参与
+		// 余额充足性校验，允许扣成负数——借款人用余额覆盖本息费即可结清，惩罚后扣），
+		// 按 funding 写入台账 penalty_part，按放贷人并入入账清单（与利息/本金同一
+		// MaxQuota 上界校验，见 settleRepayAllocations）。
+		penaltyByFunding, _, penaltyTotal := computeFastRepayPenalties(allocs, now)
+		info.PenaltyPart = penaltyTotal
+
 		// 放贷人入账 + offer 回补 + 台账 repay 行（同事务，失败整体回滚）
-		credits, err = settleRepayAllocations(tx, userId, allocs, "manual")
+		credits, err = settleRepayAllocations(tx, userId, allocs, "manual", penaltyByFunding)
 		if err != nil {
 			return err
 		}
@@ -670,9 +702,10 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 			return err
 		}
 
-		// 余额扣款（还款额+手续费）与账户/台账/funding/offer/放贷人入账同一事务，失败整体回滚
+		// 余额扣款（还款额+手续费+秒结清惩罚）与账户/台账/funding/offer/放贷人入账
+		// 同一事务，失败整体回滚。惩罚不经余额充足性校验，允许扣成负数。
 		if err := tx.Model(&User{}).Where("id = ?", userId).
-			Update("quota", gorm.Expr("quota - ?", info.Amount+info.FeePart)).Error; err != nil {
+			Update("quota", gorm.Expr("quota - ?", info.Amount+info.FeePart+penaltyTotal)).Error; err != nil {
 			return err
 		}
 		return nil
@@ -682,9 +715,9 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 	}
 
 	// 事务提交后异步同步 Redis 余额缓存（镜像 BorrowLoan 的缓存副作用）：
-	// 借款人按 还款额+手续费 扣减，各放贷人按入账清单递增
+	// 借款人按 还款额+手续费+惩罚 扣减，各放贷人按入账清单递增（已含惩罚）
 	go func() {
-		_ = cacheDecrUserQuota(userId, info.Amount+info.FeePart)
+		_ = cacheDecrUserQuota(userId, info.Amount+info.FeePart+info.PenaltyPart)
 		for _, c := range credits {
 			_ = cacheIncrUserQuota(c.UserId, c.Amount)
 		}
