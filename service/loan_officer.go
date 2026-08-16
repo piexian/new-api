@@ -56,8 +56,10 @@ var loanModelFailCounts = struct {
 // RunLoanOfficerRound 执行一轮 AI 业务员对话（spec 5.1/5.3）：
 // 互斥抢锁 → 档案注入 + 上下文裁剪（超预算直接报错）→ 调用模型 → 成功后才落库
 // （用户消息 + assistant 回复；失败轮不产生任何消息、不计入轮数）→ 解析结案决定并单事务执行。
-// 模型连续失败 3 次自动从配置重抽模型（spec 5.5）；达到 AiMaxRounds 的强制结案轮
-// 会在 system prompt 追加必须结案的指令，解析失败时自动关单（spec 5.1.4）。
+// 结案仅在强制结案轮生效：非最后一轮模型输出的结案 json 块一律忽略（只展示剥离后的文本，
+// 对话继续）；达到 AiMaxRounds 的强制结案轮会在 system prompt 追加必须结案的指令，
+// 解析失败时自动关单（spec 5.1.4）。AiMaxRounds <= 0 回退默认 10 轮。
+// 模型连续失败 3 次自动从配置重抽模型（spec 5.5）。
 // 返回 reply 为对用户展示的文本；closed 表示本轮后工单是否已关闭。
 func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput string) (reply string, closed bool, err error) {
 	setting := operation_setting.GetLoanSetting()
@@ -85,7 +87,12 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 		}
 	}
 	// 当前输入尚未入库，轮数按 +1 计
-	forceCloseRound := setting.AiMaxRounds > 0 && rounds+1 >= setting.AiMaxRounds
+	// 轮数硬上限：AiMaxRounds <= 0 回退默认 10，防止工单永不结案
+	maxRounds := setting.AiMaxRounds
+	if maxRounds <= 0 {
+		maxRounds = 10
+	}
+	forceCloseRound := rounds+1 >= maxRounds
 
 	modelCfg, ok := resolveLoanOfficerModel(setting, app)
 	if !ok {
@@ -151,6 +158,14 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 	}
 
 	displayText, decision, ok := ExtractLoanDecision(rawReply)
+	if ok && !forceCloseRound {
+		// 硬上限轮数之前不允许结案：忽略结案块，只展示剥离后的文本，对话继续。
+		// 块外为空时给中性兜底，避免空气泡或把原始 json 块展示给用户
+		ok = false
+		if displayText == "" {
+			displayText = "（AI 本轮未给出文本回复，请继续补充诉求）"
+		}
+	}
 	if displayText == "" {
 		if ok {
 			// 有效结案但块内外都没有展示文本时的兜底，避免把原始 json 块直接展示给用户

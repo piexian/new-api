@@ -86,6 +86,7 @@ func setupUserSelfControllerTestDB(t *testing.T) *gorm.DB {
 		&model.CasbinRule{},
 		&model.AuthzRole{},
 		&model.MultiAccountEvidence{},
+		&model.TokenLoanAccount{},
 	); err != nil {
 		t.Fatalf("failed to migrate test tables: %v", err)
 	}

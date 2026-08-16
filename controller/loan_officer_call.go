@@ -4,18 +4,15 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/relay"
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
@@ -23,31 +20,18 @@ import (
 	"github.com/samber/lo"
 )
 
-// 词元贷 AI 业务员的模型直调：复用渠道测试的 in-process 链路
-// （gin.CreateTestContext + relay adaptor 直调，参照 testChannel），
-// 不走 HTTP 回环、不计费、不写用户请求日志、不消耗限流。
+// 词元贷 AI 业务员的模型调用：操练场同款——构造不落库的临时系统令牌
+// （Name=loan-officer，模型限制内嵌），经 /pg 路径走完整 Relay 管道。
+// 零倍率由代码级上下文标记强制（HandleGroupRatio 短路），quota 恒为 0，
+// 但每次调用都在消费日志留档（用户/模型/token 数/渠道归属可查，盗刷可追责）。
 // service 包被 relay 引用无法反向 import，故实现放在这里并通过 init 接线。
 
 func init() {
 	service.RegisterLoanOfficerModelCaller(callLoanOfficerUpstream)
 }
 
-// callLoanOfficerUpstream 直调上游模型并返回 assistant 文本（非 stream）
+// callLoanOfficerUpstream 经 Relay 管道调用上游模型并返回 assistant 文本（非 stream）
 func callLoanOfficerUpstream(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-	c.Request.Header.Set("Content-Type", "application/json")
-
-	userGroup, _ := model.GetUserGroup(userId, false)
-	channel, err := selectLoanOfficerChannel(c, modelName, userGroup)
-	if err != nil {
-		return "", err
-	}
-	if apiErr := middleware.SetupContextForSelectedChannel(c, channel, modelName); apiErr != nil {
-		return "", apiErr
-	}
-
 	request := &dto.GeneralOpenAIRequest{
 		Model:    modelName,
 		Messages: messages,
@@ -55,67 +39,46 @@ func callLoanOfficerUpstream(userId int, modelName string, messages []dto.Messag
 	if maxOutputTokens > 0 {
 		request.MaxTokens = lo.ToPtr(uint(maxOutputTokens))
 	}
-
-	info, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAI, request, nil)
+	body, err := common.Marshal(request)
 	if err != nil {
 		return "", err
 	}
-	info.IsChannelTest = true
-	info.InitChannelMeta(c)
 
-	if err := helper.ModelMappedHelper(c, info, request); err != nil {
-		return "", err
-	}
-	if info.UpstreamModelName != "" {
-		request.SetModelName(info.UpstreamModelName)
-	}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	// /pg 前缀触发 IsPlayground：临时令牌无 DB 行，跳过令牌额度扣减（消费日志照留）
+	c.Request = httptest.NewRequest(http.MethodPost, "/pg/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
 
-	apiType, _ := common.ChannelType2APIType(channel.Type)
-	adaptor := relay.GetAdaptor(apiType)
-	if adaptor == nil {
-		return "", fmt.Errorf("invalid api type: %d, adaptor is nil", apiType)
-	}
-	adaptor.Init(info)
-
-	convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
+	// 用户上下文（acceptUnsetRatio 等），与操练场一致
+	userCache, err := model.GetUserCache(userId)
 	if err != nil {
 		return "", err
 	}
-	var requestBody io.Reader
-	if reader, ok := convertedRequest.(io.Reader); ok {
-		requestBody = reader
-	} else {
-		jsonData, err := common.Marshal(convertedRequest)
-		if err != nil {
-			return "", err
-		}
-		if len(info.ParamOverride) > 0 {
-			jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
-			if err != nil {
-				return "", err
-			}
-		}
-		requestBody = bytes.NewBuffer(jsonData)
-		c.Request.Body = io.NopCloser(bytes.NewBuffer(jsonData))
-	}
+	userCache.WriteContext(c)
 
-	resp, err := adaptor.DoRequest(c, info, requestBody)
-	if err != nil {
+	userGroup, _ := model.GetUserGroup(userId, false)
+	// 临时系统令牌：不落库、无 key 泄露面；模型限制写死在令牌里
+	tempToken := &model.Token{
+		UserId:             userId,
+		Name:               "loan-officer",
+		Group:              userGroup,
+		ModelLimitsEnabled: true,
+		ModelLimits:        modelName,
+	}
+	if err := middleware.SetupContextForToken(c, tempToken); err != nil {
 		return "", err
 	}
-	if resp == nil {
-		return "", errors.New("loan officer upstream returned nil response")
-	}
-	httpResp := resp.(*http.Response)
-	if httpResp.StatusCode != http.StatusOK {
-		// showBodyWhenFail=false：上游错误体不透传给调用方，只进服务端日志
-		err := service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-		common.SysError(fmt.Sprintf("loan officer upstream bad response: channel_id=%d model=%s status=%d err=%v",
-			channel.Id, modelName, httpResp.StatusCode, err))
-		return "", err
-	}
-	if _, respErr := adaptor.DoResponse(c, httpResp, info); respErr != nil {
-		return "", respErr
+	// 代码级零倍率：AI 业务员调用永不计费
+	common.SetContextKey(c, constant.ContextKeyForceZeroGroupRatio, true)
+
+	Relay(c, types.RelayFormatOpenAI)
+
+	if w.Code != http.StatusOK {
+		// 上游错误细节（含可能的响应体）只进服务端日志，对外返回通用错误
+		common.SysError(fmt.Sprintf("loan officer relay failed: user_id=%d model=%s status=%d body=%s",
+			userId, modelName, w.Code, common.LocalLogPreview(w.Body.String())))
+		return "", errors.New("loan officer upstream request failed")
 	}
 
 	var textResp dto.OpenAITextResponse
@@ -130,34 +93,4 @@ func callLoanOfficerUpstream(userId int, modelName string, messages []dto.Messag
 		return "", errors.New("loan officer upstream returned empty content")
 	}
 	return content, nil
-}
-
-// selectLoanOfficerChannel 为业务员模型选择渠道：优先在用户当前分组内随机选择；
-// 用户分组没有该模型的可用渠道时，回退到任意启用了该模型的分组（兜底语义：
-// 业务员调用不产生计费，跨分组只影响上游来源，可接受）。组内按权重随机。
-func selectLoanOfficerChannel(c *gin.Context, modelName string, userGroup string) (*model.Channel, error) {
-	groups := make([]string, 0, 4)
-	seen := make(map[string]bool)
-	if userGroup != "" {
-		seen[userGroup] = true
-		groups = append(groups, userGroup)
-	}
-	for _, ability := range model.GetAllEnableAbilities() {
-		if ability.Model == modelName && !seen[ability.Group] {
-			seen[ability.Group] = true
-			groups = append(groups, ability.Group)
-		}
-	}
-	for _, group := range groups {
-		channel, _, err := service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-			Ctx:         c,
-			TokenGroup:  group,
-			ModelName:   modelName,
-			RequestPath: "/v1/chat/completions",
-		})
-		if err == nil && channel != nil {
-			return channel, nil
-		}
-	}
-	return nil, fmt.Errorf("no available channel for loan officer model %s", modelName)
 }

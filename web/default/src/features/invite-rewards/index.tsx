@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getLoanStatus } from '@/features/loan/api'
 import { TransferDialog } from '@/features/wallet/components/dialogs/transfer-dialog'
 import { getSelf } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
@@ -185,6 +186,7 @@ export function InviteRewards() {
   const [oneTimeCode, setOneTimeCode] = useState('')
   const [generatingOneTimeCode, setGeneratingOneTimeCode] = useState(false)
   const [complianceConfirmed, setComplianceConfirmed] = useState(true)
+  const [loanDebt, setLoanDebt] = useState(0)
 
   const affiliateLink = useMemo(
     () => generateAffiliateLink(affiliateCode),
@@ -194,12 +196,13 @@ export function InviteRewards() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [selfResponse, codeResponse, invitedResponse, topupResponse] =
+      const [selfResponse, codeResponse, invitedResponse, topupResponse, loanResponse] =
         await Promise.all([
           getSelf(),
           getAffiliateCode(),
           getInvitedUsers(),
           getInviteTopupInfo(),
+          getLoanStatus(),
         ])
 
       if (selfResponse.success && selfResponse.data) {
@@ -215,6 +218,9 @@ export function InviteRewards() {
         setComplianceConfirmed(
           topupResponse.data.payment_compliance_confirmed !== false
         )
+      }
+      if (loanResponse.success && loanResponse.data) {
+        setLoanDebt(loanResponse.data.debt ?? 0)
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -286,6 +292,7 @@ export function InviteRewards() {
   }
 
   const hasRewards = (user?.aff_quota ?? 0) > 0
+  const inviteBlocked = loanDebt > 0
 
   return (
     <>
@@ -293,6 +300,13 @@ export function InviteRewards() {
         <SectionPageLayout.Title>{t('Invite Rewards')}</SectionPageLayout.Title>
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-6xl flex-col gap-4 sm:gap-5'>
+            {inviteBlocked && (
+              <div className='rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200'>
+                {t(
+                  'Invite features are unavailable while you have an outstanding loan and will resume after full repayment.'
+                )}
+              </div>
+            )}
             <div className='grid gap-3 sm:grid-cols-3'>
               <StatCard
                 label={t('Pending')}
@@ -379,7 +393,7 @@ export function InviteRewards() {
                     <Button
                       variant='outline'
                       onClick={handleGenerateOneTimeCode}
-                      disabled={loading || generatingOneTimeCode}
+                      disabled={loading || generatingOneTimeCode || inviteBlocked}
                     >
                       <HugeiconsIcon
                         icon={Coupon01Icon}

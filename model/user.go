@@ -716,6 +716,10 @@ func DeleteUserById(id int) (err error) {
 	if id == 0 {
 		return errors.New("id 为空！")
 	}
+	// 删除前清算：余额+套餐剩余额度先本后息抵债，余债核销，套餐取消、余额清零
+	if err := CloseAccountForDeletion(id); err != nil {
+		return err
+	}
 	user := User{Id: id}
 	return user.Delete()
 }
@@ -723,6 +727,9 @@ func DeleteUserById(id int) (err error) {
 func HardDeleteUserById(id int) error {
 	if id == 0 {
 		return errors.New("id 为空！")
+	}
+	if err := CloseAccountForDeletion(id); err != nil {
+		return err
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		if err := deleteUserOAuthBindingsByUserId(tx, id); err != nil {

@@ -6315,7 +6315,8 @@
     "Skip marketplace offers and borrow entirely from the official pool, which never carries fast-settle penalties.": "跳過市場掛單，整筆從官方資金池借款；官方資金不附帶秒結清懲罰。",
     "This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.": "本次借款包含帶秒結清懲罰的資金（共 {{amount}}）：在懲罰窗口期內手動全額提前結清將被收取該懲罰；簽到自動還款不會觸發懲罰，可正常還款。",
     "Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.": "您的欠款包含帶秒結清懲罰的資金：現在手動全額結清將額外收取 {{amount}}；簽到自動還款不會觸發該懲罰，可正常還款。",
-    "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.": "借款人在窗口期內全額還清時收取的固定懲罰額度；留空 = 不收取；按每筆借出金額的 2 倍封頂"
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.": "借款人在窗口期內全額還清時收取的固定懲罰額度；留空 = 不收取；按每筆借出金額的 2 倍封頂",
+    "Invite features are unavailable while you have an outstanding loan and will resume after full repayment.": "貸款未還清期間邀請功能暫不可用，還清後自動恢復"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

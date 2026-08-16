@@ -191,9 +191,12 @@ func TestParseAiPricingOutput(t *testing.T) {
 
 // ===== 减免申诉工单 =====
 
-// runAppealRound 建一张 appeal 工单并执行一轮对话（fake 模型返回给定结案块）
+// runAppealRound 建一张 appeal 工单并执行一轮对话（fake 模型返回给定结案块）。
+// 结案决定仅在强制结案轮执行（硬上限轮数），故此处把上限压到 1 轮，
+// 让单轮对话即可结案——这些用例测的是决定执行语义，不是轮数闸门。
 func runAppealRound(t *testing.T, user *model.User, rawReply string) (string, bool) {
 	t.Helper()
+	operation_setting.GetLoanSetting().AiMaxRounds = 1 // 调用方 withLoanOfficerSetting 的 cleanup 负责恢复
 	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
 		require.NotEmpty(t, messages)
 		// 申诉上下文注入：借款明细 + 申诉 schema
@@ -316,7 +319,9 @@ func TestRunLoanOfficerRoundAppealTopicClassicDecisionStillApplies(t *testing.T)
 // 经典话题工单不得被 funding_id 改档（P2-4）：模型即使带出申诉字段也走经典路径
 // （申诉字段清零），appeal 改档路径只对 appeal 话题开放
 func TestRunLoanOfficerRoundClassicTopicIgnoresAppealFields(t *testing.T) {
-	withLoanOfficerSetting(t, nil)
+	withLoanOfficerSetting(t, func(s *operation_setting.LoanSetting) {
+		s.AiMaxRounds = 1 // 单轮即强制结案轮：本用例测决定执行语义，不是轮数闸门
+	})
 	user, _ := setupLoanOfficerMarketTest(t)
 	f := createOfficerFunding(t, user.Id, 777, model.LoanFundingPool, model.LoanRepayFull, model.LoanFundingActive)
 	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {

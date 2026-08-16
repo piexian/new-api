@@ -6315,7 +6315,8 @@
     "Skip marketplace offers and borrow entirely from the official pool, which never carries fast-settle penalties.": "Skip marketplace offers and borrow entirely from the official pool, which never carries fast-settle penalties.",
     "This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.": "This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.",
     "Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.": "Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.",
-    "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.": "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount."
+    "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.": "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.",
+    "Invite features are unavailable while you have an outstanding loan and will resume after full repayment.": "Invite features are unavailable while you have an outstanding loan and will resume after full repayment."
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

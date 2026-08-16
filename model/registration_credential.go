@@ -49,6 +49,14 @@ func GenerateOneTimeInviteCode(inviterId int) (string, error) {
 		if err := lockForUpdate(tx).Select("id").First(&inviter, "id = ?", inviterId).Error; err != nil {
 			return err
 		}
+		// 有未还清贷款的用户禁止生成一次性邀请码（注册侧同样拦截，此处提前阻断）
+		hasDebt, err := HasOutstandingLoanDebt(tx, inviterId)
+		if err != nil {
+			return err
+		}
+		if hasDebt {
+			return ErrLoanDebtInviteBlocked
+		}
 		for i := 0; i < 10; i++ {
 			candidate := oneTimeInviteCodePrefix + common.GetRandomString(24)
 			var count int64
@@ -95,6 +103,15 @@ func findRegistrationCredentialWithTx(tx *gorm.DB, code string) (RegistrationCre
 		return RegistrationCredential{}, lookup.Error
 	}
 	if lookup.RowsAffected == 1 {
+		// 邀请人有未还清贷款时其邀请码视为无效；与无效码同一哨兵错误，
+		// 不向注册者区分"无效"与"邀请人有债"，避免暴露他人贷务状态
+		hasDebt, err := HasOutstandingLoanDebt(tx, inviter.Id)
+		if err != nil {
+			return RegistrationCredential{}, err
+		}
+		if hasDebt {
+			return RegistrationCredential{}, ErrRegistrationCredentialInvalid
+		}
 		return RegistrationCredential{
 			Kind:      registrationCredentialReferral,
 			InviterId: inviter.Id,
@@ -108,6 +125,14 @@ func findRegistrationCredentialWithTx(tx *gorm.DB, code string) (RegistrationCre
 	}
 	if lookup.RowsAffected == 1 {
 		if oneTimeInvite.UsedUserId != 0 {
+			return RegistrationCredential{}, ErrRegistrationCredentialInvalid
+		}
+		// 同上：邀请人有未还清贷款时其一次性邀请码视为无效
+		hasDebt, err := HasOutstandingLoanDebt(tx, oneTimeInvite.InviterId)
+		if err != nil {
+			return RegistrationCredential{}, err
+		}
+		if hasDebt {
 			return RegistrationCredential{}, ErrRegistrationCredentialInvalid
 		}
 		return RegistrationCredential{

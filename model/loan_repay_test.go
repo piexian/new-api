@@ -82,7 +82,7 @@ func TestRepayLargestRemainderExact(t *testing.T) {
 		fundings = append(fundings, *f)
 	}
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 500, now, "manual")
+	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 500, now, "manual", false)
 	require.NoError(t, err)
 	require.Equal(t, int64(500), info.Amount)
 	require.Len(t, allocs, 3)
@@ -129,7 +129,7 @@ func TestRepayHigherRateFundingGetsMore(t *testing.T) {
 		fundings = append(fundings, *f)
 	}
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 200000, now, "manual")
+	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 200000, now, "manual", false)
 	require.NoError(t, err)
 	require.Len(t, allocs, 2)
 	require.Equal(t, int64(200000), info.Amount)
@@ -170,7 +170,7 @@ func TestRepayInterestFirstWithinFunding(t *testing.T) {
 	}
 	require.NoError(t, DB.Create(f).Error)
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 40000, now, "manual")
+	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 40000, now, "manual", false)
 	require.NoError(t, err)
 	require.Len(t, allocs, 1)
 	a := allocs[0]
@@ -218,7 +218,7 @@ func TestRepayLenderInterestOfferAvailableUnchangedTotal(t *testing.T) {
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", borrower.Id).Update("quota", 500000).Error)
 
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now, "manual")
+	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now, "manual", false)
 	require.NoError(t, err)
 	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil, 0)
 	require.NoError(t, err)
@@ -291,7 +291,7 @@ func TestRepayClosedOfferPrincipalToLender(t *testing.T) {
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", borrower.Id).Update("quota", 500000).Error)
 
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now, "manual")
+	_, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now, "manual", false)
 	require.NoError(t, err)
 	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil, 0)
 	require.NoError(t, err)
@@ -335,7 +335,7 @@ func TestRepayPlatformNoCredit(t *testing.T) {
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", borrower.Id).Update("quota", 500000).Error)
 
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 40000, now, "manual")
+	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 40000, now, "manual", false)
 	require.NoError(t, err)
 	credits, err := settleRepayAllocations(DB, borrower.Id, allocs, "manual", nil, 0)
 	require.NoError(t, err)
@@ -377,7 +377,7 @@ func TestRepayFundingFullyClearedStatusRepaid(t *testing.T) {
 	}
 	require.NoError(t, DB.Create(f).Error)
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now, "manual")
+	info, allocs, _, err := distributeRepayment(DB, acc, []TokenLoanFunding{*f}, 100000, now, "manual", false)
 	require.NoError(t, err)
 	require.Len(t, allocs, 1)
 	require.Equal(t, int64(100000), info.Amount)
@@ -516,7 +516,7 @@ func TestRepayCappedAtTotalDebt(t *testing.T) {
 		fundings = append(fundings, *f)
 	}
 	acc := &TokenLoanAccount{UserId: borrower.Id}
-	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 200000, now, "manual")
+	info, allocs, _, err := distributeRepayment(DB, acc, fundings, 200000, now, "manual", false)
 	require.NoError(t, err)
 	require.Equal(t, int64(100000), info.Amount, "还款额必须封顶在总债务")
 	require.Len(t, allocs, 2)
@@ -528,4 +528,61 @@ func TestRepayCappedAtTotalDebt(t *testing.T) {
 		require.NoError(t, DB.First(&got, fundings[i].Id).Error)
 		require.Equal(t, LoanFundingRepaid, got.Status)
 	}
+}
+
+// 注销清算专用先本后息模式（Task 3）：principalFirst=true 时每条 funding 内先抵本后抵息；
+// false 保持既有先息后本。
+func TestDistributeRepaymentPrincipalFirst(t *testing.T) {
+	borrower, _ := setupRepayFundingsTest(t)
+	now := time.Now()
+	day := loanDay(now)
+
+	mk := func(t *testing.T) (*TokenLoanAccount, []TokenLoanFunding) {
+		t.Helper()
+		// debt 40000 = 本金 30000 + 未付利息 10000；今日已结算（LastSettledDay=today 不再计息）
+		f := &TokenLoanFunding{
+			LoanUserId:         borrower.Id,
+			SourceType:         LoanFundingPlatform,
+			Amount:             30000,
+			PrincipalRemaining: 30000,
+			DebtQuota:          40000,
+			LastSettledDay:     day,
+			Rate:               0.001,
+			RepayPlan:          LoanRepayFull,
+			Status:             LoanFundingActive,
+			DueDay:             day + 30,
+			CreatedAt:          now.Unix(),
+			UpdatedAt:          now.Unix(),
+		}
+		require.NoError(t, DB.Create(f).Error)
+		t.Cleanup(func() {
+			_ = DB.Where("id = ?", f.Id).Delete(&TokenLoanFunding{}).Error
+		})
+		acc := &TokenLoanAccount{UserId: borrower.Id}
+		return acc, []TokenLoanFunding{*f}
+	}
+
+	t.Run("principal first", func(t *testing.T) {
+		acc, fundings := mk(t)
+		info, allocs, _, err := distributeRepayment(DB, acc, fundings, 20000, now, "account_closure", true)
+		require.NoError(t, err)
+		require.Equal(t, int64(20000), info.Amount)
+		require.Equal(t, int64(20000), info.PrincipalPart) // 全部抵本
+		require.Equal(t, int64(0), info.InterestPart)
+		require.Len(t, allocs, 1)
+		require.Equal(t, int64(20000), allocs[0].PrincipalPart)
+
+		var f TokenLoanFunding
+		require.NoError(t, DB.First(&f, fundings[0].Id).Error)
+		require.Equal(t, int64(10000), f.PrincipalRemaining)
+		require.Equal(t, int64(20000), f.DebtQuota) // 利息 10000 未动
+	})
+
+	t.Run("interest first unchanged", func(t *testing.T) {
+		acc, fundings := mk(t)
+		info, _, _, err := distributeRepayment(DB, acc, fundings, 20000, now, "manual", false)
+		require.NoError(t, err)
+		require.Equal(t, int64(10000), info.InterestPart) // 先抵息
+		require.Equal(t, int64(10000), info.PrincipalPart)
+	})
 }

@@ -48,7 +48,7 @@ type TokenLoanRecord struct {
 	FeePart       int64  `json:"fee_part" gorm:"bigint"`                  // 提前还款手续费（仅手动还款可能 > 0；credit 恒为 0）
 	PenaltyPart   int64  `json:"penalty_part" gorm:"bigint"`              // 秒结清惩罚（仅手动提前还款可能 > 0；credit 恒为 0）
 	DebtAfter     int64  `json:"debt_after" gorm:"bigint"`                // 变动后债务总额；type=credit 时复用为变动后信用分
-	Source        string `json:"source" gorm:"type:varchar(16);not null"` // manual / checkin / ai / repay_bonus / fast_repay / writeoff
+	Source        string `json:"source" gorm:"type:varchar(16);not null"` // manual / checkin / ai / repay_bonus / fast_repay / writeoff / account_closure
 	RefId         int64  `json:"ref_id" gorm:"bigint"`                    // source=ai 时为申请 id；credit 时为借款事件 id（writeoff 为 0）；其余为 0
 	FundingId     int64  `json:"funding_id" gorm:"bigint"`                // 关联 funding 行 id，0 = 非市场投放
 	LenderId      int    `json:"lender_id"`                               // 放贷方 user id，0 = 平台/资金池
@@ -197,6 +197,7 @@ var (
 	ErrLoanBlacklisted         = errors.New("loan user is blacklisted")                       // 黑名单未解除（P1-8 借款闸门）
 	ErrLoanHasOverdue          = errors.New("loan user has overdue funding")                  // 存在 overdue funding（P1-8 借款闸门）
 	ErrLoanLenderQuotaOverflow = errors.New("lender quota overflow on loan repayment credit") // 放贷人入账溢出（借款人无过错）
+	ErrLoanDebtInviteBlocked   = errors.New("loan debt blocks invite features")               // 有未还清贷款时禁止生成/使用邀请码
 )
 
 // LoanLenderOverflowError 放贷人入账溢出：还款分配的资金无法计入放贷人余额
@@ -507,6 +508,18 @@ func HasOverdueFundings(tx *gorm.DB, userId int) (bool, error) {
 	return count > 0, err
 }
 
+// HasOutstandingLoanDebt 判定用户是否有未还清债务（含正常在贷）。
+// TokenLoanAccount 不变式 debt_quota >= principal_quota 恒成立，
+// 故 debt_quota > 0 即准确的"有债"布尔值，无需触发利息结算。
+// 供注册邀请码拦截与一次性邀请码生成拦截复用。
+func HasOutstandingLoanDebt(tx *gorm.DB, userId int) (bool, error) {
+	var count int64
+	err := tx.Model(&TokenLoanAccount{}).
+		Where("user_id = ? AND debt_quota > 0", userId).
+		Count(&count).Error
+	return count > 0, err
+}
+
 // planTotal 计划总金额（供平台兜底缺额计算）
 func planTotal(plans []FundingPlan) int64 {
 	var total int64
@@ -743,7 +756,7 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 		// pro-rata 分配（结算幂等，不会二次计息；变更的 funding 行在此落盘）。
 		// info 必非 nil：repay > 0 且 Σdebt = acc.DebtQuota > 0
 		var allocs []RepayAllocation
-		info, allocs, flipped, err = distributeRepayment(tx, acc, fundings, repay, now, "manual")
+		info, allocs, flipped, err = distributeRepayment(tx, acc, fundings, repay, now, "manual", false)
 		if err != nil {
 			return err
 		}

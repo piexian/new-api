@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -45,6 +46,13 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 	groupRatioInfo := types.GroupRatioInfo{
 		GroupRatio:        1.0, // default ratio
 		GroupSpecialRatio: -1,
+	}
+
+	// 系统内部零倍率调用（词元贷 AI 业务员等）：强制分组倍率 0，quota 恒为 0
+	// 但消费日志正常留档（含用户/模型/token 数归属），不受分组倍率配置影响
+	if common.GetContextKeyBool(ctx, constant.ContextKeyForceZeroGroupRatio) {
+		groupRatioInfo.GroupRatio = 0
+		return groupRatioInfo
 	}
 
 	// check auto group

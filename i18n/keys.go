@@ -247,6 +247,7 @@ const (
 	MsgLoanInsufficientBalance = "loan.insufficient_balance"
 	MsgLoanLenderOverflow      = "loan.lender_overflow"
 	MsgLoanInternalError       = "loan.internal_error"
+	MsgLoanDebtInviteBlocked   = "loan.debt_invite_blocked"
 	// 借贷市场（P2P）相关消息
 	MsgLoanMarketDisabled         = "loan.market_disabled"
 	MsgLoanDisclaimerRequired     = "loan.disclaimer_required"

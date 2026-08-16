@@ -54,7 +54,9 @@ type LenderCredit struct {
 // 调用方 dispatchPlatformOverdueAsync；事务内不可派发——overdue 尚未提交）。
 // repay <= 0 或 Σdebt <= 0 时返回 (nil, nil, nil, nil)，调用方须先保证有债务。
 // source 为还款来源（manual / checkin），仅用于信用分结算的快速还清豁免。
-func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoanFunding, repay int64, now time.Time, source string) (*LoanRepayInfo, []RepayAllocation, []TokenLoanFunding, error) {
+// principalFirst=true 时每条 funding 内先抵本后抵息（注销强制清算专用，出借人优先
+// 拿回本金）；false 为既有先息后本（手动还款 / 签到扣还）。
+func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoanFunding, repay int64, now time.Time, source string, principalFirst bool) (*LoanRepayInfo, []RepayAllocation, []TokenLoanFunding, error) {
 	if repay <= 0 {
 		return nil, nil, nil, nil
 	}
@@ -140,8 +142,16 @@ func distributeRepayment(tx *gorm.DB, acc *TokenLoanAccount, fundings []TokenLoa
 			continue
 		}
 		interest := f.DebtQuota - f.PrincipalRemaining // 当前未付利息
-		payInterest := min(alloc, interest)
-		payPrincipal := alloc - payInterest
+		var payInterest, payPrincipal int64
+		if principalFirst {
+			// 先本后息（注销强制清算）：出借人优先拿回本金
+			payPrincipal = min(alloc, f.PrincipalRemaining)
+			payInterest = alloc - payPrincipal
+		} else {
+			// 先息后本（手动还款 / 签到扣还）
+			payInterest = min(alloc, interest)
+			payPrincipal = alloc - payInterest
+		}
 		f.DebtQuota -= alloc
 		f.PrincipalRemaining -= payPrincipal
 		repaid := f.DebtQuota == 0

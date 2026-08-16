@@ -55,6 +55,7 @@ const InviteRewards = () => {
   const [oneTimeCode, setOneTimeCode] = useState('');
   const [oneTimeCodeOpen, setOneTimeCodeOpen] = useState(false);
   const [generatingOneTimeCode, setGeneratingOneTimeCode] = useState(false);
+  const [loanDebt, setLoanDebt] = useState(0);
 
   const columns = useMemo(
     () => [
@@ -121,6 +122,14 @@ const InviteRewards = () => {
     }
   };
 
+  // 词元贷有未还债务时禁用邀请功能（注册侧后端同样拦截）
+  const getLoanDebt = async () => {
+    const res = await API.get('/api/user/loan/status');
+    if (res.data?.success) {
+      setLoanDebt(res.data.data?.debt ?? 0);
+    }
+  };
+
   const refreshData = async () => {
     setLoading(true);
     try {
@@ -129,6 +138,7 @@ const InviteRewards = () => {
         getAffLink(),
         getInvitedUsers(),
         getTopupInfo(),
+        getLoanDebt(),
       ]);
     } finally {
       setLoading(false);
@@ -236,6 +246,12 @@ const InviteRewards = () => {
         </Space>
       </Modal>
 
+      {loanDebt > 0 && (
+        <div className='mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200'>
+          {t('贷款未还清期间邀请功能暂不可用，还清后自动恢复')}
+        </div>
+      )}
+
       <div className='mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div>
           <Title heading={3} className='!mb-1'>
@@ -251,6 +267,7 @@ const InviteRewards = () => {
             theme='outline'
             onClick={generateOneTimeInviteCode}
             loading={generatingOneTimeCode}
+            disabled={loanDebt > 0}
           >
             {t('生成一次性邀请码')}
           </Button>

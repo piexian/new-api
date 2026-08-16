@@ -53,6 +53,11 @@ const (
 	ContextKeyUsingGroup  ContextKey = "group"
 	ContextKeyUserName    ContextKey = "username"
 
+	/* system internal call keys */
+	// ContextKeyForceZeroGroupRatio 系统内部调用（如词元贷 AI 业务员）强制零分组倍率：
+	// 代码级短路，不受管理员分组倍率/特殊倍率配置影响；quota=0 时消费日志仍正常留档
+	ContextKeyForceZeroGroupRatio ContextKey = "force_zero_group_ratio"
+
 	ContextKeyLocalCountTokens ContextKey = "local_count_tokens"
 
 	ContextKeySystemPromptOverride ContextKey = "system_prompt_override"

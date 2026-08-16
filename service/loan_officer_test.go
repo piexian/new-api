@@ -70,8 +70,8 @@ func setupLoanOfficerApp(t *testing.T) (*model.User, *model.TokenLoanApplication
 	return user, app
 }
 
-func TestRunLoanOfficerRoundNormalClose(t *testing.T) {
-	withLoanOfficerSetting(t, nil)
+func TestRunLoanOfficerRoundEarlyCloseIgnored(t *testing.T) {
+	withLoanOfficerSetting(t, nil) // AiMaxRounds = 10，第一轮非强制结案轮
 	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
 		assert.Equal(t, "officer-a", modelName)
 		require.NotEmpty(t, messages)
@@ -89,26 +89,62 @@ func TestRunLoanOfficerRoundNormalClose(t *testing.T) {
 
 	reply, closed, err := RunLoanOfficerRound(user.Id, app, "我要提额")
 	require.NoError(t, err)
-	assert.True(t, closed)
-	assert.Equal(t, "评估完毕。", reply)
+	assert.False(t, closed)             // 提前结案被忽略
+	assert.Equal(t, "评估完毕。", reply) // 块外文本照常展示
+	assert.NotContains(t, reply, "```") // json 块不展示给用户
 
 	var updated model.TokenLoanApplication
 	require.NoError(t, model.DB.First(&updated, app.Id).Error)
-	assert.Equal(t, model.LoanAppStatusClosed, updated.Status)
-	assert.Contains(t, updated.Decision, `"credit_limit":10`)
+	assert.Equal(t, model.LoanAppStatusOpen, updated.Status) // 工单保持 open
+	assert.Equal(t, "", updated.Decision)
+
+	// 决定未执行：不得创建贷款账户
+	var acc model.TokenLoanAccount
+	err = model.DB.Where("user_id = ?", user.Id).First(&acc).Error
+	assert.Error(t, err)
+
+	msgs, err := model.GetLoanApplicationMessages(app.Id)
+	require.NoError(t, err)
+	require.Len(t, msgs, 2)
+	assert.Equal(t, "assistant", msgs[1].Role)
+	assert.Equal(t, "评估完毕。", msgs[1].Content)
+}
+
+func TestRunLoanOfficerRoundForceCloseDecisionExecuted(t *testing.T) {
+	withLoanOfficerSetting(t, func(s *operation_setting.LoanSetting) {
+		s.AiMaxRounds = 1 // 第一轮即强制结案轮
+	})
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+		return "评估完毕。\n```json\n{\"action\":\"close\",\"reply\":\"已批准提额\",\"decision\":{\"credit_limit\":10,\"daily_rate\":0.0008,\"interest_free_days\":7}}\n```", nil
+	})
+	user, app := setupLoanOfficerApp(t)
+
+	reply, closed, err := RunLoanOfficerRound(user.Id, app, "我要提额")
+	require.NoError(t, err)
+	assert.True(t, closed)
+	assert.Equal(t, "评估完毕。", reply)
 
 	var acc model.TokenLoanAccount
 	require.NoError(t, model.DB.Where("user_id = ?", user.Id).First(&acc).Error)
 	assert.Equal(t, int64(5000000), acc.CustomMaxTotal) // 10 USD × 500000
 	assert.Equal(t, 0.0008, acc.CustomDailyRate)
-	assert.Equal(t, model.LoanDayOf(time.Now())+7, acc.InterestFreeUntil)
+}
 
-	msgs, err := model.GetLoanApplicationMessages(app.Id)
+func TestRunLoanOfficerRoundZeroMaxRoundsFallback(t *testing.T) {
+	withLoanOfficerSetting(t, func(s *operation_setting.LoanSetting) {
+		s.AiMaxRounds = 0 // 应回退默认 10 轮，第一轮不得结案
+	})
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+		// 非末轮 system prompt 不得包含强制结案指令
+		require.NotEmpty(t, messages)
+		assert.NotContains(t, messages[0].Content, "你必须在本轮结案")
+		return "结案。\n```json\n{\"action\":\"close\",\"reply\":\"结案\",\"decision\":{}}\n```", nil
+	})
+	user, app := setupLoanOfficerApp(t)
+
+	_, closed, err := RunLoanOfficerRound(user.Id, app, "我要提额")
 	require.NoError(t, err)
-	require.Len(t, msgs, 2)
-	assert.Equal(t, "user", msgs[0].Role)
-	assert.Equal(t, "assistant", msgs[1].Role)
-	assert.Equal(t, "评估完毕。", msgs[1].Content)
+	assert.False(t, closed) // 回退为 10 轮，第一轮仍为普通轮
 }
 
 func TestRunLoanOfficerRoundParseFailKeepsOpen(t *testing.T) {

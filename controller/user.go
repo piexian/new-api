@@ -610,6 +610,10 @@ func GenerateOneTimeInviteCode(c *gin.Context) {
 	id := c.GetInt("id")
 	inviteCode, err := model.GenerateOneTimeInviteCode(id)
 	if err != nil {
+		if errors.Is(err, model.ErrLoanDebtInviteBlocked) {
+			common.ApiErrorI18n(c, i18n.MsgLoanDebtInviteBlocked)
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}
