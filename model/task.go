@@ -3,7 +3,7 @@ package model
 import (
 	"bytes"
 	"database/sql/driver"
-	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -62,12 +62,12 @@ type Task struct {
 	Username   string                `json:"username,omitempty" gorm:"-"`
 	// 禁止返回给用户，内部可能包含key等隐私信息
 	PrivateData TaskPrivateData `json:"-" gorm:"column:private_data;type:json"`
-	Data        json.RawMessage `json:"data" gorm:"type:json"`
+	Data        JSONValue       `json:"data" gorm:"type:json"`
 }
 
 func (t *Task) SetData(data any) {
 	b, _ := common.Marshal(data)
-	t.Data = json.RawMessage(b)
+	t.Data = JSONValue(b)
 }
 
 func (t *Task) GetData(v any) error {
@@ -81,19 +81,35 @@ type Properties struct {
 }
 
 func (m *Properties) Scan(val interface{}) error {
-	bytesValue, _ := val.([]byte)
-	if len(bytesValue) == 0 {
+	var data []byte
+	switch typedValue := val.(type) {
+	case nil:
+		*m = Properties{}
+		return nil
+	case string:
+		data = []byte(typedValue)
+	case []byte:
+		data = typedValue
+	default:
+		return fmt.Errorf("unsupported Properties scan type %T", val)
+	}
+	if len(data) == 0 {
 		*m = Properties{}
 		return nil
 	}
-	return common.Unmarshal(bytesValue, m)
+	return common.Unmarshal(data, m)
 }
 
 func (m Properties) Value() (driver.Value, error) {
 	if m == (Properties{}) {
 		return nil, nil
 	}
-	return common.Marshal(m)
+	value, err := common.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+	// pgx 简单协议会把 []byte 编码为 bytea，json 列必须以字符串写入
+	return string(value), nil
 }
 
 type TaskPrivateData struct {
@@ -148,18 +164,35 @@ func GenerateTaskID() string {
 }
 
 func (p *TaskPrivateData) Scan(val interface{}) error {
-	bytesValue, _ := val.([]byte)
-	if len(bytesValue) == 0 {
+	var data []byte
+	switch typedValue := val.(type) {
+	case nil:
+		*p = TaskPrivateData{}
+		return nil
+	case string:
+		data = []byte(typedValue)
+	case []byte:
+		data = typedValue
+	default:
+		return fmt.Errorf("unsupported TaskPrivateData scan type %T", val)
+	}
+	if len(data) == 0 {
+		*p = TaskPrivateData{}
 		return nil
 	}
-	return common.Unmarshal(bytesValue, p)
+	return common.Unmarshal(data, p)
 }
 
 func (p TaskPrivateData) Value() (driver.Value, error) {
 	if p.IsZero() {
 		return nil, nil
 	}
-	return common.Marshal(p)
+	value, err := common.Marshal(p)
+	if err != nil {
+		return nil, err
+	}
+	// pgx 简单协议会把 []byte 编码为 bytea，json 列必须以字符串写入
+	return string(value), nil
 }
 
 func (p TaskPrivateData) IsZero() bool {
@@ -404,7 +437,7 @@ type taskSnapshot struct {
 	FinishTime int64
 	FailReason string
 	ResultURL  string
-	Data       json.RawMessage
+	Data       JSONValue
 }
 
 func (s taskSnapshot) Equal(other taskSnapshot) bool {

@@ -19,12 +19,14 @@ import (
 // JSONValue 基于 json.RawMessage 实现，支持从数据库的 []byte 和 string 两种类型读取
 type JSONValue json.RawMessage
 
-// Value 实现 driver.Valuer 接口，用于数据库写入
+// Value 实现 driver.Valuer 接口，用于数据库写入。
+// 必须以字符串写入：pgx 简单协议会把 []byte 编码为 bytea 十六进制，
+// PostgreSQL 的 json 列会直接报 invalid input syntax for type json。
 func (j JSONValue) Value() (driver.Value, error) {
-	if j == nil {
+	if len(j) == 0 {
 		return nil, nil
 	}
-	return []byte(j), nil
+	return string(j), nil
 }
 
 // Scan 实现 sql.Scanner 接口，兼容不同驱动返回的类型

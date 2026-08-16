@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -571,6 +572,6 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Progress:   task.Progress,
 		Properties: task.Properties,
 		Username:   task.Username,
-		Data:       task.Data,
+		Data:       json.RawMessage(task.Data),
 	}
 }

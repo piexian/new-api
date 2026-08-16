@@ -290,7 +290,7 @@ func updateSunoTasks(ctx context.Context, channelId int, taskIds []string, taskM
 		if responseItem.Status == model.TaskStatusSuccess {
 			task.Progress = "100%"
 		}
-		task.Data = responseItem.Data
+		task.Data = model.JSONValue(responseItem.Data)
 
 		err = task.Update()
 		if err != nil {
