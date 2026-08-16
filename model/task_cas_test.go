@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/json"
 	"os"
 	"sync"
 	"testing"
@@ -107,32 +106,32 @@ func TestSnapshotEqual_Same(t *testing.T) {
 		FinishTime: 0,
 		FailReason: "",
 		ResultURL:  "",
-		Data:       json.RawMessage(`{"key":"value"}`),
+		Data:       JSONValue(`{"key":"value"}`),
 	}
 	assert.True(t, s.Equal(s))
 }
 
 func TestSnapshotEqual_DifferentStatus(t *testing.T) {
-	a := taskSnapshot{Status: TaskStatusInProgress, Data: json.RawMessage(`{}`)}
-	b := taskSnapshot{Status: TaskStatusSuccess, Data: json.RawMessage(`{}`)}
+	a := taskSnapshot{Status: TaskStatusInProgress, Data: JSONValue(`{}`)}
+	b := taskSnapshot{Status: TaskStatusSuccess, Data: JSONValue(`{}`)}
 	assert.False(t, a.Equal(b))
 }
 
 func TestSnapshotEqual_DifferentProgress(t *testing.T) {
-	a := taskSnapshot{Status: TaskStatusInProgress, Progress: "30%", Data: json.RawMessage(`{}`)}
-	b := taskSnapshot{Status: TaskStatusInProgress, Progress: "60%", Data: json.RawMessage(`{}`)}
+	a := taskSnapshot{Status: TaskStatusInProgress, Progress: "30%", Data: JSONValue(`{}`)}
+	b := taskSnapshot{Status: TaskStatusInProgress, Progress: "60%", Data: JSONValue(`{}`)}
 	assert.False(t, a.Equal(b))
 }
 
 func TestSnapshotEqual_DifferentData(t *testing.T) {
-	a := taskSnapshot{Status: TaskStatusInProgress, Data: json.RawMessage(`{"a":1}`)}
-	b := taskSnapshot{Status: TaskStatusInProgress, Data: json.RawMessage(`{"a":2}`)}
+	a := taskSnapshot{Status: TaskStatusInProgress, Data: JSONValue(`{"a":1}`)}
+	b := taskSnapshot{Status: TaskStatusInProgress, Data: JSONValue(`{"a":2}`)}
 	assert.False(t, a.Equal(b))
 }
 
 func TestSnapshotEqual_NilVsEmpty(t *testing.T) {
 	a := taskSnapshot{Status: TaskStatusInProgress, Data: nil}
-	b := taskSnapshot{Status: TaskStatusInProgress, Data: json.RawMessage{}}
+	b := taskSnapshot{Status: TaskStatusInProgress, Data: JSONValue{}}
 	// bytes.Equal(nil, []byte{}) == true
 	assert.True(t, a.Equal(b))
 }
@@ -147,7 +146,7 @@ func TestSnapshot_Roundtrip(t *testing.T) {
 		PrivateData: TaskPrivateData{
 			ResultURL: "https://example.com/result.mp4",
 		},
-		Data: json.RawMessage(`{"model":"test-model"}`),
+		Data: JSONValue(`{"model":"test-model"}`),
 	}
 	snap := task.Snapshot()
 	assert.Equal(t, task.Status, snap.Status)
@@ -170,7 +169,7 @@ func TestUpdateWithStatus_Win(t *testing.T) {
 		TaskID:   "task_cas_win",
 		Status:   TaskStatusInProgress,
 		Progress: "50%",
-		Data:     json.RawMessage(`{}`),
+		Data:     JSONValue(`{}`),
 	}
 	insertTask(t, task)
 
@@ -192,7 +191,7 @@ func TestUpdateWithStatus_Lose(t *testing.T) {
 	task := &Task{
 		TaskID: "task_cas_lose",
 		Status: TaskStatusFailure,
-		Data:   json.RawMessage(`{}`),
+		Data:   JSONValue(`{}`),
 	}
 	insertTask(t, task)
 
@@ -213,7 +212,7 @@ func TestUpdateWithStatus_ConcurrentWinner(t *testing.T) {
 		TaskID: "task_cas_race",
 		Status: TaskStatusInProgress,
 		Quota:  1000,
-		Data:   json.RawMessage(`{}`),
+		Data:   JSONValue(`{}`),
 	}
 	insertTask(t, task)
 
@@ -232,7 +231,7 @@ func TestUpdateWithStatus_ConcurrentWinner(t *testing.T) {
 				Status:   TaskStatusSuccess,
 				Progress: "100%",
 				Quota:    task.Quota,
-				Data:     json.RawMessage(`{}`),
+				Data:     JSONValue(`{}`),
 			}
 			t.CreatedAt = task.CreatedAt
 			t.UpdatedAt = time.Now().Unix()
