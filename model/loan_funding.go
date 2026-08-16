@@ -1,7 +1,6 @@
 package model
 
 import (
-	"math"
 	"time"
 
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -63,8 +62,9 @@ func settleFunding(f *TokenLoanFunding, acc *TokenLoanAccount, now time.Time) {
 // compoundRound 把 quota 按 rate 日复利 days 天并四舍五入到整数 quota。
 // math.Round 远离零取整；真值 >= principal 且 principal 为整数，
 // 故 debt >= principal 不变式恒成立（镜像 settle()）。
+// 超界结果经 loanCompoundQuota 饱和到 LoanQuotaCeiling（防 float→int64 未定义行为）。
 func compoundRound(quota int64, rate float64, days int) int64 {
-	return int64(math.Round(float64(quota) * math.Pow(1+rate, float64(days))))
+	return loanCompoundQuota(quota, rate, days)
 }
 
 // ProjectFundingDebt 只读投影：返回 now 时刻该 funding 的债务总额，不修改 f、不落盘

@@ -58,7 +58,8 @@ export function LoanPage() {
     staleTime: 10000,
   })
 
-  const termsRequired = !!status && status.terms_enabled && !status.terms_agreed
+  const termsRequired =
+    !!status && status.enabled && status.terms_enabled && !status.terms_agreed
 
   // 黑名单为服务器本地日序号（unix/86400），仅在未到期时展示
   const todayDay = Math.floor(Date.now() / 1000 / 86400)

@@ -109,9 +109,28 @@ func settle(acc *TokenLoanAccount, now time.Time) {
 		rate := effectiveRate(acc)
 		// math.Round 远离零取整到整数 quota；真值 >= principal 且 principal 为整数，
 		// 故 debt >= principal 不变式恒成立
-		acc.DebtQuota = int64(math.Round(float64(acc.DebtQuota) * math.Pow(1+rate, float64(days))))
+		acc.DebtQuota = loanCompoundQuota(acc.DebtQuota, rate, days)
 	}
 	acc.LastSettledDay = today
+}
+
+// loanCompoundQuota 日复利推进并饱和到 LoanQuotaCeiling。
+// 超界的 float→int64 转换是未定义行为（amd64 上得 MinInt64，债务变负后
+// settle 的 DebtQuota > 0 条件永假、不再计息且破坏 debt >= principal 不变式），
+// 必须在转换前钳制；命中饱和说明利率/债务配置异常，记 SysError 供管理员介入。
+func loanCompoundQuota(quota int64, rate float64, days int) int64 {
+	v := math.Round(float64(quota) * math.Pow(1+rate, float64(days)))
+	switch {
+	case math.IsNaN(v) || v < 0:
+		// 配置异常（如 NaN 利率）：保持原值不推进，绝不落负值
+		common.SysError(fmt.Sprintf("loan compound invalid value: quota=%d rate=%g days=%d result=%g", quota, rate, days, v))
+		return quota
+	case v >= float64(LoanQuotaCeiling):
+		common.SysError(fmt.Sprintf("loan compound saturated: quota=%d rate=%g days=%d", quota, rate, days))
+		return LoanQuotaCeiling
+	default:
+		return int64(v)
+	}
 }
 
 // getLoanAccountTx 在事务内经 lockForUpdate 加行锁读取贷款账户；

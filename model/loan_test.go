@@ -876,3 +876,26 @@ func TestGetOrCreateLoanAccountSetsCreditInitial(t *testing.T) {
 	require.NoError(t, DB.Where("user_id = ?", u1.Id).First(&acc1).Error)
 	require.Equal(t, 66, acc1.CreditScore)
 }
+
+// 复利结算饱和：float→int64 超界转换是未定义行为，必须钳到 LoanQuotaCeiling
+// 且不产生负债务（saturation 后 settle 幂等：再结算仍为上界）
+func TestLoanSettleSaturation(t *testing.T) {
+	start := time.Date(2026, 8, 1, 12, 0, 0, 0, time.Local)
+	now := start.AddDate(0, 0, 100)
+	acc := mkTestAcc(2500000, 2500000, loanDay(start))
+	settle(acc, now) // 全局默认日利率 0.1% 不会溢出，先验证正常路径不受影响
+	require.Greater(t, acc.DebtQuota, int64(2500000))
+	require.Less(t, acc.DebtQuota, LoanQuotaCeiling)
+
+	// 100%/天 × 100 天：真值远超 int64，必须饱和到上界而非回绕为负
+	acc2 := mkTestAcc(2500000, 2500000, loanDay(start))
+	got := loanCompoundQuota(acc2.DebtQuota, 1.0, 100)
+	require.Equal(t, LoanQuotaCeiling, got)
+	require.Greater(t, got, int64(0))
+
+	// 饱和后的账户再结算是安全的（保持上界，不变式 debt >= principal 成立）
+	acc2.DebtQuota = got
+	settle(acc2, now.AddDate(0, 0, 10))
+	require.Greater(t, acc2.DebtQuota, int64(0))
+	require.GreaterOrEqual(t, acc2.DebtQuota, acc2.PrincipalQuota)
+}

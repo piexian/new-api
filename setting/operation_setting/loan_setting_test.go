@@ -178,3 +178,44 @@ func TestValidateLoanMarketSetting(t *testing.T) {
 	// nil 指针不应 panic，返回错误
 	assert.Error(t, ValidateLoanMarketSetting(nil))
 }
+
+func TestValidateLoanMarketSettingRateBounds(t *testing.T) {
+	valid := func() *LoanSetting {
+		return &LoanSetting{
+			DailyRate:            0.001,
+			LenderRateMin:        0.0005,
+			LenderRateMax:        0.003,
+			MaxFundingsPerBorrow: 5,
+		}
+	}
+
+	// 边界值：10%/天 合法
+	edge := valid()
+	edge.DailyRate = 0.1
+	assert.NoError(t, ValidateLoanMarketSetting(edge))
+
+	// 官方日利率：0 / 负值 / 超上界一律拒绝
+	bad := valid()
+	bad.DailyRate = 0
+	assert.Error(t, ValidateLoanMarketSetting(bad))
+	bad = valid()
+	bad.DailyRate = 0.2
+	assert.Error(t, ValidateLoanMarketSetting(bad))
+
+	// 放贷利率上限超界拒绝
+	bad = valid()
+	bad.LenderRateMax = 0.5
+	assert.Error(t, ValidateLoanMarketSetting(bad))
+
+	// AI 最低日利率 / 提前还款手续费率：0 允许（不收），超上界拒绝
+	ok := valid()
+	ok.AiMinRate = 0
+	ok.RepayFeeRate = 0
+	assert.NoError(t, ValidateLoanMarketSetting(ok))
+	bad = valid()
+	bad.AiMinRate = 0.2
+	assert.Error(t, ValidateLoanMarketSetting(bad))
+	bad = valid()
+	bad.RepayFeeRate = -0.001
+	assert.Error(t, ValidateLoanMarketSetting(bad))
+}

@@ -6316,7 +6316,8 @@
     "This borrow includes funds with a fast-settle penalty of {{amount}}: a manual full early settlement within the lender window will be charged. Check-in auto-repayment never triggers this penalty and repays normally.": "本次借款包含带秒结清惩罚的资金（共 {{amount}}）：在惩罚窗口期内手动全额提前结清将被收取该惩罚；签到自动还款不会触发惩罚，可正常还款。",
     "Your debt includes funds with a fast-settle penalty: a manual full settlement right now will charge an extra {{amount}}. Check-in auto-repayment does not trigger this penalty and repays normally.": "您的欠款包含带秒结清惩罚的资金：现在手动全额结清将额外收取 {{amount}}；签到自动还款不会触发该惩罚，可正常还款。",
     "Penalty charged when a borrower fully repays within the window; empty = no penalty. Capped at 2x each funded amount.": "借款人在窗口期内全额还清时收取的固定惩罚额度；留空 = 不收取；按每笔借出金额的 2 倍封顶",
-    "Invite features are unavailable while you have an outstanding loan and will resume after full repayment.": "贷款未还清期间邀请功能暂不可用，还清后自动恢复"
+    "Invite features are unavailable while you have an outstanding loan and will resume after full repayment.": "贷款未还清期间邀请功能暂不可用，还清后自动恢复",
+    "Save loan settings": "保存词元贷设置"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

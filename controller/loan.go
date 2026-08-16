@@ -217,8 +217,13 @@ func GetLoanStatus(c *gin.Context) {
 	common.ApiSuccess(c, buildLoanStatusData(setting, acc, userId, time.Now()))
 }
 
-// AgreeLoanTerms 同意词元贷声明（幂等）
+// AgreeLoanTerms 同意词元贷声明（幂等）；功能停用时拒绝（不为停用功能建行/留痕）
 func AgreeLoanTerms(c *gin.Context) {
+	setting := operation_setting.GetLoanSetting()
+	if !setting.Enabled {
+		common.ApiErrorI18n(c, i18n.MsgLoanDisabled)
+		return
+	}
 	userId := c.GetInt("id")
 	if err := model.AgreeLoanTerms(userId); err != nil {
 		respondLoanError(c, err)

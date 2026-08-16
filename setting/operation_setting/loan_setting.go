@@ -170,9 +170,25 @@ func GetCreditTierMaxTotal(s *LoanSetting, score int) int64 {
 //   - LenderRateMin > 0，且严格低于官方日利率 DailyRate（利率地板必须低于官方利率）
 //   - LenderRateMin <= LenderRateMax（下限不得高于上限）
 //   - MaxFundingsPerBorrow 在 1~10 之间（单笔借款 funding 条数上限）
+//
+// 利率/费率上界（防复利结算溢出）：DailyRate / LenderRateMax / AiMinRate /
+// RepayFeeRate 均不得超过 10%/天（0.1），DailyRate 必须 > 0；费率类允许 0（= 不收）。
 func ValidateLoanMarketSetting(s *LoanSetting) error {
 	if s == nil {
 		return errors.New("loan_setting 配置为空")
+	}
+	const maxDailyRate = 0.1 // 10%/天上界：复利日复一日，再高必然溢出
+	if s.DailyRate <= 0 || s.DailyRate > maxDailyRate {
+		return errors.New("官方日利率必须在 (0, 10%] 之间")
+	}
+	if s.LenderRateMax <= 0 || s.LenderRateMax > maxDailyRate {
+		return errors.New("放贷利率上限必须在 (0, 10%] 之间")
+	}
+	if s.AiMinRate < 0 || s.AiMinRate > maxDailyRate {
+		return errors.New("AI 最低日利率必须在 [0, 10%] 之间")
+	}
+	if s.RepayFeeRate < 0 || s.RepayFeeRate > maxDailyRate {
+		return errors.New("提前还款手续费率必须在 [0, 10%] 之间")
 	}
 	if s.LenderRateMin <= 0 {
 		return errors.New("放贷利率下限必须大于 0")
