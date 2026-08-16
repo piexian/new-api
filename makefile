@@ -10,9 +10,17 @@ DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
 DEV_SQLITE_PATH ?= one-api.db
 
-.PHONY: all build-web build-web-classic build-all-web start-api dev dev-api dev-api-rebuild dev-web dev-web-classic reset-setup
+.PHONY: all build-web build-web-classic build-all-web build-api release start-api dev dev-api dev-api-rebuild dev-web dev-web-classic reset-setup
 
 all: build-all-web start-api
+
+# 发布构建：双前端 + 后端二进制（带版本号），防止手动漏构建某一端
+release: build-all-web build-api
+	@echo "Release build complete: ./new-api"
+
+build-api:
+	@echo "Building backend binary..."
+	go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(shell cat VERSION)'" -o new-api main.go
 
 build-web:
 	@echo "Building default web..."

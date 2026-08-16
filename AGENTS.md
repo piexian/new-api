@@ -39,8 +39,8 @@ Use Bun for frontend dependency and script work.
 
 The production instance on this server runs as a **systemd service** named `newapi.service`.
 
-- Build the binary with the version ldflag:
-  `go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api main.go`
+- Build everything (both frontend themes + backend binary with version ldflag):
+  `make release`
 - Deploy / restart: `systemctl restart newapi.service`
 - Check status: `systemctl status newapi.service`
 - View logs: `journalctl -u newapi.service -f` or files under `/root/new-api/logs/`
