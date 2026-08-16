@@ -260,3 +260,188 @@ func TestNewBillingSession_SubscriptionOnlyDoesNotFallbackToWallet(t *testing.T)
 	require.NoError(t, model.DB.Where("id = ?", 3301).First(&sub).Error)
 	assert.Equal(t, int64(0), sub.AmountUsed)
 }
+
+func TestNewBillingSession_SubscriptionFirstSplitsAcrossSubscriptions(t *testing.T) {
+	truncate(t)
+	seedUser(t, 1110, 0)
+
+	plan := &model.SubscriptionPlan{Id: 2110, Title: "split"}
+	seedSubscriptionPlan(t, plan)
+	seedSubscriptionWithPlan(t, &model.UserSubscription{Id: 3110, UserId: 1110, PlanId: plan.Id, AmountTotal: 30})
+	seedSubscriptionWithPlan(t, &model.UserSubscription{Id: 3111, UserId: 1110, PlanId: plan.Id, AmountTotal: 100})
+
+	session, apiErr := NewBillingSession(
+		newBillingTestContext(),
+		newSubscriptionRelayInfo(1110, "req-split-across-subs", "subscription_first"),
+		50,
+	)
+	require.Nil(t, apiErr)
+	require.NotNil(t, session)
+
+	assert.Equal(t, BillingSourceSubscription, session.relayInfo.BillingSource)
+	assert.Equal(t, 3110, session.relayInfo.SubscriptionId)
+	assert.Equal(t, 50, session.GetPreConsumedQuota())
+
+	var sub1 model.UserSubscription
+	require.NoError(t, model.DB.Where("id = ?", 3110).First(&sub1).Error)
+	assert.Equal(t, int64(30), sub1.AmountUsed)
+
+	var sub2 model.UserSubscription
+	require.NoError(t, model.DB.Where("id = ?", 3111).First(&sub2).Error)
+	assert.Equal(t, int64(20), sub2.AmountUsed)
+
+	var user model.User
+	require.NoError(t, model.DB.Where("id = ?", 1110).First(&user).Error)
+	assert.Equal(t, 0, user.Quota)
+}
+
+func TestNewBillingSession_SubscriptionFirstSplitRemainderFallsToWallet(t *testing.T) {
+	truncate(t)
+	seedUser(t, 1111, 100)
+
+	plan := &model.SubscriptionPlan{Id: 2111, Title: "partial"}
+	seedSubscriptionPlan(t, plan)
+	seedSubscriptionWithPlan(t, &model.UserSubscription{Id: 3112, UserId: 1111, PlanId: plan.Id, AmountTotal: 30})
+
+	session, apiErr := NewBillingSession(
+		newBillingTestContext(),
+		newSubscriptionRelayInfo(1111, "req-split-remainder-wallet", "subscription_first"),
+		50,
+	)
+	require.Nil(t, apiErr)
+	require.NotNil(t, session)
+
+	assert.Equal(t, BillingSourceSubscription, session.relayInfo.BillingSource)
+	assert.Equal(t, 3112, session.relayInfo.SubscriptionId)
+
+	var sub model.UserSubscription
+	require.NoError(t, model.DB.Where("id = ?", 3112).First(&sub).Error)
+	assert.Equal(t, int64(30), sub.AmountUsed)
+
+	var user model.User
+	require.NoError(t, model.DB.Where("id = ?", 1111).First(&user).Error)
+	assert.Equal(t, 80, user.Quota)
+}
+
+func TestNewBillingSession_SubscriptionFirstStrictSubscriptionBlocksWalletRemainder(t *testing.T) {
+	truncate(t)
+	seedUser(t, 1112, 100)
+
+	plan := &model.SubscriptionPlan{Id: 2112, Title: "strict"}
+	seedSubscriptionPlan(t, plan)
+	seedSubscriptionWithPlan(t, &model.UserSubscription{Id: 3113, UserId: 1112, PlanId: plan.Id, AmountTotal: 30})
+	// seedSubscriptionWithPlan 默认允许超支，这里显式改为禁止
+	require.NoError(t, model.DB.Model(&model.UserSubscription{}).Where("id = ?", 3113).
+		Update("allow_wallet_overflow", false).Error)
+
+	session, apiErr := NewBillingSession(
+		newBillingTestContext(),
+		newSubscriptionRelayInfo(1112, "req-strict-blocks-wallet", "subscription_first"),
+		50,
+	)
+	require.Nil(t, session)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+
+	// 预扣必须整体回滚：订阅不残留扣减，钱包不动
+	var sub model.UserSubscription
+	require.NoError(t, model.DB.Where("id = ?", 3113).First(&sub).Error)
+	assert.Equal(t, int64(0), sub.AmountUsed)
+
+	var user model.User
+	require.NoError(t, model.DB.Where("id = ?", 1112).First(&user).Error)
+	assert.Equal(t, 100, user.Quota)
+}
+
+func TestNewBillingSession_SubscriptionOnlySplitsAcrossSubscriptions(t *testing.T) {
+	truncate(t)
+	seedUser(t, 1113, 100)
+
+	plan := &model.SubscriptionPlan{Id: 2113, Title: "split-only"}
+	seedSubscriptionPlan(t, plan)
+	seedSubscriptionWithPlan(t, &model.UserSubscription{Id: 3114, UserId: 1113, PlanId: plan.Id, AmountTotal: 30})
+	seedSubscriptionWithPlan(t, &model.UserSubscription{Id: 3115, UserId: 1113, PlanId: plan.Id, AmountTotal: 100})
+
+	session, apiErr := NewBillingSession(
+		newBillingTestContext(),
+		newSubscriptionRelayInfo(1113, "req-subscription-only-split", "subscription_only"),
+		50,
+	)
+	require.Nil(t, apiErr)
+	require.NotNil(t, session)
+	assert.Equal(t, BillingSourceSubscription, session.relayInfo.BillingSource)
+
+	var sub1 model.UserSubscription
+	require.NoError(t, model.DB.Where("id = ?", 3114).First(&sub1).Error)
+	assert.Equal(t, int64(30), sub1.AmountUsed)
+
+	var sub2 model.UserSubscription
+	require.NoError(t, model.DB.Where("id = ?", 3115).First(&sub2).Error)
+	assert.Equal(t, int64(20), sub2.AmountUsed)
+
+	// subscription_only 不动钱包
+	var user model.User
+	require.NoError(t, model.DB.Where("id = ?", 1113).First(&user).Error)
+	assert.Equal(t, 100, user.Quota)
+}
+
+func TestBillingSession_SettleExceedingSubscriptionFallsToWallet(t *testing.T) {
+	truncate(t)
+	seedUser(t, 1114, 1000)
+
+	plan := &model.SubscriptionPlan{Id: 2114, Title: "settle-overflow"}
+	seedSubscriptionPlan(t, plan)
+	seedSubscriptionWithPlan(t, &model.UserSubscription{Id: 3116, UserId: 1114, PlanId: plan.Id, AmountTotal: 100})
+
+	session, apiErr := NewBillingSession(
+		newBillingTestContext(),
+		newSubscriptionRelayInfo(1114, "req-settle-overflow-wallet", "subscription_first"),
+		10,
+	)
+	require.Nil(t, apiErr)
+	require.NotNil(t, session)
+
+	// 实际消耗 150，超出预扣：订阅补扣到满（100），剩余 50 落钱包
+	require.NoError(t, session.Settle(150))
+
+	var sub model.UserSubscription
+	require.NoError(t, model.DB.Where("id = ?", 3116).First(&sub).Error)
+	assert.Equal(t, int64(100), sub.AmountUsed)
+
+	var user model.User
+	require.NoError(t, model.DB.Where("id = ?", 1114).First(&user).Error)
+	assert.Equal(t, 950, user.Quota)
+}
+
+func TestBillingSession_RefundReturnsSplitLegsAndWallet(t *testing.T) {
+	truncate(t)
+	seedUser(t, 1115, 100)
+
+	plan := &model.SubscriptionPlan{Id: 2115, Title: "refund-split"}
+	seedSubscriptionPlan(t, plan)
+	seedSubscriptionWithPlan(t, &model.UserSubscription{Id: 3117, UserId: 1115, PlanId: plan.Id, AmountTotal: 30})
+
+	session, apiErr := NewBillingSession(
+		newBillingTestContext(),
+		newSubscriptionRelayInfo(1115, "req-refund-split-legs", "subscription_first"),
+		50,
+	)
+	require.Nil(t, apiErr)
+	require.NotNil(t, session)
+
+	ctx := newBillingTestContext()
+	session.Refund(ctx)
+
+	// Refund 异步执行，轮询等待退款落库
+	require.Eventually(t, func() bool {
+		var user model.User
+		if err := model.DB.Where("id = ?", 1115).First(&user).Error; err != nil {
+			return false
+		}
+		var sub model.UserSubscription
+		if err := model.DB.Where("id = ?", 3117).First(&sub).Error; err != nil {
+			return false
+		}
+		return user.Quota == 100 && sub.AmountUsed == 0
+	}, 3*time.Second, 20*time.Millisecond)
+}

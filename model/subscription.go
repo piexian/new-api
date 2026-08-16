@@ -594,6 +594,37 @@ func exceedsSubscriptionQuotaWindows(sub *UserSubscription, plan *SubscriptionPl
 	return false
 }
 
+// subscriptionAvailableCapacity 返回单条订阅在总额与日/周/月窗口下还能承担的扣减量（上限 needed）。
+func subscriptionAvailableCapacity(sub *UserSubscription, plan *SubscriptionPlan, needed int64) int64 {
+	if sub == nil || needed <= 0 {
+		return 0
+	}
+	capacity := needed
+	clamp := func(remain int64) {
+		if remain < capacity {
+			capacity = remain
+		}
+	}
+	if sub.AmountTotal > 0 {
+		clamp(sub.AmountTotal - sub.AmountUsed)
+	}
+	if plan != nil {
+		if plan.DailyQuotaLimit > 0 {
+			clamp(plan.DailyQuotaLimit - sub.DailyWindowUsed)
+		}
+		if plan.WeeklyQuotaLimit > 0 {
+			clamp(plan.WeeklyQuotaLimit - sub.WeeklyWindowUsed)
+		}
+		if plan.MonthlyQuotaLimit > 0 {
+			clamp(plan.MonthlyQuotaLimit - sub.MonthlyWindowUsed)
+		}
+	}
+	if capacity < 0 {
+		return 0
+	}
+	return capacity
+}
+
 func applySubscriptionQuotaWindowDelta(sub *UserSubscription, plan *SubscriptionPlan, delta int64) {
 	if sub == nil || plan == nil || delta == 0 {
 		return
@@ -1525,24 +1556,6 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 	return count > 0, nil
 }
 
-// UserActiveSubscriptionsAllowWalletOverflow returns whether wallet balance may be used
-// after the user's subscription quota is exhausted. A single active subscription that
-// disallows wallet overflow (allow_wallet_overflow = false) blocks the fallback.
-func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
-	if userId <= 0 {
-		return false, errors.New("invalid userId")
-	}
-	now := common.GetTimestamp()
-	var strictCount int64
-	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
-			userId, "active", now, false).
-		Count(&strictCount).Error; err != nil {
-		return false, err
-	}
-	return strictCount == 0, nil
-}
-
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
 func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 	if userId <= 0 {
@@ -1802,6 +1815,38 @@ type SubscriptionPreConsumeResult struct {
 	AmountUsedAfter    int64
 	NextResetTime      int64
 	QuotaResetPeriod   string
+	// Legs 记录本次预扣在各订阅上的拆分明细；Remainder 为订阅未覆盖、需钱包承担的部分
+	Legs      []SubscriptionConsumeLeg
+	Remainder int64
+}
+
+// SubscriptionConsumeLeg 记录一次请求在单条订阅上的扣减量。
+type SubscriptionConsumeLeg struct {
+	UserSubscriptionId int   `json:"sub_id"`
+	Amount             int64 `json:"amount"`
+}
+
+// subscriptionPreConsumePayload 持久化在预扣记录 Legs 字段中的拆分明细。
+type subscriptionPreConsumePayload struct {
+	Legs   []SubscriptionConsumeLeg `json:"legs"`
+	Wallet int64                    `json:"wallet,omitempty"`
+}
+
+func marshalSubscriptionLegs(legs []SubscriptionConsumeLeg, wallet int64) string {
+	data, err := common.Marshal(subscriptionPreConsumePayload{Legs: legs, Wallet: wallet})
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+func parseSubscriptionLegsPayload(raw string) subscriptionPreConsumePayload {
+	payload := subscriptionPreConsumePayload{}
+	if strings.TrimSpace(raw) == "" {
+		return payload
+	}
+	_ = common.Unmarshal([]byte(raw), &payload)
+	return payload
 }
 
 type ExpiredSubscriptionInfo struct {
@@ -1909,8 +1954,10 @@ type SubscriptionPreConsumeRecord struct {
 	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
 	PreConsumed        int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
 	Status             string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
-	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
-	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;index"`
+	// Legs 存放 subscriptionPreConsumePayload JSON（跨订阅拆分 + 钱包剩余），空串表示旧单订阅记录
+	Legs      string `json:"legs" gorm:"type:text;default:''"`
+	CreatedAt int64  `json:"created_at" gorm:"bigint"`
+	UpdatedAt int64  `json:"updated_at" gorm:"bigint;index"`
 }
 
 func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {
@@ -1988,15 +2035,38 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
-	return preConsumeUserSubscription(requestId, userId, modelName, "", false, quotaType, amount)
+	return preConsumeUserSubscription(requestId, userId, modelName, "", false, quotaType, amount, true)
 }
 
 // PreConsumeUserSubscriptionForGroup pre-consumes from an active subscription that is usable by the request group.
 func PreConsumeUserSubscriptionForGroup(requestId string, userId int, modelName string, requestGroup string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
-	return preConsumeUserSubscription(requestId, userId, modelName, requestGroup, true, quotaType, amount)
+	return preConsumeUserSubscription(requestId, userId, modelName, requestGroup, true, quotaType, amount, true)
 }
 
-func preConsumeUserSubscription(requestId string, userId int, modelName string, requestGroup string, enforceRequestGroup bool, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+// PreConsumeUserSubscriptionsSplit 在该请求可用的订阅上按优先级拆分预扣，未覆盖部分记入
+// Remainder 由调用方决定是否走钱包。requireFull=true（subscription_only）时不允许任何剩余。
+func PreConsumeUserSubscriptionsSplit(requestId string, userId int, modelName string, requestGroup string, amount int64, requireFull bool) (*SubscriptionPreConsumeResult, error) {
+	return preConsumeUserSubscription(requestId, userId, modelName, requestGroup, true, 0, amount, requireFull)
+}
+
+// errSubscriptionPreConsumeDup 并发同 requestId 预扣冲突：回滚本次扣减后按赢家记录重放。
+var errSubscriptionPreConsumeDup = errors.New("subscription pre-consume duplicate")
+
+// fillResultFromRecordTx 用已有预扣记录回填结果（幂等重放），兼容无 Legs 的旧单订阅记录。
+func fillResultFromRecordTx(tx *gorm.DB, result *SubscriptionPreConsumeResult, record *SubscriptionPreConsumeRecord) error {
+	if err := fillSubscriptionPreConsumeResultTx(tx, result, record); err != nil {
+		return err
+	}
+	payload := parseSubscriptionLegsPayload(record.Legs)
+	result.Legs = payload.Legs
+	if len(result.Legs) == 0 && record.UserSubscriptionId > 0 && record.PreConsumed > 0 {
+		result.Legs = []SubscriptionConsumeLeg{{UserSubscriptionId: record.UserSubscriptionId, Amount: record.PreConsumed}}
+	}
+	result.Remainder = payload.Wallet
+	return nil
+}
+
+func preConsumeUserSubscription(requestId string, userId int, modelName string, requestGroup string, enforceRequestGroup bool, quotaType int, amount int64, requireFull bool) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
 		return nil, errors.New("invalid userId")
 	}
@@ -2023,7 +2093,7 @@ func preConsumeUserSubscription(requestId string, userId int, modelName string, 
 			if existing.Status == "refunded" {
 				return errors.New("subscription pre-consume already refunded")
 			}
-			return fillSubscriptionPreConsumeResultTx(tx, returnValue, &existing)
+			return fillResultFromRecordTx(tx, returnValue, &existing)
 		}
 
 		var subs []UserSubscription
@@ -2033,7 +2103,7 @@ func preConsumeUserSubscription(requestId string, userId int, modelName string, 
 			Find(&subs).Error; err != nil {
 			return errors.New("no active subscription")
 		}
-		if len(subs) == 0 {
+		if len(subs) == 0 && requireFull {
 			return errors.New("no active subscription")
 		}
 		currentUserGroup, err := getUserGroupByIdTx(tx, userId)
@@ -2092,7 +2162,16 @@ func preConsumeUserSubscription(requestId string, userId int, modelName string, 
 			return left.sub.Id < right.sub.Id
 		})
 
+		// 按优先级在可用订阅上拆分扣减：每条订阅扣到其剩余容量（总额+窗口）为止
+		needed := amount
+		legs := make([]SubscriptionConsumeLeg, 0, len(candidates))
+		anyAllowOverflow := false
+		primaryFilled := false
+
 		for _, candidate := range candidates {
+			if needed <= 0 {
+				break
+			}
 			sub := candidate.sub
 			plan := candidate.plan
 			subscriptionUserGroup := strings.TrimSpace(sub.PrevUserGroup)
@@ -2119,56 +2198,94 @@ func preConsumeUserSubscription(requestId string, userId int, modelName string, 
 						return err
 					}
 				}
-				if exceedsSubscriptionQuotaWindows(&sub, plan, amount) {
-					continue
-				}
+			}
+			capacity := subscriptionAvailableCapacity(&sub, plan, needed)
+			if capacity <= 0 {
+				continue
 			}
 			usedBefore := sub.AmountUsed
-			if sub.AmountTotal > 0 {
-				remain := sub.AmountTotal - usedBefore
-				if remain < amount {
-					continue
-				}
-			}
-			record := &SubscriptionPreConsumeRecord{
-				RequestId:          requestId,
-				UserId:             userId,
-				UserSubscriptionId: sub.Id,
-				PreConsumed:        amount,
-				Status:             "consumed",
-			}
-			if err := tx.Create(record).Error; err != nil {
-				var dup SubscriptionPreConsumeRecord
-				if err2 := tx.Where("request_id = ?", requestId).First(&dup).Error; err2 == nil {
-					if dup.Status == "refunded" {
-						return errors.New("subscription pre-consume already refunded")
-					}
-					return fillSubscriptionPreConsumeResultTx(tx, returnValue, &dup)
-				}
-				return err
-			}
-			sub.AmountUsed += amount
+			sub.AmountUsed += capacity
 			if plan != nil {
-				applySubscriptionQuotaWindowDelta(&sub, plan, amount)
+				applySubscriptionQuotaWindowDelta(&sub, plan, capacity)
 			}
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}
-			returnValue.UserSubscriptionId = sub.Id
-			returnValue.PreConsumed = amount
-			returnValue.AmountTotal = sub.AmountTotal
-			returnValue.AmountUsedBefore = usedBefore
-			returnValue.AmountUsedAfter = sub.AmountUsed
-			returnValue.NextResetTime = sub.NextResetTime
-			returnValue.QuotaResetPeriod = SubscriptionResetNever
-			if plan != nil {
-				returnValue.QuotaResetPeriod = NormalizeResetPeriod(plan.QuotaResetPeriod)
+			legs = append(legs, SubscriptionConsumeLeg{UserSubscriptionId: sub.Id, Amount: capacity})
+			if sub.AllowWalletOverflow {
+				anyAllowOverflow = true
 			}
+			if !primaryFilled {
+				primaryFilled = true
+				returnValue.UserSubscriptionId = sub.Id
+				returnValue.AmountTotal = sub.AmountTotal
+				returnValue.AmountUsedBefore = usedBefore
+				returnValue.AmountUsedAfter = sub.AmountUsed
+				returnValue.NextResetTime = sub.NextResetTime
+				returnValue.QuotaResetPeriod = SubscriptionResetNever
+				if plan != nil {
+					returnValue.QuotaResetPeriod = NormalizeResetPeriod(plan.QuotaResetPeriod)
+				}
+			}
+			needed -= capacity
+		}
+
+		remainder := needed
+		if remainder > 0 {
+			// 有剩余时的放行规则：subscription_only 一律拒绝；
+			// 已扣过订阅但所有被扣订阅都禁止钱包超支时拒绝；一条可用订阅都没有时整体走钱包
+			if requireFull {
+				return fmt.Errorf("subscription quota insufficient, need=%d", amount)
+			}
+			if len(legs) > 0 && !anyAllowOverflow {
+				return fmt.Errorf("subscription quota insufficient and wallet overflow disallowed, need=%d", remainder)
+			}
+		}
+		if len(legs) == 0 {
+			// 该请求没有可用订阅，全额留给钱包
+			returnValue.Remainder = amount
 			return nil
 		}
-		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
+
+		record := &SubscriptionPreConsumeRecord{
+			RequestId:          requestId,
+			UserId:             userId,
+			UserSubscriptionId: legs[0].UserSubscriptionId,
+			PreConsumed:        amount - remainder,
+			Status:             "consumed",
+			Legs:               marshalSubscriptionLegs(legs, remainder),
+		}
+		if err := tx.Create(record).Error; err != nil {
+			var dup SubscriptionPreConsumeRecord
+			if err2 := tx.Where("request_id = ?", requestId).First(&dup).Error; err2 == nil {
+				if dup.Status == "refunded" {
+					return errors.New("subscription pre-consume already refunded")
+				}
+				// 并发同 requestId：必须回滚本次扣减，事务外按赢家记录重放
+				return errSubscriptionPreConsumeDup
+			}
+			return err
+		}
+		returnValue.PreConsumed = amount - remainder
+		returnValue.Legs = legs
+		returnValue.Remainder = remainder
+		return nil
 	})
 	if err != nil {
+		if errors.Is(err, errSubscriptionPreConsumeDup) {
+			// 赢家事务已提交，只读重放其拆分明细
+			var dup SubscriptionPreConsumeRecord
+			if qerr := DB.Where("request_id = ?", requestId).First(&dup).Error; qerr != nil {
+				return nil, qerr
+			}
+			if dup.Status == "refunded" {
+				return nil, errors.New("subscription pre-consume already refunded")
+			}
+			if rerr := fillResultFromRecordTx(DB, returnValue, &dup); rerr != nil {
+				return nil, rerr
+			}
+			return returnValue, nil
+		}
 		return nil, err
 	}
 	resetSubscriptionNotificationLocks(resetTargets)
@@ -2180,7 +2297,8 @@ func RefundSubscriptionPreConsume(requestId string) error {
 	if strings.TrimSpace(requestId) == "" {
 		return errors.New("requestId is empty")
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
+	resetTargets := make([]SubscriptionResetTarget, 0, 1)
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		var record SubscriptionPreConsumeRecord
 		if err := lockForUpdate(tx).
 			Where("request_id = ?", requestId).First(&record).Error; err != nil {
@@ -2193,12 +2311,30 @@ func RefundSubscriptionPreConsume(requestId string) error {
 			record.Status = "refunded"
 			return tx.Save(&record).Error
 		}
-		if err := PostConsumeUserSubscriptionDelta(record.UserSubscriptionId, -record.PreConsumed); err != nil {
-			return err
+		// 按拆分明细逐腿退回；无 Legs 的旧记录回退为单订阅退款
+		legs := parseSubscriptionLegsPayload(record.Legs).Legs
+		if len(legs) == 0 && record.UserSubscriptionId > 0 {
+			legs = []SubscriptionConsumeLeg{{UserSubscriptionId: record.UserSubscriptionId, Amount: record.PreConsumed}}
+		}
+		for _, leg := range legs {
+			if leg.Amount <= 0 || leg.UserSubscriptionId <= 0 {
+				continue
+			}
+			target, err := postConsumeUserSubscriptionDeltaTx(tx, leg.UserSubscriptionId, -leg.Amount)
+			if err != nil {
+				return err
+			}
+			if target != nil {
+				resetTargets = append(resetTargets, *target)
+			}
 		}
 		record.Status = "refunded"
 		return tx.Save(&record).Error
 	})
+	if err == nil {
+		resetSubscriptionNotificationLocks(resetTargets)
+	}
+	return err
 }
 
 // ResetDueSubscriptions resets subscriptions whose next_reset_time has passed.
@@ -2291,6 +2427,64 @@ func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*Subsc
 	return info, nil
 }
 
+// postConsumeUserSubscriptionDeltaTx 在事务内调整订阅用量（正数补扣，负数退还，钳位到 [0, AmountTotal]）。
+// 返回需要重置通知锁的目标（无则为 nil）。供外层事务复用，禁止在事务内再开独立事务（单连接 SQLite 会死锁）。
+func postConsumeUserSubscriptionDeltaTx(tx *gorm.DB, userSubscriptionId int, delta int64) (*SubscriptionResetTarget, error) {
+	now := GetDBTimestampTx(tx)
+	var sub UserSubscription
+	if err := lockForUpdate(tx).
+		Where("id = ?", userSubscriptionId).
+		First(&sub).Error; err != nil {
+		return nil, err
+	}
+	var resetTarget *SubscriptionResetTarget
+	var plan *SubscriptionPlan
+	if sub.PlanId > 0 {
+		loadedPlan, planErr := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+		if planErr != nil {
+			if errors.Is(planErr, gorm.ErrRecordNotFound) {
+				common.SysLog(fmt.Sprintf("subscription post-consume failed due missing plan: sub_id=%d, plan_id=%d", sub.Id, sub.PlanId))
+			}
+			return nil, planErr
+		}
+		if loadedPlan == nil {
+			common.SysLog(fmt.Sprintf("subscription post-consume failed due nil plan: sub_id=%d, plan_id=%d", sub.Id, sub.PlanId))
+			return nil, errors.New("subscription plan is nil")
+		}
+		plan = loadedPlan
+		reset, resetErr := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now)
+		if resetErr != nil {
+			return nil, resetErr
+		}
+		if reset {
+			resetTarget = &SubscriptionResetTarget{UserId: sub.UserId, SubscriptionId: sub.Id}
+		}
+		if prepareSubscriptionQuotaWindows(&sub, plan, now) {
+			if err := tx.Save(&sub).Error; err != nil {
+				return nil, err
+			}
+		}
+	}
+	newUsed := sub.AmountUsed + delta
+	if newUsed < 0 {
+		newUsed = 0
+	}
+	if plan != nil && delta > 0 && exceedsSubscriptionQuotaWindows(&sub, plan, delta) {
+		return nil, errors.New("subscription window quota exceeded")
+	}
+	if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
+		return nil, fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+	}
+	sub.AmountUsed = newUsed
+	if plan != nil {
+		applySubscriptionQuotaWindowDelta(&sub, plan, delta)
+	}
+	if err := tx.Save(&sub).Error; err != nil {
+		return nil, err
+	}
+	return resetTarget, nil
+}
+
 // Update subscription used amount by delta (positive consume more, negative refund).
 func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error {
 	if userSubscriptionId <= 0 {
@@ -2299,7 +2493,32 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 	if delta == 0 {
 		return nil
 	}
+	var resetTarget *SubscriptionResetTarget
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		target, err := postConsumeUserSubscriptionDeltaTx(tx, userSubscriptionId, delta)
+		if err != nil {
+			return err
+		}
+		resetTarget = target
+		return nil
+	})
+	if err == nil && resetTarget != nil && resetTarget.SubscriptionId > 0 {
+		resetSubscriptionNotificationLocks([]SubscriptionResetTarget{*resetTarget})
+	}
+	return err
+}
+
+// PostConsumeUserSubscriptionDeltaUpTo 在订阅剩余容量（总额+窗口）内补扣，返回实际扣减量。
+// 用于订阅优先结算：单条订阅扣不满时把差额让给下一腿或钱包。
+func PostConsumeUserSubscriptionDeltaUpTo(userSubscriptionId int, delta int64) (int64, error) {
+	if userSubscriptionId <= 0 {
+		return 0, errors.New("invalid userSubscriptionId")
+	}
+	if delta <= 0 {
+		return 0, nil
+	}
 	resetTarget := SubscriptionResetTarget{}
+	var charged int64
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		now := GetDBTimestampTx(tx)
 		var sub UserSubscription
@@ -2335,24 +2554,19 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 				}
 			}
 		}
-		newUsed := sub.AmountUsed + delta
-		if newUsed < 0 {
-			newUsed = 0
+		capacity := subscriptionAvailableCapacity(&sub, plan, delta)
+		if capacity <= 0 {
+			return nil
 		}
-		if plan != nil && delta > 0 && exceedsSubscriptionQuotaWindows(&sub, plan, delta) {
-			return errors.New("subscription window quota exceeded")
-		}
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
-		}
-		sub.AmountUsed = newUsed
+		sub.AmountUsed += capacity
 		if plan != nil {
-			applySubscriptionQuotaWindowDelta(&sub, plan, delta)
+			applySubscriptionQuotaWindowDelta(&sub, plan, capacity)
 		}
+		charged = capacity
 		return tx.Save(&sub).Error
 	})
 	if err == nil && resetTarget.SubscriptionId > 0 {
 		resetSubscriptionNotificationLocks([]SubscriptionResetTarget{resetTarget})
 	}
-	return err
+	return charged, err
 }

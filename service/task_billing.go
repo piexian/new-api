@@ -89,15 +89,98 @@ func taskIsSubscription(task *model.Task) bool {
 	return task.PrivateData.BillingSource == BillingSourceSubscription && task.PrivateData.SubscriptionId > 0
 }
 
+// taskSubscriptionLegs 返回任务的订阅腿分配副本；无拆分记录（旧任务）时回退为单腿。
+func taskSubscriptionLegs(task *model.Task) []model.SubscriptionConsumeLeg {
+	if len(task.PrivateData.SubscriptionLegs) > 0 {
+		legs := make([]model.SubscriptionConsumeLeg, len(task.PrivateData.SubscriptionLegs))
+		copy(legs, task.PrivateData.SubscriptionLegs)
+		return legs
+	}
+	if task.PrivateData.SubscriptionId > 0 {
+		// 旧任务没有腿明细，用当前已扣总额（扣除钱包腿）作为单腿上限
+		amount := int64(task.Quota) - task.PrivateData.WalletQuota
+		if amount < 0 {
+			amount = 0
+		}
+		return []model.SubscriptionConsumeLeg{{UserSubscriptionId: task.PrivateData.SubscriptionId, Amount: amount}}
+	}
+	return nil
+}
+
 // taskAdjustFunding 调整任务的资金来源（钱包或订阅），delta > 0 表示扣费，delta < 0 表示退还。
+// 订阅拆分任务按记录的腿分配回放：补扣先订阅（容量内）后钱包，退款先钱包再逆序退订阅腿。
 func taskAdjustFunding(task *model.Task, delta int) error {
-	if taskIsSubscription(task) {
-		return model.PostConsumeUserSubscriptionDelta(task.PrivateData.SubscriptionId, int64(delta))
+	if !taskIsSubscription(task) {
+		if delta > 0 {
+			return model.DecreaseUserQuota(task.UserId, delta, false)
+		}
+		return model.IncreaseUserQuota(task.UserId, -delta, false)
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(task.UserId, delta, false)
+		return taskTopUpSubscriptionFunding(task, int64(delta))
 	}
-	return model.IncreaseUserQuota(task.UserId, -delta, false)
+	return taskRefundSubscriptionFunding(task, int64(-delta))
+}
+
+// taskTopUpSubscriptionFunding 订阅任务补扣：按腿顺序在剩余容量内补订阅，差额落钱包腿。
+func taskTopUpSubscriptionFunding(task *model.Task, delta int64) error {
+	legs := taskSubscriptionLegs(task)
+	remaining := delta
+	for i := range legs {
+		if remaining <= 0 {
+			break
+		}
+		charged, err := model.PostConsumeUserSubscriptionDeltaUpTo(legs[i].UserSubscriptionId, remaining)
+		if err != nil {
+			return err
+		}
+		legs[i].Amount += charged
+		remaining -= charged
+	}
+	if remaining > 0 {
+		if err := model.DecreaseUserQuota(task.UserId, int(remaining), false); err != nil {
+			return err
+		}
+		task.PrivateData.WalletQuota += remaining
+	}
+	task.PrivateData.SubscriptionLegs = legs
+	if err := task.UpdateBillingAllocation(); err != nil {
+		common.SysError(fmt.Sprintf("update task billing allocation error (task=%s): %s", task.TaskID, err.Error()))
+	}
+	return nil
+}
+
+// taskRefundSubscriptionFunding 订阅任务退款：先退钱包腿，再逆序退订阅腿（以各腿已扣为上限）。
+func taskRefundSubscriptionFunding(task *model.Task, delta int64) error {
+	legs := taskSubscriptionLegs(task)
+	remaining := delta
+	if task.PrivateData.WalletQuota > 0 {
+		w := min(remaining, task.PrivateData.WalletQuota)
+		if err := model.IncreaseUserQuota(task.UserId, int(w), false); err != nil {
+			return err
+		}
+		task.PrivateData.WalletQuota -= w
+		remaining -= w
+	}
+	for i := len(legs) - 1; i >= 0 && remaining > 0; i-- {
+		r := min(remaining, legs[i].Amount)
+		if r <= 0 {
+			continue
+		}
+		if err := model.PostConsumeUserSubscriptionDelta(legs[i].UserSubscriptionId, -r); err != nil {
+			return err
+		}
+		legs[i].Amount -= r
+		remaining -= r
+	}
+	if remaining > 0 {
+		common.SysLog(fmt.Sprintf("task subscription refund exceeds recorded allocation (task=%s, leftover=%d)", task.TaskID, remaining))
+	}
+	task.PrivateData.SubscriptionLegs = legs
+	if err := task.UpdateBillingAllocation(); err != nil {
+		common.SysError(fmt.Sprintf("update task billing allocation error (task=%s): %s", task.TaskID, err.Error()))
+	}
+	return nil
 }
 
 // taskAdjustTokenQuota 调整任务的令牌额度，delta > 0 表示扣费，delta < 0 表示退还。

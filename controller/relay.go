@@ -626,6 +626,13 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
+		// 订阅拆分时持久化各腿与钱包腿的最终分配，供轮询阶段退款/差额结算回放
+		if billing, ok := relayInfo.Billing.(*service.BillingSession); ok {
+			if legs, walletQuota, isSub := billing.FundingAllocation(); isSub {
+				task.PrivateData.SubscriptionLegs = legs
+				task.PrivateData.WalletQuota = walletQuota
+			}
+		}
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.NodeName = common.NodeName
 		task.PrivateData.BillingContext = &model.TaskBillingContext{

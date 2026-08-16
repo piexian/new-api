@@ -829,3 +829,70 @@ func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 }
+
+func TestRefundTaskQuota_SubscriptionSplitLegs(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 21, 21, 21
+	const tokenRemain = 8000
+
+	seedUser(t, userID, 90) // 钱包腿已扣 10
+	seedToken(t, tokenID, userID, "sk-split-refund", tokenRemain)
+	seedChannel(t, channelID)
+	seedSubscription(t, 101, userID, 1000, 30)
+	seedSubscription(t, 102, userID, 1000, 20)
+
+	task := makeTask(userID, channelID, 60, tokenID, BillingSourceSubscription, 101)
+	task.TaskID = "task_split_refund"
+	task.PrivateData.SubscriptionLegs = []model.SubscriptionConsumeLeg{
+		{UserSubscriptionId: 101, Amount: 30},
+		{UserSubscriptionId: 102, Amount: 20},
+	}
+	task.PrivateData.WalletQuota = 10
+
+	RefundTaskQuota(ctx, task, "split task failed")
+
+	// 钱包腿与每条订阅腿都应全额退回（旧逻辑只退首腿）
+	assert.Equal(t, int64(0), getSubscriptionUsed(t, 101))
+	assert.Equal(t, int64(0), getSubscriptionUsed(t, 102))
+	assert.Equal(t, 100, getUserQuota(t, userID))
+
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeRefund, log.Type)
+}
+
+func TestRecalculate_SubscriptionSplitPositiveDeltaFallsToWallet(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID, tokenID, channelID = 22, 22, 22
+	const tokenRemain = 8000
+
+	seedUser(t, userID, 100)
+	seedToken(t, tokenID, userID, "sk-split-recalc", tokenRemain)
+	seedChannel(t, channelID)
+	seedSubscription(t, 103, userID, 50, 40) // 容量仅剩 10
+
+	task := makeTask(userID, channelID, 20, tokenID, BillingSourceSubscription, 103)
+	task.TaskID = "task_split_recalc"
+	task.PrivateData.SubscriptionLegs = []model.SubscriptionConsumeLeg{
+		{UserSubscriptionId: 103, Amount: 20},
+	}
+	require.NoError(t, task.Insert())
+
+	// 差额 +50：订阅腿容量内补 10，剩余 40 落钱包（旧逻辑撞上限直接漏收）
+	RecalculateTaskQuota(ctx, task, 70, "subscription split top-up")
+
+	assert.Equal(t, int64(50), getSubscriptionUsed(t, 103))
+	assert.Equal(t, 60, getUserQuota(t, userID))
+	assert.Equal(t, 70, task.Quota)
+
+	// 腿分配已持久化，后续退款可按新分配回放
+	var saved model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", "task_split_recalc").First(&saved).Error)
+	require.Len(t, saved.PrivateData.SubscriptionLegs, 1)
+	assert.Equal(t, int64(30), saved.PrivateData.SubscriptionLegs[0].Amount)
+	assert.Equal(t, int64(40), saved.PrivateData.WalletQuota)
+}
