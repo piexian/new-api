@@ -365,11 +365,12 @@ export function isHeaderRouteEnabledFromStatus(
 ): boolean {
   const path = normalizePathname(pathname)
   if (path === '/') return getHeaderModuleEnabledFromStatus(status, 'home')
+  // 法律条款页面始终公开可访问，不受顶栏模块开关控制
   if (
     matchesPrefix(path, '/user-agreement') ||
     matchesPrefix(path, '/privacy-policy')
   ) {
-    return getHeaderModuleEnabledFromStatus(status, 'docs')
+    return true
   }
   if (matchesPrefix(path, '/about')) {
     return getHeaderModuleEnabledFromStatus(status, 'about')

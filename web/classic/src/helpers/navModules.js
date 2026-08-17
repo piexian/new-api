@@ -189,11 +189,12 @@ export function isHeaderRouteEnabled(status, pathname) {
   const modules = parseHeaderNavModules(status?.HeaderNavModules);
   const path = normalizePathname(pathname);
   if (path === '/') return modules.home !== false;
+  // 法律条款页面始终公开可访问，不受顶栏模块开关控制
   if (
     matchesPrefix(path, '/user-agreement') ||
     matchesPrefix(path, '/privacy-policy')
   ) {
-    return modules.docs !== false;
+    return true;
   }
   if (matchesPrefix(path, '/pricing'))
     return modules.pricing?.enabled !== false;
