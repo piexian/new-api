@@ -19,6 +19,7 @@ const (
 
 	kimiK3ShortContextRouteLabel        = "K3 Auto Route (k3 -> k3-256k)"
 	kimiK3FullContextFallbackRouteLabel = "K3 Context Fallback (k3-256k -> k3)"
+	kimiK3DirectContextRouteLabel       = "K3 Auto Route (k3 direct: estimated > 256K)"
 )
 
 func markKimiK3ShortContextFallback(c *gin.Context, info *relaycommon.RelayInfo) {
@@ -63,8 +64,29 @@ func replaceKimiModelInRequestBody(body []byte, model string) ([]byte, bool, err
 	return encodedPayload, true, nil
 }
 
+// isKimiK3ShortContextOverflow 识别 k3-256k 的 256K 上下文溢出错误。
+// 两种已观测形态：400 + "exceeded model token limit: 262144"；
+// 401 + "supports only" + "256k context"（套餐/模型档位限制措辞）。
+// rewriteKimiK3AutoRouteOverflowStatus 把自动路由（用户请求 k3）场景下最终仍溢出的
+// 响应状态码改写为 429：可触发外层换渠道重试，且避免 401 落入渠道自动禁用区间。
+// 显式 k3-256k 请求不满足 shouldUseKimiK3ShortContext，原状态码保持不变。
+func rewriteKimiK3AutoRouteOverflowStatus(info *relaycommon.RelayInfo, resp *http.Response) {
+	if resp == nil {
+		return
+	}
+	if !shouldUseKimiK3ShortContext(info, getUpstreamModelName(info, "")) {
+		return
+	}
+	if isKimiK3ShortContextOverflow(resp) {
+		resp.StatusCode = http.StatusTooManyRequests
+	}
+}
+
 func isKimiK3ShortContextOverflow(resp *http.Response) bool {
-	if resp == nil || resp.StatusCode != http.StatusBadRequest || resp.Body == nil {
+	if resp == nil || resp.Body == nil {
+		return false
+	}
+	if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnauthorized {
 		return false
 	}
 	body, err := io.ReadAll(resp.Body)
@@ -74,5 +96,10 @@ func isKimiK3ShortContextOverflow(resp *http.Response) bool {
 		return false
 	}
 	message := strings.ToLower(string(body))
-	return strings.Contains(message, "exceeded model token limit: 262144")
+	switch resp.StatusCode {
+	case http.StatusBadRequest:
+		return strings.Contains(message, "exceeded model token limit: 262144")
+	default: // http.StatusUnauthorized
+		return strings.Contains(message, "supports only") && strings.Contains(message, "256k context")
+	}
 }

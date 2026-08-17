@@ -1117,6 +1117,13 @@ func TestKimiK3ShortContextOverflowDetection(t *testing.T) {
 			name:       "permission error",
 			statusCode: http.StatusUnauthorized,
 			body:       `{"error":{"message":"Your current plan supports only kimi-k3 up to 256K context"}}`,
+			want:       true,
+		},
+		{
+			name:       "short context model plan limit",
+			statusCode: http.StatusUnauthorized,
+			body:       `{"error":{"message":"k3-256k supports only 256K context"}}`,
+			want:       true,
 		},
 		{
 			name:       "same text with non-400 status",
@@ -1164,4 +1171,184 @@ func convertKimiK3OpenAIRequestForDoRequest(t *testing.T, c *gin.Context, info *
 		t.Fatalf("Marshal returned error: %v", err)
 	}
 	return body
+}
+
+func TestDoRequestRewritesAutoRouteOverflowTo429(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"message":"Your current plan supports only kimi-k3 up to 256K context"}}`))
+	}))
+	defer server.Close()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "k3",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "kimi-key",
+			ChannelBaseUrl:    server.URL + "/coding",
+			UpstreamModelName: "k3",
+		},
+	}
+	requestBody := convertKimiK3OpenAIRequestForDoRequest(t, c, info)
+	outboundBody, size, closer, err := relaycommon.NewOutboundJSONBody(requestBody)
+	if err != nil {
+		t.Fatalf("NewOutboundJSONBody returned error: %v", err)
+	}
+	defer closer.Close()
+	info.UpstreamRequestBodySize = size
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, outboundBody)
+	if err != nil {
+		t.Fatalf("DoRequest returned error: %v", err)
+	}
+	response, ok := resp.(*http.Response)
+	if !ok {
+		t.Fatalf("DoRequest returned %T, want *http.Response", resp)
+	}
+	defer response.Body.Close()
+	// 第一次 k3-256k 溢出后 inline 兜底发 k3，上游仍 401 限档 → 两次请求
+	if requestCount != 2 {
+		t.Fatalf("upstream request count = %d, want 2", requestCount)
+	}
+	if response.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("status code = %d, want %d", response.StatusCode, http.StatusTooManyRequests)
+	}
+	body, readErr := io.ReadAll(response.Body)
+	if readErr != nil {
+		t.Fatalf("ReadAll returned error: %v", readErr)
+	}
+	if !strings.Contains(string(body), "supports only") {
+		t.Fatalf("response body = %q, want upstream message preserved", body)
+	}
+}
+
+func TestDoRequestKeepsOriginalStatusForExplicitKimiK3ShortContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"message":"k3-256k supports only 256K context"}}`))
+	}))
+	defer server.Close()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: kimiK3ShortContextModel,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "kimi-key",
+			ChannelBaseUrl:    server.URL + "/coding",
+			UpstreamModelName: kimiK3ShortContextModel,
+		},
+	}
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{
+		Model:    kimiK3ShortContextModel,
+		Messages: []dto.Message{{Role: "user", Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
+	}
+	requestBody, err := common.Marshal(converted)
+	if err != nil {
+		t.Fatalf("Marshal returned error: %v", err)
+	}
+	outboundBody, size, closer, err := relaycommon.NewOutboundJSONBody(requestBody)
+	if err != nil {
+		t.Fatalf("NewOutboundJSONBody returned error: %v", err)
+	}
+	defer closer.Close()
+	info.UpstreamRequestBodySize = size
+
+	resp, err := (&Adaptor{}).DoRequest(c, info, outboundBody)
+	if err != nil {
+		t.Fatalf("DoRequest returned error: %v", err)
+	}
+	response, ok := resp.(*http.Response)
+	if !ok {
+		t.Fatalf("DoRequest returned %T, want *http.Response", resp)
+	}
+	defer response.Body.Close()
+	if requestCount != 1 {
+		t.Fatalf("upstream request count = %d, want 1 (no fallback for explicit k3-256k)", requestCount)
+	}
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status code = %d, want original %d", response.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+func TestConvertOpenAIRequestRoutesK3DirectWhenEstimateExceedsCutoff(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "k3",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "kimi-key",
+			ChannelBaseUrl:    "https://example.com/coding",
+			UpstreamModelName: "k3",
+		},
+	}
+	info.SetEstimatePromptTokens(kimiK3ProactiveFullContextCutoff + 1)
+
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{
+		Model:    "k3",
+		Messages: []dto.Message{{Role: "user", Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
+	}
+	request, ok := converted.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		t.Fatalf("ConvertOpenAIRequest returned %T, want *dto.GeneralOpenAIRequest", converted)
+	}
+	if request.Model != kimiK3FullContextModel {
+		t.Fatalf("converted model = %q, want direct %q", request.Model, kimiK3FullContextModel)
+	}
+	if value, marked := c.Get(kimiK3FallbackContextKey); marked && value == true {
+		t.Fatalf("fallback marker should not be set for direct k3 route")
+	}
+	if len(info.RequestModelRoutingChain) != 1 || info.RequestModelRoutingChain[0] != kimiK3DirectContextRouteLabel {
+		t.Fatalf("model routing chain = %#v, want direct route label", info.RequestModelRoutingChain)
+	}
+
+	// 阈值边界：恰好等于 cutoff 时仍走 256K 降级
+	info2 := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "k3",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "kimi-key",
+			ChannelBaseUrl:    "https://example.com/coding",
+			UpstreamModelName: "k3",
+		},
+	}
+	info2.SetEstimatePromptTokens(kimiK3ProactiveFullContextCutoff)
+	c2, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c2.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	converted2, err := (&Adaptor{}).ConvertOpenAIRequest(c2, info2, &dto.GeneralOpenAIRequest{
+		Model:    "k3",
+		Messages: []dto.Message{{Role: "user", Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
+	}
+	request2 := converted2.(*dto.GeneralOpenAIRequest)
+	if request2.Model != kimiK3ShortContextModel {
+		t.Fatalf("converted model at cutoff = %q, want %q", request2.Model, kimiK3ShortContextModel)
+	}
 }
