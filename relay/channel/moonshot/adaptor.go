@@ -31,8 +31,12 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
 	if req != nil && shouldUseKimiK3ShortContext(info, getUpstreamModelName(info, req.Model)) {
-		req.Model = kimiK3ShortContextModel
-		markKimiK3ShortContextFallback(c, info)
+		if shouldRouteKimiK3DirectForEstimatedContext(info) {
+			info.AppendRequestModelRouting(kimiK3DirectContextRouteLabel)
+		} else {
+			req.Model = kimiK3ShortContextModel
+			markKimiK3ShortContextFallback(c, info)
+		}
 	}
 	adaptor := claude.Adaptor{}
 	return adaptor.ConvertClaudeRequest(c, info, req)
@@ -106,8 +110,12 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 	family := normalizeKimiOpenAIRequest(info, request)
 	if family == kimiModelK3 && shouldUseKimiK3ShortContext(info, getUpstreamModelName(info, request.Model)) {
-		request.Model = kimiK3ShortContextModel
-		markKimiK3ShortContextFallback(c, info)
+		if shouldRouteKimiK3DirectForEstimatedContext(info) {
+			info.AppendRequestModelRouting(kimiK3DirectContextRouteLabel)
+		} else {
+			request.Model = kimiK3ShortContextModel
+			markKimiK3ShortContextFallback(c, info)
+		}
 	}
 	return request, nil
 }
@@ -126,8 +134,12 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	}
 	normalizeKimiOpenAIRequest(info, chatRequest)
 	if shouldUseKimiK3ShortContext(info, getUpstreamModelName(info, chatRequest.Model)) {
-		chatRequest.Model = kimiK3ShortContextModel
-		markKimiK3ShortContextFallback(c, info)
+		if shouldRouteKimiK3DirectForEstimatedContext(info) {
+			info.AppendRequestModelRouting(kimiK3DirectContextRouteLabel)
+		} else {
+			chatRequest.Model = kimiK3ShortContextModel
+			markKimiK3ShortContextFallback(c, info)
+		}
 	}
 	if info != nil {
 		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
@@ -137,7 +149,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	if !shouldRetryKimiK3WithFullContext(c, info) {
-		return channel.DoApiRequest(a, c, info, requestBody)
+		resp, err := channel.DoApiRequest(a, c, info, requestBody)
+		rewriteKimiK3AutoRouteOverflowStatus(info, resp)
+		return resp, err
 	}
 	body, err := io.ReadAll(requestBody)
 	if err != nil {
@@ -145,15 +159,19 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	}
 	resp, err := channel.DoApiRequest(a, c, info, bytes.NewReader(body))
 	if err != nil || !isKimiK3ShortContextOverflow(resp) {
+		rewriteKimiK3AutoRouteOverflowStatus(info, resp)
 		return resp, err
 	}
 	fullBody, replaced, replaceErr := replaceKimiModelInRequestBody(body, kimiK3FullContextModel)
 	if replaceErr != nil || !replaced {
+		rewriteKimiK3AutoRouteOverflowStatus(info, resp)
 		return resp, err
 	}
 	_ = resp.Body.Close()
 	info.AppendRequestModelRouting(kimiK3FullContextFallbackRouteLabel)
-	return channel.DoApiRequest(a, c, info, bytes.NewReader(fullBody))
+	finalResp, finalErr := channel.DoApiRequest(a, c, info, bytes.NewReader(fullBody))
+	rewriteKimiK3AutoRouteOverflowStatus(info, finalResp)
+	return finalResp, finalErr
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
