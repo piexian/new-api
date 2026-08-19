@@ -122,6 +122,7 @@ const SystemSetting = () => {
     SMTPSSLEnabled: '',
     SMTPStartTLSEnabled: '',
     SMTPForceAuthLogin: '',
+    SMTPInsecureSkipVerify: false,
     EmailProvider: 'smtp',
     EmailDefaultLanguage: 'zh-CN',
     CFEmailAccountID: '',
@@ -241,6 +242,7 @@ const SystemSetting = () => {
           case 'SMTPSSLEnabled':
           case 'SMTPStartTLSEnabled':
           case 'SMTPForceAuthLogin':
+          case 'SMTPInsecureSkipVerify':
           case 'LinuxDOOAuthEnabled':
           case 'QQOAuthEnabled':
           case 'discord.enabled':
@@ -1701,6 +1703,15 @@ const SystemSetting = () => {
                           >
                             {t('请选择一种 SMTP 传输加密方式')}
                           </Text>
+                          <Form.Checkbox
+                            field='SMTPInsecureSkipVerify'
+                            noLabel
+                            onChange={(e) =>
+                              handleCheckboxChange('SMTPInsecureSkipVerify', e)
+                            }
+                          >
+                            {t('跳过 SMTP TLS 证书验证（允许自签名或主机名不匹配）')}
+                          </Form.Checkbox>
                           <Form.Checkbox
                             field='SMTPForceAuthLogin'
                             noLabel

@@ -72,6 +72,10 @@ export default function SettingsPerformance(props) {
     'performance_setting.monitor_cpu_threshold': 90,
     'performance_setting.monitor_memory_threshold': 90,
     'performance_setting.monitor_disk_threshold': 95,
+    'perf_metrics_setting.enabled': true,
+    'perf_metrics_setting.flush_interval': 5,
+    'perf_metrics_setting.bucket_time': 'hour',
+    'perf_metrics_setting.retention_days': 0,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -397,6 +401,67 @@ export default function SettingsPerformance(props) {
               <Button size='default' onClick={onSubmit}>
                 {t('保存性能设置')}
               </Button>
+            </Row>
+          </Form.Section>
+
+          <Form.Section text={t('模型性能指标')}>
+            <Banner
+              type='info'
+              description={t(
+                '收集中转延迟和成功率指标，用于模型广场展示。',
+              )}
+              style={{ marginBottom: 16 }}
+            />
+            <Row gutter={16}>
+              <Col xs={24} sm={12} md={6} lg={6} xl={6}>
+                <Form.Switch
+                  field={'perf_metrics_setting.enabled'}
+                  label={t('启用模型性能指标')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange('perf_metrics_setting.enabled')}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={6} lg={6} xl={6}>
+                <Form.InputNumber
+                  field={'perf_metrics_setting.flush_interval'}
+                  label={t('刷新间隔（分钟）')}
+                  min={1}
+                  step={1}
+                  onChange={handleFieldChange('perf_metrics_setting.flush_interval')}
+                  disabled={!inputs['perf_metrics_setting.enabled']}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={6} lg={6} xl={6}>
+                <Form.Select
+                  field={'perf_metrics_setting.bucket_time'}
+                  label={t('聚合桶')}
+                  onChange={handleFieldChange('perf_metrics_setting.bucket_time')}
+                  disabled={!inputs['perf_metrics_setting.enabled']}
+                >
+                  <Form.Select.Option value='minute'>
+                    {t('1 分钟')}
+                  </Form.Select.Option>
+                  <Form.Select.Option value='5min'>
+                    {t('5 分钟')}
+                  </Form.Select.Option>
+                  <Form.Select.Option value='hour'>
+                    {t('1 小时')}
+                  </Form.Select.Option>
+                </Form.Select>
+              </Col>
+              <Col xs={24} sm={12} md={6} lg={6} xl={6}>
+                <Form.InputNumber
+                  field={'perf_metrics_setting.retention_days'}
+                  label={t('保留天数')}
+                  min={0}
+                  step={1}
+                  extraText={t('0 表示永久保留')}
+                  onChange={handleFieldChange('perf_metrics_setting.retention_days')}
+                  disabled={!inputs['perf_metrics_setting.enabled']}
+                />
+              </Col>
             </Row>
           </Form.Section>
         </Form>

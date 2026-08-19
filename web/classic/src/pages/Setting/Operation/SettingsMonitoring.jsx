@@ -43,6 +43,7 @@ export default function SettingsMonitoring(props) {
       '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
+    'monitor_setting.channel_test_mode': 'scheduled_all',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -162,6 +163,28 @@ export default function SettingsMonitoring(props) {
                     })
                   }
                 />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Select
+                  label={t('通道测试模式')}
+                  field={'monitor_setting.channel_test_mode'}
+                  extraText={t(
+                    '定时全量测试会探测非手动禁用的渠道；仅被动恢复只会在真实请求失败导致渠道自动禁用后检查这些渠道是否可恢复。',
+                  )}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'monitor_setting.channel_test_mode': value,
+                    })
+                  }
+                >
+                  <Form.Select.Option value='scheduled_all'>
+                    {t('定时全量测试')}
+                  </Form.Select.Option>
+                  <Form.Select.Option value='passive_recovery'>
+                    {t('仅被动恢复')}
+                  </Form.Select.Option>
+                </Form.Select>
               </Col>
             </Row>
             <Row gutter={16}>

@@ -28,6 +28,10 @@ const PerformanceSetting = () => {
     'performance_setting.disk_cache_threshold_mb': 10,
     'performance_setting.disk_cache_max_size_mb': 1024,
     'performance_setting.disk_cache_path': '',
+    'perf_metrics_setting.enabled': true,
+    'perf_metrics_setting.flush_interval': 5,
+    'perf_metrics_setting.bucket_time': 'hour',
+    'perf_metrics_setting.retention_days': 0,
   });
 
   let [loading, setLoading] = useState(false);
