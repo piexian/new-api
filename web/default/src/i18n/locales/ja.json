@@ -6366,5 +6366,7 @@
   "Upload audio file": "音声ファイルをアップロード",
   "Transcribing...": "転写中...",
   "Transcribe": "転写",
-  "Transcription": "転写結果"
+  "Transcription": "転写結果",
+  "Chat API": "チャット API",
+  "Chat API interface": "チャット API インターフェース"
 }

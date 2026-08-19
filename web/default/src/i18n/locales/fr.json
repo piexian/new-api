@@ -6366,5 +6366,7 @@
   "Upload audio file": "Télécharger un fichier audio",
   "Transcribing...": "Transcription...",
   "Transcribe": "Transcrire",
-  "Transcription": "Transcription"
+  "Transcription": "Transcription",
+  "Chat API": "API Chat",
+  "Chat API interface": "Interface API Chat"
 }

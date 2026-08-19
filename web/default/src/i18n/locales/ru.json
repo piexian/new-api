@@ -6366,5 +6366,7 @@
   "Upload audio file": "Загрузить аудиофайл",
   "Transcribing...": "Транскрибация...",
   "Transcribe": "Транскрибировать",
-  "Transcription": "Результат транскрибации"
+  "Transcription": "Результат транскрибации",
+  "Chat API": "API чата",
+  "Chat API interface": "Интерфейс API чата"
 }

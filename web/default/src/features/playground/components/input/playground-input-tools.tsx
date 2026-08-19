@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { GlobeIcon, PaperclipIcon, Trash2Icon } from 'lucide-react'
+import { GlobeIcon, PaperclipIcon, Trash2Icon, ZapIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -32,12 +32,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
+import { CHAT_INTERFACE_OPTIONS } from '../../constants'
 import {
   ATTACHMENT_ACTIONS,
   getAttachmentActionNotice,
@@ -45,6 +47,7 @@ import {
 } from '../../lib'
 import type { ParameterEnabled, PlaygroundConfig } from '../../types'
 import { PlaygroundParameterPanel } from './playground-parameter-panel'
+
 
 type PlaygroundInputToolsProps = {
   config: PlaygroundConfig
@@ -148,6 +151,40 @@ export function PlaygroundInputTools({
             <p>{t('Search')}</p>
           </TooltipContent>
         </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <PromptInputButton
+                aria-label={t('Chat API')}
+                className='text-muted-foreground hover:text-foreground hover:bg-muted/70 font-medium'
+                disabled={disabled}
+                variant='ghost'
+              >
+                <ZapIcon size={16} />
+              </PromptInputButton>
+            }
+          />
+          <TooltipContent>
+            <p>{t('Chat API interface')}</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Select
+          value={config.chatInterface}
+          onValueChange={(v) => v && onConfigChange('chatInterface', v as PlaygroundConfig['chatInterface'])}
+        >
+          <SelectTrigger className='h-8 w-[130px] text-xs'>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CHAT_INTERFACE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.labelKey}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <PlaygroundParameterPanel
           config={config}

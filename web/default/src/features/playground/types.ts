@@ -158,6 +158,7 @@ export interface PlaygroundConfig {
   stream: boolean
   reasoningEffort: 'none' | 'low' | 'medium' | 'high' | 'max'
   toolsEnabled: boolean
+  chatInterface: ChatInterface
 }
 
 export interface ParameterEnabled {

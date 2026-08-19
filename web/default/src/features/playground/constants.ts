@@ -94,6 +94,7 @@ export const DEFAULT_CONFIG: PlaygroundConfig = {
   stream: true,
   reasoningEffort: 'none',
   toolsEnabled: false,
+  chatInterface: 'openai',
 }
 
 export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {

@@ -6366,5 +6366,7 @@
   "Upload audio file": "上传音频文件",
   "Transcribing...": "转写中...",
   "Transcribe": "转写",
-  "Transcription": "转写结果"
+  "Transcription": "转写结果",
+  "Chat API": "对话 API",
+  "Chat API interface": "对话 API 接口"
 }

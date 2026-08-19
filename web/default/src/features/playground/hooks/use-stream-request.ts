@@ -54,11 +54,13 @@ export function useStreamRequest() {
       payload: ChatCompletionRequest,
       onUpdate: (type: 'reasoning' | 'content', chunk: string) => void,
       onComplete: () => void,
-      onError: (error: string, errorCode?: string) => void
+      onError: (error: string, errorCode?: string) => void,
+      endpoint?: string
     ) => {
       sseSourceRef.current?.close()
 
-      const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
+      const url = endpoint ?? API_ENDPOINTS.CHAT_COMPLETIONS
+      const source = new SSE(url, {
         headers: getCommonHeaders(),
         method: 'POST',
         payload: JSON.stringify(payload),

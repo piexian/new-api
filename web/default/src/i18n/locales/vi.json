@@ -6366,5 +6366,7 @@
   "Upload audio file": "Tải lên tệp âm thanh",
   "Transcribing...": "Đang chuyển đổi...",
   "Transcribe": "Chuyển đổi",
-  "Transcription": "Kết quả chuyển đổi"
+  "Transcription": "Kết quả chuyển đổi",
+  "Chat API": "API trò chuyện",
+  "Chat API interface": "Giao diện API trò chuyện"
 }

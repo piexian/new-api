@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { sendChatCompletion } from '../api'
-import { ERROR_MESSAGES } from '../constants'
+import { ERROR_MESSAGES, API_ENDPOINTS } from '../constants'
 import {
   applyStreamingChunk,
   buildChatCompletionPayload,
@@ -210,11 +210,19 @@ export function useChatHandler({
         config,
         parameterEnabled
       )
+      const endpoint = config.chatInterface === 'openai-response'
+        ? API_ENDPOINTS.RESPONSES
+        : config.chatInterface === 'anthropic'
+          ? API_ENDPOINTS.MESSAGES
+          : config.chatInterface === 'gemini'
+            ? `${API_ENDPOINTS.RESPONSES}?format=gemini`
+            : undefined
       sendStreamRequest(
         payload,
         handleStreamUpdate,
         handleStreamComplete,
-        handleStreamError
+        handleStreamError,
+        endpoint
       )
     },
     [
@@ -243,9 +251,17 @@ export function useChatHandler({
 
       try {
         setIsRequesting(true)
+        const endpoint = config.chatInterface === 'openai-response'
+          ? API_ENDPOINTS.RESPONSES
+          : config.chatInterface === 'anthropic'
+            ? API_ENDPOINTS.MESSAGES
+            : config.chatInterface === 'gemini'
+              ? `${API_ENDPOINTS.RESPONSES}?format=gemini`
+              : undefined
         const response = await sendChatCompletion(
           payload,
-          abortController.signal
+          abortController.signal,
+          endpoint
         )
         if (abortController.signal.aborted) return
 
