@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { GlobeIcon, PaperclipIcon, Trash2Icon, ZapIcon } from 'lucide-react'
+import { GlobeIcon, PaperclipIcon, TerminalIcon, Trash2Icon, ZapIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -38,12 +38,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 import { CHAT_INTERFACE_OPTIONS } from '../../constants'
 import {
   ATTACHMENT_ACTIONS,
   getAttachmentActionNotice,
-  getSearchActionNotice,
 } from '../../lib'
 import type { ParameterEnabled, PlaygroundConfig } from '../../types'
 import { PlaygroundParameterPanel } from './playground-parameter-panel'
@@ -82,11 +82,6 @@ export function PlaygroundInputTools({
     toast.info(t(notice.title), {
       description: notice.description,
     })
-  }
-
-  const handleSearchAction = () => {
-    const notice = getSearchActionNotice()
-    toast.info(t(notice.title))
   }
 
   const handleClearMessages = () => {
@@ -133,14 +128,20 @@ export function PlaygroundInputTools({
           </DropdownMenu>
         </Tooltip>
 
+        {/* Web Search 开关 */}
         <Tooltip>
           <TooltipTrigger
             render={
               <PromptInputButton
-                aria-label={t('Search')}
-                className='text-muted-foreground hover:text-foreground hover:bg-muted/70 font-medium'
+                aria-label={t('Web Search')}
+                className={cn(
+                  'font-medium transition-colors',
+                  config.webSearchEnabled
+                    ? 'text-foreground bg-muted/70'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
+                )}
                 disabled={disabled}
-                onClick={handleSearchAction}
+                onClick={() => onConfigChange('webSearchEnabled', !config.webSearchEnabled)}
                 variant='ghost'
               >
                 <GlobeIcon size={16} />
@@ -148,27 +149,60 @@ export function PlaygroundInputTools({
             }
           />
           <TooltipContent>
-            <p>{t('Search')}</p>
+            <p>{t('Web Search')}</p>
           </TooltipContent>
         </Tooltip>
 
+        {/* Code Interpreter 开关 */}
         <Tooltip>
           <TooltipTrigger
             render={
               <PromptInputButton
-                aria-label={t('Chat API')}
-                className='text-muted-foreground hover:text-foreground hover:bg-muted/70 font-medium'
+                aria-label={t('Code Interpreter')}
+                className={cn(
+                  'font-medium transition-colors',
+                  config.codeInterpreterEnabled
+                    ? 'text-foreground bg-muted/70'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
+                )}
                 disabled={disabled}
+                onClick={() => onConfigChange('codeInterpreterEnabled', !config.codeInterpreterEnabled)}
                 variant='ghost'
               >
-                <ZapIcon size={16} />
+                <TerminalIcon size={16} />
               </PromptInputButton>
             }
           />
           <TooltipContent>
-            <p>{t('Chat API interface')}</p>
+            <p>{t('Code Interpreter')}</p>
           </TooltipContent>
         </Tooltip>
+
+        {/* Reasoning 思考等级 */}
+        <Select
+          value={config.reasoningEffort}
+          onValueChange={(v) => v && onConfigChange('reasoningEffort', v as PlaygroundConfig['reasoningEffort'])}
+        >
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <SelectTrigger className='h-8 w-[36px] justify-center px-0' aria-label={t('Reasoning')}>
+                  <ZapIcon size={16} className={cn(config.reasoningEffort !== 'none' && 'text-foreground')} />
+                </SelectTrigger>
+              }
+            />
+            <TooltipContent>
+              <p>{t('Reasoning Effort')}</p>
+            </TooltipContent>
+          </Tooltip>
+          <SelectContent>
+            <SelectItem value='none'>{t('Off')}</SelectItem>
+            <SelectItem value='low'>{t('Low')}</SelectItem>
+            <SelectItem value='medium'>{t('Medium')}</SelectItem>
+            <SelectItem value='high'>{t('High')}</SelectItem>
+            <SelectItem value='max'>{t('Max')}</SelectItem>
+          </SelectContent>
+        </Select>
 
         <Select
           value={config.chatInterface}

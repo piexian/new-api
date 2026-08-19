@@ -17,7 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 
+import { getModelsDevCatalog } from './api'
 import { PlaygroundModeTabs } from './components/playground-mode-tabs'
 import { PlaygroundImage } from './components/image/playground-image'
 import { PlaygroundVideo } from './components/video/playground-video'
@@ -31,6 +33,11 @@ import {
   usePlaygroundState,
 } from './hooks'
 import type { PlaygroundMode } from './types'
+import {
+  filterAudioCapableModels,
+  filterImageCapableModels,
+  filterVideoCapableModels,
+} from './lib/options/model-capabilities'
 
 
 
@@ -85,6 +92,12 @@ export function Playground() {
     updateConfig,
   })
 
+  const { data: modelsDevCatalog } = useQuery({
+    queryKey: ['playground', 'models-dev-catalog'],
+    queryFn: getModelsDevCatalog,
+    staleTime: 24 * 60 * 60 * 1000,
+  })
+
   return (
     <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
       {/* 模式切换 Tab */}
@@ -137,7 +150,7 @@ export function Playground() {
       ) : mode === 'image' ? (
         <div className='flex-1 overflow-y-auto'>
           <PlaygroundImage
-            models={models}
+            models={filterImageCapableModels(models, modelsDevCatalog)}
             groups={groups}
             selectedModel={config.model}
             selectedGroup={config.group}
@@ -148,7 +161,7 @@ export function Playground() {
       ) : mode === 'video' ? (
         <div className='flex-1 overflow-y-auto'>
           <PlaygroundVideo
-            models={models}
+            models={filterVideoCapableModels(models, modelsDevCatalog)}
             groups={groups}
             selectedModel={config.model}
             selectedGroup={config.group}
@@ -159,7 +172,7 @@ export function Playground() {
       ) : (
         <div className='flex-1 overflow-y-auto'>
           <PlaygroundAudio
-            models={models}
+            models={filterAudioCapableModels(models, modelsDevCatalog)}
             groups={groups}
             selectedModel={config.model}
             selectedGroup={config.group}

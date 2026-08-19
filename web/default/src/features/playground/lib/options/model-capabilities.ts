@@ -47,6 +47,7 @@ export function filterChatCapableModels(
   return models.filter((m) => isChatCapableModel(m, catalog))
 }
 
+
 /**
  * 从 models.dev catalog 获取模型能力信息
  */
@@ -59,16 +60,115 @@ export function getModelCapabilities(
 }
 
 /**
+ * 判断模型是否支持图片生成
+ */
+export function isImageCapableModel(
+  model: ModelOption,
+  catalog?: Record<string, ModelsDevEntry>
+): boolean {
+  if (model.supportedEndpointTypes && model.supportedEndpointTypes.length > 0) {
+    return model.supportedEndpointTypes.some((et) =>
+      et.includes('image')
+    )
+  }
+  if (catalog) {
+    const entry = catalog[model.value] || catalog[model.label]
+    if (entry) {
+      const outputMods = entry.modalities?.output ?? []
+      return outputMods.includes('image')
+    }
+  }
+  return true
+}
+
+/**
+ * 过滤模型列表，只保留支持图片生成的模型
+ */
+export function filterImageCapableModels(
+  models: ModelOption[],
+  catalog?: Record<string, ModelsDevEntry>
+): ModelOption[] {
+  if (!catalog) return models
+  return models.filter((m) => isImageCapableModel(m, catalog))
+}
+
+/**
+ * 判断模型是否支持视频生成
+ */
+export function isVideoCapableModel(
+  model: ModelOption,
+  catalog?: Record<string, ModelsDevEntry>
+): boolean {
+  if (model.supportedEndpointTypes && model.supportedEndpointTypes.length > 0) {
+    return model.supportedEndpointTypes.some((et) =>
+      et.includes('video')
+    )
+  }
+  if (catalog) {
+    const entry = catalog[model.value] || catalog[model.label]
+    if (entry) {
+      const outputMods = entry.modalities?.output ?? []
+      return outputMods.includes('video')
+    }
+  }
+  return true
+}
+
+/**
+ * 过滤模型列表，只保留支持视频生成的模型
+ */
+export function filterVideoCapableModels(
+  models: ModelOption[],
+  catalog?: Record<string, ModelsDevEntry>
+): ModelOption[] {
+  if (!catalog) return models
+  return models.filter((m) => isVideoCapableModel(m, catalog))
+}
+
+/**
+ * 判断模型是否支持音频（TTS/转写）
+ */
+export function isAudioCapableModel(
+  model: ModelOption,
+  catalog?: Record<string, ModelsDevEntry>
+): boolean {
+  if (model.supportedEndpointTypes && model.supportedEndpointTypes.length > 0) {
+    return model.supportedEndpointTypes.some((et) =>
+      et.includes('audio')
+    )
+  }
+  if (catalog) {
+    const entry = catalog[model.value] || catalog[model.label]
+    if (entry) {
+      const inputMods = entry.modalities?.input ?? []
+      const outputMods = entry.modalities?.output ?? []
+      const allMods = new Set([...inputMods, ...outputMods])
+      return allMods.has('audio')
+    }
+  }
+  return true
+}
+
+/**
+ * 过滤模型列表，只保留支持音频的模型
+ */
+export function filterAudioCapableModels(
+  models: ModelOption[],
+  catalog?: Record<string, ModelsDevEntry>
+): ModelOption[] {
+  if (!catalog) return models
+  return models.filter((m) => isAudioCapableModel(m, catalog))
+}
+
+/**
  * 判断模型是否支持思考（reasoning）
  */
 export function isReasoningModel(
   modelValue: string,
   catalog?: Record<string, ModelsDevEntry>
 ): boolean {
-  // models.dev 是主要来源
   const entry = getModelCapabilities(modelValue, catalog)
   if (entry) return entry.reasoning
-  // 无信息默认不支持
   return false
 }
 

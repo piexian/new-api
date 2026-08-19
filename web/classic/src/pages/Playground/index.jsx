@@ -475,15 +475,20 @@ const Playground = () => {
   return (
     <PlaygroundProvider value={playgroundContextValue}>
         {/* 模式切换 Tab */}
-        <div className='flex items-center justify-center gap-2 border-b py-2 mt-[60px]'>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderBottom: '1px solid var(--semi-color-border)', padding: '8px 0', marginTop: 60 }}>
           {PLAYGROUND_MODES.map((m) => (
             <button
               key={m.mode}
-              className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
-                mode === m.mode
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-muted'
-              }`}
+              style={{
+                padding: '6px 16px',
+                fontSize: 14,
+                borderRadius: 6,
+                border: 'none',
+                cursor: 'pointer',
+                background: mode === m.mode ? 'var(--semi-color-primary)' : 'transparent',
+                color: mode === m.mode ? 'var(--semi-color-white)' : 'var(--semi-color-text-2)',
+                transition: 'background 0.2s, color 0.2s',
+              }}
               onClick={() => setMode(m.mode)}
             >
               {t(m.labelKey)}

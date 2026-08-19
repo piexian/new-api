@@ -93,7 +93,8 @@ export const DEFAULT_CONFIG: PlaygroundConfig = {
   seed: null,
   stream: true,
   reasoningEffort: 'none',
-  toolsEnabled: false,
+  webSearchEnabled: false,
+  codeInterpreterEnabled: false,
   chatInterface: 'openai',
 }
 

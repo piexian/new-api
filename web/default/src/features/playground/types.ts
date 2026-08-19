@@ -157,7 +157,8 @@ export interface PlaygroundConfig {
   seed: number | null
   stream: boolean
   reasoningEffort: 'none' | 'low' | 'medium' | 'high' | 'max'
-  toolsEnabled: boolean
+  webSearchEnabled: boolean
+  codeInterpreterEnabled: boolean
   chatInterface: ChatInterface
 }
 
