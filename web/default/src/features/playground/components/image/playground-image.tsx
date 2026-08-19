@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ModelGroupSelector } from '@/components/model-group-selector'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 
@@ -113,32 +114,14 @@ export function PlaygroundImage({
       </div>
 
       {/* 模型 + 分组 */}
-      <div className='flex gap-2'>
-        <Select value={selectedModel} onValueChange={(v) => v && onModelChange(v)}>
-          <SelectTrigger className='flex-1'>
-            <SelectValue placeholder={t('Select model')} />
-          </SelectTrigger>
-          <SelectContent>
-            {models.map((m) => (
-              <SelectItem key={m.value} value={m.value}>
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={selectedGroup} onValueChange={(v) => v && onGroupChange(v)}>
-          <SelectTrigger className='w-32'>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {groups.map((g) => (
-              <SelectItem key={g.value} value={g.value}>
-                {g.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <ModelGroupSelector
+        selectedModel={selectedModel}
+        models={models}
+        onModelChange={onModelChange}
+        selectedGroup={selectedGroup}
+        groups={groups}
+        onGroupChange={onGroupChange}
+      />
 
       {/* Prompt */}
       <Textarea

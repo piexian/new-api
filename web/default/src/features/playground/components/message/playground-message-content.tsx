@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { TerminalIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -117,6 +118,26 @@ export function PlaygroundMessageContent({
         </Reasoning>
       )}
 
+      {message.toolCalls && message.toolCalls.length > 0 && (
+        <div className='mb-2 rounded-lg border border-border bg-muted/30 p-3'>
+          <div className='mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground'>
+            <TerminalIcon className='size-3.5' />
+            {t('Tool Calls')}
+          </div>
+          <div className='space-y-2'>
+            {message.toolCalls.map((tc, i) => (
+              <div key={`${tc.id}-${i}`} className='rounded border border-border/50 bg-background/50 p-2 text-xs'>
+                <div className='font-mono font-semibold text-primary'>{tc.name}</div>
+                {tc.arguments && (
+                  <pre className='mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-muted-foreground'>
+                    {tc.arguments}
+                  </pre>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {showLoader && (
         <div className='flex items-center gap-2 py-2'>
           <Loader />

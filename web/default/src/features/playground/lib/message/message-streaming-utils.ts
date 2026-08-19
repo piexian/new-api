@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { t } from 'i18next'
 
 import { ERROR_MESSAGES, MESSAGE_ROLES, MESSAGE_STATUS } from '../../constants'
-import type { ChatCompletionResponse, Message } from '../../types'
+import type { ChatCompletionResponse, Message, ToolCallInfo } from '../../types'
 import { parseThinkTags } from './message-reasoning-utils'
 import {
   completeAssistantTiming,
@@ -68,7 +68,7 @@ export function processStreamingContent(
   }
 }
 
-export type StreamChunkType = 'reasoning' | 'content'
+export type StreamChunkType = 'reasoning' | 'content' | 'tool_calls'
 
 function getAppendableChunk(currentContent: string, chunk: string): string {
   if (!currentContent || !chunk.startsWith(currentContent)) {
@@ -98,6 +98,15 @@ export function applyStreamingChunk(
         content: reasoning.content + appendableChunk,
       },
       isReasoningStreaming: true,
+      status: MESSAGE_STATUS.STREAMING,
+    }
+  }
+
+  if (type === 'tool_calls') {
+    const existing = message.toolCalls ?? []
+    return {
+      ...message,
+      toolCalls: mergeToolCallChunks(existing, chunk),
       status: MESSAGE_STATUS.STREAMING,
     }
   }
@@ -252,5 +261,49 @@ export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
 
   const result = [...messages]
   result[targetIndex] = sanitized
+  return result
+}
+
+// 解析流式 tool_calls delta 并合并到已有列表
+// delta 格式: [{"index":0,"id":"call_xxx","function":{"name":"web_search","arguments":""}}]
+// 后续 chunk: [{"index":0,"function":{"arguments":"{\"qu"}}]
+function mergeToolCallChunks(
+  existing: ToolCallInfo[],
+  chunk: string
+): ToolCallInfo[] {
+  let parsed: Array<{
+    index: number
+    id?: string
+    function?: { name?: string; arguments?: string }
+    type?: string
+  }>
+  try {
+    parsed = JSON.parse(chunk)
+  } catch {
+    return existing
+  }
+
+  if (!Array.isArray(parsed)) return existing
+
+  const result = [...existing]
+  for (const tc of parsed) {
+    const idx = tc.index ?? 0
+    const current = result[idx]
+    if (!current) {
+      // 新 tool call
+      result[idx] = {
+        id: tc.id ?? `call_${idx}`,
+        name: tc.function?.name ?? '',
+        arguments: tc.function?.arguments ?? '',
+      }
+    } else {
+      // 合并增量
+      result[idx] = {
+        id: tc.id ?? current.id,
+        name: tc.function?.name ?? current.name,
+        arguments: current.arguments + (tc.function?.arguments ?? ''),
+      }
+    }
+  }
   return result
 }

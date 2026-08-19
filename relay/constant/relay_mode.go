@@ -65,8 +65,13 @@ const (
 
 func Path2RelayMode(path string) int {
 	relayMode := RelayModeUnknown
-	if strings.HasPrefix(path, "/v1/chat/completions") || strings.HasPrefix(path, "/pg/chat/completions") {
-		relayMode = RelayModeChatCompletions
+	// Normalize /pg/ prefix to /v1/ for playground routes
+	normalizedPath := path
+	if strings.HasPrefix(path, "/pg/") {
+		normalizedPath = "/v1/" + path[4:]
+	}
+	path = normalizedPath
+	if strings.HasPrefix(path, "/v1/chat/completions") {
 	} else if strings.HasPrefix(path, "/v1/completions") {
 		relayMode = RelayModeCompletions
 	} else if strings.HasPrefix(path, "/v1/embeddings") {

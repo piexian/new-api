@@ -49,6 +49,7 @@ const STREAM_UPDATE_FLUSH_MS = 50
 type PendingStreamChunks = {
   content: string
   reasoning: string
+  toolCalls: string
 }
 
 function mergePendingStreamChunk(
@@ -78,6 +79,7 @@ export function useChatHandler({
   const pendingStreamChunksRef = useRef<PendingStreamChunks>({
     content: '',
     reasoning: '',
+    toolCalls: '',
   })
   const streamFlushTimerRef = useRef<number | null>(null)
 
@@ -88,29 +90,25 @@ export function useChatHandler({
     }
 
     const pendingChunks = pendingStreamChunksRef.current
-    if (!pendingChunks.reasoning && !pendingChunks.content) {
+    if (!pendingChunks.reasoning && !pendingChunks.content && !pendingChunks.toolCalls) {
       return
     }
 
-    pendingStreamChunksRef.current = { content: '', reasoning: '' }
+    pendingStreamChunksRef.current = { content: '', reasoning: '', toolCalls: '' }
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) => {
         let updatedMessage = message
 
         if (pendingChunks.reasoning) {
-          updatedMessage = applyStreamingChunk(
-            updatedMessage,
-            'reasoning',
-            pendingChunks.reasoning
-          )
+          updatedMessage = applyStreamingChunk(updatedMessage, 'reasoning', pendingChunks.reasoning)
         }
 
         if (pendingChunks.content) {
-          updatedMessage = applyStreamingChunk(
-            updatedMessage,
-            'content',
-            pendingChunks.content
-          )
+          updatedMessage = applyStreamingChunk(updatedMessage, 'content', pendingChunks.content)
+        }
+
+        if (pendingChunks.toolCalls) {
+          updatedMessage = applyStreamingChunk(updatedMessage, 'tool_calls', pendingChunks.toolCalls)
         }
 
         return updatedMessage
@@ -158,9 +156,10 @@ export function useChatHandler({
 
   // Handle stream update
   const handleStreamUpdate = useCallback(
-    (type: 'reasoning' | 'content', chunk: string) => {
-      pendingStreamChunksRef.current[type] = mergePendingStreamChunk(
-        pendingStreamChunksRef.current[type],
+    (type: 'reasoning' | 'content' | 'tool_calls', chunk: string) => {
+      const key = type === 'tool_calls' ? 'toolCalls' : type
+      pendingStreamChunksRef.current[key] = mergePendingStreamChunk(
+        pendingStreamChunksRef.current[key],
         chunk
       )
       scheduleStreamFlush()

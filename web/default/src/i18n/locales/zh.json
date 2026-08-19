@@ -2241,7 +2241,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "对于私有部署，格式为：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "强制返回语法合法的 JSON",
@@ -6403,5 +6403,6 @@
   "Start a playground chat": "开始对话",
   "Stop": "停止",
   "Unsaved changes": "有未保存的更改",
-  "You have unsaved changes. Are you sure you want to leave?": "有未保存的更改，确定要离开吗？"
+  "You have unsaved changes. Are you sure you want to leave?": "有未保存的更改，确定要离开吗？",
+  "Tool Calls": "工具调用"
 }

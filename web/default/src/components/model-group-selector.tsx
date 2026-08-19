@@ -584,6 +584,9 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   className,
   disabled = false,
 }) => {
+  // 防御性默认值，避免空数组/undefined 导致崩溃
+  const modelList = models ?? []
+  const groupList = groups ?? []
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -593,11 +596,11 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   const selectedModelOptionRef = useRef<HTMLDivElement | null>(null)
 
   const currentModel = useMemo(
-    () => models.find((model) => model.value === selectedModel),
+    () => modelList.find((model) => model.value === selectedModel),
     [models, selectedModel]
   )
   const currentGroup = useMemo(
-    () => groups.find((group) => group.value === selectedGroup),
+    () => groupList.find((group) => group.value === selectedGroup),
     [groups, selectedGroup]
   )
   const filteredModels = useMemo(() => {
@@ -606,7 +609,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       return models
     }
 
-    return models.filter((model) => {
+    return modelList.filter((model) => {
       const searchableText = [
         model.label,
         model.value,
@@ -700,7 +703,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
         )}
         ref={groupScrollContainerRef}
       >
-        {groups.map((group) => {
+        {groupList.map((group) => {
           const isSelected = selectedGroup === group.value
 
           return (

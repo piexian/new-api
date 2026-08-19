@@ -64,6 +64,7 @@ export interface Message {
     durationMs?: number
   }
   isReasoningStreaming?: boolean
+  toolCalls?: ToolCallInfo[]
   isReasoningComplete?: boolean
   isContentComplete?: boolean
   status?: MessageStatus
@@ -74,6 +75,12 @@ export interface Message {
 export interface ChatCompletionMessage {
   role: MessageRole
   content: string | ContentPart[]
+}
+
+export interface ToolCallInfo {
+  id: string
+  name: string
+  arguments: string
 }
 
 export interface ContentPart {
@@ -119,6 +126,10 @@ export interface ChatCompletionChunk {
       role?: MessageRole
       content?: string
       reasoning_content?: string
+      tool_calls?: Array<
+        | { index: number; id?: string; function: { name?: string; arguments?: string }; type?: string }
+        | { index: number; id: string; function: { name: string; arguments: string }; type: 'function' }
+      >
     }
     finish_reason: string | null
   }>
