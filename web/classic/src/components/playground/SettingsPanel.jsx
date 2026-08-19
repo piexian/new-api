@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Select, Typography, Button, Switch } from '@douyinfe/semi-ui';
 import { Sparkles, Users, ToggleLeft, X, Settings } from 'lucide-react';
+import { CHAT_INTERFACE_OPTIONS, REASONING_EFFORT_OPTIONS } from '../../constants/playground.constants';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
 import ParameterControl from './ParameterControl';
@@ -112,6 +113,53 @@ const SettingsPanel = ({
           onCustomRequestBodyChange={onCustomRequestBodyChange}
           defaultPayload={previewPayload}
         />
+
+        {/* Chat 接口选择 */}
+        <div className={customRequestMode ? 'opacity-50' : ''}>
+          <div className='flex items-center gap-2 mb-2'>
+            <Typography.Text strong className='text-sm'>
+              {t('接口类型')}
+            </Typography.Text>
+          </div>
+          <Select
+            value={inputs.chatInterface}
+            onChange={(v) => onInputChange('chatInterface', v)}
+            style={{ width: '100%' }}
+            optionList={CHAT_INTERFACE_OPTIONS.map((opt) => ({ value: opt.value, label: opt.labelKey }))}
+          />
+        </div>
+
+        {/* 思考等级 */}
+        <div className={customRequestMode ? 'opacity-50' : ''}>
+          <div className='flex items-center gap-2 mb-2'>
+            <Typography.Text strong className='text-sm'>
+              {t('思考等级')}
+            </Typography.Text>
+          </div>
+          <Select
+            value={inputs.reasoningEffort}
+            onChange={(v) => onInputChange('reasoningEffort', v)}
+            style={{ width: '100%' }}
+            optionList={REASONING_EFFORT_OPTIONS.map((opt) => ({ value: opt.value, label: opt.labelKey }))}
+          />
+        </div>
+
+        {/* 内置工具 */}
+        <div className={customRequestMode ? 'opacity-50' : ''}>
+          <div className='flex items-center justify-between'>
+            <Typography.Text strong className='text-sm'>
+              {t('内置工具')}
+            </Typography.Text>
+            <Switch
+              checked={inputs.toolsEnabled}
+              onChange={(v) => onInputChange('toolsEnabled', v)}
+            />
+          </div>
+          <Typography.Text type='tertiary' size='small'>
+            {t('启用后模型可使用 Web 搜索和代码执行工具')}
+          </Typography.Text>
+        </div>
+
 
         {/* 分组选择 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>

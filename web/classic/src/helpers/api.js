@@ -174,7 +174,20 @@ export const buildApiPayload = (
     }
   });
 
-  return payload;
+
+  // 思考等级
+  if (inputs.reasoningEffort && inputs.reasoningEffort !== 'none') {
+    payload.reasoning_effort = inputs.reasoningEffort;
+  }
+
+  // 内置工具
+  if (inputs.toolsEnabled) {
+    payload.tools = [
+      { type: 'function', function: { name: 'web_search', description: 'Search the web' } },
+      { type: 'function', function: { name: 'code_interpreter', description: 'Execute code' } },
+    ];
+  }
+
 };
 
 // 处理API错误响应

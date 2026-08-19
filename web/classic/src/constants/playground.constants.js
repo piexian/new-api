@@ -76,10 +76,52 @@ export const DEBUG_TABS = {
 // ========== API 相关常量 ==========
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  RESPONSES: '/pg/responses',
+  MESSAGES: '/pg/messages',
+  IMAGES_GENERATIONS: '/pg/images/generations',
+  IMAGES_EDITS: '/pg/images/edits',
+  VIDEOS_GENERATIONS: '/pg/videos/generations',
+  VIDEOS_EDITS: '/pg/videos/edits',
+  AUDIO_SPEECH: '/pg/audio/speech',
+  AUDIO_TRANSCRIPTIONS: '/pg/audio/transcriptions',
   USER_MODELS: '/api/user/models',
+  USER_MODELS_DEV_CATALOG: '/api/user/models-dev/catalog',
   USER_GROUPS: '/api/user/self/groups',
 };
 
+// Playground 模式
+export const PLAYGROUND_MODES = [
+  { mode: 'chat', labelKey: '对话' },
+  { mode: 'image', labelKey: '图片' },
+  { mode: 'video', labelKey: '视频' },
+  { mode: 'audio', labelKey: '语音' },
+];
+
+// Chat 接口类型
+export const CHAT_INTERFACE_OPTIONS = [
+  { value: 'openai', labelKey: 'OpenAI Chat' },
+  { value: 'openai-response', labelKey: 'Responses API' },
+  { value: 'anthropic', labelKey: 'Anthropic Messages' },
+  { value: 'gemini', labelKey: 'Gemini' },
+];
+
+// 思考等级
+export const REASONING_EFFORT_OPTIONS = [
+  { value: 'none', labelKey: '关闭' },
+  { value: 'low', labelKey: '低' },
+  { value: 'medium', labelKey: '中' },
+  { value: 'high', labelKey: '高' },
+  { value: 'max', labelKey: '最高' },
+];
+
+// 图片尺寸选项
+export const IMAGE_SIZE_OPTIONS = ['1024x1024', '1024x1792', '1792x1024'];
+export const IMAGE_QUALITY_OPTIONS = ['standard', 'hd'];
+export const IMAGE_STYLE_OPTIONS = ['vivid', 'natural'];
+
+// 音频 TTS 音色
+export const AUDIO_VOICE_OPTIONS = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+export const AUDIO_FORMAT_OPTIONS = ['mp3', 'opus', 'aac', 'flac', 'wav'];
 // ========== 配置默认值 ==========
 export const DEFAULT_CONFIG = {
   inputs: {
@@ -94,6 +136,9 @@ export const DEFAULT_CONFIG = {
     stream: true,
     imageEnabled: false,
     imageUrls: [''],
+    reasoningEffort: 'none',
+    toolsEnabled: false,
+    chatInterface: 'openai',
   },
   parameterEnabled: {
     temperature: true,

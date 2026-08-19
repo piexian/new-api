@@ -173,7 +173,8 @@ export const useApiRequest = (
 
   // 非流式请求
   const handleNonStreamRequest = useCallback(
-    async (payload) => {
+    async (payload, endpoint) => {
+      const url = endpoint || API_ENDPOINTS.CHAT_COMPLETIONS;
       setDebugData((prev) => ({
         ...prev,
         request: payload,
@@ -185,7 +186,7 @@ export const useApiRequest = (
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
       try {
-        const response = await fetch(API_ENDPOINTS.CHAT_COMPLETIONS, {
+        const response = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -302,18 +303,20 @@ export const useApiRequest = (
 
   // SSE请求
   const handleSSE = useCallback(
-    (payload) => {
+    (payload, endpoint) => {
+      const url = endpoint || API_ENDPOINTS.CHAT_COMPLETIONS;
+
       setDebugData((prev) => ({
         ...prev,
         request: payload,
         timestamp: new Date().toISOString(),
         response: null,
-        sseMessages: [], // 新增：存储 SSE 消息数组
-        isStreaming: true, // 新增：标记流式状态
+        sseMessages: [],
+        isStreaming: true,
       }));
       setActiveDebugTab(DEBUG_TABS.REQUEST);
 
-      const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
+      const source = new SSE(url, {
         headers: {
           'Content-Type': 'application/json',
           'New-Api-User': getUserIdFromLocalStorage(),
@@ -540,11 +543,11 @@ export const useApiRequest = (
 
   // 发送请求
   const sendRequest = useCallback(
-    (payload, isStream) => {
+    (payload, isStream, endpoint) => {
       if (isStream) {
-        handleSSE(payload);
+        handleSSE(payload, endpoint);
       } else {
-        handleNonStreamRequest(payload);
+        handleNonStreamRequest(payload, endpoint);
       }
     },
     [handleSSE, handleNonStreamRequest],

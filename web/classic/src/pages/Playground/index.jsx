@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useCallback, useRef } from 'react';
+import React, { useContext, useEffect, useCallback, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
@@ -38,6 +38,9 @@ import { useDataLoader } from '../../hooks/playground/useDataLoader';
 import {
   MESSAGE_ROLES,
   ERROR_MESSAGES,
+  CHAT_INTERFACE_OPTIONS,
+  API_ENDPOINTS,
+  PLAYGROUND_MODES,
 } from '../../constants/playground.constants';
 import {
   getLogo,
@@ -60,6 +63,9 @@ import {
 import ChatArea from '../../components/playground/ChatArea';
 import FloatingButtons from '../../components/playground/FloatingButtons';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
+import PlaygroundImage from '../../components/playground/PlaygroundImage';
+import PlaygroundVideo from '../../components/playground/PlaygroundVideo';
+import PlaygroundAudio from '../../components/playground/PlaygroundAudio';
 
 // 生成头像
 const generateAvatarDataUrl = (username) => {
@@ -120,7 +126,8 @@ const Playground = () => {
     setCustomRequestBody,
   } = state;
 
-  // API 请求相关
+  const [mode, setMode] = useState('chat');
+
   const { sendRequest, onStopGenerator } = useApiRequest(
     setMessage,
     setDebugData,
@@ -235,28 +242,39 @@ const Playground = () => {
     }
   }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody]);
 
+  // 根据接口类型获取 endpoint
+  const getChatEndpoint = (chatInterface) => {
+    switch (chatInterface) {
+      case 'openai-response':
+        return API_ENDPOINTS.RESPONSES;
+      case 'anthropic':
+        return API_ENDPOINTS.MESSAGES;
+      case 'gemini':
+        return `${API_ENDPOINTS.RESPONSES}?format=gemini`;
+      default:
+        return undefined;
+    }
+  };
+
   // 发送消息
   function onMessageSend(content, attachment) {
     console.log('attachment: ', attachment);
+
+    const chatEndpoint = getChatEndpoint(inputs.chatInterface);
 
     // 创建用户消息和加载消息
     const userMessage = createMessage(MESSAGE_ROLES.USER, content);
     const loadingMessage = createLoadingAssistantMessage();
 
-    // 如果是自定义请求体模式
+    // 自定义请求体模式
     if (customRequestMode && customRequestBody) {
       try {
         const customPayload = JSON.parse(customRequestBody);
 
         setMessage((prevMessage) => {
           const newMessages = [...prevMessage, userMessage, loadingMessage];
-
-          // 发送自定义请求体
-          sendRequest(customPayload, customPayload.stream !== false);
-
-          // 发送消息后保存，传入新消息列表
+          sendRequest(customPayload, customPayload.stream !== false, chatEndpoint);
           setTimeout(() => saveMessagesImmediately(newMessages), 0);
-
           return newMessages;
         });
         return;
@@ -281,14 +299,13 @@ const Playground = () => {
 
     setMessage((prevMessage) => {
       const newMessages = [...prevMessage, userMessageWithImages];
-
       const payload = buildApiPayload(
         newMessages,
         null,
         inputs,
         parameterEnabled,
       );
-      sendRequest(payload, inputs.stream);
+      sendRequest(payload, inputs.stream, chatEndpoint);
 
       // 禁用图片模式
       if (inputs.imageEnabled) {
@@ -297,10 +314,8 @@ const Playground = () => {
         }, 100);
       }
 
-      // 发送消息后保存，传入新消息列表（包含用户消息和加载消息）
       const messagesWithLoading = [...newMessages, loadingMessage];
       setTimeout(() => saveMessagesImmediately(messagesWithLoading), 0);
-
       return messagesWithLoading;
     });
   }
@@ -459,9 +474,25 @@ const Playground = () => {
 
   return (
     <PlaygroundProvider value={playgroundContextValue}>
+        {/* 模式切换 Tab */}
+        <div className='flex items-center justify-center gap-2 border-b py-2 mt-[60px]'>
+          {PLAYGROUND_MODES.map((m) => (
+            <button
+              key={m.mode}
+              className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
+                mode === m.mode
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+              onClick={() => setMode(m.mode)}
+            >
+              {t(m.labelKey)}
+            </button>
+          ))}
+        </div>
       <div className='h-full'>
         <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
-          {(showSettings || !isMobile) && (
+          {mode === 'chat' && (showSettings || !isMobile) && (
             <Layout.Sider
               className={`
               bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
@@ -497,6 +528,40 @@ const Playground = () => {
           )}
 
           <Layout.Content className='relative flex-1 overflow-hidden'>
+            {mode !== 'chat' ? (
+              <div className='flex-1 overflow-y-auto p-4'>
+                {mode === 'image' && (
+                  <PlaygroundImage
+                    models={models}
+                    groups={groups}
+                    selectedModel={inputs.model}
+                    selectedGroup={inputs.group}
+                    onModelChange={(v) => handleInputChange('model', v)}
+                    onGroupChange={(v) => handleInputChange('group', v)}
+                  />
+                )}
+                {mode === 'video' && (
+                  <PlaygroundVideo
+                    models={models}
+                    groups={groups}
+                    selectedModel={inputs.model}
+                    selectedGroup={inputs.group}
+                    onModelChange={(v) => handleInputChange('model', v)}
+                    onGroupChange={(v) => handleInputChange('group', v)}
+                  />
+                )}
+                {mode === 'audio' && (
+                  <PlaygroundAudio
+                    models={models}
+                    groups={groups}
+                    selectedModel={inputs.model}
+                    selectedGroup={inputs.group}
+                    onModelChange={(v) => handleInputChange('model', v)}
+                    onGroupChange={(v) => handleInputChange('group', v)}
+                  />
+                )}
+              </div>
+            ) : (
             <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
               <div className='flex-1 flex flex-col'>
                 <ChatArea
@@ -531,6 +596,7 @@ const Playground = () => {
                 </div>
               )}
             </div>
+            )}
 
             {/* 调试面板 - 移动端覆盖层 */}
             {showDebugPanel && isMobile && (
