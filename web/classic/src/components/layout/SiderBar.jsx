@@ -48,6 +48,7 @@ const routerMap = {
   setting: '/console/setting',
   about: '/about',
   detail: '/console',
+  system_info: '/console/system-info',
   pricing: '/pricing',
   task: '/console/task',
   models: '/console/models',
@@ -224,6 +225,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/setting',
         className: isRoot() ? '' : 'tableHiddle',
       },
+      {
+        text: t('系统状态'),
+        itemKey: 'system_info',
+        to: '/system-info',
+        className: isRoot() ? '' : 'tableHiddle',
+      },
     ];
 
     // 根据配置过滤项目
@@ -231,6 +238,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       const configVisible = isModuleVisible('admin', item.itemKey);
       // 词元贷管理不依赖 SidebarModulesAdmin 配置（默认配置未收录该模块），对管理员始终可见
       if (item.itemKey === 'loan_admin') return true;
+      // 系统状态不依赖 SidebarModulesAdmin 配置，对 root 始终可见
+      if (item.itemKey === 'system_info') return true;
       return configVisible;
     });
 

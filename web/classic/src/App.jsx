@@ -42,6 +42,7 @@ import {
   AuthRedirect,
   PrivateRoute,
   AdminRoute,
+  RootRoute,
   setUserData,
   switchFrontendTheme,
 } from './helpers';
@@ -49,6 +50,7 @@ import RegisterForm from './components/auth/RegisterForm';
 import LoginForm from './components/auth/LoginForm';
 import NotFound from './pages/NotFound';
 import Forbidden from './pages/Forbidden';
+import SystemInfo from './pages/SystemInfo';
 import Setting from './pages/Setting';
 import { StatusContext } from './context/Status';
 import { UserContext } from './context/User';
@@ -440,6 +442,20 @@ function App() {
                   <Setting />
                 </Suspense>
               </AdminRoute>,
+            )}
+          />
+          <Route
+            path='/console/system-info'
+            element={routeGuard(
+              '/console/system-info',
+              <RootRoute>
+                <Suspense
+                  fallback={<Loading></Loading>}
+                  key={location.pathname}
+                >
+                  <SystemInfo />
+                </Suspense>
+              </RootRoute>,
             )}
           />
           <Route

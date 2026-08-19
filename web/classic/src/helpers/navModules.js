@@ -59,6 +59,7 @@ const DEFAULT_SIDEBAR_MODULES = {
     subscription: true,
     risk_center: true,
     setting: true,
+    system_info: true,
   },
 };
 
@@ -71,6 +72,7 @@ const SIDEBAR_ROUTE_RULES = [
   { prefix: '/console/user', section: 'admin', module: 'user' },
   { prefix: '/console/ip_ban', section: 'admin', module: 'ip_ban' },
   { prefix: '/console/setting', section: 'admin', module: 'setting' },
+  { prefix: '/console/system-info', section: 'admin', module: 'system_info' },
   { prefix: '/console/risk', section: 'admin', module: 'risk_center' },
   { prefix: '/console/playground', section: 'chat', module: 'playground' },
   { prefix: '/console/token', section: 'console', module: 'token' },
