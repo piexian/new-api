@@ -6321,5 +6321,14 @@
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",
-  "This link cannot be opened from the preview.": "Эту ссылку нельзя открыть из предварительного просмотра."
+  "This link cannot be opened from the preview.": "Эту ссылку нельзя открыть из предварительного просмотра.",
+  "Reasoning Effort": "Уровень рассуждений",
+  "Controls depth of multi-step thinking before final answer": "Контролирует глубину многошагового мышления перед финальным ответом",
+  "Off": "Выкл",
+  "Low": "Низкий",
+  "Medium": "Средний",
+  "High": "Высокий",
+  "Max": "Макс",
+  "Built-in Tools": "Встроенные инструменты",
+  "Enable web search and code interpreter if model supports": "Включить веб-поиск и интерпретатор кода, если поддерживается моделью"
 }

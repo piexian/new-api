@@ -6321,5 +6321,14 @@
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",
-  "This link cannot be opened from the preview.": "このリンクはプレビューから開けません。"
+  "This link cannot be opened from the preview.": "このリンクはプレビューから開けません。",
+  "Reasoning Effort": "思考レベル",
+  "Controls depth of multi-step thinking before final answer": "最終回答前の多段思考の深さを制御",
+  "Off": "オフ",
+  "Low": "低",
+  "Medium": "中",
+  "High": "高",
+  "Max": "最大",
+  "Built-in Tools": "組み込みツール",
+  "Enable web search and code interpreter if model supports": "モデルがサポートするWeb検索とコードインタープリターを有効化"
 }

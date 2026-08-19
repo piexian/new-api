@@ -6321,5 +6321,14 @@
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",
-  "This link cannot be opened from the preview.": "Ce lien ne peut pas être ouvert depuis l’aperçu."
+  "This link cannot be opened from the preview.": "Ce lien ne peut pas être ouvert depuis l’aperçu.",
+  "Reasoning Effort": "Niveau de raisonnement",
+  "Controls depth of multi-step thinking before final answer": "Contrôle la profondeur de réflexion multi-étapes avant la réponse finale",
+  "Off": "Désactivé",
+  "Low": "Bas",
+  "Medium": "Moyen",
+  "High": "Élevé",
+  "Max": "Max",
+  "Built-in Tools": "Outils intégrés",
+  "Enable web search and code interpreter if model supports": "Activer la recherche web et l'interpréteur de code si le modèle le supporte"
 }

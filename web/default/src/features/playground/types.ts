@@ -65,6 +65,15 @@ export interface ContentPart {
   }
 }
 
+export interface PlaygroundTool {
+  type: 'function'
+  function: {
+    name: string
+    description?: string
+    parameters?: Record<string, unknown>
+  }
+}
+
 export interface ChatCompletionRequest {
   model: string
   group?: string
@@ -76,6 +85,8 @@ export interface ChatCompletionRequest {
   frequency_penalty?: number
   presence_penalty?: number
   seed?: number
+  reasoning_effort?: 'low' | 'medium' | 'high' | 'max'
+  tools?: PlaygroundTool[]
 }
 
 export interface ChatCompletionChunk {
@@ -126,6 +137,8 @@ export interface PlaygroundConfig {
   presence_penalty: number
   seed: number | null
   stream: boolean
+  reasoningEffort: 'none' | 'low' | 'medium' | 'high' | 'max'
+  toolsEnabled: boolean
 }
 
 export interface ParameterEnabled {

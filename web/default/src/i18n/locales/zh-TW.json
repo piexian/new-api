@@ -6321,5 +6321,14 @@
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",
-  "This link cannot be opened from the preview.": "無法從預覽中開啟此連結。"
+  "This link cannot be opened from the preview.": "無法從預覽中開啟此連結。",
+  "Reasoning Effort": "思考等級",
+  "Controls depth of multi-step thinking before final answer": "控制最終回答前的多步思考深度",
+  "Off": "關閉",
+  "Low": "低",
+  "Medium": "中",
+  "High": "高",
+  "Max": "最高",
+  "Built-in Tools": "內建工具",
+  "Enable web search and code interpreter if model supports": "啟用模型支援的網頁搜尋和程式碼解釋器"
 }

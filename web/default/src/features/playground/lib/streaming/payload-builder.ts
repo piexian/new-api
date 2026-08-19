@@ -68,5 +68,31 @@ export function buildChatCompletionPayload(
     payload.seed = config.seed
   }
 
+
+  // 思考等级
+  if (config.reasoningEffort && config.reasoningEffort !== 'none') {
+    payload.reasoning_effort = config.reasoningEffort
+  }
+
+  // 内置工具
+  if (config.toolsEnabled) {
+    payload.tools = [
+      {
+        type: 'function',
+        function: {
+          name: 'web_search',
+          description: 'Search the web for current information',
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'code_interpreter',
+          description: 'Execute code and return results',
+        },
+      },
+    ]
+  }
+
   return payload
 }

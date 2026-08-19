@@ -6321,5 +6321,14 @@
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",
-  "This link cannot be opened from the preview.": "Không thể mở liên kết này từ bản xem trước."
+  "This link cannot be opened from the preview.": "Không thể mở liên kết này từ bản xem trước.",
+  "Reasoning Effort": "Cấp độ suy luận",
+  "Controls depth of multi-step thinking before final answer": "Kiểm soát độ sâu suy nghĩ nhiều bước trước câu trả lời cuối",
+  "Off": "Tắt",
+  "Low": "Thấp",
+  "Medium": "Trung bình",
+  "High": "Cao",
+  "Max": "Tối đa",
+  "Built-in Tools": "Công cụ tích hợp",
+  "Enable web search and code interpreter if model supports": "Bật tìm kiếm web và trình thông dịch mã nếu mô hình hỗ trợ"
 }

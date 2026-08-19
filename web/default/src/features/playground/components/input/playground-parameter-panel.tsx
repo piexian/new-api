@@ -35,6 +35,13 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { Slider } from '@/components/ui/slider'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import {
   Tooltip,
@@ -191,6 +198,66 @@ function PlaygroundParameterContent({
           </div>
         )
       })}
+
+      {/* 思考等级 */}
+      <div
+        className={cn(
+          'border-border/70 bg-background/60 grid gap-2 rounded-lg border p-3 transition-opacity',
+          disabled && 'opacity-55'
+        )}
+      >
+        <div className='flex items-center justify-between gap-3'>
+          <div className='space-y-1'>
+            <label className='text-sm font-medium leading-5'>
+              {t('Reasoning Effort')}
+            </label>
+            <p className='text-muted-foreground text-xs leading-4'>
+              {t('Controls depth of multi-step thinking before final answer')}
+            </p>
+          </div>
+          <Select
+            value={config.reasoningEffort}
+            onValueChange={(v) => onConfigChange('reasoningEffort', v as PlaygroundConfig['reasoningEffort'])}
+          >
+            <SelectTrigger className='w-28'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='none'>{t('Off')}</SelectItem>
+              <SelectItem value='low'>{t('Low')}</SelectItem>
+              <SelectItem value='medium'>{t('Medium')}</SelectItem>
+              <SelectItem value='high'>{t('High')}</SelectItem>
+              <SelectItem value='max'>{t('Max')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* 内置工具 */}
+      <div
+        className={cn(
+          'border-border/70 bg-background/60 grid gap-2 rounded-lg border p-3 transition-opacity',
+          disabled && 'opacity-55'
+        )}
+      >
+        <div className='flex items-center justify-between gap-3'>
+          <div className='space-y-1'>
+            <label className='text-sm font-medium leading-5'>
+              {t('Built-in Tools')}
+            </label>
+            <p className='text-muted-foreground text-xs leading-4'>
+              {t('Enable web search and code interpreter if model supports')}
+            </p>
+          </div>
+          <Switch
+            aria-label={t('Built-in Tools')}
+            checked={config.toolsEnabled}
+            disabled={disabled}
+            onCheckedChange={(checked) => onConfigChange('toolsEnabled', checked)}
+            size='sm'
+          />
+        </div>
+      </div>
     </div>
   )
 }
