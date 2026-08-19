@@ -68,7 +68,27 @@ func SetRelayRouter(router *gin.Engine) {
 	playgroundRouter.Use(middleware.SystemPerformanceCheck())
 	playgroundRouter.Use(middleware.UserAuth(), middleware.Distribute())
 	{
+		// chat 接口
 		playgroundRouter.POST("/chat/completions", controller.Playground)
+		playgroundRouter.POST("/responses", controller.Playground)
+		playgroundRouter.POST("/messages", controller.Playground)
+		playgroundRouter.POST("/responses/compact", controller.Playground)
+
+		// 图片接口
+		playgroundRouter.POST("/images/generations", controller.Playground)
+		playgroundRouter.POST("/images/edits", controller.Playground)
+
+		// 视频接口
+		playgroundRouter.POST("/videos/generations", controller.Playground)
+		playgroundRouter.POST("/videos/edits", controller.Playground)
+		playgroundRouter.POST("/videos/extensions", controller.Playground)
+
+		// 音频接口
+		playgroundRouter.POST("/audio/speech", controller.Playground)
+		playgroundRouter.POST("/audio/transcriptions", controller.Playground)
+
+		// Gemini 原生接口
+		playgroundRouter.POST("/v1beta/models/*path", controller.Playground)
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))
