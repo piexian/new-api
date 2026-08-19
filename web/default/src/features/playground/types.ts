@@ -23,6 +23,25 @@ export type MessageStatus = 'loading' | 'streaming' | 'complete' | 'error'
 
 export type PlaygroundMessageLayoutMode = 'alternating' | 'left'
 
+// Playground 模式
+export type PlaygroundMode = 'chat' | 'image' | 'video' | 'audio'
+
+// Chat 接口类型（多 chat 接口切换）
+export type ChatInterface =
+  | 'openai'
+  | 'openai-response'
+  | 'anthropic'
+  | 'gemini'
+
+// 图片接口类型
+export type ImageInterface = 'generations' | 'edits'
+
+// 视频接口类型
+export type VideoInterface = 'generations' | 'edits' | 'extensions'
+
+// 音频接口类型
+export type AudioInterface = 'speech' | 'transcriptions'
+
 export interface MessageVersion {
   id: string
   content: string
@@ -186,3 +205,87 @@ export const CHAT_CAPABLE_ENDPOINTS = new Set([
   'gemini',
   'cohere-chat',
 ])
+
+// 图片生成请求
+export interface ImageGenerationRequest {
+  model: string
+  group?: string
+  prompt: string
+  n?: number
+  size?: string
+  quality?: string
+  style?: string
+  response_format?: 'url' | 'b64_json'
+}
+
+// 图片编辑请求
+export interface ImageEditRequest {
+  model: string
+  group?: string
+  prompt: string
+  image: string | string[]
+  mask?: string
+  n?: number
+  size?: string
+  response_format?: 'url' | 'b64_json'
+}
+
+export interface ImageData {
+  url?: string
+  b64_json?: string
+  revised_prompt?: string
+}
+
+export interface ImageResponse {
+  created: number
+  data: ImageData[]
+}
+
+// 视频生成请求
+export interface VideoGenerationRequest {
+  model: string
+  group?: string
+  prompt: string
+  image?: string
+  size?: string
+  duration?: number
+  fps?: number
+}
+
+export interface VideoTask {
+  id: string
+  status: 'queued' | 'processing' | 'succeeded' | 'failed'
+  video?: { url: string; duration_seconds?: number }
+  error?: { code: string; message: string }
+}
+
+export interface VideoTaskResponse {
+  id: string
+  status: 'queued' | 'processing' | 'succeeded' | 'failed'
+  video?: { url: string; duration_seconds?: number }
+  error?: { code: string; message: string }
+}
+
+// 音频 TTS 请求
+export interface AudioSpeechRequest {
+  model: string
+  group?: string
+  input: string
+  voice?: string
+  response_format?: string
+  speed?: number
+}
+
+// 音频转写请求
+export interface AudioTranscriptionRequest {
+  model: string
+  group?: string
+  file: File
+  language?: string
+  prompt?: string
+  response_format?: string
+}
+
+export interface AudioTranscriptionResponse {
+  text: string
+}
