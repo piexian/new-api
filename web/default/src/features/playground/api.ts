@@ -23,6 +23,7 @@ import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
   ModelOption,
+  ModelsDevEntry,
   GroupOption,
 } from './types'
 
@@ -43,9 +44,14 @@ export async function sendChatCompletion(
 /**
  * Get user available models
  */
-export async function getUserModels(group: string): Promise<ModelOption[]> {
+/**
+ * Get user available models (with endpoint capabilities)
+ */
+export async function getUserModels(
+  group: string
+): Promise<ModelOption[]> {
   const res = await api.get(API_ENDPOINTS.USER_MODELS, {
-    params: { group },
+    params: { group, with_capabilities: 'true' },
   })
   const { data } = res
 
@@ -53,10 +59,27 @@ export async function getUserModels(group: string): Promise<ModelOption[]> {
     return []
   }
 
-  return data.data.map((model: string) => ({
-    label: model,
-    value: model,
-  }))
+  return (data.data as Array<{ id: string; supported_endpoint_types?: string[] }>).map(
+    (item) => ({
+      label: item.id,
+      value: item.id,
+      supportedEndpointTypes: item.supported_endpoint_types,
+    })
+  )
+}
+
+/**
+ * Get models.dev catalog (backend-proxied, cached)
+ */
+export async function getModelsDevCatalog(): Promise<Record<string, ModelsDevEntry>> {
+  const res = await api.get(API_ENDPOINTS.MODELS_DEV_CATALOG)
+  const { data } = res
+
+  if (!data.success || !data.data) {
+    return {}
+  }
+
+  return data.data as Record<string, ModelsDevEntry>
 }
 
 /**

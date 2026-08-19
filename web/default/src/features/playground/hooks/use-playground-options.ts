@@ -39,14 +39,15 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { getUserGroups, getUserModels } from '../api'
+import { getModelsDevCatalog, getUserGroups, getUserModels } from '../api'
 import {
   getGroupFallback,
   getModelFallback,
   getOptionLoadErrorMessage,
   shouldClearModelForGroup,
+  filterChatCapableModels,
 } from '../lib'
-import type { GroupOption, ModelOption, PlaygroundConfig } from '../types'
+import type { GroupOption, ModelOption, PlaygroundConfig, ModelsDevEntry } from '../types'
 
 type UsePlaygroundOptionsParams = {
   currentGroup: string
@@ -78,6 +79,20 @@ export function usePlaygroundOptions({
     queryFn: () => getUserModels(currentGroup),
     enabled: currentGroup !== '',
   })
+
+  // models.dev catalog 用于保底分类
+  const { data: catalogData } = useQuery({
+    queryKey: ['models-dev-catalog'],
+    queryFn: getModelsDevCatalog,
+    staleTime: 24 * 60 * 60 * 1000, // 24h
+  })
+
+  const catalog = catalogData as Record<string, ModelsDevEntry> | undefined
+
+  // 过滤后的模型列表（排除 embed/rerank 等非对话模型）
+  const filteredModels = modelsData
+    ? filterChatCapableModels(modelsData, catalog)
+    : []
 
   const {
     data: groupsData,
@@ -111,20 +126,20 @@ export function usePlaygroundOptions({
   }, [isGroupsError, groupsError, t])
 
   useEffect(() => {
-    if (!modelsData) return
+    if (!filteredModels.length && !isLoadingModels) return
 
-    setModels(modelsData)
-    const fallback = getModelFallback(modelsData, currentModel)
+    setModels(filteredModels)
+    const fallback = getModelFallback(filteredModels, currentModel)
 
     if (fallback) {
       updateConfig('model', fallback)
       return
     }
 
-    if (shouldClearModelForGroup(modelsData, currentModel)) {
+    if (shouldClearModelForGroup(filteredModels, currentModel)) {
       updateConfig('model', '')
     }
-  }, [modelsData, currentModel, setModels, updateConfig])
+  }, [filteredModels, currentModel, setModels, updateConfig, isLoadingModels])
 
   useEffect(() => {
     if (!groupsData) return

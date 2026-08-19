@@ -820,6 +820,14 @@ func GetUserModels(c *gin.Context) {
 			})
 			return
 		}
+		if c.Query("with_capabilities") == "true" {
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "",
+				"data":    buildUserModelsWithCapabilities(model.GetGroupEnabledModels(group)),
+			})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",
@@ -828,12 +836,38 @@ func GetUserModels(c *gin.Context) {
 		return
 	}
 	models := buildUserModelsResponse(user.Group)
+	if c.Query("with_capabilities") == "true" {
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+			"data":    buildUserModelsWithCapabilities(models),
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data":    models,
 	})
 	return
+}
+
+// UserModelWithCapabilities 用户模型条目（含能力分类）
+type UserModelWithCapabilities struct {
+	Id                     string                  `json:"id"`
+	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
+}
+
+// buildUserModelsWithCapabilities 为模型名列表附加 supported_endpoint_types
+func buildUserModelsWithCapabilities(modelNames []string) []UserModelWithCapabilities {
+	result := make([]UserModelWithCapabilities, 0, len(modelNames))
+	for _, name := range modelNames {
+		result = append(result, UserModelWithCapabilities{
+			Id:                     name,
+			SupportedEndpointTypes: model.GetModelSupportEndpointTypes(name),
+		})
+	}
+	return result
 }
 
 func AdminGetUserModels(c *gin.Context) {

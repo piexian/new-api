@@ -141,6 +141,9 @@ export interface ParameterEnabled {
 export interface ModelOption {
   label: string
   value: string
+  supportedEndpointTypes?: string[]
+  reasoning?: boolean
+  toolCall?: boolean
 }
 
 export interface GroupOption {
@@ -149,3 +152,24 @@ export interface GroupOption {
   ratio: number
   desc?: string
 }
+
+// models.dev catalog entry (保底分类)
+export interface ModelsDevEntry {
+  id: string
+  name?: string
+  family?: string
+  reasoning: boolean
+  reasoning_options?: { type: string; values?: string[] }[]
+  tool_call: boolean
+  attachment: boolean
+  modalities: { input: string[]; output: string[] }
+}
+
+// 对话类 endpoint types（非 embed/rerank/audio-only 等）
+export const CHAT_CAPABLE_ENDPOINTS = new Set([
+  'openai',
+  'openai-response',
+  'anthropic',
+  'gemini',
+  'cohere-chat',
+])
