@@ -6324,7 +6324,15 @@
     "Tiny Max Shape Count": "Tiny Max Shape Count",
     "Slow Scan Detection": "Slow Scan Detection",
     "Slow Scan Window (seconds)": "Slow Scan Window (seconds)",
-    "Slow Scan Model Count": "Slow Scan Model Count"
+    "Slow Scan Model Count": "Slow Scan Model Count",
+    "Scan Excluded Token Groups": "Scan Excluded Token Groups",
+    "Tiny Excluded Token Groups": "Tiny Excluded Token Groups",
+    "Slow Scan Excluded Token Groups": "Slow Scan Excluded Token Groups",
+    "Excluded Token Groups": "Excluded Token Groups",
+    "Select token groups to exclude...": "Select token groups to exclude...",
+    "Requests from tokens in these groups are not counted by this rule": "Requests from tokens in these groups are not counted by this rule",
+    "Probe Guard (Slow Scan)": "Probe Guard (Slow Scan)",
+    "Probe Guard (Tiny Request)": "Probe Guard (Tiny Request)"
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

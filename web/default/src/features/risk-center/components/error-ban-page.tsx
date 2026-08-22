@@ -72,6 +72,7 @@ function cloneRule(rule: ErrorBanRule): ErrorBanRule {
     ...rule,
     keywords: [...rule.keywords],
     error_codes: [...rule.error_codes],
+    excluded_token_groups: [...rule.excluded_token_groups],
     tiers: rule.tiers.map((tier) => ({ ...tier })),
   }
 }
@@ -179,6 +180,7 @@ export function ErrorBanPage() {
       dimension: '',
       threshold: 5,
       reason_template: '',
+      excluded_token_groups: [],
       tiers: [
         {
           offense_count: 1,
@@ -684,6 +686,24 @@ export function ErrorBanPage() {
                       placeholder='*'
                     />
                   </div>
+                </div>
+                <div className='space-y-2'>
+                  <Label>{t('Excluded Token Groups')}</Label>
+                  <RiskWhitelistGroupsField
+                    selected={ruleDraft.excluded_token_groups}
+                    onChange={(groups) =>
+                      setRuleDraft({
+                        ...ruleDraft,
+                        excluded_token_groups: groups,
+                      })
+                    }
+                    placeholder={t('Select token groups to exclude...')}
+                  />
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'Requests from tokens in these groups are not counted by this rule'
+                    )}
+                  </p>
                 </div>
                 <div className='space-y-2'>
                   <Label>{t('Reason Template')}</Label>

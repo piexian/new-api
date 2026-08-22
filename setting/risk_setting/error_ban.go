@@ -41,6 +41,8 @@ type ErrorBanRule struct {
 	Threshold      int            `json:"threshold"`
 	ReasonTemplate string         `json:"reason_template"`
 	Tiers          []ErrorBanTier `json:"tiers"`
+	// 来自这些令牌分组的请求不计入本规则（与用户分组白名单相互独立）。
+	ExcludedTokenGroups []string `json:"excluded_token_groups"`
 }
 
 // ErrorBanTier 按违规次数匹配的阶梯处罚。
@@ -105,6 +107,7 @@ func GetErrorBanSetting() ErrorBanSetting {
 		snapshot.Rules[i].Keywords = append([]string{}, rule.Keywords...)
 		snapshot.Rules[i].ErrorCodes = append([]string{}, rule.ErrorCodes...)
 		snapshot.Rules[i].Tiers = append([]ErrorBanTier{}, rule.Tiers...)
+		snapshot.Rules[i].ExcludedTokenGroups = append([]string{}, rule.ExcludedTokenGroups...)
 	}
 	snapshot.Tiers = append([]ErrorBanTier{}, errorBanSetting.Tiers...)
 	snapshot.Normalize()
@@ -137,6 +140,7 @@ func (s *ErrorBanSetting) Normalize() {
 		rule.Threshold = clampInt(rule.Threshold, 1, 100000, 5)
 		rule.Keywords = normalizeStringList(rule.Keywords)
 		rule.ErrorCodes = normalizeStringList(rule.ErrorCodes)
+		rule.ExcludedTokenGroups = normalizeStringList(rule.ExcludedTokenGroups)
 		if len(rule.Keywords) > MaxErrorBanMatchersPerRule {
 			rule.Keywords = rule.Keywords[:MaxErrorBanMatchersPerRule]
 		}
@@ -203,6 +207,11 @@ func (s *ErrorBanSetting) ResolveDimension(ruleDimension string) string {
 		return ruleDimension
 	}
 	return s.DefaultDimension
+}
+
+// IsTokenGroupExcluded 判断本规则是否排除该令牌分组；令牌分组为空时不排除。
+func (r *ErrorBanRule) IsTokenGroupExcluded(tokenGroup string) bool {
+	return stringListContains(r.ExcludedTokenGroups, tokenGroup)
 }
 
 // MatchTier 返回不超过 offenseCount 的最高阶梯。

@@ -75,6 +75,7 @@ const normalizeRule = (rule, legacyTiers) => ({
   keywords: rule.keywords || [],
   error_codes: rule.error_codes || [],
   count_retries: rule.count_retries ?? false,
+  excluded_token_groups: rule.excluded_token_groups || [],
   tiers:
     rule.tiers && rule.tiers.length
       ? rule.tiers
@@ -187,6 +188,7 @@ const ErrorBanTab = () => {
       dimension: '',
       threshold: 3,
       reason_template: '',
+      excluded_token_groups: [],
       tiers: [createDefaultTier()],
     });
     setRuleVisible(true);
@@ -501,6 +503,18 @@ const ErrorBanTab = () => {
                 />
               </ControlField>
             </div>
+            <ControlField label={t('排除的令牌分组')}>
+              <RiskWhitelistGroupsField
+                selectedGroups={ruleDraft.excluded_token_groups || []}
+                placeholder={t('请选择要排除的令牌分组')}
+                onChange={(excluded_token_groups) =>
+                  setRuleDraft({ ...ruleDraft, excluded_token_groups })
+                }
+              />
+              <Text type='secondary' size='small'>
+                {t('来自这些分组令牌的请求不计入本规则')}
+              </Text>
+            </ControlField>
             <ControlField label={t('封禁原因模板')}>
               <Input
                 value={ruleDraft.reason_template || ''}

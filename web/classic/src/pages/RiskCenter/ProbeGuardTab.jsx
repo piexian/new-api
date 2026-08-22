@@ -57,6 +57,9 @@ const defaultConfig = {
   slow_scan_enabled: false,
   slow_scan_window_seconds: 3600,
   slow_scan_distinct_model_count: 20,
+  scan_excluded_token_groups: [],
+  slow_scan_excluded_token_groups: [],
+  tiny_excluded_token_groups: [],
 };
 
 const ProbeGuardTab = () => {
@@ -78,6 +81,10 @@ const ProbeGuardTab = () => {
       slow_scan_enabled: data.slow_scan_enabled ?? false,
       slow_scan_window_seconds: data.slow_scan_window_seconds ?? 3600,
       slow_scan_distinct_model_count: data.slow_scan_distinct_model_count ?? 20,
+      scan_excluded_token_groups: data.scan_excluded_token_groups ?? [],
+      slow_scan_excluded_token_groups:
+        data.slow_scan_excluded_token_groups ?? [],
+      tiny_excluded_token_groups: data.tiny_excluded_token_groups ?? [],
     };
   }, []);
 
@@ -187,6 +194,12 @@ const ProbeGuardTab = () => {
             max={3600}
             step={1}
           />
+          <RiskWhitelistGroupsField
+            field='scan_excluded_token_groups'
+            label={t('扫描规则排除的令牌分组')}
+            placeholder={t('请选择要排除的令牌分组')}
+            selectedGroups={config.scan_excluded_token_groups}
+          />
           <Form.Switch
             field='tiny_request_enabled'
             label={t('重复小请求检测')}
@@ -212,6 +225,12 @@ const ProbeGuardTab = () => {
             max={50}
             step={1}
           />
+          <RiskWhitelistGroupsField
+            field='tiny_excluded_token_groups'
+            label={t('小请求排除的令牌分组')}
+            placeholder={t('请选择要排除的令牌分组')}
+            selectedGroups={config.tiny_excluded_token_groups}
+          />
           <Form.Switch field='slow_scan_enabled' label={t('低速扫描检测')} />
           <Form.InputNumber
             field='slow_scan_window_seconds'
@@ -226,6 +245,12 @@ const ProbeGuardTab = () => {
             min={2}
             max={500}
             step={1}
+          />
+          <RiskWhitelistGroupsField
+            field='slow_scan_excluded_token_groups'
+            label={t('低速扫描排除的令牌分组')}
+            placeholder={t('请选择要排除的令牌分组')}
+            selectedGroups={config.slow_scan_excluded_token_groups}
           />
           <Form.Input
             field='whitelist_user_ids'

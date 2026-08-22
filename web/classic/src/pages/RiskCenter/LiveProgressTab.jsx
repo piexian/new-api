@@ -87,6 +87,16 @@ const LiveProgressTab = () => {
       : selectedRule.dimension
     : '';
 
+  // 系统规则名按 rule_id 加后缀，区分 probe guard 的三条内置规则。
+  const getRuleNameLabel = (rule) => {
+    if (!rule.system) return rule.rule_name || rule.rule_id;
+    if (rule.rule_id === 'probe_guard_slow')
+      return t('Probe Guard（低速扫描）');
+    if (rule.rule_id === 'probe_guard_tiny')
+      return t('Probe Guard（重复小请求）');
+    return t('Probe Guard');
+  };
+
   const fetchRules = useCallback(async () => {
     setRulesLoading(true);
     try {
@@ -203,9 +213,7 @@ const LiveProgressTab = () => {
         key: 'rule',
         render: (_, rule) => (
           <Space spacing='tight' wrap>
-            <Text strong>
-              {rule.system ? t('Probe Guard') : rule.rule_name || rule.rule_id}
-            </Text>
+            <Text strong>{getRuleNameLabel(rule)}</Text>
             {rule.system && <Tag color='blue'>{t('System Rule')}</Tag>}
             {rule.dry_run && <Tag>{t('Dry Run')}</Tag>}
           </Space>
@@ -258,9 +266,7 @@ const LiveProgressTab = () => {
               loading={togglingKey === key}
               disabled={Boolean(togglingKey)}
               aria-label={t('Toggle rule {{name}}', {
-                name: rule.system
-                  ? t('Probe Guard')
-                  : rule.rule_name || rule.rule_id,
+                name: getRuleNameLabel(rule),
               })}
               onChange={(enabled) => toggleRule(rule, enabled)}
             />
@@ -411,11 +417,7 @@ const LiveProgressTab = () => {
         <Card>
           <div className='mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between'>
             <div>
-              <Title heading={5}>
-                {selectedRule.system
-                  ? t('Probe Guard')
-                  : selectedRule.rule_name || selectedRule.rule_id}
-              </Title>
+              <Title heading={5}>{getRuleNameLabel(selectedRule)}</Title>
               <Text type='secondary'>
                 {t('Window {{window}}s / Threshold {{threshold}}', {
                   window: selectedRule.window_seconds,

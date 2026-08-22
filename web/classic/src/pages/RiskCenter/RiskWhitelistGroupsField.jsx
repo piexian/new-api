@@ -17,11 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import React, { useEffect, useMemo, useState } from 'react';
-import { Form } from '@douyinfe/semi-ui';
+import { Form, Select } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { API, showError } from '../../helpers';
 
-const RiskWhitelistGroupsField = ({ selectedGroups = [] }) => {
+// 传入 onChange 时渲染受控 Select，用于非 Form 绑定场景（如规则编辑对话框）。
+const RiskWhitelistGroupsField = ({
+  selectedGroups = [],
+  field = 'whitelist_groups',
+  label,
+  placeholder,
+  onChange,
+}) => {
   const { t } = useTranslation();
   const [groups, setGroups] = useState([]);
 
@@ -48,11 +55,25 @@ const RiskWhitelistGroupsField = ({ selectedGroups = [] }) => {
     return Array.from(values).map((group) => ({ label: group, value: group }));
   }, [groups, selectedGroups]);
 
+  const resolvedPlaceholder = placeholder ?? t('请选择白名单分组');
+  if (onChange) {
+    return (
+      <Select
+        value={selectedGroups}
+        onChange={onChange}
+        optionList={optionList}
+        multiple
+        filter
+        placeholder={resolvedPlaceholder}
+        style={{ width: '100%' }}
+      />
+    );
+  }
   return (
     <Form.Select
-      field='whitelist_groups'
-      label={t('白名单分组')}
-      placeholder={t('请选择白名单分组')}
+      field={field}
+      label={label ?? t('白名单分组')}
+      placeholder={resolvedPlaceholder}
       optionList={optionList}
       multiple
       filter

@@ -6324,7 +6324,15 @@
     "Tiny Max Shape Count": "Số dạng tối đa (yêu cầu nhỏ)",
     "Slow Scan Detection": "Phát hiện quét chậm",
     "Slow Scan Window (seconds)": "Cửa sổ quét chậm (giây)",
-    "Slow Scan Model Count": "Ngưỡng số model (quét chậm)"
+    "Slow Scan Model Count": "Ngưỡng số model (quét chậm)",
+    "Scan Excluded Token Groups": "Nhóm token loại trừ (quét)",
+    "Tiny Excluded Token Groups": "Nhóm token loại trừ (yêu cầu nhỏ)",
+    "Slow Scan Excluded Token Groups": "Nhóm token loại trừ (quét chậm)",
+    "Excluded Token Groups": "Nhóm token loại trừ",
+    "Select token groups to exclude...": "Chọn nhóm token cần loại trừ...",
+    "Requests from tokens in these groups are not counted by this rule": "Yêu cầu từ token thuộc các nhóm này không được tính vào quy tắc này",
+    "Probe Guard (Slow Scan)": "Probe Guard (quét chậm)",
+    "Probe Guard (Tiny Request)": "Probe Guard (yêu cầu nhỏ)"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

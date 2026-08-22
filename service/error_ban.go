@@ -29,6 +29,7 @@ type ErrorBanSnapshot struct {
 	StatusCode   int
 	RequestId    string
 	Group        string
+	TokenGroup   string
 	RetryFailure bool
 }
 
@@ -61,6 +62,7 @@ func CheckErrorBan(c *gin.Context, relayInfo *relaycommon.RelayInfo, finalErr *t
 		StatusCode:   finalErr.StatusCode,
 		RequestId:    c.GetString(common.RequestIdKey),
 		Group:        riskRequestGroup(relayInfo),
+		TokenGroup:   strings.TrimSpace(relayInfo.TokenGroup),
 		RetryFailure: retryFailure,
 	}
 	gopool.Go(func() {
@@ -115,6 +117,9 @@ func processErrorBan(snap ErrorBanSnapshot) {
 
 func shouldProcessErrorBanRule(snap ErrorBanSnapshot, rule risk_setting.CompiledRule) bool {
 	if snap.RetryFailure && !rule.Rule.CountRetries {
+		return false
+	}
+	if rule.Rule.IsTokenGroupExcluded(snap.TokenGroup) {
 		return false
 	}
 	return rule.Matches(snap.ErrorText, snap.ErrorCode)

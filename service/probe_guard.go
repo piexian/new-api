@@ -67,9 +67,9 @@ func probeTierAction(isPermanent bool) string {
 
 // 探测规则标识，用于区分触发来源、窗口 key 与处罚文案。
 const (
-	probeRuleScan = "scan" // 短窗口批量模型扫描（原有规则）
-	probeRuleSlow = "slow" // 长窗口低速扫描，捕捉刻意压低速率的扫模型行为
-	probeRuleTiny = "tiny" // 恒定小请求测活，同一形状（模型|UA|输入token数）的高频重复
+	probeRuleScan = risk_setting.ProbeRuleScan // 短窗口批量模型扫描（原有规则）
+	probeRuleSlow = risk_setting.ProbeRuleSlow // 长窗口低速扫描，捕捉刻意压低速率的扫模型行为
+	probeRuleTiny = risk_setting.ProbeRuleTiny // 恒定小请求测活，同一形状（模型|UA|输入token数）的高频重复
 )
 
 // probeGuardReason 按规则生成封禁原因文案。
@@ -161,9 +161,25 @@ type probeGuardWindow struct {
 	windowSeconds int
 }
 
+// probeGuardTinyApplies 限定 tiny 规则只覆盖对话类接口：
+// embedding、语音、图像等接口天然是“小输入 + 高重复”，纳入计数会误伤正常批量业务。
+func probeGuardTinyApplies(format types.RelayFormat, path string) bool {
+	switch format {
+	case types.RelayFormatOpenAI, types.RelayFormatClaude, types.RelayFormatOpenAIResponses,
+		types.RelayFormatOpenAIResponsesCompaction, types.RelayFormatXAI, types.RelayFormatMiniMax:
+		return true
+	case types.RelayFormatGemini:
+		// gemini 的 chat 与 embed 共用一个 format，按路径区分（与 geminiRelayHandler 一致）
+		return !strings.Contains(path, "embed")
+	default:
+		return false
+	}
+}
+
 // buildProbeGuardWindows 按启用的规则与封禁维度构造滑动窗口。
 // scan 规则沿用既有 key，保证升级后窗口与违规计数连续。
-func buildProbeGuardWindows(setting risk_setting.ProbeGuardSetting, clientIP string, estTokens int, userBase *model.UserBase) []probeGuardWindow {
+// tokenGroup 用于按单条规则排除的令牌分组：被排除分组的请求不为该规则建窗口。
+func buildProbeGuardWindows(setting risk_setting.ProbeGuardSetting, clientIP, tokenGroup string, estTokens int, tinyApplies bool, userBase *model.UserBase) []probeGuardWindow {
 	targets := make([]probeGuardWindow, 0, 2)
 	if setting.BansIP() {
 		targets = append(targets, probeGuardWindow{dimension: model.RiskBanDimensionIP, target: clientIP})
@@ -181,15 +197,17 @@ func buildProbeGuardWindows(setting risk_setting.ProbeGuardSetting, clientIP str
 
 	windows := make([]probeGuardWindow, 0, len(targets)*3)
 	for _, target := range targets {
-		scan := target
-		scan.rule = probeRuleScan
-		scan.threshold = setting.DistinctModelCount
-		scan.windowSeconds = setting.WindowSeconds
-		scan.windowKey = key("probe_guard", scan)
-		scan.cooldownKey = key("probe_guard:cooldown", scan)
-		windows = append(windows, scan)
+		if !setting.IsTokenGroupExcludedForRule(probeRuleScan, tokenGroup) {
+			scan := target
+			scan.rule = probeRuleScan
+			scan.threshold = setting.DistinctModelCount
+			scan.windowSeconds = setting.WindowSeconds
+			scan.windowKey = key("probe_guard", scan)
+			scan.cooldownKey = key("probe_guard:cooldown", scan)
+			windows = append(windows, scan)
+		}
 
-		if setting.SlowScanEnabled {
+		if setting.SlowScanEnabled && !setting.IsTokenGroupExcludedForRule(probeRuleSlow, tokenGroup) {
 			slow := target
 			slow.rule = probeRuleSlow
 			slow.threshold = setting.SlowScanDistinctModelCount
@@ -199,7 +217,7 @@ func buildProbeGuardWindows(setting risk_setting.ProbeGuardSetting, clientIP str
 			windows = append(windows, slow)
 		}
 
-		if setting.TinyRequestEnabled && estTokens > 0 && estTokens <= setting.TinyMaxPromptTokens {
+		if setting.TinyRequestEnabled && tinyApplies && !setting.IsTokenGroupExcludedForRule(probeRuleTiny, tokenGroup) && estTokens > 0 && estTokens <= setting.TinyMaxPromptTokens {
 			tiny := target
 			tiny.rule = probeRuleTiny
 			tiny.threshold = setting.TinyRepeatCount
@@ -235,8 +253,8 @@ func probeRuleLiveName(rule string) string {
 	}
 }
 
-func observeProbeGuardWindows(setting risk_setting.ProbeGuardSetting, clientIP, userAgent, modelName string, estTokens int, userBase *model.UserBase) []probeGuardWindow {
-	windows := buildProbeGuardWindows(setting, clientIP, estTokens, userBase)
+func observeProbeGuardWindows(setting risk_setting.ProbeGuardSetting, clientIP, userAgent, modelName, tokenGroup string, estTokens int, tinyApplies bool, userBase *model.UserBase) []probeGuardWindow {
+	windows := buildProbeGuardWindows(setting, clientIP, tokenGroup, estTokens, tinyApplies, userBase)
 
 	triggered := make([]probeGuardWindow, 0, len(windows))
 	for i := range windows {
@@ -319,7 +337,9 @@ func CheckProbeGuard(c *gin.Context, relayInfo *relaycommon.RelayInfo) *types.Ne
 
 	userAgent := strings.TrimSpace(c.Request.UserAgent())
 	estTokens := relayInfo.GetEstimatePromptTokens()
-	triggered := observeProbeGuardWindows(setting, clientIP, userAgent, modelName, estTokens, userBase)
+	tinyApplies := probeGuardTinyApplies(relayInfo.RelayFormat, c.Request.URL.Path)
+	tokenGroup := strings.TrimSpace(relayInfo.TokenGroup)
+	triggered := observeProbeGuardWindows(setting, clientIP, userAgent, modelName, tokenGroup, estTokens, tinyApplies, userBase)
 	if len(triggered) == 0 {
 		return nil
 	}

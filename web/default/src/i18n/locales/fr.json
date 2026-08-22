@@ -6324,7 +6324,15 @@
     "Tiny Max Shape Count": "Nombre max de formes (micro-requête)",
     "Slow Scan Detection": "Détection de scan lent",
     "Slow Scan Window (seconds)": "Fenêtre de scan lent (secondes)",
-    "Slow Scan Model Count": "Seuil de modèles (scan lent)"
+    "Slow Scan Model Count": "Seuil de modèles (scan lent)",
+    "Scan Excluded Token Groups": "Groupes de jetons exclus du balayage",
+    "Tiny Excluded Token Groups": "Groupes de jetons exclus (petites requêtes)",
+    "Slow Scan Excluded Token Groups": "Groupes de jetons exclus du balayage lent",
+    "Excluded Token Groups": "Groupes de jetons exclus",
+    "Select token groups to exclude...": "Sélectionner les groupes de jetons à exclure...",
+    "Requests from tokens in these groups are not counted by this rule": "Les requêtes des jetons de ces groupes ne sont pas comptabilisées par cette règle",
+    "Probe Guard (Slow Scan)": "Probe Guard (balayage lent)",
+    "Probe Guard (Tiny Request)": "Probe Guard (petites requêtes)"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

@@ -140,6 +140,18 @@ export function LiveProgressPage() {
     return t('User')
   }
 
+  // 系统规则名按 rule_id 加后缀，区分 probe guard 的三条内置规则。
+  const getRuleNameLabel = (rule: RiskLiveRuleSummary) => {
+    if (!rule.system) return rule.rule_name || rule.rule_id
+    if (rule.rule_id === 'probe_guard_slow') {
+      return t('Probe Guard (Slow Scan)')
+    }
+    if (rule.rule_id === 'probe_guard_tiny') {
+      return t('Probe Guard (Tiny Request)')
+    }
+    return t('Probe Guard')
+  }
+
   const getStatusLabel = (status: RiskLiveTarget['status']) => {
     if (status === 'threshold_reached') return t('Threshold reached')
     if (status === 'near_threshold') return t('Near threshold')
@@ -306,9 +318,7 @@ export function LiveProgressPage() {
                       <TableCell>
                         <div className='flex min-w-48 items-center gap-2'>
                           <span className='truncate font-medium'>
-                            {rule.system
-                              ? t('Probe Guard')
-                              : rule.rule_name || rule.rule_id}
+                            {getRuleNameLabel(rule)}
                           </span>
                           {rule.system && (
                             <Badge variant='secondary'>
@@ -345,9 +355,7 @@ export function LiveProgressPage() {
                           checked={rule.enabled}
                           disabled={toggleMutation.isPending}
                           aria-label={t('Toggle rule {{name}}', {
-                            name: rule.system
-                              ? t('Probe Guard')
-                              : rule.rule_name || rule.rule_id,
+                            name: getRuleNameLabel(rule),
                           })}
                           onCheckedChange={(enabled) =>
                             toggleMutation.mutate({
@@ -394,9 +402,7 @@ export function LiveProgressPage() {
               <div className='flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between'>
                 <div>
                   <h2 className='text-lg font-semibold'>
-                    {selectedRule.system
-                      ? t('Probe Guard')
-                      : selectedRule.rule_name || selectedRule.rule_id}
+                    {getRuleNameLabel(selectedRule)}
                   </h2>
                   <p className='text-muted-foreground text-sm'>
                     {t('Window {{window}}s / Threshold {{threshold}}', {

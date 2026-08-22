@@ -1021,7 +1021,7 @@ func TestProbeGuardTinyRequestTrigger(t *testing.T) {
 
 	ip := "198.51.100.140"
 	newTinyInfo := func() *relaycommon.RelayInfo {
-		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: "tiny-model"}
+		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: "tiny-model", RelayFormat: types.RelayFormatOpenAI}
 		info.SetEstimatePromptTokens(87)
 		return info
 	}
@@ -1073,7 +1073,7 @@ func TestProbeGuardTinyRequestShapeDiversitySkips(t *testing.T) {
 	ip := "198.51.100.141"
 	// 3 个不同形状（不同模型）的小请求：总数达阈值但形状数超限，不触发。
 	for i := range 3 {
-		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: fmt.Sprintf("diverse-model-%d", i)}
+		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: fmt.Sprintf("diverse-model-%d", i), RelayFormat: types.RelayFormatOpenAI}
 		info.SetEstimatePromptTokens(50)
 		require.Nil(t, CheckProbeGuard(newRiskTestContext(t, ip), info), "diverse shape %d should not trigger", i)
 	}
@@ -1107,7 +1107,7 @@ func TestProbeGuardTinyRequestLargePromptNotCounted(t *testing.T) {
 
 	ip := "198.51.100.142"
 	for i := range 5 {
-		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: "large-model"}
+		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: "large-model", RelayFormat: types.RelayFormatOpenAI}
 		info.SetEstimatePromptTokens(500) // 超过 tiny_max_prompt_tokens
 		require.Nil(t, CheckProbeGuard(newRiskTestContext(t, ip), info), "large prompt %d should not trigger", i)
 	}
@@ -1116,6 +1116,43 @@ func TestProbeGuardTinyRequestLargePromptNotCounted(t *testing.T) {
 
 	_, total := GetRiskLiveTargets(RiskLiveSourceProbeGuard, RiskLiveProbeGuardTinyRuleID, risk_setting.DimensionIP, ip, 0, 10)
 	require.Zero(t, total, "超限请求不应创建 tiny 规则的实时窗口")
+}
+
+// TestProbeGuardTinyRequestEmbeddingNotCounted 验证 tiny 规则只覆盖对话类接口：embedding 请求不计数。
+func TestProbeGuardTinyRequestEmbeddingNotCounted(t *testing.T) {
+	setupRiskModels(t)
+	setProbeGuardConfig(t, map[string]string{
+		"enabled":                "true",
+		"dry_run":                "false",
+		"window_seconds":         "60",
+		"distinct_model_count":   "10",
+		"offense_dedupe_seconds": "60",
+		"ban_dimension":          "ip",
+		"notify_user_enabled":    "false",
+		"notify_admin_enabled":   "false",
+		"tiny_request_enabled":   "true",
+		"tiny_max_prompt_tokens": "200",
+		"tiny_repeat_count":      "3",
+		"tiny_max_shape_count":   "3",
+	})
+
+	userID := 95015
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: userID, Username: "probe_tiny_embed", AffCode: "PROBETINYE", Role: common.RoleCommonUser, Status: common.UserStatusEnabled,
+	}).Error)
+	t.Cleanup(func() { model.DB.Unscoped().Delete(&model.User{}, userID) })
+
+	ip := "198.51.100.144"
+	for i := range 5 {
+		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: "text-embedding-3-small", RelayFormat: types.RelayFormatEmbedding}
+		info.SetEstimatePromptTokens(20)
+		require.Nil(t, CheckProbeGuard(newRiskTestContext(t, ip), info), "embedding request %d should not trigger", i)
+	}
+	_, err := model.GetIPBanByTarget(ip)
+	require.Error(t, err)
+
+	_, total := GetRiskLiveTargets(RiskLiveSourceProbeGuard, RiskLiveProbeGuardTinyRuleID, risk_setting.DimensionIP, ip, 0, 10)
+	require.Zero(t, total, "embedding 请求不应创建 tiny 规则的实时窗口")
 }
 
 // TestProbeGuardSlowScanTrigger 验证规则B：长窗口内不同模型数达到阈值后触发低速扫描封禁。
@@ -1198,4 +1235,149 @@ func TestProbeGuardNormalizeNewRules(t *testing.T) {
 	require.Equal(t, 3, setting.TinyMaxShapeCount) // v<=0 回退默认值
 	require.Equal(t, 60, setting.SlowScanWindowSeconds)
 	require.Equal(t, 500, setting.SlowScanDistinctModelCount)
+}
+
+// TestProbeGuardScanTokenGroupExclusion 验证 scan 规则排除指定令牌分组：被排除分组的请求不建窗口、不计数。
+func TestProbeGuardScanTokenGroupExclusion(t *testing.T) {
+	setupRiskModels(t)
+	setProbeGuardConfig(t, map[string]string{
+		"enabled":                         "true",
+		"dry_run":                         "false",
+		"window_seconds":                  "60",
+		"distinct_model_count":            "3",
+		"first_ip_ban_minutes":            "10",
+		"second_ip_ban_minutes":           "60",
+		"permanent_offense_count":         "3",
+		"offense_dedupe_seconds":          "60",
+		"ban_dimension":                   "ip",
+		"notify_user_enabled":             "false",
+		"notify_admin_enabled":            "false",
+		"scan_excluded_token_groups":      `["vip-scan"]`,
+		"tiny_excluded_token_groups":      `["vip-tiny"]`,
+		"slow_scan_excluded_token_groups": `["vip-slow"]`,
+	})
+
+	userID := 95016
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: userID, Username: "probe_excl_scan", AffCode: "PROBEEXCLS", Role: common.RoleCommonUser, Status: common.UserStatusEnabled,
+	}).Error)
+	t.Cleanup(func() { model.DB.Unscoped().Delete(&model.User{}, userID) })
+
+	ip := "198.51.100.150"
+	// 被排除的令牌分组发送 2 个不同模型：不建窗口、不触发。
+	for i := range 2 {
+		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: fmt.Sprintf("excl-model-%d", i), TokenGroup: "vip-scan"}
+		require.Nil(t, CheckProbeGuard(newRiskTestContext(t, ip), info), "excluded request %d should not trigger", i)
+	}
+	_, err := model.GetIPBanByTarget(ip)
+	require.Error(t, err)
+	_, total := GetRiskLiveTargets(RiskLiveSourceProbeGuard, RiskLiveProbeGuardRuleID, risk_setting.DimensionIP, ip, 0, 10)
+	require.Zero(t, total, "被排除令牌分组的请求不应创建 scan 规则的实时窗口")
+
+	// 未排除的请求（无令牌分组）从同一 IP 正常计数：前 2 个不触发，第 3 个触发。
+	// 若排除失效，前两个 excl-model 已使计数达到 2，第一个普通请求即触发。
+	for i := range 2 {
+		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: fmt.Sprintf("plain-model-%d", i)}
+		require.Nil(t, CheckProbeGuard(newRiskTestContext(t, ip), info), "plain request %d should not trigger", i)
+	}
+	apiErr := CheckProbeGuard(newRiskTestContext(t, ip), &relaycommon.RelayInfo{UserId: userID, OriginModelName: "plain-model-2"})
+	require.NotNil(t, apiErr)
+	require.Equal(t, types.ErrorCodeBulkProbeDetected, apiErr.GetErrorCode())
+	_, err = model.GetIPBanByTarget(ip)
+	require.NoError(t, err)
+}
+
+// TestProbeGuardTinyTokenGroupExclusion 验证 tiny 规则排除指定令牌分组。
+func TestProbeGuardTinyTokenGroupExclusion(t *testing.T) {
+	setupRiskModels(t)
+	setProbeGuardConfig(t, map[string]string{
+		"enabled":                    "true",
+		"dry_run":                    "false",
+		"window_seconds":             "60",
+		"distinct_model_count":       "10", // scan 规则阈值拉高，隔离 tiny 规则
+		"offense_dedupe_seconds":     "60",
+		"ban_dimension":              "ip",
+		"notify_user_enabled":        "false",
+		"notify_admin_enabled":       "false",
+		"tiny_request_enabled":       "true",
+		"tiny_max_prompt_tokens":     "200",
+		"tiny_repeat_count":          "3",
+		"tiny_max_shape_count":       "3",
+		"tiny_excluded_token_groups": `["vip-tiny"]`,
+	})
+
+	userID := 95017
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: userID, Username: "probe_excl_tiny", AffCode: "PROBEEXCLT", Role: common.RoleCommonUser, Status: common.UserStatusEnabled,
+	}).Error)
+	t.Cleanup(func() { model.DB.Unscoped().Delete(&model.User{}, userID) })
+
+	newTinyInfo := func(tokenGroup string) *relaycommon.RelayInfo {
+		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: "tiny-excl-model", TokenGroup: tokenGroup, RelayFormat: types.RelayFormatOpenAI}
+		info.SetEstimatePromptTokens(60)
+		return info
+	}
+
+	ip := "198.51.100.151"
+	// 被排除分组发送 4 次相同形状小请求：不触发、不建窗口。
+	for i := range 4 {
+		require.Nil(t, CheckProbeGuard(newRiskTestContext(t, ip), newTinyInfo("vip-tiny")), "excluded tiny %d should not trigger", i)
+	}
+	_, err := model.GetIPBanByTarget(ip)
+	require.Error(t, err)
+	_, total := GetRiskLiveTargets(RiskLiveSourceProbeGuard, RiskLiveProbeGuardTinyRuleID, risk_setting.DimensionIP, ip, 0, 10)
+	require.Zero(t, total, "被排除令牌分组的请求不应创建 tiny 规则的实时窗口")
+
+	// 未排除分组正常计数：第 3 次触发。
+	for i := range 2 {
+		require.Nil(t, CheckProbeGuard(newRiskTestContext(t, ip), newTinyInfo("internal")), "counted tiny %d should not trigger", i)
+	}
+	apiErr := CheckProbeGuard(newRiskTestContext(t, ip), newTinyInfo("internal"))
+	require.NotNil(t, apiErr)
+	require.Equal(t, types.ErrorCodeBulkProbeDetected, apiErr.GetErrorCode())
+	_, err = model.GetIPBanByTarget(ip)
+	require.NoError(t, err)
+}
+
+// TestErrorBanRuleTokenGroupExclusion 验证 error_ban 单条规则排除指定令牌分组。
+func TestErrorBanRuleTokenGroupExclusion(t *testing.T) {
+	setupRiskModels(t)
+	setErrorBanConfig(t, map[string]string{
+		"enabled":              "true",
+		"dry_run":              "false",
+		"window_seconds":       "300",
+		"default_dimension":    "ip",
+		"notify_user_enabled":  "false",
+		"notify_admin_enabled": "false",
+		"rules":                `[{"id":"invalid_key","name":"Invalid key","pattern":"invalid_api_key","enabled":true,"threshold":2,"dimension":"ip","excluded_token_groups":["vip"]}]`,
+		"tiers":                `[{"offense_count":1,"action":"temp_ip_ban","duration_minutes":30}]`,
+	})
+	require.NoError(t, risk_setting.RebuildRegexCache())
+
+	ip := "198.51.100.152"
+	newSnap := func(requestId, tokenGroup string) ErrorBanSnapshot {
+		return ErrorBanSnapshot{
+			ClientIP:   ip,
+			ErrorText:  "status_code=401, invalid_api_key: incorrect api key provided",
+			StatusCode: 401,
+			RequestId:  requestId,
+			TokenGroup: tokenGroup,
+		}
+	}
+
+	// 被排除的令牌分组连续命中 3 次：不计数、不封禁。
+	for i := range 3 {
+		processErrorBan(newSnap(fmt.Sprintf("excl-req-%d", i), "vip"))
+	}
+	_, err := model.GetIPBanByTarget(ip)
+	require.Error(t, err, "被排除令牌分组的命中不应封禁")
+
+	// 未排除分组正常计数：第 2 次命中达到阈值封禁。
+	processErrorBan(newSnap("counted-req-0", ""))
+	_, err = model.GetIPBanByTarget(ip)
+	require.Error(t, err, "首次命中不应封禁")
+	processErrorBan(newSnap("counted-req-1", ""))
+	ban, err := model.GetIPBanByTarget(ip)
+	require.NoError(t, err, "第二次命中应触发封禁")
+	require.NotZero(t, ban.ExpiresAt)
 }

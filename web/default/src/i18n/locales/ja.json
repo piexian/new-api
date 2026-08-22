@@ -6324,7 +6324,15 @@
     "Tiny Max Shape Count": "微小リクエスト最大形状数",
     "Slow Scan Detection": "低速スキャン検知",
     "Slow Scan Window (seconds)": "低速スキャンウィンドウ（秒）",
-    "Slow Scan Model Count": "低速スキャンモデル数の閾値"
+    "Slow Scan Model Count": "低速スキャンモデル数の閾値",
+    "Scan Excluded Token Groups": "スキャン除外トークングループ",
+    "Tiny Excluded Token Groups": "小リクエスト除外トークングループ",
+    "Slow Scan Excluded Token Groups": "低速スキャン除外トークングループ",
+    "Excluded Token Groups": "除外トークングループ",
+    "Select token groups to exclude...": "除外するトークングループを選択...",
+    "Requests from tokens in these groups are not counted by this rule": "これらのグループのトークンからのリクエストはこのルールにカウントされません",
+    "Probe Guard (Slow Scan)": "Probe Guard（低速スキャン）",
+    "Probe Guard (Tiny Request)": "Probe Guard（小リクエスト）"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

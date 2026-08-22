@@ -107,6 +107,9 @@ export type ProbeGuardConfig = {
   slow_scan_enabled: boolean
   slow_scan_window_seconds: number
   slow_scan_distinct_model_count: number
+  scan_excluded_token_groups: string[]
+  slow_scan_excluded_token_groups: string[]
+  tiny_excluded_token_groups: string[]
 }
 
 function normalizeProbeGuardConfig(data: ProbeGuardConfig): ProbeGuardConfig {
@@ -121,6 +124,9 @@ function normalizeProbeGuardConfig(data: ProbeGuardConfig): ProbeGuardConfig {
     slow_scan_enabled: data.slow_scan_enabled ?? false,
     slow_scan_window_seconds: data.slow_scan_window_seconds ?? 3600,
     slow_scan_distinct_model_count: data.slow_scan_distinct_model_count ?? 20,
+    scan_excluded_token_groups: data.scan_excluded_token_groups ?? [],
+    slow_scan_excluded_token_groups: data.slow_scan_excluded_token_groups ?? [],
+    tiny_excluded_token_groups: data.tiny_excluded_token_groups ?? [],
   }
 }
 
@@ -166,6 +172,7 @@ export type ErrorBanRule = {
   threshold: number
   reason_template: string
   tiers: ErrorBanTier[]
+  excluded_token_groups: string[]
 }
 
 export type ErrorBanTier = {
@@ -547,6 +554,7 @@ function normalizeErrorBanConfig(data: ErrorBanConfig): ErrorBanConfig {
       error_codes: rule.error_codes ?? [],
       count_retries: rule.count_retries ?? false,
       reason_template: rule.reason_template ?? '',
+      excluded_token_groups: rule.excluded_token_groups ?? [],
       tiers: (rule.tiers?.length ? rule.tiers : legacyTiers).map((tier) => ({
         ...tier,
         reason_suffix: tier.reason_suffix ?? '',

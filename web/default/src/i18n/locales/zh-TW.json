@@ -6324,7 +6324,15 @@
     "Tiny Max Shape Count": "小請求最大形狀數",
     "Slow Scan Detection": "低速掃描檢測",
     "Slow Scan Window (seconds)": "低速掃描視窗（秒）",
-    "Slow Scan Model Count": "低速掃描模型數閾值"
+    "Slow Scan Model Count": "低速掃描模型數閾值",
+    "Scan Excluded Token Groups": "掃描規則排除的令牌分組",
+    "Tiny Excluded Token Groups": "小請求排除的令牌分組",
+    "Slow Scan Excluded Token Groups": "低速掃描排除的令牌分組",
+    "Excluded Token Groups": "排除的令牌分組",
+    "Select token groups to exclude...": "請選擇要排除的令牌分組",
+    "Requests from tokens in these groups are not counted by this rule": "來自這些分組令牌的請求不計入本規則",
+    "Probe Guard (Slow Scan)": "探針防護（低速掃描）",
+    "Probe Guard (Tiny Request)": "探針防護（重複小請求）"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

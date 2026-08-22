@@ -26,11 +26,13 @@ import { getGroupNames } from '@/lib/api'
 type RiskWhitelistGroupsFieldProps = {
   selected: string[]
   onChange: (groups: string[]) => void
+  placeholder?: string
 }
 
 export function RiskWhitelistGroupsField({
   selected,
   onChange,
+  placeholder,
 }: RiskWhitelistGroupsFieldProps) {
   const { t } = useTranslation()
   const { data: groups = [] } = useQuery({
@@ -54,7 +56,7 @@ export function RiskWhitelistGroupsField({
       options={options}
       selected={selected}
       onChange={onChange}
-      placeholder={t('Select whitelist groups...')}
+      placeholder={placeholder ?? t('Select whitelist groups...')}
     />
   )
 }

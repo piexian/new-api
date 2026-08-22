@@ -30,43 +30,57 @@ type ProbeGuardSetting struct {
 	AppealHint             string   `json:"appeal_hint"`
 	// 规则A：恒定小请求测活。窗口内同一目标的小请求总数达到阈值且形状（模型|UA|输入token数）
 	// 种类数低于上限时触发，用于识别重复发送同一微小请求的测活脚本。
-	TinyRequestEnabled bool `json:"tiny_request_enabled"`
-	TinyMaxPromptTokens int `json:"tiny_max_prompt_tokens"`
-	TinyRepeatCount     int `json:"tiny_repeat_count"`
-	TinyMaxShapeCount   int `json:"tiny_max_shape_count"`
+	TinyRequestEnabled  bool `json:"tiny_request_enabled"`
+	TinyMaxPromptTokens int  `json:"tiny_max_prompt_tokens"`
+	TinyRepeatCount     int  `json:"tiny_repeat_count"`
+	TinyMaxShapeCount   int  `json:"tiny_max_shape_count"`
 	// 规则B：慢速扫模型。在更长窗口内统计不同模型数，捕捉刻意压低速率规避短窗口的扫描。
 	SlowScanEnabled            bool `json:"slow_scan_enabled"`
 	SlowScanWindowSeconds      int  `json:"slow_scan_window_seconds"`
 	SlowScanDistinctModelCount int  `json:"slow_scan_distinct_model_count"`
+	// 按单条规则排除的令牌分组：来自这些分组令牌的请求不计入对应规则（与用户分组白名单相互独立）。
+	ScanExcludedTokenGroups     []string `json:"scan_excluded_token_groups"`
+	SlowScanExcludedTokenGroups []string `json:"slow_scan_excluded_token_groups"`
+	TinyExcludedTokenGroups     []string `json:"tiny_excluded_token_groups"`
 }
+
+// 探针系统规则标识，service 包的规则常量引用这里的值。
+const (
+	ProbeRuleScan = "scan"
+	ProbeRuleSlow = "slow"
+	ProbeRuleTiny = "tiny"
+)
 
 // 默认配置：默认关闭且开启 dry_run，避免误伤。
 var probeGuardSetting = ProbeGuardSetting{
-	Enabled:                false,
-	DryRun:                 true,
-	WindowSeconds:          60,
-	DistinctModelCount:     5,
-	BanDimension:           "",
-	FirstIPBanMinutes:      10,
-	SecondIPBanMinutes:     60,
-	PermanentOffenseCount:  3,
-	OffenseDedupeSeconds:   60,
-	WhitelistUserIDs:       "",
-	WhitelistGroups:        []string{},
-	UserBanEnabled:         false,
-	UserBanThreshold:       2,
-	UserBanDurationMinutes: 0,
-	UserBanReason:          "触发批量模型探测自动封禁",
-	NotifyUserEnabled:      true,
-	NotifyAdminEnabled:     true,
-	AppealHint:             "如认为误封，请联系管理员。",
-	TinyRequestEnabled:     false,
-	TinyMaxPromptTokens:    200,
-	TinyRepeatCount:        8,
-	TinyMaxShapeCount:      3,
-	SlowScanEnabled:            false,
-	SlowScanWindowSeconds:      3600,
-	SlowScanDistinctModelCount: 20,
+	Enabled:                     false,
+	DryRun:                      true,
+	WindowSeconds:               60,
+	DistinctModelCount:          5,
+	BanDimension:                "",
+	FirstIPBanMinutes:           10,
+	SecondIPBanMinutes:          60,
+	PermanentOffenseCount:       3,
+	OffenseDedupeSeconds:        60,
+	WhitelistUserIDs:            "",
+	WhitelistGroups:             []string{},
+	UserBanEnabled:              false,
+	UserBanThreshold:            2,
+	UserBanDurationMinutes:      0,
+	UserBanReason:               "触发批量模型探测自动封禁",
+	NotifyUserEnabled:           true,
+	NotifyAdminEnabled:          true,
+	AppealHint:                  "如认为误封，请联系管理员。",
+	TinyRequestEnabled:          false,
+	TinyMaxPromptTokens:         200,
+	TinyRepeatCount:             8,
+	TinyMaxShapeCount:           3,
+	SlowScanEnabled:             false,
+	SlowScanWindowSeconds:       3600,
+	SlowScanDistinctModelCount:  20,
+	ScanExcludedTokenGroups:     []string{},
+	SlowScanExcludedTokenGroups: []string{},
+	TinyExcludedTokenGroups:     []string{},
 }
 
 func init() {
@@ -77,6 +91,9 @@ func init() {
 func GetProbeGuardSetting() ProbeGuardSetting {
 	snapshot := probeGuardSetting
 	snapshot.WhitelistGroups = append([]string{}, probeGuardSetting.WhitelistGroups...)
+	snapshot.ScanExcludedTokenGroups = append([]string{}, probeGuardSetting.ScanExcludedTokenGroups...)
+	snapshot.SlowScanExcludedTokenGroups = append([]string{}, probeGuardSetting.SlowScanExcludedTokenGroups...)
+	snapshot.TinyExcludedTokenGroups = append([]string{}, probeGuardSetting.TinyExcludedTokenGroups...)
 	snapshot.Normalize()
 	return snapshot
 }
@@ -112,6 +129,9 @@ func (s *ProbeGuardSetting) Normalize() {
 	s.TinyMaxShapeCount = clampInt(s.TinyMaxShapeCount, 1, 50, 3)
 	s.SlowScanWindowSeconds = clampInt(s.SlowScanWindowSeconds, 60, 86400, 3600)
 	s.SlowScanDistinctModelCount = clampInt(s.SlowScanDistinctModelCount, 2, 500, 20)
+	s.ScanExcludedTokenGroups = normalizeStringList(s.ScanExcludedTokenGroups)
+	s.SlowScanExcludedTokenGroups = normalizeStringList(s.SlowScanExcludedTokenGroups)
+	s.TinyExcludedTokenGroups = normalizeStringList(s.TinyExcludedTokenGroups)
 }
 
 const ProbeBanDimensionBoth = "both"
@@ -134,6 +154,20 @@ func (s *ProbeGuardSetting) IsUserWhitelisted(userId int) bool {
 // IsGroupWhitelisted 判断请求分组是否在白名单中。
 func (s *ProbeGuardSetting) IsGroupWhitelisted(group string) bool {
 	return stringListContains(s.WhitelistGroups, group)
+}
+
+// IsTokenGroupExcludedForRule 判断指定系统规则（ProbeRule*）是否排除该令牌分组。
+// 令牌分组为空时不排除，无令牌分组的请求始终计入。
+func (s *ProbeGuardSetting) IsTokenGroupExcludedForRule(rule, tokenGroup string) bool {
+	switch rule {
+	case ProbeRuleScan:
+		return stringListContains(s.ScanExcludedTokenGroups, tokenGroup)
+	case ProbeRuleSlow:
+		return stringListContains(s.SlowScanExcludedTokenGroups, tokenGroup)
+	case ProbeRuleTiny:
+		return stringListContains(s.TinyExcludedTokenGroups, tokenGroup)
+	}
+	return false
 }
 
 func normalizeStringList(values []string) []string {

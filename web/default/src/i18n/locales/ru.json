@@ -6324,7 +6324,15 @@
     "Tiny Max Shape Count": "Макс. число форм мелких запросов",
     "Slow Scan Detection": "Обнаружение медленного сканирования",
     "Slow Scan Window (seconds)": "Окно медленного сканирования (сек)",
-    "Slow Scan Model Count": "Порог числа моделей (медленное сканирование)"
+    "Slow Scan Model Count": "Порог числа моделей (медленное сканирование)",
+    "Scan Excluded Token Groups": "Исключённые группы токенов (сканирование)",
+    "Tiny Excluded Token Groups": "Исключённые группы токенов (малые запросы)",
+    "Slow Scan Excluded Token Groups": "Исключённые группы токенов (медленное сканирование)",
+    "Excluded Token Groups": "Исключённые группы токенов",
+    "Select token groups to exclude...": "Выберите группы токенов для исключения...",
+    "Requests from tokens in these groups are not counted by this rule": "Запросы от токенов этих групп не учитываются этим правилом",
+    "Probe Guard (Slow Scan)": "Probe Guard (медленное сканирование)",
+    "Probe Guard (Tiny Request)": "Probe Guard (малые запросы)"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

@@ -310,6 +310,16 @@ export function ProbeGuardPage() {
                 />
               </div>
             </div>
+            <div className='space-y-2'>
+              <Label>{t('Scan Excluded Token Groups')}</Label>
+              <RiskWhitelistGroupsField
+                selected={config.scan_excluded_token_groups}
+                onChange={(groups) =>
+                  updateField('scan_excluded_token_groups', groups)
+                }
+                placeholder={t('Select token groups to exclude...')}
+              />
+            </div>
             <div className='flex items-center justify-between'>
               <Label>{t('Tiny Request Detection')}</Label>
               <Switch
@@ -318,44 +328,59 @@ export function ProbeGuardPage() {
               />
             </div>
             {config.tiny_request_enabled && (
-              <div className='grid grid-cols-1 gap-4 sm:grid-cols-3'>
-                <div className='space-y-2'>
-                  <Label>{t('Tiny Max Prompt Tokens')}</Label>
-                  <Input
-                    type='number'
-                    min={1}
-                    value={config.tiny_max_prompt_tokens}
-                    onChange={(e) =>
-                      updateField(
-                        'tiny_max_prompt_tokens',
-                        Number(e.target.value)
-                      )
-                    }
-                  />
+              <>
+                <div className='grid grid-cols-1 gap-4 sm:grid-cols-3'>
+                  <div className='space-y-2'>
+                    <Label>{t('Tiny Max Prompt Tokens')}</Label>
+                    <Input
+                      type='number'
+                      min={1}
+                      value={config.tiny_max_prompt_tokens}
+                      onChange={(e) =>
+                        updateField(
+                          'tiny_max_prompt_tokens',
+                          Number(e.target.value)
+                        )
+                      }
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label>{t('Tiny Repeat Count')}</Label>
+                    <Input
+                      type='number'
+                      min={2}
+                      value={config.tiny_repeat_count}
+                      onChange={(e) =>
+                        updateField('tiny_repeat_count', Number(e.target.value))
+                      }
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label>{t('Tiny Max Shape Count')}</Label>
+                    <Input
+                      type='number'
+                      min={1}
+                      value={config.tiny_max_shape_count}
+                      onChange={(e) =>
+                        updateField(
+                          'tiny_max_shape_count',
+                          Number(e.target.value)
+                        )
+                      }
+                    />
+                  </div>
                 </div>
                 <div className='space-y-2'>
-                  <Label>{t('Tiny Repeat Count')}</Label>
-                  <Input
-                    type='number'
-                    min={2}
-                    value={config.tiny_repeat_count}
-                    onChange={(e) =>
-                      updateField('tiny_repeat_count', Number(e.target.value))
+                  <Label>{t('Tiny Excluded Token Groups')}</Label>
+                  <RiskWhitelistGroupsField
+                    selected={config.tiny_excluded_token_groups}
+                    onChange={(groups) =>
+                      updateField('tiny_excluded_token_groups', groups)
                     }
+                    placeholder={t('Select token groups to exclude...')}
                   />
                 </div>
-                <div className='space-y-2'>
-                  <Label>{t('Tiny Max Shape Count')}</Label>
-                  <Input
-                    type='number'
-                    min={1}
-                    value={config.tiny_max_shape_count}
-                    onChange={(e) =>
-                      updateField('tiny_max_shape_count', Number(e.target.value))
-                    }
-                  />
-                </div>
-              </div>
+              </>
             )}
             <div className='flex items-center justify-between'>
               <Label>{t('Slow Scan Detection')}</Label>
@@ -365,36 +390,48 @@ export function ProbeGuardPage() {
               />
             </div>
             {config.slow_scan_enabled && (
-              <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                <div className='space-y-2'>
-                  <Label>{t('Slow Scan Window (seconds)')}</Label>
-                  <Input
-                    type='number'
-                    min={60}
-                    value={config.slow_scan_window_seconds}
-                    onChange={(e) =>
-                      updateField(
-                        'slow_scan_window_seconds',
-                        Number(e.target.value)
-                      )
-                    }
-                  />
+              <>
+                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+                  <div className='space-y-2'>
+                    <Label>{t('Slow Scan Window (seconds)')}</Label>
+                    <Input
+                      type='number'
+                      min={60}
+                      value={config.slow_scan_window_seconds}
+                      onChange={(e) =>
+                        updateField(
+                          'slow_scan_window_seconds',
+                          Number(e.target.value)
+                        )
+                      }
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label>{t('Slow Scan Model Count')}</Label>
+                    <Input
+                      type='number'
+                      min={2}
+                      value={config.slow_scan_distinct_model_count}
+                      onChange={(e) =>
+                        updateField(
+                          'slow_scan_distinct_model_count',
+                          Number(e.target.value)
+                        )
+                      }
+                    />
+                  </div>
                 </div>
                 <div className='space-y-2'>
-                  <Label>{t('Slow Scan Model Count')}</Label>
-                  <Input
-                    type='number'
-                    min={2}
-                    value={config.slow_scan_distinct_model_count}
-                    onChange={(e) =>
-                      updateField(
-                        'slow_scan_distinct_model_count',
-                        Number(e.target.value)
-                      )
+                  <Label>{t('Slow Scan Excluded Token Groups')}</Label>
+                  <RiskWhitelistGroupsField
+                    selected={config.slow_scan_excluded_token_groups}
+                    onChange={(groups) =>
+                      updateField('slow_scan_excluded_token_groups', groups)
                     }
+                    placeholder={t('Select token groups to exclude...')}
                   />
                 </div>
-              </div>
+              </>
             )}
             <div className='space-y-2'>
               <Label>{t('Whitelist User IDs')}</Label>
