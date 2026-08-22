@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ import (
 
 const (
 	videoEndpoint       = "/v1/videos"
+	videoQueryPath     = "/agnesapi" // 推荐查询接口：GET /agnesapi?video_id=，完成后返回顶层 url
 	requestContextKey   = "agnes_video_request"
 	defaultNumFrames    = 121
 	defaultFrameRate    = 24
@@ -46,6 +48,7 @@ type agnesVideoResponse struct {
 	CompletedAt        int64                  `json:"completed_at,omitempty"`
 	Seconds            string                 `json:"seconds,omitempty"`
 	Size               string                 `json:"size,omitempty"`
+	URL                string                 `json:"url,omitempty"` // /agnesapi 查询接口在顶层返回视频直链
 	VideoURL           string                 `json:"video_url,omitempty"`
 	RemixedFromVideoID string                 `json:"remixed_from_video_id,omitempty"`
 	Video              *agnesVideoData        `json:"video,omitempty"`
@@ -212,7 +215,14 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s%s/%s", strings.TrimRight(baseURL, "/"), videoEndpoint, strings.TrimSpace(taskID))
+	// 旧版 GET /v1/videos/{task_id} 完成后会返回 task_not_exist 且响应不含 url，
+	// 优先走文档推荐的 /agnesapi?video_id=；没有 video_id 的旧任务才回退旧接口
+	var uri string
+	if videoID, ok := body["video_id"].(string); ok && strings.TrimSpace(videoID) != "" {
+		uri = fmt.Sprintf("%s%s?video_id=%s", strings.TrimRight(baseURL, "/"), videoQueryPath, url.QueryEscape(strings.TrimSpace(videoID)))
+	} else {
+		uri = fmt.Sprintf("%s%s/%s", strings.TrimRight(baseURL, "/"), videoEndpoint, strings.TrimSpace(taskID))
+	}
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
 		return nil, err
@@ -473,7 +483,8 @@ func (r agnesVideoResponse) hasContent() bool {
 }
 
 func (r agnesVideoResponse) resultURL() string {
-	if url := firstNonEmpty(r.VideoURL, r.RemixedFromVideoID); url != "" && looksLikeURL(url) {
+	// 兼容三种形态：顶层 url（/agnesapi 实测）、video_url、metadata.url（文档）
+	if url := firstNonEmpty(r.URL, r.VideoURL, r.RemixedFromVideoID); url != "" && looksLikeURL(url) {
 		return url
 	}
 	if r.Video != nil && looksLikeURL(r.Video.URL) {

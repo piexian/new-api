@@ -455,10 +455,20 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			key = ch.Key
 		}
 	}
-	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
+	fetchBody := map[string]any{
 		"task_id": task.GetUpstreamTaskID(),
 		"action":  task.Action,
-	}, proxy)
+	}
+	// 提单响应里保存的 video_id（如 agnes /agnesapi 查询接口需要）透传给适配器
+	if len(task.Data) > 0 {
+		var dataMap map[string]any
+		if err := common.Unmarshal(task.Data, &dataMap); err == nil {
+			if vid, ok := dataMap["video_id"].(string); ok && strings.TrimSpace(vid) != "" {
+				fetchBody["video_id"] = vid
+			}
+		}
+	}
+	resp, err := adaptor.FetchTask(baseURL, key, fetchBody, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
 	}

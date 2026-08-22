@@ -111,9 +111,26 @@ func VideoProxy(c *gin.Context) {
 			videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to resolve Vertex video URL")
 			return
 		}
-	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora, constant.ChannelTypeAgnesAI:
+	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
 		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
 		req.Header.Set("Authorization", "Bearer "+channel.Key)
+	case constant.ChannelTypeAgnesAI:
+		// 优先用轮询阶段存下的上游直链；没有直链才回退拼接 content 地址。
+		// 多 Key 渠道的 channel.Key 是换行拼串，不能直接进 Authorization 头
+		videoURL = task.GetResultURL()
+		if strings.Contains(videoURL, "/v1/videos/") || videoURL == "" {
+			videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())
+		}
+		authKey := task.PrivateData.Key
+		if authKey == "" {
+			if k, _, err := channel.GetNextEnabledKey(); err == nil {
+				authKey = k
+			}
+		}
+		if authKey == "" {
+			authKey = channel.Key
+		}
+		req.Header.Set("Authorization", "Bearer "+authKey)
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()

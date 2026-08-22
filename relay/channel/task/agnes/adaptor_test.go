@@ -175,6 +175,18 @@ func TestParseTaskResultMapsStatusesAndURLs(t *testing.T) {
 			wantURL:    "https://example.com/video.mp4",
 		},
 		{
+			name:       "completed top-level url (agnesapi)",
+			body:       `{"status":"completed","progress":100,"url":"https://cos.example.com/video.mp4","metadata":null}`,
+			wantStatus: model.TaskStatusSuccess,
+			wantURL:    "https://cos.example.com/video.mp4",
+		},
+		{
+			name:       "completed metadata url (docs)",
+			body:       `{"status":"completed","progress":100,"metadata":{"url":"https://example.com/meta.mp4"}}`,
+			wantStatus: model.TaskStatusSuccess,
+			wantURL:    "https://example.com/meta.mp4",
+		},
+		{
 			name:       "completed remixed url",
 			body:       `{"status":"completed","progress":100,"remixed_from_video_id":"https://example.com/remixed.mp4"}`,
 			wantStatus: model.TaskStatusSuccess,
