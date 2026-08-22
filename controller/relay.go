@@ -626,6 +626,13 @@ func RelayTask(c *gin.Context) {
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 		// 记录提单时实际选用的渠道 key（多 Key 渠道轮询必须复用同一 key）
 		task.PrivateData.Key = common.GetContextKeyString(c, constant.ContextKeyChannelKey)
+		// 提单响应里的 video_id 单独落库，轮询阶段不依赖 task.Data（部分上游查询接口必需）
+		var submitResp struct {
+			VideoID string `json:"video_id"`
+		}
+		if common.Unmarshal(result.TaskData, &submitResp) == nil && strings.TrimSpace(submitResp.VideoID) != "" {
+			task.PrivateData.UpstreamVideoID = strings.TrimSpace(submitResp.VideoID)
+		}
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		// 订阅拆分时持久化各腿与钱包腿的最终分配，供轮询阶段退款/差额结算回放

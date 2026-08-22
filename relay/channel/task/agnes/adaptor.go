@@ -1,7 +1,7 @@
 package agnes
-
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
@@ -223,6 +224,7 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy 
 	} else {
 		uri = fmt.Sprintf("%s%s/%s", strings.TrimRight(baseURL, "/"), videoEndpoint, strings.TrimSpace(taskID))
 	}
+	logger.LogInfo(context.Background(), fmt.Sprintf("agnes fetch task %s via %s", strings.TrimSpace(taskID), uri))
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
 		return nil, err

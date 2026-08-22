@@ -459,14 +459,16 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		"task_id": task.GetUpstreamTaskID(),
 		"action":  task.Action,
 	}
-	// 提单响应里保存的 video_id（如 agnes /agnesapi 查询接口需要）透传给适配器
-	if len(task.Data) > 0 {
+	// video_id：优先取提单时落库的 UpstreamVideoID，旧任务回退到 task.Data 解析
+	vid := strings.TrimSpace(task.PrivateData.UpstreamVideoID)
+	if vid == "" && len(task.Data) > 0 {
 		var dataMap map[string]any
 		if err := common.Unmarshal(task.Data, &dataMap); err == nil {
-			if vid, ok := dataMap["video_id"].(string); ok && strings.TrimSpace(vid) != "" {
-				fetchBody["video_id"] = vid
-			}
+			vid, _ = dataMap["video_id"].(string)
 		}
+	}
+	if strings.TrimSpace(vid) != "" {
+		fetchBody["video_id"] = strings.TrimSpace(vid)
 	}
 	resp, err := adaptor.FetchTask(baseURL, key, fetchBody, proxy)
 	if err != nil {
