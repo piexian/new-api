@@ -50,6 +50,13 @@ const defaultConfig = {
   notify_user_enabled: true,
   notify_admin_enabled: true,
   appeal_hint: '',
+  tiny_request_enabled: false,
+  tiny_max_prompt_tokens: 200,
+  tiny_repeat_count: 8,
+  tiny_max_shape_count: 3,
+  slow_scan_enabled: false,
+  slow_scan_window_seconds: 3600,
+  slow_scan_distinct_model_count: 20,
 };
 
 const ProbeGuardTab = () => {
@@ -64,6 +71,13 @@ const ProbeGuardTab = () => {
       ...data,
       ban_dimension: data.ban_dimension || 'ip',
       whitelist_groups: data.whitelist_groups || [],
+      tiny_request_enabled: data.tiny_request_enabled ?? false,
+      tiny_max_prompt_tokens: data.tiny_max_prompt_tokens ?? 200,
+      tiny_repeat_count: data.tiny_repeat_count ?? 8,
+      tiny_max_shape_count: data.tiny_max_shape_count ?? 3,
+      slow_scan_enabled: data.slow_scan_enabled ?? false,
+      slow_scan_window_seconds: data.slow_scan_window_seconds ?? 3600,
+      slow_scan_distinct_model_count: data.slow_scan_distinct_model_count ?? 20,
     };
   }, []);
 
@@ -171,6 +185,46 @@ const ProbeGuardTab = () => {
             label={t('违规去重时间（秒）')}
             min={0}
             max={3600}
+            step={1}
+          />
+          <Form.Switch
+            field='tiny_request_enabled'
+            label={t('重复小请求检测')}
+          />
+          <Form.InputNumber
+            field='tiny_max_prompt_tokens'
+            label={t('小请求最大输入Token数')}
+            min={1}
+            max={2000}
+            step={1}
+          />
+          <Form.InputNumber
+            field='tiny_repeat_count'
+            label={t('小请求重复次数阈值')}
+            min={2}
+            max={200}
+            step={1}
+          />
+          <Form.InputNumber
+            field='tiny_max_shape_count'
+            label={t('小请求最大形状数')}
+            min={1}
+            max={50}
+            step={1}
+          />
+          <Form.Switch field='slow_scan_enabled' label={t('低速扫描检测')} />
+          <Form.InputNumber
+            field='slow_scan_window_seconds'
+            label={t('低速扫描窗口（秒）')}
+            min={60}
+            max={86400}
+            step={1}
+          />
+          <Form.InputNumber
+            field='slow_scan_distinct_model_count'
+            label={t('低速扫描模型数阈值')}
+            min={2}
+            max={500}
             step={1}
           />
           <Form.Input

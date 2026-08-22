@@ -100,6 +100,13 @@ export type ProbeGuardConfig = {
   notify_user_enabled: boolean
   notify_admin_enabled: boolean
   appeal_hint: string
+  tiny_request_enabled: boolean
+  tiny_max_prompt_tokens: number
+  tiny_repeat_count: number
+  tiny_max_shape_count: number
+  slow_scan_enabled: boolean
+  slow_scan_window_seconds: number
+  slow_scan_distinct_model_count: number
 }
 
 function normalizeProbeGuardConfig(data: ProbeGuardConfig): ProbeGuardConfig {
@@ -107,6 +114,13 @@ function normalizeProbeGuardConfig(data: ProbeGuardConfig): ProbeGuardConfig {
     ...data,
     ban_dimension: data.ban_dimension || 'ip',
     whitelist_groups: data.whitelist_groups ?? [],
+    tiny_request_enabled: data.tiny_request_enabled ?? false,
+    tiny_max_prompt_tokens: data.tiny_max_prompt_tokens ?? 200,
+    tiny_repeat_count: data.tiny_repeat_count ?? 8,
+    tiny_max_shape_count: data.tiny_max_shape_count ?? 3,
+    slow_scan_enabled: data.slow_scan_enabled ?? false,
+    slow_scan_window_seconds: data.slow_scan_window_seconds ?? 3600,
+    slow_scan_distinct_model_count: data.slow_scan_distinct_model_count ?? 20,
   }
 }
 

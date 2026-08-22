@@ -242,7 +242,15 @@ func setProbeGuardConfig(t *testing.T, values map[string]string) {
 	require.NotNil(t, cfg)
 	require.NoError(t, config.UpdateConfigFromMap(cfg, values))
 	t.Cleanup(func() {
-		_ = config.UpdateConfigFromMap(cfg, map[string]string{"enabled": "false", "dry_run": "true", "ban_dimension": "ip", "user_ban_enabled": "false", "whitelist_groups": "[]"})
+		_ = config.UpdateConfigFromMap(cfg, map[string]string{
+			"enabled":              "false",
+			"dry_run":              "true",
+			"ban_dimension":        "ip",
+			"user_ban_enabled":     "false",
+			"whitelist_groups":     "[]",
+			"tiny_request_enabled": "false",
+			"slow_scan_enabled":    "false",
+		})
 	})
 }
 
@@ -982,4 +990,212 @@ func TestErrorBan(t *testing.T) {
 	require.Equal(t, "upstream_timeout", rules[0].Rule.Id)
 	require.True(t, rules[0].Re.MatchString("status_code=500, upstream timeout"))
 	require.False(t, rules[0].Re.MatchString("invalid_api_key"))
+}
+
+// TestProbeGuardTinyRequestTrigger 验证规则A：同一形状（模型|UA|输入token数）的小请求达到阈值后触发封禁。
+func TestProbeGuardTinyRequestTrigger(t *testing.T) {
+	setupRiskModels(t)
+	setProbeGuardConfig(t, map[string]string{
+		"enabled":                 "true",
+		"dry_run":                 "false",
+		"window_seconds":          "60",
+		"distinct_model_count":    "10", // scan 规则阈值拉高，隔离 tiny 规则
+		"first_ip_ban_minutes":    "10",
+		"second_ip_ban_minutes":   "60",
+		"permanent_offense_count": "3",
+		"offense_dedupe_seconds":  "60",
+		"ban_dimension":           "ip",
+		"notify_user_enabled":     "false",
+		"notify_admin_enabled":    "false",
+		"tiny_request_enabled":    "true",
+		"tiny_max_prompt_tokens":  "200",
+		"tiny_repeat_count":       "3",
+		"tiny_max_shape_count":    "3",
+	})
+
+	userID := 95011
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: userID, Username: "probe_tiny", AffCode: "PROBETINY", Role: common.RoleCommonUser, Status: common.UserStatusEnabled,
+	}).Error)
+	t.Cleanup(func() { model.DB.Unscoped().Delete(&model.User{}, userID) })
+
+	ip := "198.51.100.140"
+	newTinyInfo := func() *relaycommon.RelayInfo {
+		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: "tiny-model"}
+		info.SetEstimatePromptTokens(87)
+		return info
+	}
+	// 前两次相同形状的小请求：不触发。
+	for i := range 2 {
+		require.Nil(t, CheckProbeGuard(newRiskTestContext(t, ip), newTinyInfo()), "request %d should not trigger", i)
+	}
+	_, err := model.GetIPBanByTarget(ip)
+	require.Error(t, err)
+
+	// 第三次：达到阈值，触发。
+	apiErr := CheckProbeGuard(newRiskTestContext(t, ip), newTinyInfo())
+	require.NotNil(t, apiErr)
+	require.Equal(t, types.ErrorCodeBulkProbeDetected, apiErr.GetErrorCode())
+	require.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+
+	_, err = model.GetIPBanByTarget(ip)
+	require.NoError(t, err)
+	var log model.RiskBanLog
+	require.NoError(t, model.DB.Where("target_ip = ? AND source = ?", ip, model.RiskBanSourceProbeGuard).Last(&log).Error)
+	require.Contains(t, log.Reason, "高频重复小请求探测")
+	require.Contains(t, log.Models, "tiny-model|", "封禁日志应记录触发形状")
+}
+
+// TestProbeGuardTinyRequestShapeDiversitySkips 验证形状种类超过上限时不判定为测活（排除正常批量调用）。
+func TestProbeGuardTinyRequestShapeDiversitySkips(t *testing.T) {
+	setupRiskModels(t)
+	setProbeGuardConfig(t, map[string]string{
+		"enabled":                "true",
+		"dry_run":                "false",
+		"window_seconds":         "60",
+		"distinct_model_count":   "10",
+		"offense_dedupe_seconds": "60",
+		"ban_dimension":          "ip",
+		"notify_user_enabled":    "false",
+		"notify_admin_enabled":   "false",
+		"tiny_request_enabled":   "true",
+		"tiny_max_prompt_tokens": "200",
+		"tiny_repeat_count":      "3",
+		"tiny_max_shape_count":   "2",
+	})
+
+	userID := 95012
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: userID, Username: "probe_tiny_diverse", AffCode: "PROBETINYD", Role: common.RoleCommonUser, Status: common.UserStatusEnabled,
+	}).Error)
+	t.Cleanup(func() { model.DB.Unscoped().Delete(&model.User{}, userID) })
+
+	ip := "198.51.100.141"
+	// 3 个不同形状（不同模型）的小请求：总数达阈值但形状数超限，不触发。
+	for i := range 3 {
+		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: fmt.Sprintf("diverse-model-%d", i)}
+		info.SetEstimatePromptTokens(50)
+		require.Nil(t, CheckProbeGuard(newRiskTestContext(t, ip), info), "diverse shape %d should not trigger", i)
+	}
+	_, err := model.GetIPBanByTarget(ip)
+	require.Error(t, err, "形状多样的请求不应触发封禁")
+}
+
+// TestProbeGuardTinyRequestLargePromptNotCounted 验证输入 token 数超过上限的请求不计入 tiny 规则。
+func TestProbeGuardTinyRequestLargePromptNotCounted(t *testing.T) {
+	setupRiskModels(t)
+	setProbeGuardConfig(t, map[string]string{
+		"enabled":                "true",
+		"dry_run":                "false",
+		"window_seconds":         "60",
+		"distinct_model_count":   "10",
+		"offense_dedupe_seconds": "60",
+		"ban_dimension":          "ip",
+		"notify_user_enabled":    "false",
+		"notify_admin_enabled":   "false",
+		"tiny_request_enabled":   "true",
+		"tiny_max_prompt_tokens": "200",
+		"tiny_repeat_count":      "3",
+		"tiny_max_shape_count":   "3",
+	})
+
+	userID := 95013
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: userID, Username: "probe_tiny_large", AffCode: "PROBETINYL", Role: common.RoleCommonUser, Status: common.UserStatusEnabled,
+	}).Error)
+	t.Cleanup(func() { model.DB.Unscoped().Delete(&model.User{}, userID) })
+
+	ip := "198.51.100.142"
+	for i := range 5 {
+		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: "large-model"}
+		info.SetEstimatePromptTokens(500) // 超过 tiny_max_prompt_tokens
+		require.Nil(t, CheckProbeGuard(newRiskTestContext(t, ip), info), "large prompt %d should not trigger", i)
+	}
+	_, err := model.GetIPBanByTarget(ip)
+	require.Error(t, err)
+
+	_, total := GetRiskLiveTargets(RiskLiveSourceProbeGuard, RiskLiveProbeGuardTinyRuleID, risk_setting.DimensionIP, ip, 0, 10)
+	require.Zero(t, total, "超限请求不应创建 tiny 规则的实时窗口")
+}
+
+// TestProbeGuardSlowScanTrigger 验证规则B：长窗口内不同模型数达到阈值后触发低速扫描封禁。
+func TestProbeGuardSlowScanTrigger(t *testing.T) {
+	setupRiskModels(t)
+	setProbeGuardConfig(t, map[string]string{
+		"enabled":                        "true",
+		"dry_run":                        "false",
+		"window_seconds":                 "60",
+		"distinct_model_count":           "10", // scan 规则阈值拉高，隔离 slow 规则
+		"first_ip_ban_minutes":           "10",
+		"second_ip_ban_minutes":          "60",
+		"permanent_offense_count":        "3",
+		"offense_dedupe_seconds":         "60",
+		"ban_dimension":                  "ip",
+		"notify_user_enabled":            "false",
+		"notify_admin_enabled":           "false",
+		"slow_scan_enabled":              "true",
+		"slow_scan_window_seconds":       "3600",
+		"slow_scan_distinct_model_count": "3",
+	})
+
+	userID := 95014
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: userID, Username: "probe_slow", AffCode: "PROBESLOW", Role: common.RoleCommonUser, Status: common.UserStatusEnabled,
+	}).Error)
+	t.Cleanup(func() { model.DB.Unscoped().Delete(&model.User{}, userID) })
+
+	ip := "198.51.100.143"
+	// 前 2 个不同模型：不触发。
+	for i := range 2 {
+		info := &relaycommon.RelayInfo{UserId: userID, OriginModelName: fmt.Sprintf("slow-model-%d", i)}
+		require.Nil(t, CheckProbeGuard(newRiskTestContext(t, ip), info), "request %d should not trigger", i)
+	}
+	_, err := model.GetIPBanByTarget(ip)
+	require.Error(t, err)
+
+	// 第 3 个不同模型：slow 规则触发（scan 规则阈值为 10，不会触发）。
+	apiErr := CheckProbeGuard(newRiskTestContext(t, ip), &relaycommon.RelayInfo{UserId: userID, OriginModelName: "slow-model-2"})
+	require.NotNil(t, apiErr)
+	require.Equal(t, http.StatusTooManyRequests, apiErr.StatusCode)
+
+	_, err = model.GetIPBanByTarget(ip)
+	require.NoError(t, err)
+	var log model.RiskBanLog
+	require.NoError(t, model.DB.Where("target_ip = ? AND source = ?", ip, model.RiskBanSourceProbeGuard).Last(&log).Error)
+	require.Contains(t, log.Reason, "低速批量模型探测")
+
+	// 实时规则摘要应包含三条 probe guard 规则。
+	summaries := GetRiskLiveRuleSummaries()
+	byRuleID := make(map[string]RiskLiveRuleSummary, len(summaries))
+	for _, summary := range summaries {
+		if summary.Source == RiskLiveSourceProbeGuard {
+			byRuleID[summary.RuleId] = summary
+		}
+	}
+	require.Len(t, byRuleID, 3)
+	slow := byRuleID[RiskLiveProbeGuardSlowRuleID]
+	require.True(t, slow.Enabled)
+	require.True(t, slow.ParentEnabled)
+	require.Equal(t, 3, slow.Threshold)
+	require.Equal(t, 3600, slow.WindowSeconds)
+	tiny := byRuleID[RiskLiveProbeGuardTinyRuleID]
+	require.False(t, tiny.Enabled, "tiny 规则未开启时 Enabled 应为 false")
+	require.True(t, tiny.ParentEnabled)
+}
+
+// TestProbeGuardNormalizeNewRules 验证新增规则配置的归一化边界。
+func TestProbeGuardNormalizeNewRules(t *testing.T) {
+	setting := risk_setting.ProbeGuardSetting{
+		TinyMaxPromptTokens:        0,
+		TinyRepeatCount:            1000,
+		TinyMaxShapeCount:          -1,
+		SlowScanWindowSeconds:      10,
+		SlowScanDistinctModelCount: 100000,
+	}
+	setting.Normalize()
+	require.Equal(t, 200, setting.TinyMaxPromptTokens)
+	require.Equal(t, 200, setting.TinyRepeatCount)
+	require.Equal(t, 3, setting.TinyMaxShapeCount) // v<=0 回退默认值
+	require.Equal(t, 60, setting.SlowScanWindowSeconds)
+	require.Equal(t, 500, setting.SlowScanDistinctModelCount)
 }

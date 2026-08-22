@@ -18,6 +18,9 @@ const (
 	RiskLiveSourceProbeGuard = "probe_guard"
 	RiskLiveSourceErrorBan   = "error_ban"
 	RiskLiveProbeGuardRuleID = "probe_guard"
+	// 与 probe_guard.go 中的规则常量对应，用于实时进度区分触发来源。
+	RiskLiveProbeGuardSlowRuleID = "probe_guard_slow"
+	RiskLiveProbeGuardTinyRuleID = "probe_guard_tiny"
 
 	riskLiveProgressIndexKey   = "risk:live-progress:index:v1"
 	riskLiveProgressDataPrefix = "risk:live-progress:data:v1:"
@@ -256,7 +259,8 @@ func loadRiskLiveProgress(exact bool) []riskLiveProgressRecord {
 				deleteRiskLiveProgressRecord(record)
 				continue
 			}
-			if record.Source == RiskLiveSourceProbeGuard {
+			// tiny 规则的 windowKey 存匿名事件 ID，成员列表无审计价值，跳过。
+			if record.Source == RiskLiveSourceProbeGuard && record.RuleId != RiskLiveProbeGuardTinyRuleID {
 				record.Members = riskWindowMembers(record.WindowKey)
 			}
 		}
@@ -280,6 +284,30 @@ func GetRiskLiveRuleSummaries() []RiskLiveRuleSummary {
 		DryRun:        probeSetting.DryRun,
 		Dimension:     probeSetting.BanDimension,
 		Threshold:     probeSetting.DistinctModelCount,
+		WindowSeconds: probeSetting.WindowSeconds,
+	})
+	summaries = append(summaries, RiskLiveRuleSummary{
+		Source:        RiskLiveSourceProbeGuard,
+		RuleId:        RiskLiveProbeGuardSlowRuleID,
+		RuleName:      probeRuleLiveName(probeRuleSlow),
+		Enabled:       probeSetting.SlowScanEnabled,
+		ParentEnabled: probeSetting.Enabled,
+		System:        true,
+		DryRun:        probeSetting.DryRun,
+		Dimension:     probeSetting.BanDimension,
+		Threshold:     probeSetting.SlowScanDistinctModelCount,
+		WindowSeconds: probeSetting.SlowScanWindowSeconds,
+	})
+	summaries = append(summaries, RiskLiveRuleSummary{
+		Source:        RiskLiveSourceProbeGuard,
+		RuleId:        RiskLiveProbeGuardTinyRuleID,
+		RuleName:      probeRuleLiveName(probeRuleTiny),
+		Enabled:       probeSetting.TinyRequestEnabled,
+		ParentEnabled: probeSetting.Enabled,
+		System:        true,
+		DryRun:        probeSetting.DryRun,
+		Dimension:     probeSetting.BanDimension,
+		Threshold:     probeSetting.TinyRepeatCount,
 		WindowSeconds: probeSetting.WindowSeconds,
 	})
 	for _, rule := range errorSetting.Rules {
@@ -384,7 +412,7 @@ func GetRiskLiveTargets(source, ruleId, dimension, keyword string, startIdx, num
 	items := make([]RiskLiveTarget, 0, end-startIdx)
 	for _, record := range filtered[startIdx:end] {
 		record.CurrentCount = riskWindowCount(record.WindowKey, record.WindowSeconds)
-		if record.Source == RiskLiveSourceProbeGuard {
+		if record.Source == RiskLiveSourceProbeGuard && record.RuleId != RiskLiveProbeGuardTinyRuleID {
 			record.Members = riskWindowMembers(record.WindowKey)
 		}
 		normalizeRiskLiveProgress(&record, common.GetTimestamp())

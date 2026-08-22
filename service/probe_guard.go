@@ -65,11 +65,26 @@ func probeTierAction(isPermanent bool) string {
 	return risk_setting.TierActionTempIPBan
 }
 
-func probeGuardReason(offenseCount int, dryRun bool) string {
-	if dryRun {
-		return "批量模型探测自动封禁（演练模式）"
+// 探测规则标识，用于区分触发来源、窗口 key 与处罚文案。
+const (
+	probeRuleScan = "scan" // 短窗口批量模型扫描（原有规则）
+	probeRuleSlow = "slow" // 长窗口低速扫描，捕捉刻意压低速率的扫模型行为
+	probeRuleTiny = "tiny" // 恒定小请求测活，同一形状（模型|UA|输入token数）的高频重复
+)
+
+// probeGuardReason 按规则生成封禁原因文案。
+func probeGuardReason(rule string, offenseCount int, dryRun bool) string {
+	name := "批量模型探测"
+	switch rule {
+	case probeRuleSlow:
+		name = "低速批量模型探测"
+	case probeRuleTiny:
+		name = "高频重复小请求探测"
 	}
-	return fmt.Sprintf("批量模型探测自动封禁（第%d次违规）", offenseCount)
+	if dryRun {
+		return name + "自动封禁（演练模式）"
+	}
+	return fmt.Sprintf("%s自动封禁（第%d次违规）", name, offenseCount)
 }
 
 func writeProbeGuardIPLog(reason, clientIP string, userBase *model.UserBase, models string, durationMinutes int, isPermanent bool, unbanAt int64, offenseCount int, dryRun bool, now int64) {
@@ -135,37 +150,106 @@ func buildProbeGuardInfo(setting risk_setting.ProbeGuardSetting, dimension, reas
 }
 
 type probeGuardWindow struct {
-	dimension   string
-	target      string
-	windowKey   string
-	cooldownKey string
-	count       int64
+	rule          string
+	dimension     string
+	target        string
+	windowKey     string
+	cooldownKey   string
+	memberKey     string // 非空时成员列表从该 key 读取（tiny 规则读取形状窗口）
+	count         int64
+	threshold     int
+	windowSeconds int
 }
 
-func observeProbeGuardWindows(setting risk_setting.ProbeGuardSetting, clientIP, modelName string, userBase *model.UserBase) []probeGuardWindow {
-	windows := make([]probeGuardWindow, 0, 2)
+// buildProbeGuardWindows 按启用的规则与封禁维度构造滑动窗口。
+// scan 规则沿用既有 key，保证升级后窗口与违规计数连续。
+func buildProbeGuardWindows(setting risk_setting.ProbeGuardSetting, clientIP string, estTokens int, userBase *model.UserBase) []probeGuardWindow {
+	targets := make([]probeGuardWindow, 0, 2)
 	if setting.BansIP() {
-		windows = append(windows, probeGuardWindow{
-			dimension:   model.RiskBanDimensionIP,
-			target:      clientIP,
-			windowKey:   riskIPKey("probe_guard:ip", clientIP),
-			cooldownKey: riskIPKey("probe_guard:cooldown:ip", clientIP),
-		})
+		targets = append(targets, probeGuardWindow{dimension: model.RiskBanDimensionIP, target: clientIP})
 	}
 	if setting.BansUser() {
-		userTarget := strconv.Itoa(userBase.Id)
-		windows = append(windows, probeGuardWindow{
-			dimension:   model.RiskBanDimensionUser,
-			target:      userTarget,
-			windowKey:   "probe_guard:user:" + userTarget,
-			cooldownKey: "probe_guard:cooldown:user:" + userTarget,
-		})
+		targets = append(targets, probeGuardWindow{dimension: model.RiskBanDimensionUser, target: strconv.Itoa(userBase.Id)})
 	}
+
+	key := func(prefix string, w probeGuardWindow) string {
+		if w.dimension == model.RiskBanDimensionIP {
+			return riskIPKey(prefix+":"+model.RiskBanDimensionIP, w.target)
+		}
+		return prefix + ":" + model.RiskBanDimensionUser + ":" + w.target
+	}
+
+	windows := make([]probeGuardWindow, 0, len(targets)*3)
+	for _, target := range targets {
+		scan := target
+		scan.rule = probeRuleScan
+		scan.threshold = setting.DistinctModelCount
+		scan.windowSeconds = setting.WindowSeconds
+		scan.windowKey = key("probe_guard", scan)
+		scan.cooldownKey = key("probe_guard:cooldown", scan)
+		windows = append(windows, scan)
+
+		if setting.SlowScanEnabled {
+			slow := target
+			slow.rule = probeRuleSlow
+			slow.threshold = setting.SlowScanDistinctModelCount
+			slow.windowSeconds = setting.SlowScanWindowSeconds
+			slow.windowKey = key("probe_guard:slow", slow)
+			slow.cooldownKey = key("probe_guard:cooldown:slow", slow)
+			windows = append(windows, slow)
+		}
+
+		if setting.TinyRequestEnabled && estTokens > 0 && estTokens <= setting.TinyMaxPromptTokens {
+			tiny := target
+			tiny.rule = probeRuleTiny
+			tiny.threshold = setting.TinyRepeatCount
+			tiny.windowSeconds = setting.WindowSeconds
+			tiny.windowKey = key("probe_guard:tiny", tiny)
+			tiny.memberKey = key("probe_guard:tiny:shape", tiny)
+			tiny.cooldownKey = key("probe_guard:cooldown:tiny", tiny)
+			windows = append(windows, tiny)
+		}
+	}
+	return windows
+}
+
+func probeRuleLiveID(rule string) string {
+	switch rule {
+	case probeRuleSlow:
+		return RiskLiveProbeGuardSlowRuleID
+	case probeRuleTiny:
+		return RiskLiveProbeGuardTinyRuleID
+	default:
+		return RiskLiveProbeGuardRuleID
+	}
+}
+
+func probeRuleLiveName(rule string) string {
+	switch rule {
+	case probeRuleSlow:
+		return "Probe Guard (低速扫描)"
+	case probeRuleTiny:
+		return "Probe Guard (重复小请求)"
+	default:
+		return "Probe Guard"
+	}
+}
+
+func observeProbeGuardWindows(setting risk_setting.ProbeGuardSetting, clientIP, userAgent, modelName string, estTokens int, userBase *model.UserBase) []probeGuardWindow {
+	windows := buildProbeGuardWindows(setting, clientIP, estTokens, userBase)
 
 	triggered := make([]probeGuardWindow, 0, len(windows))
 	for i := range windows {
 		window := &windows[i]
-		window.count = riskWindowAddDistinct(window.windowKey, modelName, setting.WindowSeconds)
+		// shapeCount 仅 tiny 规则使用：形状（模型|UA|输入token数）种类过多说明是正常批量调用。
+		shapeCount := int64(-1)
+		if window.rule == probeRuleTiny {
+			window.count = riskWindowAddEvent(window.windowKey, window.windowSeconds)
+			shape := modelName + "|" + userAgent + "|" + strconv.Itoa(estTokens)
+			shapeCount = riskWindowAddDistinct(window.memberKey, shape, window.windowSeconds)
+		} else {
+			window.count = riskWindowAddDistinct(window.windowKey, modelName, window.windowSeconds)
+		}
 		contextValue := clientIP
 		if window.dimension == model.RiskBanDimensionIP {
 			contextValue = userBase.Username
@@ -173,23 +257,30 @@ func observeProbeGuardWindows(setting risk_setting.ProbeGuardSetting, clientIP, 
 		recordRiskLiveProgress(riskLiveProgressRecord{
 			RiskLiveTarget: RiskLiveTarget{
 				Source:        RiskLiveSourceProbeGuard,
-				RuleId:        RiskLiveProbeGuardRuleID,
-				RuleName:      "Probe Guard",
+				RuleId:        probeRuleLiveID(window.rule),
+				RuleName:      probeRuleLiveName(window.rule),
 				Dimension:     window.dimension,
 				Target:        window.target,
 				UserId:        userBase.Id,
 				Username:      userBase.Username,
 				Context:       contextValue,
 				CurrentCount:  window.count,
-				Threshold:     setting.DistinctModelCount,
-				WindowSeconds: setting.WindowSeconds,
+				Threshold:     window.threshold,
+				WindowSeconds: window.windowSeconds,
 			},
 			WindowKey:   window.windowKey,
 			CooldownKey: window.cooldownKey,
 		})
-		if int(window.count) >= setting.DistinctModelCount && riskCooldownAcquire(window.cooldownKey, setting.OffenseDedupeSeconds) {
-			triggered = append(triggered, *window)
+		if int(window.count) < window.threshold {
+			continue
 		}
+		if shapeCount >= 0 && int(shapeCount) > setting.TinyMaxShapeCount {
+			continue
+		}
+		if !riskCooldownAcquire(window.cooldownKey, setting.OffenseDedupeSeconds) {
+			continue
+		}
+		triggered = append(triggered, *window)
 	}
 	return triggered
 }
@@ -226,7 +317,9 @@ func CheckProbeGuard(c *gin.Context, relayInfo *relaycommon.RelayInfo) *types.Ne
 		return nil
 	}
 
-	triggered := observeProbeGuardWindows(setting, clientIP, modelName, userBase)
+	userAgent := strings.TrimSpace(c.Request.UserAgent())
+	estTokens := relayInfo.GetEstimatePromptTokens()
+	triggered := observeProbeGuardWindows(setting, clientIP, userAgent, modelName, estTokens, userBase)
 	if len(triggered) == 0 {
 		return nil
 	}
@@ -236,7 +329,12 @@ func CheckProbeGuard(c *gin.Context, relayInfo *relaycommon.RelayInfo) *types.Ne
 	userPermanent := false
 	processed := false
 	for _, window := range triggered {
-		windowModels := riskWindowMembers(window.windowKey)
+		// tiny 规则的 windowKey 存的是匿名事件，成员列表需从形状窗口读取。
+		membersKey := window.windowKey
+		if window.memberKey != "" {
+			membersKey = window.memberKey
+		}
+		windowModels := riskWindowMembers(membersKey)
 		triggeredModels := strings.Join(windowModels, ",")
 		if window.dimension == model.RiskBanDimensionIP {
 			state, stateErr := model.IncrementProbeIPAbuseOffense(clientIP, userBase.Id, windowModels)
@@ -247,7 +345,7 @@ func CheckProbeGuard(c *gin.Context, relayInfo *relaycommon.RelayInfo) *types.Ne
 			processed = true
 			durationMinutes, isPermanent := probeBanTier(state.OffenseCount, setting)
 			unbanAt := probeGuardUnbanAt(now, durationMinutes, isPermanent)
-			reason := probeGuardReason(state.OffenseCount, setting.DryRun)
+			reason := probeGuardReason(window.rule, state.OffenseCount, setting.DryRun)
 			if setting.DryRun {
 				writeProbeGuardIPLog(reason, clientIP, userBase, triggeredModels, durationMinutes, isPermanent, unbanAt, state.OffenseCount, true, now)
 				if setting.NotifyAdminEnabled {

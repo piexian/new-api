@@ -28,6 +28,16 @@ type ProbeGuardSetting struct {
 	NotifyUserEnabled      bool     `json:"notify_user_enabled"`
 	NotifyAdminEnabled     bool     `json:"notify_admin_enabled"`
 	AppealHint             string   `json:"appeal_hint"`
+	// 规则A：恒定小请求测活。窗口内同一目标的小请求总数达到阈值且形状（模型|UA|输入token数）
+	// 种类数低于上限时触发，用于识别重复发送同一微小请求的测活脚本。
+	TinyRequestEnabled bool `json:"tiny_request_enabled"`
+	TinyMaxPromptTokens int `json:"tiny_max_prompt_tokens"`
+	TinyRepeatCount     int `json:"tiny_repeat_count"`
+	TinyMaxShapeCount   int `json:"tiny_max_shape_count"`
+	// 规则B：慢速扫模型。在更长窗口内统计不同模型数，捕捉刻意压低速率规避短窗口的扫描。
+	SlowScanEnabled            bool `json:"slow_scan_enabled"`
+	SlowScanWindowSeconds      int  `json:"slow_scan_window_seconds"`
+	SlowScanDistinctModelCount int  `json:"slow_scan_distinct_model_count"`
 }
 
 // 默认配置：默认关闭且开启 dry_run，避免误伤。
@@ -50,6 +60,13 @@ var probeGuardSetting = ProbeGuardSetting{
 	NotifyUserEnabled:      true,
 	NotifyAdminEnabled:     true,
 	AppealHint:             "如认为误封，请联系管理员。",
+	TinyRequestEnabled:     false,
+	TinyMaxPromptTokens:    200,
+	TinyRepeatCount:        8,
+	TinyMaxShapeCount:      3,
+	SlowScanEnabled:            false,
+	SlowScanWindowSeconds:      3600,
+	SlowScanDistinctModelCount: 20,
 }
 
 func init() {
@@ -90,6 +107,11 @@ func (s *ProbeGuardSetting) Normalize() {
 	if strings.TrimSpace(s.UserBanReason) == "" {
 		s.UserBanReason = "触发批量模型探测自动封禁"
 	}
+	s.TinyMaxPromptTokens = clampInt(s.TinyMaxPromptTokens, 1, 2000, 200)
+	s.TinyRepeatCount = clampInt(s.TinyRepeatCount, 2, 200, 8)
+	s.TinyMaxShapeCount = clampInt(s.TinyMaxShapeCount, 1, 50, 3)
+	s.SlowScanWindowSeconds = clampInt(s.SlowScanWindowSeconds, 60, 86400, 3600)
+	s.SlowScanDistinctModelCount = clampInt(s.SlowScanDistinctModelCount, 2, 500, 20)
 }
 
 const ProbeBanDimensionBoth = "both"

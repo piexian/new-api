@@ -80,13 +80,23 @@ func ToggleRiskLiveRule(c *gin.Context) {
 
 	switch req.Source {
 	case service.RiskLiveSourceProbeGuard:
-		if req.RuleId != service.RiskLiveProbeGuardRuleID {
+		setting := risk_setting.GetProbeGuardSetting()
+		var fieldKey string
+		switch req.RuleId {
+		case service.RiskLiveProbeGuardRuleID:
+			setting.Enabled = req.Enabled
+			fieldKey = "enabled"
+		case service.RiskLiveProbeGuardSlowRuleID:
+			setting.SlowScanEnabled = req.Enabled
+			fieldKey = "slow_scan_enabled"
+		case service.RiskLiveProbeGuardTinyRuleID:
+			setting.TinyRequestEnabled = req.Enabled
+			fieldKey = "tiny_request_enabled"
+		default:
 			common.ApiErrorMsg(c, "探针防护规则 ID 无效")
 			return
 		}
-		setting := risk_setting.GetProbeGuardSetting()
-		setting.Enabled = req.Enabled
-		if err := saveRiskConfigField("probe_guard_setting.", "enabled", &setting); err != nil {
+		if err := saveRiskConfigField("probe_guard_setting.", fieldKey, &setting); err != nil {
 			common.ApiError(c, err)
 			return
 		}
