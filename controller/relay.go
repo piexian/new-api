@@ -624,6 +624,8 @@ func RelayTask(c *gin.Context) {
 
 		task := model.InitTask(result.Platform, relayInfo)
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
+		// 记录提单时实际选用的渠道 key（多 Key 渠道轮询必须复用同一 key）
+		task.PrivateData.Key = common.GetContextKeyString(c, constant.ContextKeyChannelKey)
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		// 订阅拆分时持久化各腿与钱包腿的最终分配，供轮询阶段退款/差额结算回放

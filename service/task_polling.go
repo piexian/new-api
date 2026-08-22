@@ -443,11 +443,17 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		logger.LogError(ctx, fmt.Sprintf("Task %s not found in taskM", taskId))
 		return fmt.Errorf("task %s not found", taskId)
 	}
-	key := ch.Key
-
 	privateData := task.PrivateData
-	if privateData.Key != "" {
-		key = privateData.Key
+	key := privateData.Key
+	if key == "" {
+		// 旧任务未记录 key：单 key 渠道直接用原始串；多 Key 渠道选一个可用 key，不能用换行拼接的原始串
+		if ch.ChannelInfo.IsMultiKey {
+			if k, _, err := ch.GetNextEnabledKey(); err == nil {
+				key = k
+			}
+		} else {
+			key = ch.Key
+		}
 	}
 	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
 		"task_id": task.GetUpstreamTaskID(),
