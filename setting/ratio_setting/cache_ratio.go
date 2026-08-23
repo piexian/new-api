@@ -79,6 +79,23 @@ var defaultCacheRatio = map[string]float64{
 	"MiniMax-M2.1":                        0.1,
 	"MiniMax-M2.1-highspeed":              0.05,
 	"MiniMax-M2":                          0.1,
+	// Mistral：官方 prompt caching 统一按输入价 10% 计费
+	"mistral-large-2512":    0.1,
+	"mistral-large-latest":  0.1,
+	"mistral-medium-3-5":    0.1,
+	"mistral-medium-3":      0.1,
+	"mistral-medium-latest": 0.1,
+	"mistral-small-2603":    0.1,
+	"mistral-small-latest":  0.1,
+	"ministral-14b-2512":    0.1,
+	"ministral-14b-latest":  0.1,
+	"ministral-8b-2512":     0.1,
+	"ministral-8b-latest":   0.1,
+	"ministral-3b-2512":     0.1,
+	"ministral-3b-latest":   0.1,
+	"codestral-2508":        0.1,
+	"codestral-latest":      0.1,
+	"zai-glm-5-2":           0.1,
 }
 
 var defaultCreateCacheRatio = map[string]float64{

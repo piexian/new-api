@@ -197,10 +197,10 @@ var defaultModelRatio = map[string]float64{
 	"gemini-2.5-flash":                          0.15,
 	"gemini-robotics-er-1.5-preview":            0.15,
 	"gemini-embedding-001":                      0.075,
-	"gemini-3-flash":      0.75,  // $1.50/M input
-	"gemini-3.1-flash-lite": 0.125, // $0.25/M input
-	"gemini-3.1-pro":      1.0,   // $2.00/M input (≤200K)
-	"gemini-3.5-flash":     0.75,  // $1.50/M input
+	"gemini-3-flash":                            0.75,  // $1.50/M input
+	"gemini-3.1-flash-lite":                     0.125, // $0.25/M input
+	"gemini-3.1-pro":                            1.0,   // $2.00/M input (≤200K)
+	"gemini-3.5-flash":                          0.75,  // $1.50/M input
 	"text-embedding-004":                        0.001,
 	"chatglm_turbo":                             0.3572,     // ￥0.005 / 1k tokens
 	"chatglm_pro":                               0.7143,     // ￥0.01 / 1k tokens
@@ -252,14 +252,14 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-coder":         0.27 / 2,
 	"deepseek-reasoner":      0.55 / 2, // 0.55 / 1k tokens
 	// MiniMax: https://platform.minimaxi.com/docs/guides/pricing-paygo (June 2026 update)
-	"MiniMax-M3":             0.15, // $0.30/M input (standard ≤512K)
-	"MiniMax-M2.7":           0.15, // $0.30/M input
-	"MiniMax-M2.7-highspeed": 0.30, // $0.60/M input
-	"MiniMax-M2.5":           0.15, // $0.30/M input
-	"MiniMax-M2.5-highspeed": 0.30, // $0.60/M input
-	"MiniMax-M2.1":           0.15, // $0.30/M input
-	"MiniMax-M2.1-highspeed": 0.30, // $0.60/M input
-	"MiniMax-M2":             0.15, // $0.30/M input
+	"MiniMax-M3":             0.15,       // $0.30/M input (standard ≤512K)
+	"MiniMax-M2.7":           0.15,       // $0.30/M input
+	"MiniMax-M2.7-highspeed": 0.30,       // $0.60/M input
+	"MiniMax-M2.5":           0.15,       // $0.30/M input
+	"MiniMax-M2.5-highspeed": 0.30,       // $0.60/M input
+	"MiniMax-M2.1":           0.15,       // $0.30/M input
+	"MiniMax-M2.1-highspeed": 0.30,       // $0.60/M input
+	"MiniMax-M2":             0.15,       // $0.30/M input
 	"speech-2.8-hd":          0.35 * RMB, // ￥3.5 / 10K characters
 	"speech-2.6-hd":          0.35 * RMB,
 	"speech-02-hd":           0.35 * RMB,
@@ -274,19 +274,19 @@ var defaultModelRatio = map[string]float64{
 	"llama-3-sonar-large-32k-chat":   1 / 1000 * USD,
 	"llama-3-sonar-large-32k-online": 1 / 1000 * USD,
 	// grok
-	"grok-3-beta":           1.5,
-	"grok-3-mini-beta":      0.15,
-	"grok-2":                1,
-	"grok-2-vision":         1,
-	"grok-beta":             2.5,
-	"grok-vision-beta":      2.5,
-	"grok-3-fast-beta":      2.5,
-	"grok-3-mini-fast-beta": 0.3,
-	"grok-4.3-auto":   0.625, // $1.25/M input
-	"grok-4.3-expert": 0.625, // $1.25/M input
-	"grok-4.3-fast":   0.625, // $1.25/M input
-	"grok-build-0.1":  0.5,   // $1.00/M input
-	"grok-composer-2.5-fast": 0.75, // $1.50/M input
+	"grok-3-beta":            1.5,
+	"grok-3-mini-beta":       0.15,
+	"grok-2":                 1,
+	"grok-2-vision":          1,
+	"grok-beta":              2.5,
+	"grok-vision-beta":       2.5,
+	"grok-3-fast-beta":       2.5,
+	"grok-3-mini-fast-beta":  0.3,
+	"grok-4.3-auto":          0.625, // $1.25/M input
+	"grok-4.3-expert":        0.625, // $1.25/M input
+	"grok-4.3-fast":          0.625, // $1.25/M input
+	"grok-build-0.1":         0.5,   // $1.00/M input
+	"grok-composer-2.5-fast": 0.75,  // $1.50/M input
 	// submodel
 	"NousResearch/Hermes-4-405B-FP8":          0.8,
 	"Qwen/Qwen3-235B-A22B-Thinking-2507":      0.6,
@@ -303,27 +303,27 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-v4-pro":   0.2175, // $0.435/M input
 	"deepseek-v3.2":     0.07,   // $0.14/M input (deprecated, mapped to V4 Flash)
 	// Kimi (June 2026)
-	"kimi-k2.7-code":    0.4452, // ¥6.50/M input (~$0.89/M)
+	"kimi-k2.7-code": 0.4452, // ¥6.50/M input (~$0.89/M)
 	// GLM (June 2026)
-	"glm-5":             0.411,  // ¥6.00/M input
-	"glm-5-turbo":       0.411,  // ¥6.00/M input
-	"glm-5.1":           0.411,  // ¥6.00/M input (≤32K)
-	"glm-5.2":           0.548,  // ¥8.00/M input
-	"glm-5.2-202k":      0.548,  // ¥8.00/M input
-	"glm-4.6v":          0.103,  // ¥1.50/M input
-	"glm-4.7-flash":     0.137,  // ¥2.00/M input (was 0.05)
+	"glm-5":         0.411, // ¥6.00/M input
+	"glm-5-turbo":   0.411, // ¥6.00/M input
+	"glm-5.1":       0.411, // ¥6.00/M input (≤32K)
+	"glm-5.2":       0.548, // ¥8.00/M input
+	"glm-5.2-202k":  0.548, // ¥8.00/M input
+	"glm-4.6v":      0.103, // ¥1.50/M input
+	"glm-4.7-flash": 0.137, // ¥2.00/M input (was 0.05)
 	// Doubao/ByteDance Seed (June 2026)
 	"doubao-seed-evolving": 0.219, // ¥3.20/M input
-	"doubao-1.5-pro":      0.219,  // ¥3.20/M input
-	"doubao-seed-1.8":     0.041,  // ¥0.60/M input
+	"doubao-1.5-pro":       0.219, // ¥3.20/M input
+	"doubao-seed-1.8":      0.041, // ¥0.60/M input
 	// Qwen3.5 (June 2026)
-	"qwen3.5-397b-a17b":   0.082,  // ¥1.20/M input
-	"qwen3.5-122b-a10b":   0.055,  // ¥0.80/M input
+	"qwen3.5-397b-a17b": 0.082, // ¥1.20/M input
+	"qwen3.5-122b-a10b": 0.055, // ¥0.80/M input
 	// Nemotron 3 (June 2026)
-	"nemotron-3-nano":      0.05,   // $0.10/M input
-	"nemotron-3-nano-omni": 0.075,  // $0.15/M input
-	"nemotron-3-super":     0.115,  // $0.23/M input
-	"nemotron-3-ultra-t":   0.25,   // $0.50/M input
+	"nemotron-3-nano":      0.05,  // $0.10/M input
+	"nemotron-3-nano-omni": 0.075, // $0.15/M input
+	"nemotron-3-super":     0.115, // $0.23/M input
+	"nemotron-3-ultra-t":   0.25,  // $0.50/M input
 	// StepFun (June 2026)
 	"step-3.5-flash-2603":    0.0925, // ¥1.35/M input
 	"step-router-v1":         0.0342, // ¥0.50/M input
@@ -332,13 +332,92 @@ var defaultModelRatio = map[string]float64{
 	"stepaudio-2.5-chat":     0.685,  // ¥10.00/M input
 	"stepaudio-2.5-realtime": 0.685,  // ¥10.00/M input
 	"stepaudio-2.5-tts":      0.548,  // ¥8.00/M input
-	// Mistral (June 2026)
-	"mistral-large-3-675b-instruct-2512": 0.25,  // $0.50/M input
-	"mistral-small-4-119b-2603":          0.075, // $0.15/M input
-	"mistral-medium-3.5-128b":            0.75,  // $1.50/M input
+	// Mistral (https://docs.mistral.ai/inference/pricing, ratio = $/M input ÷ 2)
+	// 旗舰 chat 模型
+	"mistral-large-2512":      0.25, // $0.50/M input
+	"mistral-large-latest":    0.25,
+	"mistral-medium-3-5":      0.75, // $1.50/M input
+	"mistral-medium-3":        0.75,
+	"mistral-medium-latest":   0.75,
+	"mistral-small-2603":      0.075, // $0.15/M input
+	"mistral-small-latest":    0.075,
+	"ministral-14b-2512":      0.1, // $0.20/M input
+	"ministral-14b-latest":    0.1,
+	"ministral-8b-2512":       0.075, // $0.15/M input
+	"ministral-8b-latest":     0.075,
+	"ministral-3b-2512":       0.05, // $0.10/M input
+	"ministral-3b-latest":     0.05,
+	"codestral-2508":          0.15, // $0.30/M input
+	"codestral-latest":        0.15,
+	"devstral-2512":           0.2, // $0.40/M input
+	"devstral-latest":         0.2,
+	"devstral-medium-latest":  0.2,
+	"magistral-medium-2509":   1.0, // $2.00/M input
+	"magistral-medium-latest": 1.0,
+	"magistral-small-2509":    0.25, // $0.50/M input
+	"magistral-small-latest":  0.25,
+	"zai-glm-5-2":             0.7, // $1.40/M input
+	// 旧世代 chat 模型
+	"mistral-large-2411":          1.0, // $2.00/M input
+	"mistral-medium-2508":         0.2, // $0.40/M input
+	"mistral-medium-2505":         0.2,
+	"devstral-medium-2507":        0.2,
+	"mistral-small-2506":          0.05, // $0.10/M input
+	"mistral-small-2503":          0.05,
+	"mistral-small-2501":          0.05,
+	"mistral-small-2409":          0.05,
+	"labs-mistral-small-creative": 0.05,
+	"devstral-small-2507":         0.05,
+	"devstral-small-2505":         0.05,
+	"devstral-small-latest":       0.05,
+	"labs-devstral-small-2512":    0.05,
+	"magistral-medium-2507":       1.0,
+	"magistral-medium-2506":       1.0,
+	"magistral-small-2507":        0.25,
+	"magistral-small-2506":        0.25,
+	"ministral-8b-2410":           0.05,  // $0.10/M input
+	"ministral-3b-2410":           0.02,  // $0.04/M input
+	"open-mistral-nemo":           0.075, // $0.15/M input
+	"open-mistral-nemo-2407":      0.075,
+	"codestral-2501":              0.15, // $0.30/M input
+	"pixtral-large-2411":          1.0,  // $2.00/M input
+	"pixtral-large-latest":        1.0,
+	"pixtral-12b-2409":            0.075, // $0.15/M input
+	// embedding 模型（仅有输入计费）
+	"codestral-embed-2505": 0.075, // $0.15/M input
+	"codestral-embed":      0.075,
+	"mistral-embed-2312":   0.05, // $0.10/M input
+	"mistral-embed":        0.05,
+	// moderation / labs 免费模型
+	"mistral-moderation-2603": 0,
+	"labs-leanstral-1-5":      0,
+	"labs-leanstral-2603":     0,
+	"mistral-moderation-2411": 0.05, // $0.10/M input
+	// OCR 按页计费，渠道侧约定 1 页 = 1000 prompt tokens，
+	// 故官方 $x/1000 pages 等价于 $x/M tokens
+	"mistral-ocr-4-1":    2, // $4/1000 pages
+	"mistral-ocr-4":      2,
+	"mistral-ocr-latest": 2,
+	"mistral-ocr-4-0":    2,
+	"mistral-ocr-2512":   1,   // $2/1000 pages
+	"mistral-ocr-2505":   0.5, // $1/1000 pages
+	// STT 按分钟计费，渠道侧约定 1 分钟 = 1000 tokens，
+	// 故官方 $x/min 等价于 $(x*1000)/M tokens
+	"voxtral-mini-2602":                       1.5, // $0.003/min
+	"voxtral-mini-latest":                     1.5,
+	"voxtral-mini-2507":                       1.0, // $0.002/min（chat 端点为 $0.04/M tokens，按主场景 STT 定价）
+	"voxtral-mini-transcribe-realtime-2602":   3,   // $0.006/min
+	"voxtral-mini-transcribe-realtime-latest": 3,
+	"voxtral-small-2507":                      2.0, // $0.004/min（chat 端点为 $0.10/M tokens，按主场景 STT 定价）
+	"voxtral-small-latest":                    2.0,
+	// TTS 官方 $16/M chars（输入免费），渠道侧按音频分钟折算
+	// completion tokens（1 分钟 = 1000），配合 completion ratio 10
+	// 使输出侧约 $15/M tokens；0.75 的输入倍率近乎免费
+	"voxtral-mini-tts-2603":   0.75,
+	"voxtral-mini-tts-latest": 0.75,
 	// Cohere (June 2026)
-	"command-a-03-2025":           0.25,  // $0.50/M input
-	"command-a-plus-05-2026":      0.0,   // Free (until rate limits)
+	"command-a-03-2025":      0.25, // $0.50/M input
+	"command-a-plus-05-2026": 0.0,  // Free (until rate limits)
 	// Meta Llama 4 (June 2026)
 	"llama-4-maverick-17b-128e-instruct": 0.10, // $0.20/M input
 	// SenseNova
@@ -392,10 +471,10 @@ var defaultModelPrice = map[string]float64{
 	"music_cover_preprocess":         0,
 	"lyrics_generation":              0.05 / USD2RMB,
 	// Grok Imagine (June 2026 pricing)
-	"grok-imagine-image":         0.02, // ~$0.02/image (standard)
-	"grok-imagine-image-quality": 0.07, // ~$0.07/image (quality/pro)
-	"grok-imagine-image-edit":    0.05, // edit pricing
-	"grok-imagine-video":         0.25, // ~$0.05-0.25/sec (1080p)
+	"grok-imagine-image":             0.02, // ~$0.02/image (standard)
+	"grok-imagine-image-quality":     0.07, // ~$0.07/image (quality/pro)
+	"grok-imagine-image-edit":        0.05, // edit pricing
+	"grok-imagine-video":             0.25, // ~$0.05-0.25/sec (1080p)
 	"grok-imagine-video-1.5-preview": 0.30,
 	// Seedance video
 	"seedance-1.0-pro-fast": 0.09, // ~$0.09/sec
@@ -444,6 +523,33 @@ var defaultCompletionRatio = map[string]float64{
 	"MiniMax-M2.1":           4,
 	"MiniMax-M2.1-highspeed": 4,
 	"MiniMax-M2":             4,
+	// Mistral 系（ministral 输出=输入，默认 1 无需配置）
+	"codestral-2508":           3,
+	"codestral-2501":           3,
+	"codestral-latest":         3,
+	"devstral-2512":            5,
+	"devstral-latest":          5,
+	"devstral-medium-latest":   5,
+	"devstral-medium-2507":     5,
+	"devstral-small-2505":      3,
+	"devstral-small-2507":      3,
+	"devstral-small-latest":    3,
+	"labs-devstral-small-2512": 3,
+	"magistral-medium-2509":    2.5,
+	"magistral-medium-2507":    2.5,
+	"magistral-medium-2506":    2.5,
+	"magistral-medium-latest":  2.5,
+	"magistral-small-2509":     3,
+	"magistral-small-2507":     3,
+	"magistral-small-2506":     3,
+	"magistral-small-latest":   3,
+	"pixtral-large-2411":       3,
+	"pixtral-large-latest":     3,
+	"zai-glm-5-2":              4.4 / 1.4,
+	// Mistral TTS：输出按音频分钟折算（1 分钟 = 1000 tokens），
+	// 官方 $16/M chars ≈ $15/M completion tokens，配合模型倍率 0.75
+	"voxtral-mini-tts-2603":   10,
+	"voxtral-mini-tts-latest": 10,
 }
 
 // InitRatioSettings initializes all model related settings maps
@@ -667,6 +773,14 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			return 2, true
 		}
 		return 4.0 / 3.0, true
+	}
+	if strings.HasPrefix(name, "mistral-medium-") {
+		// Medium 3.x/3.5 输出 $2.00~$7.50，对输入均为 5 倍
+		return 5, true
+	}
+	if name == "mistral-small-2603" || name == "mistral-small-latest" {
+		// Small 4.0 输出 $0.60，对输入 $0.15 为 4 倍；旧版 small 均为 3 倍
+		return 4, true
 	}
 	if strings.HasPrefix(name, "mistral-") {
 		return 3, true
