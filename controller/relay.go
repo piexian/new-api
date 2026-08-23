@@ -617,6 +617,12 @@ func RelayTask(c *gin.Context) {
 
 	// ── 成功：结算 + 日志 + 插入任务 ──
 	if taskErr == nil {
+		// 异步任务在提单时计一次成功采样；失败采样已在上方终态错误处记录，
+		// 否则视频等任务型模型在性能面板里只有失败没有成功，成功率恒为 0
+		taskInfo := relayInfo
+		gopool.Go(func() {
+			perfmetrics.RecordRelaySample(taskInfo, true, 0)
+		})
 		if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
 			common.SysError("settle task billing error: " + settleErr.Error())
 		}
