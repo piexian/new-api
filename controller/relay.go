@@ -484,6 +484,16 @@ func RelayMidjourney(c *gin.Context) {
 		})
 		channelId := c.GetInt("channel_id")
 		logger.LogError(c, fmt.Sprintf("relay error (channel #%d, status code %d): %s", channelId, statusCode, fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)))
+		mjErrInfo := relayInfo
+		gopool.Go(func() {
+			perfmetrics.RecordRelaySample(mjErrInfo, false, 0)
+		})
+	} else {
+		// MJ 提交成功也计入成功采样；此前该模型在性能面板完全不可见
+		mjOkInfo := relayInfo
+		gopool.Go(func() {
+			perfmetrics.RecordRelaySample(mjOkInfo, true, 0)
+		})
 	}
 }
 
@@ -673,6 +683,11 @@ func RelayTask(c *gin.Context) {
 	}
 
 	if taskErr != nil {
+		// 与同步 relay 终态错误对齐：任务提单失败也要计入失败采样，否则该模型成功率虚高
+		taskErrInfo := relayInfo
+		gopool.Go(func() {
+			perfmetrics.RecordRelaySample(taskErrInfo, false, 0)
+		})
 		respondTaskError(c, taskErr)
 	}
 }
