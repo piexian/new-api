@@ -61,6 +61,8 @@ const (
 
 	RelayModeResponsesInputTokens
 	RelayModeClaudeCountTokens
+
+	RelayModeOCR
 )
 
 func Path2RelayMode(path string) int {
@@ -120,6 +122,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeMiniMaxMusicCoverPreprocess
 	} else if strings.HasPrefix(path, "/v1/lyrics_generation") {
 		relayMode = RelayModeMiniMaxLyricsGeneration
+	} else if strings.HasPrefix(path, "/v1/ocr") {
+		relayMode = RelayModeOCR
 	} else if strings.HasPrefix(path, "/v1/rerank") {
 		relayMode = RelayModeRerank
 	} else if strings.HasPrefix(path, "/v1/realtime") {

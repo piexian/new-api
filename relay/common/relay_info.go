@@ -410,13 +410,14 @@ func GenRelayInfoResponses(c *gin.Context, request *dto.OpenAIResponsesRequest) 
 	}
 	if len(request.Tools) > 0 {
 		for _, tool := range request.GetToolsMap() {
-			toolType := common.Interface2String(tool["type"])
+			// 归一到官方名称，保证 web_search_preview 等别名与 GA 名 web_search 共用同一计数/计价键
+			toolType := common.CanonicalBuildInToolName(common.Interface2String(tool["type"]))
 			info.ResponsesUsageInfo.BuiltInTools[toolType] = &BuildInToolInfo{
 				ToolName:  toolType,
 				CallCount: 0,
 			}
 			switch toolType {
-			case dto.BuildInToolWebSearchPreview:
+			case dto.BuildInToolWebSearch:
 				searchContextSize := common.Interface2String(tool["search_context_size"])
 				if searchContextSize == "" {
 					searchContextSize = "medium"
@@ -608,6 +609,10 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 			break
 		}
 		err = errors.New("request is not a RerankRequest")
+	case types.RelayFormatOCR:
+		info = genBaseRelayInfo(c, request)
+		info.RelayMode = relayconstant.RelayModeOCR
+		info.RelayFormat = types.RelayFormatOCR
 	case types.RelayFormatGemini:
 		info = GenRelayInfoGemini(c, request)
 	case types.RelayFormatEmbedding:

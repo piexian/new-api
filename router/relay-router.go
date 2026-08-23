@@ -258,6 +258,11 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatRerank)
 		})
 
+		// ocr relay route
+		httpRouter.POST("/ocr", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOCR)
+		})
+
 		// gemini relay routes
 		httpRouter.POST("/engines/:model/embeddings", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatGemini)

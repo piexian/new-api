@@ -338,3 +338,55 @@ func TestMistralMessagesHandlerReturnsClaudeResponse(t *testing.T) {
 		t.Fatalf("Claude response = %#v, want assistant answer", claudeResponse)
 	}
 }
+
+func TestConvertOpenAIResponsesRequestKeepsMistralBuiltInTools(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeResponses,
+		RelayFormat: types.RelayFormatOpenAIResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "mistral-large-latest",
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		Model: "mistral-large-latest",
+		Input: []byte(`[{"type":"message","role":"user","content":[{"type":"input_text","text":"hi"}]}]`),
+		Tools: []byte(`[
+			{"type":"function","name":"get_weather","description":"weather","parameters":{"type":"object"}},
+			{"type":"web_search_preview"},
+			{"type":"web_search_20250305"},
+			{"type":"web_search_premium"},
+			{"type":"file_search"},
+			{"type":"code_interpreter"}
+		]`),
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIResponsesRequest returned error: %v", err)
+	}
+
+	chatReq, ok := converted.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want *dto.GeneralOpenAIRequest", converted)
+	}
+
+	got := make([]string, len(chatReq.Tools))
+	for i, tool := range chatReq.Tools {
+		got[i] = tool.Type
+	}
+	want := []string{"function", "web_search", "web_search", "web_search_premium"}
+	if len(got) != len(want) {
+		t.Fatalf("tools = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("tools = %v, want %v", got, want)
+		}
+	}
+	if chatReq.Tools[0].Function.Name != "get_weather" {
+		t.Fatalf("function tool name = %q, want get_weather", chatReq.Tools[0].Function.Name)
+	}
+}

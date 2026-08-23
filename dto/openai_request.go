@@ -243,6 +243,23 @@ type ToolCallRequest struct {
 	Custom   json.RawMessage `json:"custom,omitempty"`
 }
 
+// MarshalJSON 序列化内置工具（web_search 等非 function 类型）时省略空的 function 字段，
+// 避免 Mistral 等上游的严格 schema（additionalProperties: false）因空 function 报 422。
+// function 有内容时必须保留：custom_tool_call 转换会把名称与输入放在 function 里。
+func (t ToolCallRequest) MarshalJSON() ([]byte, error) {
+	type alias ToolCallRequest
+	hasFunction := t.Function.Name != "" || t.Function.Arguments != "" ||
+		t.Function.Description != "" || t.Function.Parameters != nil || t.Function.Strict != nil
+	if t.Type == "" || t.Type == "function" || hasFunction {
+		return json.Marshal(alias(t))
+	}
+	return json.Marshal(struct {
+		ID     string          `json:"id,omitempty"`
+		Type   string          `json:"type"`
+		Custom json.RawMessage `json:"custom,omitempty"`
+	}{ID: t.ID, Type: t.Type, Custom: t.Custom})
+}
+
 type FunctionRequest struct {
 	Description string `json:"description,omitempty"`
 	Name        string `json:"name"`

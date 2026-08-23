@@ -33,11 +33,10 @@ const OPTION_KEY = 'tool_price_setting.prices'
 
 const DEFAULT_PRICES: Record<string, number> = {
   web_search: 10.0,
-  web_search_preview: 10.0,
-  'web_search_preview:gpt-4o*': 25.0,
-  'web_search_preview:gpt-4.1*': 25.0,
-  'web_search_preview:gpt-4o-mini*': 25.0,
-  'web_search_preview:gpt-4.1-mini*': 25.0,
+  'web_search:gpt-4o*': 25.0,
+  'web_search:gpt-4.1*': 25.0,
+  'web_search:gpt-4o-mini*': 25.0,
+  'web_search:gpt-4.1-mini*': 25.0,
   file_search: 2.5,
   google_search: 14.0,
 }
@@ -204,11 +203,11 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
           <div>
             <span className='font-medium'>{t('Format')}:</span>{' '}
             <code className='bg-muted rounded px-1 py-0.5 text-xs'>
-              web_search_preview
+              web_search
             </code>{' '}
             {t('is the default price; ')}
             <code className='bg-muted rounded px-1 py-0.5 text-xs'>
-              web_search_preview:gpt-4o*
+              web_search:gpt-4o*
             </code>{' '}
             {t('overrides for matching model prefix.')}
           </div>
@@ -267,7 +266,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
               cell: (row) => (
                 <Input
                   value={row.key}
-                  placeholder='web_search_preview:gpt-4o*'
+                  placeholder='web_search:gpt-4o*'
                   onChange={(e) => updateRow(row.id, 'key', e.target.value)}
                 />
               ),

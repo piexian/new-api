@@ -1,6 +1,7 @@
 package mistral
 
 import (
+	"encoding/json"
 	"regexp"
 	"strings"
 
@@ -75,12 +76,53 @@ func requestOpenAI2Mistral(request *dto.GeneralOpenAIRequest) *dto.GeneralOpenAI
 		ReasoningEffort: request.ReasoningEffort,
 		Temperature:     request.Temperature,
 		TopP:            request.TopP,
-		Tools:           request.Tools,
+		Tools:           normalizeMistralToolTypes(request.Tools),
 		ToolChoice:      request.ToolChoice,
 	}
 	if request.MaxTokens != nil || request.MaxCompletionTokens != nil {
 		maxTokens := request.GetMaxTokens()
 		out.MaxTokens = &maxTokens
+	}
+	return out
+}
+
+// normalizeMistralToolTypes 把内置工具类型名归一到 Mistral 官方名称（web_search /
+// web_search_premium），避免 OpenAI/Claude 风格别名被上游严格 schema 拒绝（422）。
+// 复制切片，不改写调用方的 request.Tools。
+func normalizeMistralToolTypes(tools []dto.ToolCallRequest) []dto.ToolCallRequest {
+	if len(tools) == 0 {
+		return tools
+	}
+	out := make([]dto.ToolCallRequest, len(tools))
+	copy(out, tools)
+	for i := range out {
+		if out[i].Type == "" || out[i].Type == "function" || out[i].Type == dto.CustomType {
+			continue
+		}
+		out[i].Type = common.CanonicalBuildInToolName(out[i].Type)
+	}
+	return out
+}
+
+// mistralBuiltInToolsFromResponses 从 Responses 请求的 tools 中挑出 Mistral 支持的内置
+// 工具（web_search 系列）。responsescompat.ConvertToOpenAIChatRequest 会丢弃所有非
+// function 工具，这里在 Mistral 渠道内补回，不影响其他渠道的转换行为。
+// 类型名随后由 requestOpenAI2Mistral 归一到官方名称。
+func mistralBuiltInToolsFromResponses(raw json.RawMessage) []dto.ToolCallRequest {
+	if len(raw) == 0 {
+		return nil
+	}
+	var tools []map[string]any
+	if err := common.Unmarshal(raw, &tools); err != nil {
+		return nil
+	}
+	var out []dto.ToolCallRequest
+	for _, tool := range tools {
+		toolType := common.Interface2String(tool["type"])
+		switch common.CanonicalBuildInToolName(toolType) {
+		case dto.BuildInToolWebSearch, dto.BuildInToolWebSearchPremium:
+			out = append(out, dto.ToolCallRequest{Type: toolType})
+		}
 	}
 	return out
 }

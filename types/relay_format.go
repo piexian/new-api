@@ -17,6 +17,7 @@ const (
 	RelayFormatXAI                                   = "xai"
 	RelayFormatXAIRealtime                           = "xai_realtime"
 	RelayFormatMoarkNative                           = "moark_native"
+	RelayFormatOCR                                   = "ocr"
 
 	RelayFormatTask    = "task"
 	RelayFormatMjProxy = "mj_proxy"

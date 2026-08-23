@@ -39,8 +39,14 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	switch info.RelayMode {
+	case relayconstant.RelayModeAudioSpeech:
+		return convertSpeechRequest(&request)
+	case relayconstant.RelayModeAudioTranscription, relayconstant.RelayModeAudioTranslation:
+		return convertTranscriptionRequest(c, &request)
+	default:
+		return nil, errors.New("unsupported audio relay mode")
+	}
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
@@ -81,8 +87,7 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	return request, nil
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
@@ -90,6 +95,8 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	if err != nil {
 		return nil, err
 	}
+	// responsescompat 只保留 function 工具，这里补回 Mistral 支持的内置工具（web_search 系列）
+	chatRequest.Tools = append(chatRequest.Tools, mistralBuiltInToolsFromResponses(request.Tools)...)
 	if info != nil {
 		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
 	}
@@ -97,10 +104,22 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if info.RelayMode == relayconstant.RelayModeAudioTranscription || info.RelayMode == relayconstant.RelayModeAudioTranslation {
+		return channel.DoFormRequest(a, c, info, requestBody)
+	}
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	switch info.RelayMode {
+	case relayconstant.RelayModeAudioSpeech:
+		return MistralTTSHandler(c, resp, info)
+	case relayconstant.RelayModeAudioTranscription, relayconstant.RelayModeAudioTranslation:
+		sttErr, sttUsage := openai.OpenaiSTTHandler(c, resp, info, "json")
+		return sttUsage, sttErr
+	case relayconstant.RelayModeOCR:
+		return MistralOCRHandler(c, resp, info)
+	}
 	if info != nil && info.RelayMode == relayconstant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
 		if info.IsStream {
 			return openai.ChatCompletionResponsesStreamHandlerWithDataTransformer(c, info, resp, normalizeMistralStreamData)

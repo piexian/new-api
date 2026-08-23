@@ -38,11 +38,10 @@ const OPTION_KEY = 'tool_price_setting.prices';
 
 const DEFAULT_PRICES = {
   web_search: 10.0,
-  web_search_preview: 10.0,
-  'web_search_preview:gpt-4o*': 25.0,
-  'web_search_preview:gpt-4.1*': 25.0,
-  'web_search_preview:gpt-4o-mini*': 25.0,
-  'web_search_preview:gpt-4.1-mini*': 25.0,
+  'web_search:gpt-4o*': 25.0,
+  'web_search:gpt-4.1*': 25.0,
+  'web_search:gpt-4o-mini*': 25.0,
+  'web_search:gpt-4.1-mini*': 25.0,
   file_search: 2.5,
   google_search: 14.0,
 };
@@ -161,7 +160,7 @@ export default function ToolPriceSettings({ options }) {
       render: (text, record) => (
         <Input
           value={text}
-          placeholder='web_search_preview:gpt-4o*'
+          placeholder='web_search:gpt-4o*'
           onChange={(val) => updateRow(record.id, 'key', val)}
           style={{ width: '100%' }}
         />
@@ -209,8 +208,8 @@ export default function ToolPriceSettings({ options }) {
             </div>
             <div style={{ marginTop: 4 }}>
               <Text strong>{t('格式')}：</Text>
-              <code>web_search_preview</code> {t('为默认价格')}，
-              <code>web_search_preview:gpt-4o*</code> {t('为模型前缀覆盖')}
+              <code>web_search</code> {t('为默认价格')}，
+              <code>web_search:gpt-4o*</code> {t('为模型前缀覆盖')}
             </div>
           </>
         }

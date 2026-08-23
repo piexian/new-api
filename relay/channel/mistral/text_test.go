@@ -143,3 +143,36 @@ func TestNormalizeMistralResponseRejectsInvalidJSON(t *testing.T) {
 	_, err := normalizeMistralResponseData([]byte(`{"choices":`))
 	require.Error(t, err)
 }
+
+func TestRequestOpenAI2MistralNormalizesBuiltInToolTypes(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{
+		Model: "mistral-large-latest",
+		Tools: []dto.ToolCallRequest{
+			{Type: "web_search_preview"},
+			{Type: "web_search_preview_2025_03_11"},
+			{Type: "web_search_20250305"},
+			{Type: "web_search"},
+			{Type: "web_search_premium"},
+			{Type: "function", Function: dto.FunctionRequest{Name: "get_weather"}},
+		},
+	}
+
+	converted := requestOpenAI2Mistral(request)
+
+	got := make([]string, len(converted.Tools))
+	for i, tool := range converted.Tools {
+		got[i] = tool.Type
+	}
+	require.Equal(t, []string{
+		"web_search",
+		"web_search",
+		"web_search",
+		"web_search",
+		"web_search_premium",
+		"function",
+	}, got)
+
+	// 转换不应改写调用方的 request.Tools
+	require.Equal(t, "web_search_preview", request.Tools[0].Type)
+	require.Equal(t, "web_search_20250305", request.Tools[2].Type)
+}

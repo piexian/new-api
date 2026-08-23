@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -16,21 +17,22 @@ import (
 //   - "tool_name"              → default price for all models
 //   - "tool_name:model_prefix*" → override for models matching the prefix
 //
-// Lookup order: longest prefix match → default → hardcoded fallback → 0
+// Lookup order: longest prefix match → default → 0. 工具名先按传入值精确查找，
+// 未命中时归一到官方名称（common.CanonicalBuildInToolName，如 web_search_preview →
+// web_search）再查一次，旧配置里的 web_search_preview 键仍然生效。
 // ---------------------------------------------------------------------------
 
 var defaultToolPrices = map[string]float64{
-	"web_search":         10.0, // OpenAI web search (all models) / Claude web search
-	"web_search_preview": 10.0, // OpenAI web search preview (default: reasoning models)
-	"file_search":        2.5,  // OpenAI file search (Responses API)
-	"google_search":      14.0, // Gemini Grounding with Google Search
+	"web_search":    10.0, // OpenAI web search / Claude web search / Mistral web search
+	"file_search":   2.5,  // OpenAI file search (Responses API)
+	"google_search": 14.0, // Gemini Grounding with Google Search
 }
 
 var defaultToolPriceOverrides = map[string]float64{
-	"web_search_preview:gpt-4o*":       25.0, // non-reasoning models
-	"web_search_preview:gpt-4.1*":      25.0,
-	"web_search_preview:gpt-4o-mini*":  25.0,
-	"web_search_preview:gpt-4.1-mini*": 25.0,
+	"web_search:gpt-4o*":       25.0, // non-reasoning models
+	"web_search:gpt-4.1*":      25.0,
+	"web_search:gpt-4o-mini*":  25.0,
+	"web_search:gpt-4.1-mini*": 25.0,
 }
 
 // ToolPriceSetting is managed by config.GlobalConfig.Register.
@@ -115,14 +117,21 @@ func RebuildToolPriceIndex() {
 }
 
 // GetToolPriceForModel returns the price ($/1K calls) for a tool given a model name.
-// Lookup: longest prefix match → tool default → 0.
+// Lookup: exact name (longest prefix match → default) → canonical official name → 0.
 func GetToolPriceForModel(toolName, modelName string) float64 {
+	if price := lookupToolPrice(toolName, modelName); price > 0 {
+		return price
+	}
+	if canonical := common.CanonicalBuildInToolName(toolName); canonical != toolName {
+		return lookupToolPrice(canonical, modelName)
+	}
+	return 0
+}
+
+func lookupToolPrice(toolName, modelName string) float64 {
 	idx := currentIndex.Load()
 	if idx == nil {
-		if v, ok := defaultToolPrices[toolName]; ok {
-			return v
-		}
-		return 0
+		return defaultToolPrices[toolName]
 	}
 
 	if entries, ok := idx.prefixes[toolName]; ok && modelName != "" {
@@ -133,10 +142,7 @@ func GetToolPriceForModel(toolName, modelName string) float64 {
 		}
 	}
 
-	if p, ok := idx.defaults[toolName]; ok {
-		return p
-	}
-	return 0
+	return idx.defaults[toolName]
 }
 
 // GetToolPrice is a convenience wrapper when no model name is needed.
