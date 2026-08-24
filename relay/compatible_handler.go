@@ -42,6 +42,19 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		c.Set("chat_completion_web_search_context_size", request.WebSearchOptions.SearchContextSize)
 	}
 
+	// 在 adaptor 转换前提早捕获思考等级，避免 adaptor 清空 ReasoningEffort 后日志丢失。
+	// 各 adaptor（o-series/DeepSeek/Gemini 等）后续会用归一化值覆盖；
+	// 未覆盖的模型也能在消费日志中记录用户指定的 reasoning_effort。
+	if info.ReasoningEffort == "" {
+		info.ReasoningEffort = request.ReasoningEffort
+		if info.ReasoningEffort == "" && len(request.Reasoning) > 0 {
+			var r dto.Reasoning
+			if common.Unmarshal(request.Reasoning, &r) == nil && r.Effort != "" {
+				info.ReasoningEffort = r.Effort
+			}
+		}
+	}
+
 	err = helper.ModelMappedHelper(c, info, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
