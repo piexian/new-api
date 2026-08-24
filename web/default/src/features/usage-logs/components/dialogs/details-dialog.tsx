@@ -730,6 +730,28 @@ export function DetailsDialog(props: DetailsDialogProps) {
             />
           )}
 
+          {showAdminIp && props.log.user_agent && (
+            <DetailRow
+              label={t('User Agent')}
+              value={props.log.user_agent}
+              mono
+            />
+          )}
+
+          {other?.reasoning_effort && (
+            <DetailRow
+              label={t('Reasoning Effort')}
+              value={
+                <StatusBadge
+                  label={other.reasoning_effort}
+                  variant={reasoningEffortVariant}
+                  size='sm'
+                  copyable={false}
+                />
+              }
+            />
+          )}
+
           {showTiming && props.log.use_time > 0 && (
             <DetailRow
               label={t('Response Time')}
@@ -1040,20 +1062,6 @@ export function DetailsDialog(props: DetailsDialogProps) {
           </DetailSection>
         )}
 
-        {/* Reasoning effort */}
-        {other?.reasoning_effort && (
-          <DetailRow
-            label={t('Reasoning Effort')}
-            value={
-              <StatusBadge
-                label={other.reasoning_effort}
-                variant={reasoningEffortVariant}
-                size='sm'
-                copyable={false}
-              />
-            }
-          />
-        )}
 
         {/* System prompt override */}
         {other?.is_system_prompt_overwritten && (
