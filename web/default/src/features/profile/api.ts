@@ -202,3 +202,17 @@ export async function performCheckin(
   const res = await api.post(url)
   return res.data
 }
+
+/**
+ * Perform makeup check-in for a missed date (YYYY-MM-DD)
+ */
+export async function makeupCheckin(
+  date: string,
+  turnstileToken?: string
+): Promise<ApiResponse<CheckinResponse>> {
+  const url = turnstileToken
+    ? `/api/user/checkin/makeup?turnstile=${encodeURIComponent(turnstileToken)}`
+    : '/api/user/checkin/makeup'
+  const res = await api.post(url, { date })
+  return res.data
+}

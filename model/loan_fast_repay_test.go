@@ -210,7 +210,7 @@ func TestFastRepayPenaltyCheckinAutoRepay(t *testing.T) {
 		UpdatedAt:             now.Unix(),
 	}).Error)
 
-	_, repay, credits, err := UserCheckin(borrower.Id)
+	_, repay, credits, err := UserCheckin(borrower.Id, 0)
 	require.NoError(t, err)
 	require.NotNil(t, repay)
 	require.Equal(t, int64(500_000), repay.Amount)

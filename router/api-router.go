@@ -82,8 +82,8 @@ func SetApiRouter(router *gin.Engine) {
 			{
 				selfRoute.GET("/self/groups", controller.GetUserGroups)
 				selfRoute.GET("/self", controller.GetSelf)
-			selfRoute.GET("/models", controller.GetUserModels)
-			selfRoute.GET("/models-dev/catalog", controller.GetModelsDevCatalog)
+				selfRoute.GET("/models", controller.GetUserModels)
+				selfRoute.GET("/models-dev/catalog", controller.GetModelsDevCatalog)
 				selfRoute.PUT("/self", middleware.CriticalRateLimit(), controller.UpdateSelf)
 				selfRoute.DELETE("/self", controller.DeleteSelf)
 				selfRoute.GET("/token", controller.GenerateAccessToken)
@@ -122,6 +122,7 @@ func SetApiRouter(router *gin.Engine) {
 				// Check-in routes
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
 				selfRoute.POST("/checkin", middleware.TurnstileCheckForScope(middleware.TurnstileScopeCheckin), controller.DoCheckin)
+				selfRoute.POST("/checkin/makeup", middleware.TurnstileCheckForScope(middleware.TurnstileScopeCheckin), controller.DoMakeupCheckin)
 
 				// Token loan routes
 				selfRoute.GET("/loan/status", controller.GetLoanStatus)
@@ -188,6 +189,15 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
 			}
+		}
+
+		// Checkin risk watch admin routes（签到风控观察名单）
+		checkinRiskRoute := apiRouter.Group("/checkin_risk")
+		checkinRiskRoute.Use(middleware.AdminAuth())
+		{
+			checkinRiskRoute.GET("/", controller.AdminListCheckinRiskWatches)
+			checkinRiskRoute.GET("/:user_id/contrast", controller.AdminGetCheckinRiskContrast)
+			checkinRiskRoute.POST("/:user_id/release", controller.AdminReleaseCheckinRiskWatch)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

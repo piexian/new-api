@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 import {
   Activity,
+  CalendarCheck,
   Gauge,
   Gavel,
   ListChecks,
@@ -69,6 +70,11 @@ function getRiskCenterNavGroups(t: TFunction): NavGroup[] {
           title: t('Ban Logs'),
           icon: ListChecks,
           url: '/risk/ban-logs',
+        },
+        {
+          title: t('Check-in Risk'),
+          icon: CalendarCheck,
+          url: '/risk/checkin',
         },
       ],
     },

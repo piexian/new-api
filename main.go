@@ -131,6 +131,9 @@ func main() {
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 
+	// Checkin quota expiry task (next-day settlement)
+	service.StartCheckinExpiryTask()
+
 	// Channel plan quota cooldown release task
 	service.StartChannelPlanQuotaCooldownTask()
 

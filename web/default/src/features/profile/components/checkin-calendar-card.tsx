@@ -45,7 +45,7 @@ import { formatQuotaWithCurrency } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
 
-import { getCheckinStatus, performCheckin } from '../api'
+import { getCheckinStatus, makeupCheckin, performCheckin } from '../api'
 import type { CheckinRecord } from '../types'
 
 interface CheckinCalendarCardProps {
@@ -67,6 +67,12 @@ export function CheckinCalendarCard({
   const [checkinLoading, setCheckinLoading] = useState(false)
   const [turnstileModalVisible, setTurnstileModalVisible] = useState(false)
   const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+  const [turnstileAction, setTurnstileAction] = useState<'checkin' | 'makeup'>(
+    'checkin'
+  )
+  const [makeupDate, setMakeupDate] = useState('')
+  const [makeupModalVisible, setMakeupModalVisible] = useState(false)
+  const [makeupLoading, setMakeupLoading] = useState(false)
   const [initialLoaded, setInitialLoaded] = useState(false)
   const [collapsed, setCollapsed] = useState<boolean>(false)
 
@@ -104,6 +110,11 @@ export function CheckinCalendarCard({
     })
     return map
   }, [checkinData?.stats?.records])
+
+  const makeupDatesSet = useMemo(() => {
+    if (!checkinData?.makeup_enabled) return new Set<string>()
+    return new Set(checkinData.makeup_eligible_dates || [])
+  }, [checkinData?.makeup_enabled, checkinData?.makeup_eligible_dates])
 
   const monthlyQuota = useMemo(() => {
     const records = checkinData?.stats?.records || []
@@ -158,6 +169,7 @@ export function CheckinCalendarCard({
               toast.error(t('Turnstile is enabled but site key is empty.'))
               return
             }
+            setTurnstileAction('checkin')
             setTurnstileModalVisible(true)
             return
           }
@@ -170,6 +182,46 @@ export function CheckinCalendarCard({
         toast.error(t('Check-in failed'))
       } finally {
         setCheckinLoading(false)
+      }
+    },
+    [refetch, shouldTriggerTurnstile, t, turnstileSiteKey]
+  )
+
+  const doMakeup = useCallback(
+    async (date: string, token?: string) => {
+      setMakeupLoading(true)
+      try {
+        const res = await makeupCheckin(date, token)
+        if (res.success && res.data) {
+          let message = `${t('Make-up check-in successful! Received')} ${formatQuotaWithCurrency(res.data.quota_awarded)}`
+          // 签到自动还款：额度毛额不变，部分已用于抵扣贷款
+          if (res.data.loan_repay) {
+            message += ` · ${t('Auto-repaid')} ${formatQuotaWithCurrency(res.data.loan_repay.amount)}`
+          }
+          toast.success(message)
+          refetch()
+          setMakeupModalVisible(false)
+          setTurnstileModalVisible(false)
+        } else {
+          if (!token && shouldTriggerTurnstile(res.message)) {
+            if (!turnstileSiteKey) {
+              toast.error(t('Turnstile is enabled but site key is empty.'))
+              return
+            }
+            setTurnstileAction('makeup')
+            setMakeupModalVisible(false)
+            setTurnstileModalVisible(true)
+            return
+          }
+          if (token && shouldTriggerTurnstile(res.message)) {
+            setTurnstileWidgetKey((v) => v + 1)
+          }
+          toast.error(res.message || t('Make-up check-in failed'))
+        }
+      } catch {
+        toast.error(t('Make-up check-in failed'))
+      } finally {
+        setMakeupLoading(false)
       }
     },
     [refetch, shouldTriggerTurnstile, t, turnstileSiteKey]
@@ -275,12 +327,44 @@ export function CheckinCalendarCard({
             key={turnstileWidgetKey}
             siteKey={turnstileSiteKey}
             onVerify={(token) => {
-              doCheckin(token)
+              if (turnstileAction === 'makeup') {
+                doMakeup(makeupDate, token)
+              } else {
+                doCheckin(token)
+              }
             }}
             onExpire={() => {
               setTurnstileWidgetKey((v) => v + 1)
             }}
           />
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={makeupModalVisible}
+        onOpenChange={setMakeupModalVisible}
+        title={t('Make-up check-in')}
+        contentClassName='sm:max-w-md'
+        contentHeight='auto'
+        footer={
+          <div className='flex justify-end gap-2'>
+            <Button
+              variant='outline'
+              onClick={() => setMakeupModalVisible(false)}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              onClick={() => doMakeup(makeupDate)}
+              disabled={makeupLoading}
+            >
+              {makeupLoading ? t('Loading...') : t('Confirm')}
+            </Button>
+          </div>
+        }
+      >
+        <div className='text-muted-foreground text-sm'>
+          {t('Make up check-in for {{date}}?', { date: makeupDate })}
         </div>
       </Dialog>
 
@@ -339,7 +423,7 @@ export function CheckinCalendarCard({
         {!collapsed ? (
           <>
             {/* Stats */}
-            <div className='grid grid-cols-3 gap-px border-b'>
+            <div className='grid grid-cols-3 gap-px border-b sm:grid-cols-5'>
               <div className='bg-card p-3 text-center sm:p-5'>
                 <div className='text-xl font-semibold tracking-tight tabular-nums sm:text-2xl'>
                   {checkinData?.stats?.total_checkins || 0}
@@ -367,6 +451,27 @@ export function CheckinCalendarCard({
                 </div>
                 <div className='text-muted-foreground mt-0.5 text-[10px] font-medium sm:mt-1 sm:text-xs'>
                   {t('Total earned')}
+                </div>
+              </div>
+              <div className='bg-card p-3 text-center sm:p-5'>
+                <div className='text-xl font-semibold tracking-tight tabular-nums sm:text-2xl'>
+                  {checkinData?.streak_days || 0}
+                </div>
+                <div className='text-muted-foreground mt-0.5 text-[10px] font-medium sm:mt-1 sm:text-xs'>
+                  {t('Check-in streak')}
+                </div>
+              </div>
+              <div className='bg-card p-3 text-center sm:p-5'>
+                <div className='text-xl font-semibold tracking-tight tabular-nums sm:text-2xl'>
+                  {formatQuotaWithCurrency(
+                    checkinData?.effective_max_quota || 0,
+                    {
+                      digitsLarge: 0,
+                    }
+                  )}
+                </div>
+                <div className='text-muted-foreground mt-0.5 text-[10px] font-medium sm:mt-1 sm:text-xs'>
+                  {t('Current cap')}
                 </div>
               </div>
             </div>
@@ -421,6 +526,8 @@ export function CheckinCalendarCard({
                     const isToday = dateStr === todayString
                     const quotaAwarded = checkinRecordsMap[dateStr]
                     const isCheckedIn = quotaAwarded !== undefined
+                    const isMakeupEligible =
+                      dayObj.isCurrentMonth && makeupDatesSet.has(dateStr)
                     const dayNum = dayObj.date.getDate()
 
                     const dayButton = (
@@ -441,6 +548,33 @@ export function CheckinCalendarCard({
                         )}
                       </Button>
                     )
+
+                    if (isMakeupEligible) {
+                      return (
+                        <Tooltip key={dateStr}>
+                          <TooltipTrigger
+                            render={
+                              <Button
+                                variant='ghost'
+                                onClick={() => {
+                                  setMakeupDate(dateStr)
+                                  setMakeupModalVisible(true)
+                                }}
+                                className='relative flex h-9 w-full flex-col items-center justify-center rounded-lg px-0 text-xs font-medium text-orange-500 sm:h-10 sm:text-sm dark:text-orange-400'
+                              >
+                                <span className='tabular-nums'>{dayNum}</span>
+                                <span className='absolute bottom-0.5 size-1 rounded-full bg-orange-400 sm:bottom-1' />
+                              </Button>
+                            }
+                          />
+                          <TooltipContent>
+                            <div className='text-xs'>
+                              {t('Click to make up check-in')}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      )
+                    }
 
                     if (isCheckedIn && dayObj.isCurrentMonth) {
                       return (

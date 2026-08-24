@@ -398,6 +398,27 @@ export type BillingSettings = {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  'checkin_setting.special_enabled': boolean
+  'checkin_setting.special_weekday': '1' | '2' | '3' | '4' | '5' | '6' | '7'
+  'checkin_setting.special_quota': number
+  'checkin_setting.client_check_enabled': boolean
+  'checkin_setting.decay_enabled': boolean
+  'checkin_setting.decay_rate': number
+  'checkin_setting.decay_floor': number
+  'checkin_setting.usage_boost_enabled': boolean
+  'checkin_setting.usage_boost_days': number
+  'checkin_setting.high_reward_threshold': number
+  'checkin_setting.base_high_probability': number
+  'checkin_setting.boost_max_probability': number
+  'checkin_setting.makeup_enabled': boolean
+  'checkin_setting.makeup_max_days': number
+  'checkin_setting.makeup_counts_toward_progress': boolean
+  'checkin_setting.risk_watch_enabled': boolean
+  'checkin_setting.risk_watch_days': number
+  'checkin_setting.risk_min_daily_calls': number
+  'checkin_setting.risk_min_daily_quota': number
+  'checkin_setting.expire_enabled': boolean
+  'checkin_setting.expire_mode': 'unused' | 'all'
   'loan_setting.enabled': boolean
   'loan_setting.max_total': number
   'loan_setting.daily_rate': number

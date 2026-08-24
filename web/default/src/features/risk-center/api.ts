@@ -770,3 +770,79 @@ export async function banMultiAccountUser(
     ? { ...response, data: normalizeMultiAccountUser(response.data) }
     : response
 }
+
+// ============================================================================
+// Checkin Risk API
+// ============================================================================
+
+export type CheckinRiskWatchStatus = 'watching' | 'locked' | 'released'
+
+export type CheckinRiskWatch = {
+  id: number
+  user_id: number
+  username: string
+  status: CheckinRiskWatchStatus
+  streak_days: number
+  avg_calls: number
+  avg_quota: number
+  avg_awarded: number
+  reason: string
+  released_by: number
+  released_note: string
+  released_at: number
+  created_at: number
+  updated_at: number
+}
+
+export type CheckinDailyContrast = {
+  date: string
+  quota_awarded: number
+  is_makeup: boolean
+  calls: number
+  quota: number
+}
+
+function normalizeCheckinRiskWatch(item: CheckinRiskWatch): CheckinRiskWatch {
+  return {
+    ...item,
+    username: item.username ?? '',
+    reason: item.reason ?? '',
+    released_note: item.released_note ?? '',
+  }
+}
+
+export async function getCheckinRiskWatches(
+  params: { p?: number; page_size?: number; status?: string } = {}
+): Promise<ApiResponse<PageData<CheckinRiskWatch>>> {
+  const { p = 1, page_size = 10, status = '' } = params
+  const res = await api.get('/api/checkin_risk/', {
+    params: { p, page_size, status: status || undefined },
+  })
+  return normalizePageResponse(res.data, normalizeCheckinRiskWatch)
+}
+
+export async function getCheckinRiskContrast(
+  userId: number,
+  days = 30
+): Promise<ApiResponse<CheckinDailyContrast[]>> {
+  const res = await api.get(`/api/checkin_risk/${userId}/contrast`, {
+    params: { days },
+  })
+  const response = res.data as ApiResponse<CheckinDailyContrast[]>
+  return {
+    ...response,
+    data: response.data ?? [],
+  }
+}
+
+export async function releaseCheckinRiskWatch(
+  userId: number,
+  note: string
+): Promise<ApiResponse<null>> {
+  const res = await api.post(
+    `/api/checkin_risk/${userId}/release`,
+    { note },
+    skipBusinessErrorConfig
+  )
+  return res.data
+}

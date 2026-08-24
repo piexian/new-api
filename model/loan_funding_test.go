@@ -495,7 +495,7 @@ func TestCheckinRepayClearsJustOverdueFundingToRepaid(t *testing.T) {
 	f := createFlipFunding(t, user.Id, time.Now(), -1, 3000)
 	createLoanDebtAccount(t, user.Id, 3000, 3000)
 
-	_, repay, _, err := UserCheckin(user.Id)
+	_, repay, _, err := UserCheckin(user.Id, 0)
 	require.NoError(t, err)
 	require.NotNil(t, repay)
 	require.Equal(t, int64(3000), repay.Amount)

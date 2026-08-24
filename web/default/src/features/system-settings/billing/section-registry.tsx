@@ -197,6 +197,31 @@ const BILLING_SECTIONS = [
           enabled: settings['checkin_setting.enabled'],
           minQuota: settings['checkin_setting.min_quota'],
           maxQuota: settings['checkin_setting.max_quota'],
+          specialEnabled: settings['checkin_setting.special_enabled'],
+          specialWeekday: settings['checkin_setting.special_weekday'],
+          specialQuota: settings['checkin_setting.special_quota'],
+          clientCheckEnabled: settings['checkin_setting.client_check_enabled'],
+          decayEnabled: settings['checkin_setting.decay_enabled'],
+          decayRate: settings['checkin_setting.decay_rate'],
+          decayFloor: settings['checkin_setting.decay_floor'],
+          usageBoostEnabled: settings['checkin_setting.usage_boost_enabled'],
+          usageBoostDays: settings['checkin_setting.usage_boost_days'],
+          highRewardThreshold:
+            settings['checkin_setting.high_reward_threshold'],
+          baseHighProbability:
+            settings['checkin_setting.base_high_probability'],
+          boostMaxProbability:
+            settings['checkin_setting.boost_max_probability'],
+          makeupEnabled: settings['checkin_setting.makeup_enabled'],
+          makeupMaxDays: settings['checkin_setting.makeup_max_days'],
+          makeupCountsTowardProgress:
+            settings['checkin_setting.makeup_counts_toward_progress'],
+          riskWatchEnabled: settings['checkin_setting.risk_watch_enabled'],
+          riskWatchDays: settings['checkin_setting.risk_watch_days'],
+          riskMinDailyCalls: settings['checkin_setting.risk_min_daily_calls'],
+          riskMinDailyQuota: settings['checkin_setting.risk_min_daily_quota'],
+          expireEnabled: settings['checkin_setting.expire_enabled'],
+          expireMode: settings['checkin_setting.expire_mode'],
         }}
       />
     ),

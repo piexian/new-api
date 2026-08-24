@@ -107,7 +107,7 @@ func TestUserCheckinNoDebtNoRepay(t *testing.T) {
 	})
 	user := setupCheckinLoanUser(t)
 
-	checkin, repay, _, err := UserCheckin(user.Id)
+	checkin, repay, _, err := UserCheckin(user.Id, 0)
 	require.NoError(t, err)
 	require.Nil(t, repay)
 	require.Equal(t, 5000, checkin.QuotaAwarded)
@@ -133,7 +133,7 @@ func TestUserCheckinRepaySplitsAcrossFundings(t *testing.T) {
 	fB := createCheckinFunding(t, user.Id, 3000, 4000, LoanFundingActive)
 	createLoanDebtAccount(t, user.Id, 7000, 10000)
 
-	checkin, repay, _, err := UserCheckin(user.Id)
+	checkin, repay, _, err := UserCheckin(user.Id, 0)
 	require.NoError(t, err)
 	require.Equal(t, 5000, checkin.QuotaAwarded) // quota_awarded 保持 gross
 	require.NotNil(t, repay)
@@ -221,7 +221,7 @@ func TestUserCheckinRepayCreditsLenderAndRefillsOffer(t *testing.T) {
 		_ = DB.Where("id = ?", f.Id).Delete(&TokenLoanFunding{}).Error
 	})
 
-	_, repay, _, err := UserCheckin(user.Id)
+	_, repay, _, err := UserCheckin(user.Id, 0)
 	require.NoError(t, err)
 	require.NotNil(t, repay)
 	require.Equal(t, int64(10000), repay.Amount)
@@ -279,7 +279,7 @@ func TestUserCheckinRepayOverdueFullAwardConsumed(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, overdue)
 
-	checkin, repay, _, err := UserCheckin(user.Id)
+	checkin, repay, _, err := UserCheckin(user.Id, 0)
 	require.NoError(t, err)
 	require.Equal(t, 5000, checkin.QuotaAwarded)
 	require.NotNil(t, repay)
@@ -316,7 +316,7 @@ func TestUserCheckinRepayClearsDebt(t *testing.T) {
 	f := createCheckinFunding(t, user.Id, 2500, 3000, LoanFundingActive)
 	createLoanDebtAccount(t, user.Id, 2500, 3000)
 
-	_, repay, _, err := UserCheckin(user.Id)
+	_, repay, _, err := UserCheckin(user.Id, 0)
 	require.NoError(t, err)
 	require.NotNil(t, repay)
 	require.Equal(t, int64(3000), repay.Amount)
@@ -360,7 +360,7 @@ func TestUserCheckinRepayDisabled(t *testing.T) {
 	user := setupCheckinLoanUser(t)
 	createLoanDebtAccount(t, user.Id, 10000, 20000)
 
-	_, repay, _, err := UserCheckin(user.Id)
+	_, repay, _, err := UserCheckin(user.Id, 0)
 	require.NoError(t, err)
 	require.Nil(t, repay)
 	require.Equal(t, 5000, checkinUserQuota(t, user.Id))
@@ -394,7 +394,7 @@ func TestUserCheckinRepayLedgerFailureRollback(t *testing.T) {
 	createLoanDebtAccount(t, user.Id, 4000, 5000)
 	renameTableForFailure(t, "token_loan_records")
 
-	_, repay, _, err := UserCheckin(user.Id)
+	_, repay, _, err := UserCheckin(user.Id, 0)
 	require.Error(t, err)
 	require.Nil(t, repay)
 
@@ -438,7 +438,7 @@ func TestUserCheckinRepayQuotaFailureRollback(t *testing.T) {
 		_ = DB.Exec(`DROP TRIGGER IF EXISTS checkin_test_block_quota_update`).Error
 	})
 
-	_, repay, _, err := UserCheckin(user.Id)
+	_, repay, _, err := UserCheckin(user.Id, 0)
 	require.Error(t, err)
 	require.Nil(t, repay)
 
@@ -515,7 +515,7 @@ func TestUserCheckinSuccessSyncsCache(t *testing.T) {
 			time.Duration(common.RedisKeyCacheSeconds())*time.Second).Err())
 	}
 
-	_, repay, _, err := UserCheckin(user.Id)
+	_, repay, _, err := UserCheckin(user.Id, 0)
 	require.NoError(t, err)
 	require.NotNil(t, repay)
 	require.Equal(t, int64(3000), repay.Amount)

@@ -16,6 +16,14 @@ type Checkin struct {
 	CheckinDate  string `json:"checkin_date" gorm:"type:varchar(10);not null;uniqueIndex:idx_user_checkin_date"` // 格式: YYYY-MM-DD
 	QuotaAwarded int    `json:"quota_awarded" gorm:"not null"`
 	CreatedAt    int64  `json:"created_at" gorm:"bigint"`
+	// 签到实际入账净额（奖励 - 贷款自动还款）。额度次日清算以此为准，
+	// 老数据默认为 0 表示不参与回收，避免追溯扣减未被告知的额度。
+	NetCredited int `json:"net_credited" gorm:"not null;default:0"`
+	// 以下字段服务于「签到额度当日有效」，未启用该功能时保持为 0
+	ExpiredQuota int   `json:"expired_quota" gorm:"not null;default:0"`           // 清算时实际回收的额度
+	SettledAt    int64 `json:"settled_at" gorm:"bigint;not null;default:0;index"` // 清算时间戳，0 表示尚未清算
+	// 是否为补签记录（补签的当天实际未签到，事后补录）
+	IsMakeUp bool `json:"is_makeup" gorm:"column:is_makeup;not null;default:false"`
 }
 
 // CheckinRecord 用于API返回的签到记录（不包含敏感字段）
@@ -50,11 +58,13 @@ func HasCheckedInToday(userId int) (bool, error) {
 
 // UserCheckin 执行用户签到，返回签到记录、签到自动还款结果（无还款时 loanRepay 为 nil）
 // 与放贷人入账清单（按放贷人聚合，供 controller 写入充值日志；无入账时为空切片）。
+// quotaAwarded 由调用方（controller 的自适应奖励计算）给出；<= 0 时按配置区间
+// 随机摇一个（兼容旧行为与既有测试）。
 // 所有数据库共用单一事务路径：GORM 事务在 SQLite 单写者模型下同样可用（BorrowLoan/
 // RepayLoan 同模式），事务内一律经 tx 访问 DB（lockForUpdate 在 SQLite 下退化为普通
 // 查询）。旧版为 SQLite 单独保留的顺序执行 + 手动回滚分支，Task 10 起还款涉及多行写
 // （funding/offer/放贷人入账）手动回滚难以保全，已合并删除。
-func UserCheckin(userId int) (*Checkin, *LoanRepayInfo, []LenderCredit, error) {
+func UserCheckin(userId int, quotaAwarded int) (*Checkin, *LoanRepayInfo, []LenderCredit, error) {
 	setting := operation_setting.GetCheckinSetting()
 	if !setting.Enabled {
 		return nil, nil, nil, errors.New("签到功能未启用")
@@ -69,10 +79,12 @@ func UserCheckin(userId int) (*Checkin, *LoanRepayInfo, []LenderCredit, error) {
 		return nil, nil, nil, errors.New("今日已签到")
 	}
 
-	// 计算随机额度奖励
-	quotaAwarded := setting.MinQuota
-	if setting.MaxQuota > setting.MinQuota {
-		quotaAwarded = setting.MinQuota + rand.Intn(setting.MaxQuota-setting.MinQuota+1)
+	// 未指定奖励时按配置区间随机
+	if quotaAwarded <= 0 {
+		quotaAwarded = setting.MinQuota
+		if setting.MaxQuota > setting.MinQuota {
+			quotaAwarded = setting.MinQuota + rand.Intn(setting.MaxQuota-setting.MinQuota+1)
+		}
 	}
 
 	today := time.Now().Format("2006-01-02")
@@ -81,6 +93,39 @@ func UserCheckin(userId int) (*Checkin, *LoanRepayInfo, []LenderCredit, error) {
 		CheckinDate:  today,
 		QuotaAwarded: quotaAwarded,
 		CreatedAt:    time.Now().Unix(),
+	}
+
+	return userCheckinWithTransaction(checkin, userId, quotaAwarded)
+}
+
+// UserMakeupCheckin 补签：为指定历史日期补录一条签到记录（IsMakeUp=true）。
+// 日期合法性（格式、范围、是否已有记录）由 controller 经 MakeupEligibleDates 校验，
+// 这里只做最后防线：必须是今天之前的合法日期；(user_id, checkin_date) 唯一约束
+// 兜底防并发重复。
+func UserMakeupCheckin(userId int, date string, quotaAwarded int) (*Checkin, *LoanRepayInfo, []LenderCredit, error) {
+	setting := operation_setting.GetCheckinSetting()
+	if !setting.Enabled {
+		return nil, nil, nil, errors.New("签到功能未启用")
+	}
+	day, err := time.ParseInLocation("2006-01-02", date, time.Local)
+	if err != nil {
+		return nil, nil, nil, errors.New("补签日期格式错误")
+	}
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	if !day.Before(todayStart) {
+		return nil, nil, nil, errors.New("只能补签今天之前的日期")
+	}
+	if quotaAwarded <= 0 {
+		quotaAwarded = setting.MinQuota
+	}
+
+	checkin := &Checkin{
+		UserId:       userId,
+		CheckinDate:  date,
+		QuotaAwarded: quotaAwarded,
+		CreatedAt:    time.Now().Unix(),
+		IsMakeUp:     true,
 	}
 
 	return userCheckinWithTransaction(checkin, userId, quotaAwarded)
@@ -170,6 +215,13 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 			Update("quota", gorm.Expr("quota + ?", netQuota)).Error; err != nil {
 			return errors.New("签到失败：更新额度出错")
 		}
+
+		// 记录实际入账净额，供额度次日清算按"净入账"回收而非按全额定发
+		if err := tx.Model(&Checkin{}).Where("id = ?", checkin.Id).
+			Update("net_credited", netQuota).Error; err != nil {
+			return errors.New("签到失败：更新净入账出错")
+		}
+		checkin.NetCredited = netQuota
 
 		return nil
 	})

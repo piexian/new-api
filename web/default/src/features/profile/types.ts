@@ -243,6 +243,14 @@ export interface CheckinStatusResponse {
   enabled: boolean
   /** Check-in statistics */
   stats: CheckinStats
+  /** Effective maximum quota after decay (capped by decay/risk) */
+  effective_max_quota?: number
+  /** Consecutive check-in days */
+  streak_days?: number
+  /** Whether makeup check-in is enabled */
+  makeup_enabled?: boolean
+  /** Dates eligible for makeup check-in (YYYY-MM-DD) */
+  makeup_eligible_dates?: string[]
 }
 
 /**

@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Activity,
   Ban,
+  CalendarCheck,
   Gauge,
   ScrollText,
   ShieldAlert,
@@ -36,6 +37,7 @@ import RiskStatesTab from './RiskStatesTab';
 import BanLogsTab from './BanLogsTab';
 import LiveProgressTab from './LiveProgressTab';
 import MultiAccountTab from './MultiAccountTab';
+import CheckinRiskTab from './CheckinRiskTab';
 
 const RiskCenter = () => {
   const { t } = useTranslation();
@@ -85,6 +87,16 @@ const RiskCenter = () => {
       ),
       content: <ProbeGuardTab />,
       itemKey: 'probe-guard',
+    },
+    {
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <CalendarCheck size={18} />
+          {t('签到风控')}
+        </span>
+      ),
+      content: <CheckinRiskTab />,
+      itemKey: 'checkin-risk',
     },
     {
       tab: (

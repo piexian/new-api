@@ -42,6 +42,9 @@ import { API, showError, showSuccess, renderQuota } from '../../../../helpers';
 const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
   const [loading, setLoading] = useState(false);
   const [checkinLoading, setCheckinLoading] = useState(false);
+  const [makeupModalVisible, setMakeupModalVisible] = useState(false);
+  const [makeupDate, setMakeupDate] = useState('');
+  const [makeupLoading, setMakeupLoading] = useState(false);
   const [turnstileModalVisible, setTurnstileModalVisible] = useState(false);
   const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0);
   const [checkinData, setCheckinData] = useState({
@@ -71,6 +74,12 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
     });
     return map;
   }, [checkinData.stats?.records]);
+
+  // 可补签日期集合
+  const makeupDatesSet = useMemo(() => {
+    if (!checkinData.makeup_enabled) return new Set();
+    return new Set(checkinData.makeup_eligible_dates || []);
+  }, [checkinData.makeup_enabled, checkinData.makeup_eligible_dates]);
 
   // 计算本月获得的额度
   const monthlyQuota = useMemo(() => {
@@ -163,6 +172,33 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
     }
   };
 
+  // 打开补签确认弹窗
+  const openMakeupModal = (date) => {
+    setMakeupDate(date);
+    setMakeupModalVisible(true);
+  };
+
+  const doMakeup = async () => {
+    setMakeupLoading(true);
+    try {
+      const res = await API.post('/api/user/checkin/makeup', {
+        date: makeupDate,
+      });
+      const { success, data, message } = res.data;
+      if (success) {
+        showSuccess(t('补签成功！获得') + ' ' + renderQuota(data.quota_awarded));
+        fetchCheckinStatus(currentMonth);
+        setMakeupModalVisible(false);
+      } else {
+        showError(message || t('补签失败'));
+      }
+    } catch (error) {
+      showError(t('补签失败'));
+    } finally {
+      setMakeupLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (status?.checkin_enabled) {
       fetchCheckinStatus(currentMonth);
@@ -207,6 +243,28 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
         </Tooltip>
       );
     }
+
+    // 可补签日期：提供补签入口
+    if (makeupDatesSet.has(formattedDate)) {
+      return (
+        <Tooltip content={t('点击补签')} position='top'>
+          <div
+            className='absolute inset-0 flex flex-col items-center justify-center cursor-pointer'
+            onClick={(e) => {
+              e.stopPropagation();
+              openMakeupModal(formattedDate);
+            }}
+          >
+            <div className='w-6 h-6 rounded-full bg-orange-400 flex items-center justify-center mb-0.5 shadow-sm'>
+              <CalendarCheck size={14} className='text-white' strokeWidth={3} />
+            </div>
+            <div className='text-[10px] font-medium text-orange-500 dark:text-orange-400 leading-none'>
+              {t('补签')}
+            </div>
+          </div>
+        </Tooltip>
+      );
+    }
     return null;
   };
 
@@ -240,6 +298,22 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
             }}
           />
         </div>
+      </Modal>
+
+      {/* 补签确认弹窗 */}
+      <Modal
+        title={t('补签确认')}
+        visible={makeupModalVisible}
+        onOk={doMakeup}
+        onCancel={() => setMakeupModalVisible(false)}
+        okText={t('确认补签')}
+        cancelText={t('取消')}
+        confirmLoading={makeupLoading}
+        centered
+      >
+        <Typography.Text>
+          {t('确定要补签') + ` ${makeupDate} ` + t('吗？')}
+        </Typography.Text>
       </Modal>
 
       {/* 卡片头部 */}
@@ -311,6 +385,18 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
               {renderQuota(checkinData.stats?.total_quota || 0, 6)}
             </div>
             <div className='text-xs text-gray-500'>{t('累计获得')}</div>
+          </div>
+          <div className='text-center p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg'>
+            <div className='text-xl font-bold text-purple-600'>
+              {checkinData.streak_days || 0}
+            </div>
+            <div className='text-xs text-gray-500'>{t('连续签到天数')}</div>
+          </div>
+          <div className='text-center p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg'>
+            <div className='text-xl font-bold text-teal-600'>
+              {renderQuota(checkinData.effective_max_quota || 0, 6)}
+            </div>
+            <div className='text-xs text-gray-500'>{t('当前上限')}</div>
           </div>
         </div>
 
