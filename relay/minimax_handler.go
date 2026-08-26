@@ -8,8 +8,10 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/channel/gmicloud"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -32,8 +34,23 @@ func MiniMaxNativeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErr
 	if info.ChannelMeta != nil {
 		info.ChannelMeta.UpstreamModelName = info.OriginModelName
 	}
-	if info.ChannelType != constant.ChannelTypeMiniMax {
-		return types.NewErrorWithStatusCode(fmt.Errorf("minimax native endpoint requires minimax channel, got channel type %d", info.ChannelType), types.ErrorCodeInvalidApiType, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	if info.ChannelType != constant.ChannelTypeMiniMax && info.ChannelType != constant.ChannelTypeGMICloud {
+		return types.NewErrorWithStatusCode(fmt.Errorf("minimax native endpoint requires minimax-compatible channel, got channel type %d", info.ChannelType), types.ErrorCodeInvalidApiType, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if info.ChannelType == constant.ChannelTypeGMICloud && info.RelayMode != relayconstant.RelayModeMiniMaxMusicGeneration {
+		return types.NewErrorWithStatusCode(fmt.Errorf("gmicloud only supports /v1/music_generation among MiniMax native endpoints"), types.ErrorCodeInvalidApiType, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if info.ChannelType == constant.ChannelTypeGMICloud && info.IsStream {
+		return types.NewErrorWithStatusCode(fmt.Errorf("gmicloud does not support streaming MiniMax music generation"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	if info.ChannelType == constant.ChannelTypeGMICloud {
+		request, ok := info.Request.(*dto.MiniMaxMusicGenerationRequest)
+		if !ok {
+			return types.NewErrorWithStatusCode(fmt.Errorf("gmicloud requires a MiniMax music generation request"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		if err := gmicloud.ValidateMiniMaxMusicRequest(request); err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
 	}
 	if newAPIError = minimax.ValidateEndpointForModel(info); newAPIError != nil {
 		return newAPIError

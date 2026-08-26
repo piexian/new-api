@@ -455,6 +455,16 @@ export function getChannelIcon(channelType) {
           className='rounded-sm object-cover'
         />
       );
+    case 71: // GMI Cloud
+      return (
+        <img
+          src='https://console.gmicloud.ai/favicon.ico'
+          alt='GMI Cloud'
+          width={iconSize}
+          height={iconSize}
+          className='rounded-sm object-cover'
+        />
+      );
     case 8: // 自定义渠道
     case 22: // 知识库：FastGPT
       return <FastGPT.Color size={iconSize} />;

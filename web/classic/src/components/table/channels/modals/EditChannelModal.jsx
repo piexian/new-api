@@ -31,6 +31,7 @@ import {
   CHANNEL_OPTIONS,
   CHANNEL_TYPE_AGNES_AI,
   CHANNEL_TYPE_CEREBRAS,
+  CHANNEL_TYPE_GMICLOUD,
   CHANNEL_TYPE_OPENCODE,
   CHANNEL_TYPE_QWEN_TOKEN_PLAN,
   MODEL_FETCHABLE_CHANNEL_TYPES,
@@ -793,6 +794,17 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://zenmux.ai',
+          }));
+          break;
+        case CHANNEL_TYPE_GMICLOUD:
+          localModels = getChannelModels(value);
+          formApiRef.current?.setValue(
+            'base_url',
+            'https://api.gmi-serving.com',
+          );
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://api.gmi-serving.com',
           }));
           break;
         case CHANNEL_TYPE_OPENCODE:

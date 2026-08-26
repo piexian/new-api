@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/cohere"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/gmicloud"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/opencode"
@@ -398,6 +399,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	}
 	if channel.Type == constant.ChannelTypeMiniMax {
 		ids = mergeModelNames(ids, minimax.NativeEndpointModelList)
+	}
+	if channel.Type == constant.ChannelTypeGMICloud {
+		ids = mergeModelNames(ids, gmicloud.ModelList)
 	}
 
 	return normalizeModelNames(ids), nil

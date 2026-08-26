@@ -221,6 +221,21 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Configure settings.advanced_custom.advanced_routes to map incoming paths, upstream paths, auth, and converters',
     },
   },
+  71: {
+    id: 71,
+    name: CHANNEL_TYPES[71],
+    icon: 'https://console.gmicloud.ai/favicon.ico',
+    defaultBaseUrl: 'https://api.gmi-serving.com',
+    hints: {
+      baseUrl:
+        'Default: https://api.gmi-serving.com (LLM); audio models always use console.gmicloud.ai',
+      key: 'GMI Cloud API Key',
+      models:
+        'MiniMaxAI/MiniMax-M2.7,minimax-tts-speech-2.8-turbo,minimax-music-3.0',
+      other:
+        'Supports OpenAI Chat/Responses, Anthropic Messages, and GMI requestqueue audio models (TTS, voice clone, music)',
+    },
+  },
 }
 
 /**

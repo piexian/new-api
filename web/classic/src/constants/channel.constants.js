@@ -28,6 +28,7 @@ export const CHANNEL_TYPE_MOARK = 66;
 export const CHANNEL_TYPE_ADVANCED_CUSTOM = 67;
 export const CHANNEL_TYPE_CEREBRAS = 68;
 export const CHANNEL_TYPE_QWEN_TOKEN_PLAN = 69;
+export const CHANNEL_TYPE_GMICLOUD = 71;
 
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
@@ -95,6 +96,11 @@ export const CHANNEL_OPTIONS = [
     value: 70,
     color: 'blue',
     label: 'Mistral Console',
+  },
+  {
+    value: CHANNEL_TYPE_GMICLOUD,
+    color: 'blue',
+    label: 'GMI Cloud',
   },
   {
     value: 18,
@@ -285,6 +291,7 @@ export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
   CHANNEL_TYPE_CEREBRAS,
   CHANNEL_TYPE_QWEN_TOKEN_PLAN,
   CHANNEL_TYPE_AGNES_AI,
+  CHANNEL_TYPE_GMICLOUD,
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;

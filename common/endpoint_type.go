@@ -81,6 +81,20 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		}
 	case constant.ChannelTypeOpenCode:
 		endpointTypes = getOpenCodeEndpointTypes(modelName)
+	case constant.ChannelTypeGMICloud:
+		modelName := strings.ToLower(strings.TrimSpace(modelName))
+		if strings.HasPrefix(modelName, "minimax-tts-") || strings.HasPrefix(modelName, "minimax-audio-voice-clone-") {
+			endpointTypes = []constant.EndpointType{constant.EndpointTypeAudioSpeech}
+		} else if strings.HasPrefix(modelName, "minimax-music-") {
+			// 音乐生成使用 MiniMax 原生端点，当前没有可对应的端点类型标注。
+			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
+		} else {
+			endpointTypes = []constant.EndpointType{
+				constant.EndpointTypeOpenAI,
+				constant.EndpointTypeOpenAIResponse,
+				constant.EndpointTypeAnthropic,
+			}
+		}
 	case constant.ChannelTypeQwenTokenPlan:
 		endpointTypes = []constant.EndpointType{
 			constant.EndpointTypeOpenAI,

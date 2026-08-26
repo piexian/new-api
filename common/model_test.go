@@ -48,6 +48,51 @@ func TestGetEndpointTypesByChannelTypeForKilo(t *testing.T) {
 	}
 }
 
+func TestGetEndpointTypesByChannelTypeForGMICloud(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		model string
+		want  []constant.EndpointType
+	}{
+		{
+			name:  "text",
+			model: "MiniMaxAI/MiniMax-M2.7",
+			want: []constant.EndpointType{
+				constant.EndpointTypeOpenAI,
+				constant.EndpointTypeOpenAIResponse,
+				constant.EndpointTypeAnthropic,
+			},
+		},
+		{
+			name:  "speech",
+			model: "minimax-tts-speech-2.8-turbo",
+			want:  []constant.EndpointType{constant.EndpointTypeAudioSpeech},
+		},
+		{
+			name:  "voice clone",
+			model: "minimax-audio-voice-clone-speech-2.8-hd",
+			want:  []constant.EndpointType{constant.EndpointTypeAudioSpeech},
+		},
+		{
+			name:  "music",
+			model: "minimax-music-3.0",
+			want:  []constant.EndpointType{constant.EndpointTypeOpenAI},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeGMICloud, tt.model)
+			if !reflect.DeepEqual(endpoints, tt.want) {
+				t.Fatalf("expected GMI Cloud %s endpoints %#v, got %#v", tt.name, tt.want, endpoints)
+			}
+		})
+	}
+}
+
 func TestGetEndpointTypesByChannelTypeForPoeClaudeModel(t *testing.T) {
 	t.Parallel()
 

@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/gmicloud"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -153,6 +154,54 @@ func TestFetchChannelUpstreamModelIDsMiniMaxNormalizesBaseURLAndKeepsNativeEndpo
 	require.Contains(t, models, "MiniMax-M2.7")
 	require.Contains(t, models, minimax.MusicCoverPreprocessModel)
 	require.Contains(t, models, minimax.LyricsGenerationModel)
+}
+
+func TestGMICloudModelsIncludeStaticMediaModels(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/v1/models", r.URL.Path)
+		require.Equal(t, "Bearer test-key", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"gmi-live-model","object":"model"}]}`))
+	}))
+	defer server.Close()
+
+	baseURL := server.URL
+	channel := &model.Channel{
+		Type:    constant.ChannelTypeGMICloud,
+		Key:     "test-key",
+		BaseURL: &baseURL,
+	}
+
+	models, err := fetchChannelUpstreamModelIDs(channel)
+	require.NoError(t, err)
+	require.Contains(t, models, "gmi-live-model")
+	for _, staticModel := range gmicloud.ModelList {
+		require.Contains(t, models, staticModel)
+	}
+
+	payload, err := common.Marshal(map[string]any{
+		"base_url": baseURL,
+		"type":     constant.ChannelTypeGMICloud,
+		"key":      "test-key",
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/channel/fetch_models", bytes.NewReader(payload))
+	context.Request.Header.Set("Content-Type", "application/json")
+
+	FetchModels(context)
+
+	var result struct {
+		Success bool     `json:"success"`
+		Data    []string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+	require.True(t, result.Success)
+	require.Contains(t, result.Data, "gmi-live-model")
+	for _, staticModel := range gmicloud.ModelList {
+		require.Contains(t, result.Data, staticModel)
+	}
 }
 
 func TestFetchChannelUpstreamModelIDsQwenUsesModelsEndpointAndBoundAPIKey(t *testing.T) {

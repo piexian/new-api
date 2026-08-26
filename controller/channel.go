@@ -18,6 +18,7 @@ import (
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/cohere"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/gmicloud"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/opencode"
@@ -1529,6 +1530,9 @@ func FetchModels(c *gin.Context) {
 	}
 	if req.Type == constant.ChannelTypeMiniMax {
 		models = mergeModelNames(models, minimax.NativeEndpointModelList)
+	}
+	if req.Type == constant.ChannelTypeGMICloud {
+		models = mergeModelNames(models, gmicloud.ModelList)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

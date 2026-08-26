@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/deepseek"
 	"github.com/QuantumNous/new-api/relay/channel/dify"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/gmicloud"
 	"github.com/QuantumNous/new-api/relay/channel/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/jina"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
@@ -155,6 +156,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &qwentokenplan.Adaptor{}
 	case constant.APITypeMistralConsole:
 		return &mistralconsole.Adaptor{}
+	case constant.APITypeGMICloud:
+		return &gmicloud.Adaptor{}
 	}
 	return nil
 }
