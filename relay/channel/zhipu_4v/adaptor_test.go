@@ -8,9 +8,11 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func TestGetRequestURLUsesClaudeCompatibleEndpointForClaudeModel(t *testing.T) {
@@ -34,6 +36,38 @@ func TestGetRequestURLUsesClaudeCompatibleEndpointForClaudeModel(t *testing.T) {
 	want := "https://open.bigmodel.cn/api/anthropic/v1/messages"
 	if got != want {
 		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
+	}
+}
+
+func TestGetRequestURLUsesClaudeCompatibleEndpointForCodingPlan(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	for _, testCase := range []struct {
+		baseURL string
+		want    string
+	}{
+		{baseURL: "glm-coding-plan", want: "https://open.bigmodel.cn/api/anthropic/v1/messages"},
+		{baseURL: "glm-coding-plan/", want: "https://open.bigmodel.cn/api/anthropic/v1/messages"},
+		{baseURL: "https://open.bigmodel.cn/api/coding/paas/v4", want: "https://open.bigmodel.cn/api/anthropic/v1/messages"},
+		{baseURL: "glm-coding-plan-international", want: "https://api.z.ai/api/anthropic/v1/messages"},
+		{baseURL: "https://api.z.ai/api/coding/paas/v4", want: "https://api.z.ai/api/anthropic/v1/messages"},
+	} {
+		info := &relaycommon.RelayInfo{
+			RelayFormat: types.RelayFormatOpenAI,
+			ChannelMeta: &relaycommon.ChannelMeta{
+				ChannelBaseUrl:    testCase.baseURL,
+				UpstreamModelName: "glm-4.6",
+			},
+		}
+
+		got, err := adaptor.GetRequestURL(info)
+		if err != nil {
+			t.Fatalf("GetRequestURL(%q) returned error: %v", testCase.baseURL, err)
+		}
+		if got != testCase.want {
+			t.Fatalf("GetRequestURL(%q) = %q, want %q", testCase.baseURL, got, testCase.want)
+		}
 	}
 }
 
@@ -71,6 +105,53 @@ func TestSetupRequestHeaderUsesClaudeCompatibleHeadersForClaudeModel(t *testing.
 	}
 }
 
+func TestSetupRequestHeaderAddsZCodeTraceHeadersForCodingPlan(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	headers := make(http.Header)
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "glm-coding-plan",
+			ApiKey:            "coding-plan-key",
+			UpstreamModelName: "glm-4.6",
+		},
+	}
+
+	if err := (&Adaptor{}).SetupRequestHeader(c, &headers, info); err != nil {
+		t.Fatalf("SetupRequestHeader returned error: %v", err)
+	}
+	if headers.Get("Authorization") != "" {
+		t.Fatalf("Authorization = %q, want empty for Claude-compatible requests", headers.Get("Authorization"))
+	}
+	if headers.Get("x-api-key") != "coding-plan-key" {
+		t.Fatalf("x-api-key = %q, want coding-plan-key", headers.Get("x-api-key"))
+	}
+	for _, name := range []string{"x-request-id", "x-zcode-session-type", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
+		if value := headers.Get(name); value == "" {
+			t.Fatalf("%s is empty", name)
+		}
+	}
+	if headers.Get("x-zcode-session-type") != "main" {
+		t.Fatalf("x-zcode-session-type = %q, want main", headers.Get("x-zcode-session-type"))
+	}
+	for _, name := range []string{"HTTP-Referer", "User-Agent", "X-ZCode-App-Version", "X-Title", "X-ZCode-Agent", "X-Platform", "X-Release-Channel", "X-Client-Language", "X-Client-Timezone", "X-Os-Category", "X-Os-Version", "X-Device-Mid", "X-Stainless-Runtime", "X-Stainless-Package-Version", "x-app", "X-Claude-Code-Session-Id"} {
+		if value := headers.Get(name); value != "" {
+			t.Fatalf("%s = %q, want empty for non-forged ZCode-compatible requests", name, value)
+		}
+	}
+	for _, name := range []string{"x-request-id", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
+		if _, err := uuid.Parse(headers.Get(name)); err != nil {
+			t.Fatalf("%s = %q is not a UUID: %v", name, headers.Get(name), err)
+		}
+	}
+}
+
 func TestConvertOpenAIRequestReturnsClaudeRequestForClaudeModel(t *testing.T) {
 	t.Parallel()
 
@@ -102,5 +183,69 @@ func TestConvertOpenAIRequestReturnsClaudeRequestForClaudeModel(t *testing.T) {
 
 	if _, ok := converted.(*dto.ClaudeRequest); !ok {
 		t.Fatalf("ConvertOpenAIRequest returned %T, want *dto.ClaudeRequest", converted)
+	}
+}
+
+func TestConvertOpenAIResponsesRequestUsesClaudeRequestForCodingPlan(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	stream := true
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeResponses,
+		RelayFormat: types.RelayFormatOpenAIResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "glm-coding-plan",
+			UpstreamModelName: "glm-4.6",
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		Model:  "glm-4.6",
+		Input:  []byte(`"hello"`),
+		Stream: &stream,
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIResponsesRequest returned error: %v", err)
+	}
+	claudeReq, ok := converted.(*dto.ClaudeRequest)
+	if !ok {
+		t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want *dto.ClaudeRequest", converted)
+	}
+	if info.FinalRequestRelayFormat != types.RelayFormatClaude {
+		t.Fatalf("FinalRequestRelayFormat = %q, want %q", info.FinalRequestRelayFormat, types.RelayFormatClaude)
+	}
+	if claudeReq.Stream == nil || !*claudeReq.Stream {
+		t.Fatalf("stream = %#v, want true", claudeReq.Stream)
+	}
+}
+
+func TestConvertInternalChatResponsesRequestKeepsOpenAIFormat(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeResponses,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "glm-coding-plan",
+			UpstreamModelName: "glm-4.6",
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		Model: "glm-4.6",
+		Input: []byte(`"hello"`),
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIResponsesRequest returned error: %v", err)
+	}
+	if _, ok := converted.(*dto.GeneralOpenAIRequest); !ok {
+		t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want *dto.GeneralOpenAIRequest", converted)
+	}
+	if info.FinalRequestRelayFormat != types.RelayFormatOpenAI {
+		t.Fatalf("FinalRequestRelayFormat = %q, want %q", info.FinalRequestRelayFormat, types.RelayFormatOpenAI)
 	}
 }

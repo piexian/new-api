@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	channelconstant "github.com/QuantumNous/new-api/constant"
@@ -14,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
@@ -28,10 +30,71 @@ func shouldUseZhipuClaudeCompatibleAPI(info *relaycommon.RelayInfo) bool {
 	if info == nil {
 		return false
 	}
+	if info.RelayMode == relayconstant.RelayModeResponses && info.FinalRequestRelayFormat == types.RelayFormatOpenAI {
+		return false
+	}
+	if isZhipuCodingPlanClaudeRequest(info) {
+		return true
+	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		return true
 	}
 	return common.IsClaudeCompatibleModel(info.UpstreamModelName)
+}
+
+func isZhipuCodingPlanClaudeRequest(info *relaycommon.RelayInfo) bool {
+	if !isZhipuCodingPlan(info) {
+		return false
+	}
+	switch info.RelayMode {
+	case relayconstant.RelayModeEmbeddings,
+		relayconstant.RelayModeImagesGenerations,
+		relayconstant.RelayModeImagesEdits,
+		relayconstant.RelayModeAudioSpeech,
+		relayconstant.RelayModeAudioTranscription,
+		relayconstant.RelayModeAudioTranslation,
+		relayconstant.RelayModeRerank:
+		return false
+	default:
+		return true
+	}
+}
+
+func isZhipuCodingPlan(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(info.ChannelBaseUrl), "/")
+	if baseURL == "glm-coding-plan" || baseURL == "glm-coding-plan-international" {
+		return true
+	}
+	for alias, specialBase := range channelconstant.ChannelSpecialBases {
+		if alias != "glm-coding-plan" && alias != "glm-coding-plan-international" {
+			continue
+		}
+		if baseURL == strings.TrimRight(specialBase.ClaudeBaseURL, "/") ||
+			baseURL == strings.TrimRight(specialBase.OpenAIBaseURL, "/") {
+			return true
+		}
+	}
+	return false
+}
+
+func zhipuSpecialBase(baseURL string) (channelconstant.ChannelSpecialBase, bool) {
+	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if specialBase, ok := channelconstant.ChannelSpecialBases[normalized]; ok {
+		return specialBase, true
+	}
+	for alias, specialBase := range channelconstant.ChannelSpecialBases {
+		if alias != "glm-coding-plan" && alias != "glm-coding-plan-international" {
+			continue
+		}
+		if normalized == strings.TrimRight(specialBase.ClaudeBaseURL, "/") ||
+			normalized == strings.TrimRight(specialBase.OpenAIBaseURL, "/") {
+			return specialBase, true
+		}
+	}
+	return channelconstant.ChannelSpecialBase{}, false
 }
 
 func setupZhipuClaudeCompatibleHeaders(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
@@ -43,6 +106,9 @@ func setupZhipuClaudeCompatibleHeaders(c *gin.Context, req *http.Header, info *r
 	}
 	req.Set("anthropic-version", anthropicVersion)
 	claude.CommonClaudeHeadersOperation(c, req, info)
+	if isZhipuCodingPlan(info) {
+		setupZCodeCompatibilityHeaders(req)
+	}
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
@@ -71,7 +137,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if baseURL == "" {
 		baseURL = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeZhipu_v4]
 	}
-	specialPlan, hasSpecialPlan := channelconstant.ChannelSpecialBases[baseURL]
+	specialPlan, hasSpecialPlan := zhipuSpecialBase(baseURL)
 
 	switch {
 	case shouldUseZhipuClaudeCompatibleAPI(info):
@@ -133,6 +199,15 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	// Chat completions can be internally routed through the Responses relay.
+	// Keep that compatibility path on OpenAI Chat so its response handler can
+	// aggregate the upstream stream back into the original Chat contract.
+	if shouldUseZhipuClaudeCompatibleAPI(info) && (info == nil || info.RelayFormat != types.RelayFormatOpenAI) {
+		if info != nil {
+			info.FinalRequestRelayFormat = types.RelayFormatClaude
+		}
+		return relayconvert.OpenAIResponsesRequestToClaudeMessages(c, &request)
+	}
 	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
 	if err != nil {
 		return nil, err
@@ -151,6 +226,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info != nil && info.RelayMode == relayconstant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatClaude {
+		if info.IsStream {
+			return zhipuClaudeResponsesStreamHandler(c, info, resp)
+		}
+		return claude.ClaudeResponsesHandler(c, resp, info)
+	}
 	if info != nil && info.RelayMode == relayconstant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
 		if info.IsStream {
 			return openai.ChatCompletionResponsesStreamHandler(c, info, resp)

@@ -145,6 +145,19 @@ func TestGetEndpointTypesByChannelTypeForZhipuNonClaudeModel(t *testing.T) {
 	}
 }
 
+func TestGetEndpointTypesByChannelTypeForZhipuV4(t *testing.T) {
+	t.Parallel()
+
+	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeZhipu_v4, "glm-4.6")
+	want := []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+	}
+	if !reflect.DeepEqual(endpoints, want) {
+		t.Fatalf("expected Zhipu V4 endpoints %#v, got %#v", want, endpoints)
+	}
+}
+
 func TestGetEndpointTypesByChannelTypeForDeepSeek(t *testing.T) {
 	t.Parallel()
 

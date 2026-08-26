@@ -44,9 +44,15 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 	case constant.ChannelTypeAnthropic:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAI}
 	case constant.ChannelTypeZhipu:
-		fallthrough
-	case constant.ChannelTypeZhipu_v4:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
+		if IsClaudeCompatibleModel(modelName) {
+			endpointTypes = append([]constant.EndpointType{constant.EndpointTypeAnthropic}, endpointTypes...)
+		}
+	case constant.ChannelTypeZhipu_v4:
+		endpointTypes = []constant.EndpointType{
+			constant.EndpointTypeOpenAI,
+			constant.EndpointTypeOpenAIResponse,
+		}
 		if IsClaudeCompatibleModel(modelName) {
 			endpointTypes = append([]constant.EndpointType{constant.EndpointTypeAnthropic}, endpointTypes...)
 		}

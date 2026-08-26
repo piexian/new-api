@@ -140,6 +140,59 @@ func TestProcessHeaderOverride_PassthroughSkipsAcceptEncoding(t *testing.T) {
 	require.False(t, hasAcceptEncoding)
 }
 
+func TestProcessHeaderOverride_PassthroughSkipsClientIPHeaders(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	ctx.Request.Header.Set("X-Forwarded-For", "10.0.0.1")
+	ctx.Request.Header.Set("X-Real-IP", "10.0.0.2")
+	ctx.Request.Header.Set("CF-Connecting-IP", "10.0.0.3")
+	ctx.Request.Header.Set("X-Trace-Id", "trace-123")
+
+	info := &relaycommon.RelayInfo{
+		IsChannelTest: false,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			HeadersOverride: map[string]any{"*": ""},
+		},
+	}
+
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	require.Equal(t, "trace-123", headers["x-trace-id"])
+	for _, name := range []string{"x-forwarded-for", "x-real-ip", "cf-connecting-ip"} {
+		_, exists := headers[name]
+		require.False(t, exists, "unexpected passthrough of %s", name)
+	}
+}
+
+func TestProcessHeaderOverride_ExplicitClientIPHeaderIsBlocked(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		IsChannelTest: false,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			HeadersOverride: map[string]any{
+				"X-Real-IP":  "10.0.0.1",
+				"X-Trace-Id": "trace-123",
+			},
+		},
+	}
+
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	require.Equal(t, "trace-123", headers["x-trace-id"])
+	_, exists := headers["x-real-ip"]
+	require.False(t, exists)
+}
+
 func TestProcessHeaderOverride_PassthroughSkipsAnthropicBillingHeader(t *testing.T) {
 	t.Parallel()
 
