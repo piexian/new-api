@@ -177,6 +177,7 @@ func newAudioGinContext() (*gin.Context, *httptest.ResponseRecorder) {
 }
 
 func TestHandleAudioResponseSuccessWithPolling(t *testing.T) {
+	allowPrivateDownloadFetch(t)
 	statusCalls := 0
 	server := newGMIMockServer(t, "processing", &statusCalls)
 
@@ -201,6 +202,7 @@ func TestHandleAudioResponseSuccessWithPolling(t *testing.T) {
 }
 
 func TestHandleAudioResponseImmediateSuccess(t *testing.T) {
+	allowPrivateDownloadFetch(t)
 	statusCalls := 0
 	server := newGMIMockServer(t, "success", &statusCalls)
 

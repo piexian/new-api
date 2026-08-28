@@ -11,6 +11,8 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -50,26 +52,14 @@ func TestBuildMiniMaxMusicRequestBody(t *testing.T) {
 	require.NotContains(t, payload, "output_format")
 }
 
-func TestBuildMiniMaxMusicRequestBodyRejectsUnsupportedRequests(t *testing.T) {
-	info := nativeMusicInfo("url")
-
-	_, err := buildMiniMaxMusicRequestBody(info, strings.NewReader(`{"lyrics":"song","stream":true}`))
-	require.ErrorContains(t, err, "streaming")
-
-	_, err = buildMiniMaxMusicRequestBody(info, strings.NewReader(`{"prompt":"instrumental"}`))
-	require.ErrorContains(t, err, "requires lyrics")
-
-	_, err = buildMiniMaxMusicRequestBody(info, strings.NewReader(`{"lyrics":"song","output_format":"mp3"}`))
-	require.ErrorContains(t, err, "output_format")
-
-	_, err = buildMiniMaxMusicRequestBody(info, strings.NewReader(`{"lyrics":"song","audio_url":"https://example.com/source.mp3"}`))
-	require.ErrorContains(t, err, "audio_url")
-}
-
+// 合法性校验统一在 ValidateMiniMaxMusicRequest；handler 侧先校验，build 只做转换。
 func TestValidateMiniMaxMusicRequest(t *testing.T) {
 	require.NoError(t, ValidateMiniMaxMusicRequest(&dto.MiniMaxMusicGenerationRequest{Lyrics: "song", OutputFormat: "hex"}))
+	require.NoError(t, ValidateMiniMaxMusicRequest(&dto.MiniMaxMusicGenerationRequest{Lyrics: "song", OutputFormat: "url"}))
 	require.ErrorContains(t, ValidateMiniMaxMusicRequest(&dto.MiniMaxMusicGenerationRequest{Lyrics: "song", Stream: true}), "streaming")
 	require.ErrorContains(t, ValidateMiniMaxMusicRequest(&dto.MiniMaxMusicGenerationRequest{Lyrics: "song", AudioURL: "https://example.com/audio.mp3"}), "cover")
+	require.ErrorContains(t, ValidateMiniMaxMusicRequest(&dto.MiniMaxMusicGenerationRequest{Lyrics: "song", OutputFormat: "mp3"}), "output_format")
+	require.ErrorContains(t, ValidateMiniMaxMusicRequest(&dto.MiniMaxMusicGenerationRequest{Lyrics: "  "}), "lyrics")
 }
 
 func newMusicMockServer(t *testing.T, downloads *int) *httptest.Server {
@@ -124,6 +114,20 @@ func newMusicGinContext() (*gin.Context, *httptest.ResponseRecorder) {
 	return c, w
 }
 
+// allowPrivateDownloadFetch 放行 SSRF 防护下的回环下载（httptest），并确保受保护客户端已初始化。
+func allowPrivateDownloadFetch(t *testing.T) {
+	t.Helper()
+	service.InitHttpClient()
+	setting := system_setting.GetFetchSetting()
+	origAllowPrivateIp, origPorts := setting.AllowPrivateIp, setting.AllowedPorts
+	setting.AllowPrivateIp = true
+	setting.AllowedPorts = []string{} // httptest 随机端口
+	t.Cleanup(func() {
+		setting.AllowPrivateIp = origAllowPrivateIp
+		setting.AllowedPorts = origPorts
+	})
+}
+
 func TestHandleMiniMaxMusicResponseURL(t *testing.T) {
 	downloads := 0
 	server := newMusicMockServer(t, &downloads)
@@ -155,6 +159,7 @@ func TestHandleMiniMaxMusicResponseURL(t *testing.T) {
 }
 
 func TestHandleMiniMaxMusicResponseHex(t *testing.T) {
+	allowPrivateDownloadFetch(t)
 	downloads := 0
 	server := newMusicMockServer(t, &downloads)
 	info := nativeMusicInfo("")
@@ -173,21 +178,4 @@ func TestHandleMiniMaxMusicResponseHex(t *testing.T) {
 	require.NoError(t, common.Unmarshal(w.Body.Bytes(), &result))
 	require.Equal(t, "6d757369632d6279746573", result.Data.Audio)
 	require.EqualValues(t, len("music-bytes"), result.ExtraInfo.MusicSize)
-}
-
-func TestHandleMiniMaxMusicResponseRejectsInvalidOutputFormat(t *testing.T) {
-	downloads := 0
-	server := newMusicMockServer(t, &downloads)
-	info := nativeMusicInfo("mp3")
-	info.ChannelBaseUrl = server.URL
-	c, _ := newMusicGinContext()
-
-	usage, apiErr := handleMiniMaxMusicResponse(c, &http.Response{
-		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(`{"request_id":"music-1","status":"success"}`)),
-	}, info)
-	require.Nil(t, usage)
-	require.NotNil(t, apiErr)
-	require.Contains(t, apiErr.Error(), "output_format")
-	require.Zero(t, downloads)
 }

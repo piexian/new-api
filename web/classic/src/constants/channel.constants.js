@@ -263,6 +263,7 @@ export const CHANNEL_OPTIONS = [
 ];
 
 // Channel types that support upstream model list fetching in UI.
+// 注意：与 web/default/src/features/channels/constants.ts 的 MODEL_FETCHABLE_TYPES 为两份手工同步清单，新增渠道类型时需同时更新。
 export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
   1,
   4,

@@ -317,13 +317,15 @@ func extractAudioURL(outcome *gmiOutcome) string {
 }
 
 func downloadAndStreamAudio(c *gin.Context, info *relaycommon.RelayInfo, audioURL string) (*dto.Usage, *types.NewAPIError) {
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, audioURL, nil)
-	if err != nil {
-		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+	if !isHTTPURL(audioURL) {
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("gmicloud: audio download URL is not http(s)"),
+			types.ErrorCodeBadResponse,
+			http.StatusBadGateway,
+		)
 	}
-
-	client := relayHTTPClient()
-	resp, err := client.Do(req)
+	// URL 来自上游响应：走带 SSRF 防护的下载入口，并限制单次下载体积。
+	resp, err := service.DoDownloadRequest(audioURL, "gmicloud audio download")
 	if err != nil {
 		return nil, types.NewErrorWithStatusCode(
 			fmt.Errorf("gmicloud: download audio: %w", err),
@@ -331,7 +333,7 @@ func downloadAndStreamAudio(c *gin.Context, info *relaycommon.RelayInfo, audioUR
 			http.StatusBadGateway,
 		)
 	}
-	defer resp.Body.Close()
+	defer service.CloseResponseBodyGracefully(resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, types.NewErrorWithStatusCode(
@@ -341,12 +343,27 @@ func downloadAndStreamAudio(c *gin.Context, info *relaycommon.RelayInfo, audioUR
 		)
 	}
 
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxMediaDownloadBytes+1))
+	if err != nil {
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("gmicloud: read audio download: %w", err),
+			types.ErrorCodeReadResponseBodyFailed,
+			http.StatusBadGateway,
+		)
+	}
+	if len(data) > maxMediaDownloadBytes {
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("gmicloud: audio download exceeds %d byte limit", maxMediaDownloadBytes),
+			types.ErrorCodeBadResponse,
+			http.StatusBadGateway,
+		)
+	}
+
 	contentType := resp.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = "audio/mpeg"
 	}
-
-	c.DataFromReader(http.StatusOK, resp.ContentLength, contentType, resp.Body, nil)
+	c.Data(http.StatusOK, contentType, data)
 
 	promptTokens := info.GetEstimatePromptTokens()
 	if promptTokens <= 0 {

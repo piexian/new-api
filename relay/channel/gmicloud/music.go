@@ -17,14 +17,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const maxMiniMaxMusicDownloadBytes = 32 << 20
-
-// buildMiniMaxMusicRequestBody converts the MiniMax native request to GMI requestqueue.
+// buildMiniMaxMusicRequestBody converts the MiniMax native request to the GMI requestqueue.
+// 请求合法性（模型支持/stream/cover 字段/output_format/空歌词）由 relay/minimax_handler.go 统一校验，这里只做转换。
 func buildMiniMaxMusicRequestBody(info *relaycommon.RelayInfo, body io.Reader) (io.Reader, error) {
-	if !IsSupportedMusicModel(gmiModelName(info)) {
-		return nil, fmt.Errorf("gmicloud: model %q is not a supported music model", gmiModelName(info))
-	}
-
 	raw, err := io.ReadAll(body)
 	if err != nil {
 		return nil, fmt.Errorf("gmicloud: read MiniMax music request: %w", err)
@@ -33,22 +28,8 @@ func buildMiniMaxMusicRequestBody(info *relaycommon.RelayInfo, body io.Reader) (
 	if err := common.Unmarshal(raw, &request); err != nil {
 		return nil, fmt.Errorf("gmicloud: decode MiniMax music request: %w", err)
 	}
-	if stream, _ := request["stream"].(bool); stream {
-		return nil, fmt.Errorf("gmicloud: MiniMax music streaming is not supported by the GMI upstream")
-	}
-	for _, field := range []string{"audio_url", "audio_base64", "cover_feature_id"} {
-		if value, exists := request[field]; exists && strings.TrimSpace(fmt.Sprint(value)) != "" {
-			return nil, fmt.Errorf("gmicloud: MiniMax music %s is not supported", field)
-		}
-	}
-	if outputFormat, _ := request["output_format"].(string); outputFormat != "" && outputFormat != "url" && outputFormat != "hex" {
-		return nil, fmt.Errorf("gmicloud: unsupported MiniMax music output_format %q", outputFormat)
-	}
 
 	lyrics, _ := request["lyrics"].(string)
-	if strings.TrimSpace(lyrics) == "" {
-		return nil, fmt.Errorf("gmicloud: MiniMax music request requires lyrics")
-	}
 
 	payload := map[string]any{"lyrics": lyrics}
 	if prompt, _ := request["prompt"].(string); strings.TrimSpace(prompt) != "" {
@@ -210,25 +191,20 @@ func miniMaxMusicOutput(c *gin.Context, info *relaycommon.RelayInfo, audioURL st
 	if request, ok := info.Request.(*dto.MiniMaxMusicGenerationRequest); ok && request != nil && request.OutputFormat != "" {
 		format = strings.ToLower(strings.TrimSpace(request.OutputFormat))
 	}
-	switch format {
-	case "url":
+	if format == "url" {
 		return audioURL, 0, nil
-	case "", "hex":
-		// MiniMax's default response embeds hexadecimal audio instead of a URL.
-	default:
+	}
+	// 其余只有默认 hex：非法 output_format 已被 handler 校验拒绝。
+
+	if !isHTTPURL(audioURL) {
 		return "", 0, types.NewErrorWithStatusCode(
-			fmt.Errorf("gmicloud: unsupported MiniMax music output_format %q", format),
-			types.ErrorCodeInvalidRequest,
-			http.StatusBadRequest,
-			types.ErrOptionWithSkipRetry(),
+			fmt.Errorf("gmicloud: music download URL is not http(s)"),
+			types.ErrorCodeBadResponse,
+			http.StatusBadGateway,
 		)
 	}
-
-	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, audioURL, nil)
-	if err != nil {
-		return "", 0, types.NewErrorWithStatusCode(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
-	}
-	resp, err := relayHTTPClient().Do(req)
+	// URL 来自上游响应：走带 SSRF 防护的下载入口，并限制单次下载体积。
+	resp, err := service.DoDownloadRequest(audioURL, "gmicloud music download")
 	if err != nil {
 		return "", 0, types.NewErrorWithStatusCode(
 			fmt.Errorf("gmicloud: download music: %w", err),
@@ -236,7 +212,7 @@ func miniMaxMusicOutput(c *gin.Context, info *relaycommon.RelayInfo, audioURL st
 			http.StatusBadGateway,
 		)
 	}
-	defer resp.Body.Close()
+	defer service.CloseResponseBodyGracefully(resp)
 	if resp.StatusCode != http.StatusOK {
 		return "", 0, types.NewErrorWithStatusCode(
 			fmt.Errorf("gmicloud: music download HTTP %d", resp.StatusCode),
@@ -244,18 +220,18 @@ func miniMaxMusicOutput(c *gin.Context, info *relaycommon.RelayInfo, audioURL st
 			http.StatusBadGateway,
 		)
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxMiniMaxMusicDownloadBytes+1))
-	if len(data) > maxMiniMaxMusicDownloadBytes {
-		return "", 0, types.NewErrorWithStatusCode(
-			fmt.Errorf("gmicloud: music download exceeds %d byte limit", maxMiniMaxMusicDownloadBytes),
-			types.ErrorCodeBadResponse,
-			http.StatusBadGateway,
-		)
-	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxMediaDownloadBytes+1))
 	if err != nil {
 		return "", 0, types.NewErrorWithStatusCode(
 			fmt.Errorf("gmicloud: read music download: %w", err),
 			types.ErrorCodeReadResponseBodyFailed,
+			http.StatusBadGateway,
+		)
+	}
+	if len(data) > maxMediaDownloadBytes {
+		return "", 0, types.NewErrorWithStatusCode(
+			fmt.Errorf("gmicloud: music download exceeds %d byte limit", maxMediaDownloadBytes),
+			types.ErrorCodeBadResponse,
 			http.StatusBadGateway,
 		)
 	}

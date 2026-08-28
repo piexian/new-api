@@ -16,6 +16,9 @@ const (
 	requestStatusPath = "/api/v1/ie/requestqueue/apikey/requests/"
 )
 
+// maxMediaDownloadBytes 上游返回的媒体 URL 由服务端代理下载，限制单次下载体积。
+const maxMediaDownloadBytes = 32 << 20
+
 var ModelList = []string{
 	"MiniMaxAI/MiniMax-M2.7",
 	"minimax-tts-speech-2.8-turbo",

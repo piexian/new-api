@@ -37,13 +37,13 @@ func MiniMaxNativeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErr
 	if info.ChannelType != constant.ChannelTypeMiniMax && info.ChannelType != constant.ChannelTypeGMICloud {
 		return types.NewErrorWithStatusCode(fmt.Errorf("minimax native endpoint requires minimax-compatible channel, got channel type %d", info.ChannelType), types.ErrorCodeInvalidApiType, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
-	if info.ChannelType == constant.ChannelTypeGMICloud && info.RelayMode != relayconstant.RelayModeMiniMaxMusicGeneration {
-		return types.NewErrorWithStatusCode(fmt.Errorf("gmicloud only supports /v1/music_generation among MiniMax native endpoints"), types.ErrorCodeInvalidApiType, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-	}
-	if info.ChannelType == constant.ChannelTypeGMICloud && info.IsStream {
-		return types.NewErrorWithStatusCode(fmt.Errorf("gmicloud does not support streaming MiniMax music generation"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-	}
 	if info.ChannelType == constant.ChannelTypeGMICloud {
+		if info.RelayMode != relayconstant.RelayModeMiniMaxMusicGeneration {
+			return types.NewErrorWithStatusCode(fmt.Errorf("gmicloud only supports /v1/music_generation among MiniMax native endpoints"), types.ErrorCodeInvalidApiType, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		if info.IsStream {
+			return types.NewErrorWithStatusCode(fmt.Errorf("gmicloud does not support streaming MiniMax music generation"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
 		request, ok := info.Request.(*dto.MiniMaxMusicGenerationRequest)
 		if !ok {
 			return types.NewErrorWithStatusCode(fmt.Errorf("gmicloud requires a MiniMax music generation request"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
