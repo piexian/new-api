@@ -26,8 +26,11 @@ func init() {
 // 整笔回滚（借款人/签到人无过错），记系统错误并通知 root 管理员介入处理放贷人账户
 func notifyLenderOverflow(lenderId int, amount int64) {
 	common.SysError(fmt.Sprintf("loan lender quota overflow: lender_id=%d amount=%d, repayment rolled back", lenderId, amount))
-	NotifyRootUser(dto.NotifyTypeQuotaExceed, "词元贷放贷人入账溢出",
-		fmt.Sprintf("放贷人 %d 的余额已达系统上限，借款人还款入账 %d 额度失败，本次还款已整体回滚。请处理该放贷人账户余额后引导借款人重新还款。", lenderId, amount))
+	// 资金安全类告警，默认开启；关闭后仅留系统错误日志
+	if operation_setting.GetNotifySetting().LoanLenderOverflow {
+		NotifyRootUser(dto.NotifyTypeQuotaExceed, "词元贷放贷人入账溢出",
+			fmt.Sprintf("放贷人 %d 的余额已达系统上限，借款人还款入账 %d 额度失败，本次还款已整体回滚。请处理该放贷人账户余额后引导借款人重新还款。", lenderId, amount))
+	}
 }
 
 // callOfficerOneShot 一次性（非对话）模型调用：随机抽取配置模型，system + user 两段消息，

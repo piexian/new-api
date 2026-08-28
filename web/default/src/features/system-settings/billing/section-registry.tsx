@@ -241,6 +241,8 @@ const BILLING_SECTIONS = [
           minRegisterDays: settings['loan_setting.min_register_days'],
           maxPerBorrow: settings['loan_setting.max_per_borrow'],
           checkinRepayEnabled: settings['loan_setting.checkin_repay_enabled'],
+          lenderOverflowNotifyEnabled:
+            settings['notify_setting.loan_lender_overflow'],
           aiEnabled: settings['loan_setting.ai_enabled'],
           aiModels: settings['loan_setting.ai_models'],
           aiMaxLimit: settings['loan_setting.ai_max_limit'],

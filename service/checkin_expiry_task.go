@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	checkinExpiryTickInterval = 5 * time.Minute
+	checkinExpiryTickInterval      = 5 * time.Minute
 	checkinExpiryBatchSize         = 200
 	checkinExpiryMaxBatchesPerTick = 100 // 每 tick 最多 100 批（2 万条），防历史积压拖垮单 tick
 )

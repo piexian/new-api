@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -107,19 +108,21 @@ func DisableChannelUntil(channelError types.ChannelError, reason string, until i
 			disabledUntilText,
 			reason,
 		)
-		NotifyRootUserWithEmailTemplate(
-			formatNotifyType(channelError.ChannelId, common.ChannelStatusRateLimited),
-			subject,
-			content,
-			EmailTemplateEventChannelQuotaCooldown,
-			map[string]string{
-				"channel_id":     fmt.Sprintf("%d", channelError.ChannelId),
-				"channel_name":   channelError.ChannelName,
-				"channel_type":   fmt.Sprintf("%d", channelError.ChannelType),
-				"reason":         reason,
-				"cooldown_until": disabledUntilText,
-			},
-		)
+		if operation_setting.GetNotifySetting().ChannelQuotaCooldown {
+			NotifyRootUserWithEmailTemplate(
+				formatNotifyType(channelError.ChannelId, common.ChannelStatusRateLimited),
+				subject,
+				content,
+				EmailTemplateEventChannelQuotaCooldown,
+				map[string]string{
+					"channel_id":     fmt.Sprintf("%d", channelError.ChannelId),
+					"channel_name":   channelError.ChannelName,
+					"channel_type":   fmt.Sprintf("%d", channelError.ChannelType),
+					"reason":         reason,
+					"cooldown_until": disabledUntilText,
+				},
+			)
+		}
 		return
 	}
 	if isPlanQuotaCooldownAlreadyActive(channelError, until) {

@@ -44,6 +44,10 @@ export default function SettingsMonitoring(props) {
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
     'monitor_setting.channel_test_mode': 'scheduled_all',
+    'notify_setting.channel_auto_disabled': true,
+    'notify_setting.channel_auto_enabled': true,
+    'notify_setting.channel_quota_cooldown': true,
+    'notify_setting.channel_test_result': true,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -185,6 +189,66 @@ export default function SettingsMonitoring(props) {
                     {t('仅被动恢复')}
                   </Form.Select.Option>
                 </Form.Select>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'notify_setting.channel_auto_disabled'}
+                  label={t('通道自动禁用通知')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'notify_setting.channel_auto_disabled': value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'notify_setting.channel_auto_enabled'}
+                  label={t('通道自动恢复通知')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'notify_setting.channel_auto_enabled': value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'notify_setting.channel_quota_cooldown'}
+                  label={t('套餐限额冷却通知')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'notify_setting.channel_quota_cooldown': value,
+                    })
+                  }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'notify_setting.channel_test_result'}
+                  label={t('通道测试汇总通知')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      'notify_setting.channel_test_result': value,
+                    })
+                  }
+                />
               </Col>
             </Row>
             <Row gutter={16}>

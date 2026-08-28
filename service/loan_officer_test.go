@@ -90,7 +90,7 @@ func TestRunLoanOfficerRoundEarlyCloseIgnored(t *testing.T) {
 	reply, closed, err := RunLoanOfficerRound(user.Id, app, "我要提额")
 	require.NoError(t, err)
 	assert.False(t, closed)             // 提前结案被忽略
-	assert.Equal(t, "评估完毕。", reply) // 块外文本照常展示
+	assert.Equal(t, "评估完毕。", reply)     // 块外文本照常展示
 	assert.NotContains(t, reply, "```") // json 块不展示给用户
 
 	var updated model.TokenLoanApplication

@@ -134,6 +134,7 @@ const defaultBillingSettings: BillingSettings = {
   'loan_setting.min_register_days': 0,
   'loan_setting.max_per_borrow': 0,
   'loan_setting.checkin_repay_enabled': true,
+  'notify_setting.loan_lender_overflow': true,
   'loan_setting.ai_enabled': false,
   'loan_setting.ai_models': '[]',
   'loan_setting.ai_max_limit': 10000000,

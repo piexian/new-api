@@ -106,6 +106,14 @@ const MODELS_SECTIONS = [
             settings['monitor_setting.auto_test_channel_minutes'],
           'monitor_setting.channel_test_mode':
             settings['monitor_setting.channel_test_mode'],
+          'notify_setting.channel_auto_disabled':
+            settings['notify_setting.channel_auto_disabled'],
+          'notify_setting.channel_auto_enabled':
+            settings['notify_setting.channel_auto_enabled'],
+          'notify_setting.channel_quota_cooldown':
+            settings['notify_setting.channel_quota_cooldown'],
+          'notify_setting.channel_test_result':
+            settings['notify_setting.channel_test_result'],
         }}
       />
     ),

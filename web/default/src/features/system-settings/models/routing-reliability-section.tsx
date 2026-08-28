@@ -83,6 +83,12 @@ const routingReliabilitySchema = z
         .min(1, 'Interval must be at least 1 minute'),
       channel_test_mode: z.enum(channelTestModes),
     }),
+    notify_setting: z.object({
+      channel_auto_disabled: z.boolean(),
+      channel_auto_enabled: z.boolean(),
+      channel_quota_cooldown: z.boolean(),
+      channel_test_result: z.boolean(),
+    }),
   })
   .superRefine((values, ctx) => {
     const disableParsed = parseHttpStatusCodeRules(
@@ -127,6 +133,10 @@ type RoutingReliabilitySectionProps = {
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
     'monitor_setting.channel_test_mode': ChannelTestMode
+    'notify_setting.channel_auto_disabled': boolean
+    'notify_setting.channel_auto_enabled': boolean
+    'notify_setting.channel_quota_cooldown': boolean
+    'notify_setting.channel_test_result': boolean
   }
 }
 
@@ -145,6 +155,10 @@ type NormalizedRoutingReliabilityValues = {
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   'monitor_setting.channel_test_mode': ChannelTestMode
+  'notify_setting.channel_auto_disabled': boolean
+  'notify_setting.channel_auto_enabled': boolean
+  'notify_setting.channel_quota_cooldown': boolean
+  'notify_setting.channel_test_result': boolean
 }
 
 function normalizeChannelTestMode(value?: string): ChannelTestMode {
@@ -172,6 +186,12 @@ const buildFormDefaults = (
       defaults['monitor_setting.channel_test_mode']
     ),
   },
+  notify_setting: {
+    channel_auto_disabled: defaults['notify_setting.channel_auto_disabled'],
+    channel_auto_enabled: defaults['notify_setting.channel_auto_enabled'],
+    channel_quota_cooldown: defaults['notify_setting.channel_quota_cooldown'],
+    channel_test_result: defaults['notify_setting.channel_test_result'],
+  },
 })
 
 const normalizeDefaults = (
@@ -197,6 +217,14 @@ const normalizeDefaults = (
   'monitor_setting.channel_test_mode': normalizeChannelTestMode(
     defaults['monitor_setting.channel_test_mode']
   ),
+  'notify_setting.channel_auto_disabled':
+    defaults['notify_setting.channel_auto_disabled'],
+  'notify_setting.channel_auto_enabled':
+    defaults['notify_setting.channel_auto_enabled'],
+  'notify_setting.channel_quota_cooldown':
+    defaults['notify_setting.channel_quota_cooldown'],
+  'notify_setting.channel_test_result':
+    defaults['notify_setting.channel_test_result'],
 })
 
 const normalizeFormValues = (
@@ -220,6 +248,13 @@ const normalizeFormValues = (
   'monitor_setting.auto_test_channel_minutes':
     values.monitor_setting.auto_test_channel_minutes,
   'monitor_setting.channel_test_mode': values.monitor_setting.channel_test_mode,
+  'notify_setting.channel_auto_disabled':
+    values.notify_setting.channel_auto_disabled,
+  'notify_setting.channel_auto_enabled':
+    values.notify_setting.channel_auto_enabled,
+  'notify_setting.channel_quota_cooldown':
+    values.notify_setting.channel_quota_cooldown,
+  'notify_setting.channel_test_result': values.notify_setting.channel_test_result,
 })
 
 export function RoutingReliabilitySection({
@@ -463,6 +498,97 @@ export function RoutingReliabilitySection({
                       <FormDescription>
                         {t(
                           'Bring channels back online after successful checks'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+            </div>
+            <div className='flex flex-col gap-1'>
+              <h4 className='text-sm font-medium'>
+                {t('Admin notifications')}
+              </h4>
+            </div>
+            <div className='grid min-w-0 gap-6 lg:grid-cols-3'>
+              <FormField
+                control={form.control}
+                name='notify_setting.channel_auto_disabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Channel auto-disabled')}</FormLabel>
+                      <FormDescription>
+                        {t('Notify when a channel is disabled automatically')}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='notify_setting.channel_auto_enabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Channel auto-enabled')}</FormLabel>
+                      <FormDescription>
+                        {t('Notify when a channel recovers automatically')}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='notify_setting.channel_quota_cooldown'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Plan quota cooldown')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Notify when a channel enters plan quota cooldown'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='notify_setting.channel_test_result'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>{t('Channel test summary')}</FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Notify after a manual full channel test completes'
                         )}
                       </FormDescription>
                     </SettingsSwitchContent>

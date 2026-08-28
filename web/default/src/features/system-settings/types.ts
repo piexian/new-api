@@ -305,6 +305,10 @@ export type ModelSettings = {
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   'monitor_setting.channel_test_mode': 'scheduled_all' | 'passive_recovery'
+  'notify_setting.channel_auto_disabled': boolean
+  'notify_setting.channel_auto_enabled': boolean
+  'notify_setting.channel_quota_cooldown': boolean
+  'notify_setting.channel_test_result': boolean
   'channel_affinity_setting.enabled': boolean
   'channel_affinity_setting.switch_on_success': boolean
   'channel_affinity_setting.keep_on_channel_disabled': boolean
@@ -427,6 +431,7 @@ export type BillingSettings = {
   'loan_setting.min_register_days': number
   'loan_setting.max_per_borrow': number
   'loan_setting.checkin_repay_enabled': boolean
+  'notify_setting.loan_lender_overflow': boolean
   'loan_setting.ai_enabled': boolean
   'loan_setting.ai_models': string
   'loan_setting.ai_max_limit': number

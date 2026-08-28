@@ -1262,7 +1262,8 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 	selected := selectChannelsForAutomaticTest(channels, mode)
 	allowDisable := mode != operation_setting.ChannelTestModePassiveRecovery
 	summary := performChannelTests(ctx, selected, testUserID, allowDisable, report)
-	if notify && (ctx == nil || ctx.Err() == nil) {
+	// notify 由触发方式决定（手动=是/计划=否），开关再给管理员一道总闸
+	if notify && operation_setting.GetNotifySetting().ChannelTestResult && (ctx == nil || ctx.Err() == nil) {
 		service.NotifyRootUserWithEmailTemplate(
 			dto.NotifyTypeChannelTest,
 			"通道测试完成",

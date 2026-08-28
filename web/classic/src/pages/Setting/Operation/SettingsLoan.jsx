@@ -88,6 +88,7 @@ export default function SettingsLoan(props) {
     'loan_setting.min_register_days': '0',
     'loan_setting.max_per_borrow': '0',
     'loan_setting.checkin_repay_enabled': true,
+    'notify_setting.loan_lender_overflow': true,
     'loan_setting.terms_enabled': true,
     'loan_setting.terms_text': '',
     'loan_setting.ai_enabled': false,
@@ -356,6 +357,19 @@ export default function SettingsLoan(props) {
                   uncheckedText='〇'
                   onChange={handleFieldChange(
                     'loan_setting.checkin_repay_enabled',
+                  )}
+                  disabled={!enabled}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'notify_setting.loan_lender_overflow'}
+                  label={t('放贷人入账溢出通知')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange(
+                    'notify_setting.loan_lender_overflow',
                   )}
                   disabled={!enabled}
                 />

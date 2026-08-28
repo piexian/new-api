@@ -59,6 +59,7 @@ function buildSchema(t: (key: string) => string) {
       minRegisterDays: z.coerce.number().int().min(0),
       maxPerBorrowUsd: z.coerce.number().min(0),
       checkinRepayEnabled: z.boolean(),
+      lenderOverflowNotifyEnabled: z.boolean(),
       aiEnabled: z.boolean(),
       aiModels: z.array(
         z.object({
@@ -119,6 +120,7 @@ export type LoanSettingsDefaults = {
   minRegisterDays: number
   maxPerBorrow: number
   checkinRepayEnabled: boolean
+  lenderOverflowNotifyEnabled: boolean
   aiEnabled: boolean
   aiModels: string
   aiMaxLimit: number
@@ -220,6 +222,7 @@ export function LoanSettingsSection(props: {
       minRegisterDays: defaults.minRegisterDays,
       maxPerBorrowUsd: defaults.maxPerBorrow / quotaPerUnit,
       checkinRepayEnabled: defaults.checkinRepayEnabled,
+      lenderOverflowNotifyEnabled: defaults.lenderOverflowNotifyEnabled,
       aiEnabled: defaults.aiEnabled,
       aiModels: parseAiModels(defaults.aiModels),
       creditTiers: parseCreditTiers(defaults.creditTierLimits, quotaPerUnit),
@@ -319,6 +322,16 @@ export function LoanSettingsSection(props: {
       updates.push({
         key: 'loan_setting.checkin_repay_enabled',
         value: String(values.checkinRepayEnabled),
+      })
+    }
+
+    if (
+      values.lenderOverflowNotifyEnabled !==
+      defaults.lenderOverflowNotifyEnabled
+    ) {
+      updates.push({
+        key: 'notify_setting.loan_lender_overflow',
+        value: String(values.lenderOverflowNotifyEnabled),
       })
     }
 
@@ -593,6 +606,32 @@ export function LoanSettingsSection(props: {
                       <FormDescription>
                         {t(
                           'Check-in rewards are automatically used to repay outstanding loans'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={updateOption.isPending || isSubmitting}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='lenderOverflowNotifyEnabled'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Lender overflow notifications')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Notify the admin when a repayment rolls back because a lender balance is full'
                         )}
                       </FormDescription>
                     </SettingsSwitchContent>

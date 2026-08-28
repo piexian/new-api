@@ -29,18 +29,20 @@ func DisableChannel(channelError types.ChannelError, reason string) {
 	if success {
 		subject := fmt.Sprintf("通道「%s」（#%d）已被禁用", channelError.ChannelName, channelError.ChannelId)
 		content := fmt.Sprintf("通道「%s」（#%d）已被禁用，原因：%s", channelError.ChannelName, channelError.ChannelId, reason)
-		NotifyRootUserWithEmailTemplate(
-			formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled),
-			subject,
-			content,
-			EmailTemplateEventChannelAutoDisabled,
-			map[string]string{
-				"channel_id":   fmt.Sprintf("%d", channelError.ChannelId),
-				"channel_name": channelError.ChannelName,
-				"channel_type": fmt.Sprintf("%d", channelError.ChannelType),
-				"reason":       reason,
-			},
-		)
+		if operation_setting.GetNotifySetting().ChannelAutoDisabled {
+			NotifyRootUserWithEmailTemplate(
+				formatNotifyType(channelError.ChannelId, common.ChannelStatusAutoDisabled),
+				subject,
+				content,
+				EmailTemplateEventChannelAutoDisabled,
+				map[string]string{
+					"channel_id":   fmt.Sprintf("%d", channelError.ChannelId),
+					"channel_name": channelError.ChannelName,
+					"channel_type": fmt.Sprintf("%d", channelError.ChannelType),
+					"reason":       reason,
+				},
+			)
+		}
 	}
 }
 
@@ -49,17 +51,19 @@ func EnableChannel(channelId int, channelType int, usingKey string, channelName 
 	if success {
 		subject := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
 		content := fmt.Sprintf("通道「%s」（#%d）已被启用", channelName, channelId)
-		NotifyRootUserWithEmailTemplate(
-			formatNotifyType(channelId, common.ChannelStatusEnabled),
-			subject,
-			content,
-			EmailTemplateEventChannelAutoEnabled,
-			map[string]string{
-				"channel_id":   fmt.Sprintf("%d", channelId),
-				"channel_name": channelName,
-				"channel_type": fmt.Sprintf("%d", channelType),
-			},
-		)
+		if operation_setting.GetNotifySetting().ChannelAutoEnabled {
+			NotifyRootUserWithEmailTemplate(
+				formatNotifyType(channelId, common.ChannelStatusEnabled),
+				subject,
+				content,
+				EmailTemplateEventChannelAutoEnabled,
+				map[string]string{
+					"channel_id":   fmt.Sprintf("%d", channelId),
+					"channel_name": channelName,
+					"channel_type": fmt.Sprintf("%d", channelType),
+				},
+			)
+		}
 	}
 }
 
