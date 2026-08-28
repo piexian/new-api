@@ -78,6 +78,11 @@ const OperationSetting = () => {
     'monitor_setting.auto_test_channel_enabled': false,
     'monitor_setting.auto_test_channel_minutes': 10,
     'monitor_setting.channel_test_mode': 'scheduled_all',
+    /* 管理员通知设置 */
+    'notify_setting.channel_auto_disabled': true,
+    'notify_setting.channel_auto_enabled': true,
+    'notify_setting.channel_quota_cooldown': true,
+    'notify_setting.channel_test_result': true,
     /* 签到设置 */
     'checkin_setting.enabled': false,
     'checkin_setting.min_quota': 1000,
@@ -97,6 +102,7 @@ const OperationSetting = () => {
     'checkin_setting.makeup_enabled': false,
     'checkin_setting.makeup_max_days': 3,
     'checkin_setting.makeup_counts_toward_progress': false,
+    'checkin_setting.makeup_reward_enabled': true,
     'checkin_setting.risk_watch_enabled': false,
     'checkin_setting.risk_watch_days': 14,
     'checkin_setting.risk_min_daily_calls': 1,
@@ -114,6 +120,7 @@ const OperationSetting = () => {
     'loan_setting.min_register_days': 0,
     'loan_setting.max_per_borrow': 0,
     'loan_setting.checkin_repay_enabled': true,
+    'notify_setting.loan_lender_overflow': true,
     'loan_setting.terms_enabled': true,
     'loan_setting.terms_text': '',
     'loan_setting.ai_enabled': false,

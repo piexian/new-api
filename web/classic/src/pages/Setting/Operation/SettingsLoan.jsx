@@ -29,6 +29,7 @@ import {
   Typography,
 } from '@douyinfe/semi-ui';
 import { IconDelete, IconPlus } from '@douyinfe/semi-icons';
+import { mergeOptionInputs } from '../../../helpers/option-inputs';
 import {
   compareObjects,
   API,
@@ -77,32 +78,35 @@ function parseCreditTiers(raw, quotaPerUnit) {
   }
 }
 
+// 后端选项只返回已入库的键，加载时必须以此表兜底（见 helpers/option-inputs.js）
+const LOAN_DEFAULTS = {
+  'loan_setting.enabled': false,
+  'loan_setting.max_total': '2500000',
+  'loan_setting.daily_rate': '0.001',
+  'loan_setting.repay_fee_rate': '0.0001',
+  'loan_setting.min_register_days': '0',
+  'loan_setting.max_per_borrow': '0',
+  'loan_setting.checkin_repay_enabled': true,
+  'notify_setting.loan_lender_overflow': true,
+  'loan_setting.terms_enabled': true,
+  'loan_setting.terms_text': '',
+  'loan_setting.ai_enabled': false,
+  'loan_setting.ai_models': '[]',
+  'loan_setting.ai_max_limit': '10000000',
+  'loan_setting.ai_min_rate': '0.0005',
+  'loan_setting.ai_max_grace_days': '30',
+  'loan_setting.ai_max_active_applications': '1',
+  'loan_setting.ai_daily_limit': '3',
+  'loan_setting.ai_max_rounds': '10',
+  'loan_setting.ai_max_output': '2048',
+  'loan_setting.ai_prompt': '',
+  'loan_setting.credit_tier_limits': '[]',
+};
+
 export default function SettingsLoan(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    'loan_setting.enabled': false,
-    'loan_setting.max_total': '2500000',
-    'loan_setting.daily_rate': '0.001',
-    'loan_setting.repay_fee_rate': '0.0001',
-    'loan_setting.min_register_days': '0',
-    'loan_setting.max_per_borrow': '0',
-    'loan_setting.checkin_repay_enabled': true,
-    'notify_setting.loan_lender_overflow': true,
-    'loan_setting.terms_enabled': true,
-    'loan_setting.terms_text': '',
-    'loan_setting.ai_enabled': false,
-    'loan_setting.ai_models': '[]',
-    'loan_setting.ai_max_limit': '10000000',
-    'loan_setting.ai_min_rate': '0.0005',
-    'loan_setting.ai_max_grace_days': '30',
-    'loan_setting.ai_max_active_applications': '1',
-    'loan_setting.ai_daily_limit': '3',
-    'loan_setting.ai_max_rounds': '10',
-    'loan_setting.ai_max_output': '2048',
-    'loan_setting.ai_prompt': '',
-    'loan_setting.credit_tier_limits': '[]',
-  });
+  const [inputs, setInputs] = useState(structuredClone(LOAN_DEFAULTS));
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
   // USD 金额输入的本地状态，保存时换算回 quota
@@ -282,12 +286,7 @@ export default function SettingsLoan(props) {
   }
 
   useEffect(() => {
-    const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
-      }
-    }
+    const currentInputs = mergeOptionInputs(props.options, LOAN_DEFAULTS);
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);

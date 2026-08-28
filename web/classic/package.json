@@ -50,6 +50,7 @@
     "dev": "rsbuild dev",
     "build": "rsbuild build",
     "lint": "prettier . --check",
+    "test": "bun test src/helpers",
     "lint:fix": "prettier . --write",
     "eslint": "bunx eslint \"**/*.{js,jsx}\" --cache",
     "eslint:fix": "bunx eslint \"**/*.{js,jsx}\" --fix --cache",

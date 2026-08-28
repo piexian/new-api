@@ -27,28 +27,33 @@ import {
   showWarning,
   parseHttpStatusCodeRules,
 } from '../../../helpers';
+import { mergeOptionInputs } from '../../../helpers/option-inputs';
 import { useTranslation } from 'react-i18next';
 import HttpStatusCodeRulesInput from '../../../components/settings/HttpStatusCodeRulesInput';
+
+// 后端 /api/option/ 只返回已入库的键：新键（如 notify_setting.*）在首次保存前
+// 不会出现，加载时必须以此表兜底，否则开关丢值、保存比对失效。
+const MONITOR_DEFAULTS = {
+  ChannelDisableThreshold: '',
+  AutomaticDisableChannelEnabled: false,
+  AutomaticEnableChannelEnabled: false,
+  AutomaticDisableKeywords: '',
+  AutomaticDisableStatusCodes: '401',
+  AutomaticRetryStatusCodes:
+    '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
+  'monitor_setting.auto_test_channel_enabled': false,
+  'monitor_setting.auto_test_channel_minutes': 10,
+  'monitor_setting.channel_test_mode': 'scheduled_all',
+  'notify_setting.channel_auto_disabled': true,
+  'notify_setting.channel_auto_enabled': true,
+  'notify_setting.channel_quota_cooldown': true,
+  'notify_setting.channel_test_result': true,
+};
 
 export default function SettingsMonitoring(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    ChannelDisableThreshold: '',
-    AutomaticDisableChannelEnabled: false,
-    AutomaticEnableChannelEnabled: false,
-    AutomaticDisableKeywords: '',
-    AutomaticDisableStatusCodes: '401',
-    AutomaticRetryStatusCodes:
-      '100-199,300-399,401-407,409-499,500-503,505-523,525-599',
-    'monitor_setting.auto_test_channel_enabled': false,
-    'monitor_setting.auto_test_channel_minutes': 10,
-    'monitor_setting.channel_test_mode': 'scheduled_all',
-    'notify_setting.channel_auto_disabled': true,
-    'notify_setting.channel_auto_enabled': true,
-    'notify_setting.channel_quota_cooldown': true,
-    'notify_setting.channel_test_result': true,
-  });
+  const [inputs, setInputs] = useState(structuredClone(MONITOR_DEFAULTS));
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
   const parsedAutoDisableStatusCodes = parseHttpStatusCodeRules(
@@ -114,12 +119,7 @@ export default function SettingsMonitoring(props) {
   }
 
   useEffect(() => {
-    const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
-      }
-    }
+    const currentInputs = mergeOptionInputs(props.options, MONITOR_DEFAULTS);
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);

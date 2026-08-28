@@ -27,37 +27,41 @@ import {
   showWarning,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import { mergeOptionInputs } from '../../../helpers/option-inputs';
+
+// 后端选项只返回已入库的键，加载时必须以此表兜底（见 helpers/option-inputs.js）
+const CHECKIN_DEFAULTS = {
+  'checkin_setting.enabled': false,
+  'checkin_setting.min_quota': 1000,
+  'checkin_setting.max_quota': 10000,
+  'checkin_setting.special_enabled': false,
+  'checkin_setting.special_weekday': '7',
+  'checkin_setting.special_quota': 20000,
+  'checkin_setting.client_check_enabled': false,
+  'checkin_setting.decay_enabled': false,
+  'checkin_setting.decay_rate': 0.85,
+  'checkin_setting.decay_floor': 0,
+  'checkin_setting.usage_boost_enabled': false,
+  'checkin_setting.usage_boost_days': 3,
+  'checkin_setting.high_reward_threshold': 0.8,
+  'checkin_setting.base_high_probability': 0.05,
+  'checkin_setting.boost_max_probability': 0.8,
+  'checkin_setting.makeup_enabled': false,
+  'checkin_setting.makeup_max_days': 3,
+  'checkin_setting.makeup_counts_toward_progress': false,
+  'checkin_setting.makeup_reward_enabled': true,
+  'checkin_setting.risk_watch_enabled': false,
+  'checkin_setting.risk_watch_days': 14,
+  'checkin_setting.risk_min_daily_calls': 1,
+  'checkin_setting.risk_min_daily_quota': 100,
+  'checkin_setting.expire_enabled': false,
+  'checkin_setting.expire_mode': 'unused',
+};
 
 export default function SettingsCheckin(props) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
-  const [inputs, setInputs] = useState({
-    'checkin_setting.enabled': false,
-    'checkin_setting.min_quota': 1000,
-    'checkin_setting.max_quota': 10000,
-    'checkin_setting.special_enabled': false,
-    'checkin_setting.special_weekday': '7',
-    'checkin_setting.special_quota': 20000,
-    'checkin_setting.client_check_enabled': false,
-    'checkin_setting.decay_enabled': false,
-    'checkin_setting.decay_rate': 0.85,
-    'checkin_setting.decay_floor': 0,
-    'checkin_setting.usage_boost_enabled': false,
-    'checkin_setting.usage_boost_days': 3,
-    'checkin_setting.high_reward_threshold': 0.8,
-    'checkin_setting.base_high_probability': 0.05,
-    'checkin_setting.boost_max_probability': 0.8,
-    'checkin_setting.makeup_enabled': false,
-    'checkin_setting.makeup_max_days': 3,
-    'checkin_setting.makeup_counts_toward_progress': false,
-    'checkin_setting.makeup_reward_enabled': true,
-    'checkin_setting.risk_watch_enabled': false,
-    'checkin_setting.risk_watch_days': 14,
-    'checkin_setting.risk_min_daily_calls': 1,
-    'checkin_setting.risk_min_daily_quota': 100,
-    'checkin_setting.expire_enabled': false,
-    'checkin_setting.expire_mode': 'unused',
-  });
+  const [inputs, setInputs] = useState(structuredClone(CHECKIN_DEFAULTS));
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
 
@@ -103,12 +107,7 @@ export default function SettingsCheckin(props) {
   }
 
   useEffect(() => {
-    const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
-      }
-    }
+    const currentInputs = mergeOptionInputs(props.options, CHECKIN_DEFAULTS);
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);
