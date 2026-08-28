@@ -30,6 +30,8 @@ func shouldUseZhipuClaudeCompatibleAPI(info *relaycommon.RelayInfo) bool {
 	if info == nil {
 		return false
 	}
+	// FinalRequestRelayFormat 仅在 Convert 之后才被赋值；Convert 前此 guard 不生效，
+	// Responses 兼容路径此时依赖 ConvertOpenAIResponsesRequest 里的 info.RelayFormat 判断兜底。
 	if info.RelayMode == relayconstant.RelayModeResponses && info.FinalRequestRelayFormat == types.RelayFormatOpenAI {
 		return false
 	}
@@ -46,18 +48,32 @@ func isZhipuCodingPlanClaudeRequest(info *relaycommon.RelayInfo) bool {
 	if !isZhipuCodingPlan(info) {
 		return false
 	}
+	// 白名单而非黑名单：直连 /v1/chat/completions 与 /v1/messages 不经 Path2RelayMode，RelayMode 为 Unknown，
+	// 必须放行；count_tokens/compact/input_tokens/moderations/edits 等显式模式不再默认送 Claude 端点。
 	switch info.RelayMode {
-	case relayconstant.RelayModeEmbeddings,
-		relayconstant.RelayModeImagesGenerations,
-		relayconstant.RelayModeImagesEdits,
-		relayconstant.RelayModeAudioSpeech,
-		relayconstant.RelayModeAudioTranscription,
-		relayconstant.RelayModeAudioTranslation,
-		relayconstant.RelayModeRerank:
-		return false
-	default:
+	case relayconstant.RelayModeUnknown,
+		relayconstant.RelayModeChatCompletions,
+		relayconstant.RelayModeCompletions,
+		relayconstant.RelayModeResponses:
 		return true
+	default:
+		return false
 	}
+}
+
+func zhipuCodingPlanAliases() []string {
+	return []string{"glm-coding-plan", "glm-coding-plan-international"}
+}
+
+func zhipuCodingPlanBases() map[string]channelconstant.ChannelSpecialBase {
+	aliases := zhipuCodingPlanAliases()
+	bases := make(map[string]channelconstant.ChannelSpecialBase, len(aliases))
+	for _, alias := range aliases {
+		if base, ok := channelconstant.ChannelSpecialBases[alias]; ok {
+			bases[alias] = base
+		}
+	}
+	return bases
 }
 
 func isZhipuCodingPlan(info *relaycommon.RelayInfo) bool {
@@ -65,13 +81,12 @@ func isZhipuCodingPlan(info *relaycommon.RelayInfo) bool {
 		return false
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(info.ChannelBaseUrl), "/")
-	if baseURL == "glm-coding-plan" || baseURL == "glm-coding-plan-international" {
-		return true
-	}
-	for alias, specialBase := range channelconstant.ChannelSpecialBases {
-		if alias != "glm-coding-plan" && alias != "glm-coding-plan-international" {
-			continue
+	for _, alias := range zhipuCodingPlanAliases() {
+		if baseURL == alias {
+			return true
 		}
+	}
+	for _, specialBase := range zhipuCodingPlanBases() {
 		if baseURL == strings.TrimRight(specialBase.ClaudeBaseURL, "/") ||
 			baseURL == strings.TrimRight(specialBase.OpenAIBaseURL, "/") {
 			return true
@@ -85,10 +100,7 @@ func zhipuSpecialBase(baseURL string) (channelconstant.ChannelSpecialBase, bool)
 	if specialBase, ok := channelconstant.ChannelSpecialBases[normalized]; ok {
 		return specialBase, true
 	}
-	for alias, specialBase := range channelconstant.ChannelSpecialBases {
-		if alias != "glm-coding-plan" && alias != "glm-coding-plan-international" {
-			continue
-		}
+	for _, specialBase := range zhipuCodingPlanBases() {
 		if normalized == strings.TrimRight(specialBase.ClaudeBaseURL, "/") ||
 			normalized == strings.TrimRight(specialBase.OpenAIBaseURL, "/") {
 			return specialBase, true
@@ -141,10 +153,14 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 	switch {
 	case shouldUseZhipuClaudeCompatibleAPI(info):
-		if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
-			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
+		claudePath := "/v1/messages"
+		if info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
+			claudePath = "/v1/messages/count_tokens"
 		}
-		return fmt.Sprintf("%s/api/anthropic/v1/messages", baseURL), nil
+		if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
+			return fmt.Sprintf("%s%s", specialPlan.ClaudeBaseURL, claudePath), nil
+		}
+		return fmt.Sprintf("%s/api/anthropic%s", baseURL, claudePath), nil
 	default:
 		switch info.RelayMode {
 		case relayconstant.RelayModeEmbeddings:
@@ -202,10 +218,9 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	// Chat completions can be internally routed through the Responses relay.
 	// Keep that compatibility path on OpenAI Chat so its response handler can
 	// aggregate the upstream stream back into the original Chat contract.
-	if shouldUseZhipuClaudeCompatibleAPI(info) && (info == nil || info.RelayFormat != types.RelayFormatOpenAI) {
-		if info != nil {
-			info.FinalRequestRelayFormat = types.RelayFormatClaude
-		}
+	// shouldUseZhipuClaudeCompatibleAPI 对 nil 返回 false，短路后 info 必非 nil
+	if shouldUseZhipuClaudeCompatibleAPI(info) && info.RelayFormat != types.RelayFormatOpenAI {
+		info.FinalRequestRelayFormat = types.RelayFormatClaude
 		return relayconvert.OpenAIResponsesRequestToClaudeMessages(c, &request)
 	}
 	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
