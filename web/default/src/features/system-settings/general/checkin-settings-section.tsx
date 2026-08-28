@@ -71,6 +71,7 @@ const schema = z.object({
   makeupEnabled: z.boolean(),
   makeupMaxDays: z.coerce.number().int().min(0),
   makeupCountsTowardProgress: z.boolean(),
+  makeupRewardEnabled: z.boolean(),
   riskWatchEnabled: z.boolean(),
   riskWatchDays: z.coerce.number().int().min(1),
   riskMinDailyCalls: z.coerce.number().int().min(0),
@@ -103,6 +104,7 @@ const OPTION_KEYS: Array<[keyof Values, string]> = [
     'makeupCountsTowardProgress',
     'checkin_setting.makeup_counts_toward_progress',
   ],
+  ['makeupRewardEnabled', 'checkin_setting.makeup_reward_enabled'],
   ['riskWatchEnabled', 'checkin_setting.risk_watch_enabled'],
   ['riskWatchDays', 'checkin_setting.risk_watch_days'],
   ['riskMinDailyCalls', 'checkin_setting.risk_min_daily_calls'],
@@ -168,6 +170,7 @@ export function CheckinSettingsSection({
       | 'usageBoostEnabled'
       | 'makeupEnabled'
       | 'makeupCountsTowardProgress'
+      | 'makeupRewardEnabled'
       | 'riskWatchEnabled'
       | 'expireEnabled',
     label: string,
@@ -416,6 +419,11 @@ export function CheckinSettingsSection({
                     'makeupCountsTowardProgress',
                     'Makeup counts toward streak',
                     'Count makeup check-ins toward consecutive check-in progress'
+                  )}
+                  {renderSwitch(
+                    'makeupRewardEnabled',
+                    'Makeup grants reward',
+                    'Grant check-in quota on makeup; when off, makeup only fills the record'
                   )}
                 </>
               )}

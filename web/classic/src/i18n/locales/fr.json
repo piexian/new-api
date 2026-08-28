@@ -1579,6 +1579,8 @@
     "启用签到功能": "Activer la fonction d'enregistrement",
     "启用绘图功能": "Activer la fonction de dessin",
     "启用补签": "Activer le rattrapage",
+    "启用补签奖励": "Activer les récompenses de rattrapage",
+    "补签成功，未发放奖励": "Rattrapage réussi, aucune récompense accordée",
     "启用词元贷": "Activer le prêt de tokens",
     "启用请求体透传功能": "Activer la fonctionnalité de transmission du corps de la requête",
     "启用请求透传": "Activer la transmission de la requête",

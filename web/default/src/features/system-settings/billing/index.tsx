@@ -120,6 +120,7 @@ const defaultBillingSettings: BillingSettings = {
   'checkin_setting.makeup_enabled': false,
   'checkin_setting.makeup_max_days': 3,
   'checkin_setting.makeup_counts_toward_progress': true,
+  'checkin_setting.makeup_reward_enabled': true,
   'checkin_setting.risk_watch_enabled': false,
   'checkin_setting.risk_watch_days': 14,
   'checkin_setting.risk_min_daily_calls': 1,

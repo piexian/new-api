@@ -1564,6 +1564,8 @@
     "启用签到功能": "Bật tính năng đăng nhập",
     "启用绘图功能": "Bật chức năng vẽ",
     "启用补签": "Bật điểm danh bù",
+    "启用补签奖励": "Bật thưởng bù điểm danh",
+    "补签成功，未发放奖励": "Bù thành công, không phát thưởng",
     "启用词元贷": "Bật cho vay token",
     "启用请求体透传功能": "Bật chức năng truyền qua thân yêu cầu",
     "启用请求透传": "Bật truyền qua yêu cầu",

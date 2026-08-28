@@ -116,7 +116,10 @@ func UserMakeupCheckin(userId int, date string, quotaAwarded int) (*Checkin, *Lo
 	if !day.Before(todayStart) {
 		return nil, nil, nil, errors.New("只能补签今天之前的日期")
 	}
-	if quotaAwarded <= 0 {
+	// 补签奖励开关：关闭时只补签到记录/进度，发放 0 额度（NetCredited=0 也不参与清算）
+	if !setting.MakeUpRewardEnabled {
+		quotaAwarded = 0
+	} else if quotaAwarded <= 0 {
 		quotaAwarded = setting.SafeMinQuota()
 	}
 

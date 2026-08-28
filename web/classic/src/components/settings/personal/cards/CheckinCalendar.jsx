@@ -186,7 +186,11 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
       });
       const { success, data, message } = res.data;
       if (success) {
-        showSuccess(t('补签成功！获得') + ' ' + renderQuota(data.quota_awarded));
+        if (data.quota_awarded > 0) {
+          showSuccess(t('补签成功！获得') + ' ' + renderQuota(data.quota_awarded));
+        } else {
+          showSuccess(t('补签成功，未发放奖励'));
+        }
         fetchCheckinStatus(currentMonth);
         setMakeupModalVisible(false);
       } else {

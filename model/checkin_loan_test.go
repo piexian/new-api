@@ -539,3 +539,37 @@ func TestUserCheckinSuccessSyncsCache(t *testing.T) {
 		return err == nil && q == 500
 	}, time.Second, 10*time.Millisecond)
 }
+
+// TestUserMakeupCheckinRewardSwitch 补签奖励开关：关闭时发放 0 额度，开启时照常入账
+func TestUserMakeupCheckinRewardSwitch(t *testing.T) {
+	withCheckinSetting(t, 1000)
+	setting := operation_setting.GetCheckinSetting()
+	oldReward := setting.MakeUpRewardEnabled
+	t.Cleanup(func() { setting.MakeUpRewardEnabled = oldReward })
+
+	user := setupCheckinLoanUser(t)
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	before := checkinUserQuotaValue(t, user.Id)
+
+	// 关闭奖励：仅补记录，余额不变
+	setting.MakeUpRewardEnabled = false
+	checkin, _, _, err := UserMakeupCheckin(user.Id, yesterday, 0)
+	require.NoError(t, err)
+	require.Equal(t, 0, checkin.QuotaAwarded)
+	require.Equal(t, 0, checkin.NetCredited)
+	require.True(t, checkin.IsMakeUp)
+	require.Equal(t, before, checkinUserQuotaValue(t, user.Id), "关闭奖励时余额不得变化")
+
+	// 开启奖励：未指定额度时按配置区间发放
+	setting.MakeUpRewardEnabled = true
+	checkin2, _, _, err := UserMakeupCheckin(user.Id, yesterday, 0)
+	require.Error(t, err, "该日期已被上一步补签占用")
+	require.Nil(t, checkin2)
+
+	otherDay := time.Now().AddDate(0, 0, -2).Format("2006-01-02")
+	checkin3, _, _, err := UserMakeupCheckin(user.Id, otherDay, 0)
+	require.NoError(t, err)
+	require.Equal(t, 1000, checkin3.QuotaAwarded)
+	require.Equal(t, 1000, checkin3.NetCredited)
+	require.Equal(t, before+1000, checkinUserQuotaValue(t, user.Id))
+}

@@ -216,6 +216,8 @@ const BILLING_SECTIONS = [
           makeupMaxDays: settings['checkin_setting.makeup_max_days'],
           makeupCountsTowardProgress:
             settings['checkin_setting.makeup_counts_toward_progress'],
+          makeupRewardEnabled:
+            settings['checkin_setting.makeup_reward_enabled'],
           riskWatchEnabled: settings['checkin_setting.risk_watch_enabled'],
           riskWatchDays: settings['checkin_setting.risk_watch_days'],
           riskMinDailyCalls: settings['checkin_setting.risk_min_daily_calls'],

@@ -50,6 +50,7 @@ export default function SettingsCheckin(props) {
     'checkin_setting.makeup_enabled': false,
     'checkin_setting.makeup_max_days': 3,
     'checkin_setting.makeup_counts_toward_progress': false,
+    'checkin_setting.makeup_reward_enabled': true,
     'checkin_setting.risk_watch_enabled': false,
     'checkin_setting.risk_watch_days': 14,
     'checkin_setting.risk_min_daily_calls': 1,
@@ -407,6 +408,19 @@ export default function SettingsCheckin(props) {
                   uncheckedText='〇'
                   onChange={handleFieldChange(
                     'checkin_setting.makeup_counts_toward_progress',
+                  )}
+                  disabled={!makeupEnabled}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'checkin_setting.makeup_reward_enabled'}
+                  label={t('启用补签奖励')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={handleFieldChange(
+                    'checkin_setting.makeup_reward_enabled',
                   )}
                   disabled={!makeupEnabled}
                 />

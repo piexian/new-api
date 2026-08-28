@@ -165,7 +165,11 @@ func DoMakeupCheckin(c *gin.Context) {
 		return
 	}
 
-	reward := rollCheckinRewardForRequest(c, userId, true)
+	// 奖励开关关闭时不做自适应计算，直接以 0 额度补录（model 层二次兜底）
+	reward := 0
+	if setting.MakeUpRewardEnabled {
+		reward = rollCheckinRewardForRequest(c, userId, true)
+	}
 	checkin, loanRepay, lenderCredits, err := model.UserMakeupCheckin(userId, req.Date, reward)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{

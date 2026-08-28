@@ -1594,6 +1594,8 @@
     "启用签到功能": "Enable check-in feature",
     "启用绘图功能": "Enable drawing function",
     "启用补签": "Enable makeup check-ins",
+    "启用补签奖励": "Enable makeup rewards",
+    "补签成功，未发放奖励": "Make-up successful, no reward granted",
     "启用词元贷": "Enable token loan",
     "启用请求体透传功能": "Enable request body pass-through functionality",
     "启用请求透传": "Enable request pass-through",

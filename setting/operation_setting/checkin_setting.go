@@ -53,6 +53,7 @@ type CheckinSetting struct {
 	MakeUpEnabled              bool `json:"makeup_enabled"`                // 是否允许补签
 	MakeUpMaxDays              int  `json:"makeup_max_days"`               // 最多补签前几天
 	MakeUpCountsTowardProgress bool `json:"makeup_counts_toward_progress"` // 补签是否计入 streak/周/月进度
+	MakeUpRewardEnabled        bool `json:"makeup_reward_enabled"`        // 补签是否发放奖励（关闭时仅补进度，发放 0 额度）
 
 	// 签到风控联动：长期"签到后只调一次"自动列入风控并锁底
 	RiskWatchEnabled  bool `json:"risk_watch_enabled"`
@@ -90,6 +91,7 @@ var checkinSetting = CheckinSetting{
 	MakeUpEnabled:              false,
 	MakeUpMaxDays:              3,
 	MakeUpCountsTowardProgress: false,
+	MakeUpRewardEnabled:        true, // 补签默认照常发放奖励，保持既有行为不变
 
 	RiskWatchEnabled:  false,
 	RiskWatchDays:     14,

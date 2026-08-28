@@ -413,6 +413,7 @@ export type BillingSettings = {
   'checkin_setting.makeup_enabled': boolean
   'checkin_setting.makeup_max_days': number
   'checkin_setting.makeup_counts_toward_progress': boolean
+  'checkin_setting.makeup_reward_enabled': boolean
   'checkin_setting.risk_watch_enabled': boolean
   'checkin_setting.risk_watch_days': number
   'checkin_setting.risk_min_daily_calls': number
