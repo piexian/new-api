@@ -32,6 +32,7 @@ func ComputeCheckinRewardPlan(userId int, now time.Time) CheckinRewardPlan {
 	if model.IsUserCheckinRiskLocked(userId) {
 		plan.RiskLocked = true
 		plan.EffectiveMax = setting.MinQuota
+		plan.EffectiveMax = setting.SafeMinQuota()
 		plan.HighProbability = 0
 		return plan
 	}
@@ -65,7 +66,7 @@ func RollCheckinReward(userId int, now time.Time, isMakeup bool) (int, CheckinRe
 	setting := operation_setting.GetCheckinSetting()
 	plan := ComputeCheckinRewardPlan(userId, now)
 	if plan.RiskLocked {
-		return setting.MinQuota, plan
+		return setting.SafeMinQuota(), plan
 	}
 
 	if !isMakeup && setting.IsSpecialRewardDay(now) && setting.SpecialQuota > 0 {
@@ -73,8 +74,8 @@ func RollCheckinReward(userId int, now time.Time, isMakeup bool) (int, CheckinRe
 		if reward > plan.EffectiveMax {
 			reward = plan.EffectiveMax
 		}
-		if reward < setting.MinQuota {
-			reward = setting.MinQuota
+		if reward < setting.SafeMinQuota() {
+			reward = setting.SafeMinQuota()
 		}
 		return reward, plan
 	}

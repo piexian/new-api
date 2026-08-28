@@ -17,7 +17,8 @@ import (
 
 const (
 	checkinExpiryTickInterval = 5 * time.Minute
-	checkinExpiryBatchSize    = 200
+	checkinExpiryBatchSize         = 200
+	checkinExpiryMaxBatchesPerTick = 100 // 每 tick 最多 100 批（2 万条），防历史积压拖垮单 tick
 )
 
 var (
@@ -60,7 +61,9 @@ func runCheckinExpiryOnce() {
 
 	today := time.Now().Format("2006-01-02")
 	mode := setting.NormalizedExpireMode()
-	for {
+	// 单 tick 批次上限：历史积压大的站点首次启用时，避免在一个 tick 内同步跑数千批
+	// 卡住协程；剩余积压顺延到下个 tick 继续。
+	for batch := 1; ; batch++ {
 		date, err := model.OldestUnsettledCheckinDate(today)
 		if err != nil {
 			logger.LogWarn(ctx, fmt.Sprintf("checkin expiry task query failed: %v", err))
@@ -80,6 +83,12 @@ func runCheckinExpiryOnce() {
 		}
 		if common.DebugEnabled {
 			logger.LogDebug(ctx, "checkin expiry: date=%s settled=%d reclaimed=%d", date, settled, reclaimed)
+		}
+		if batch >= checkinExpiryMaxBatchesPerTick {
+			logger.LogInfo(ctx, fmt.Sprintf(
+				"checkin expiry: per-tick batch cap reached (%d batches), continue next tick; last date=%s batch settled=%d reclaimed=%d",
+				batch, date, settled, reclaimed))
+			return
 		}
 	}
 }

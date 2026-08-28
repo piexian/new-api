@@ -79,11 +79,11 @@ func UserCheckin(userId int, quotaAwarded int) (*Checkin, *LoanRepayInfo, []Lend
 		return nil, nil, nil, errors.New("今日已签到")
 	}
 
-	// 未指定奖励时按配置区间随机
+	// 未指定奖励时按配置区间随机；MinQuota 为负会使签到倒扣余额，一律按 0 兜底
 	if quotaAwarded <= 0 {
-		quotaAwarded = setting.MinQuota
-		if setting.MaxQuota > setting.MinQuota {
-			quotaAwarded = setting.MinQuota + rand.Intn(setting.MaxQuota-setting.MinQuota+1)
+		quotaAwarded = setting.SafeMinQuota()
+		if setting.MaxQuota > quotaAwarded {
+			quotaAwarded = quotaAwarded + rand.Intn(setting.MaxQuota-quotaAwarded+1)
 		}
 	}
 
@@ -117,7 +117,7 @@ func UserMakeupCheckin(userId int, date string, quotaAwarded int) (*Checkin, *Lo
 		return nil, nil, nil, errors.New("只能补签今天之前的日期")
 	}
 	if quotaAwarded <= 0 {
-		quotaAwarded = setting.MinQuota
+		quotaAwarded = setting.SafeMinQuota()
 	}
 
 	checkin := &Checkin{

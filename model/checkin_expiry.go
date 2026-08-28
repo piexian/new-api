@@ -26,8 +26,10 @@ import (
 func OldestUnsettledCheckinDate(today string) (string, error) {
 	var dates []string
 	err := DB.Model(&Checkin{}).
-		Where("settled_at = 0 AND checkin_date < ?", today).
-		Order("checkin_date asc").
+		// 补签记录不参与当日过期回收：补签额度在发放时其"签到日"早已结束，
+		// 无法按"当日有效"语义追溯清算；is_makeup 守卫同时保护修复前遗留的
+		// 未清算补签行，避免被追溯扣款。
+		Where("settled_at = 0 AND is_makeup = ? AND checkin_date < ?", false, today).
 		Limit(1).
 		Pluck("checkin_date", &dates).Error
 	if err != nil {
@@ -116,7 +118,7 @@ func SettleCheckinDate(date string, mode string, limit int) (int, int64, error) 
 		limit = 200
 	}
 	var rows []Checkin
-	if err := DB.Where("checkin_date = ? AND settled_at = 0", date).
+	if err := DB.Where("checkin_date = ? AND settled_at = 0 AND is_makeup = ?", date, false).
 		Order("id asc").Limit(limit).Find(&rows).Error; err != nil {
 		return 0, 0, err
 	}
@@ -172,30 +174,3 @@ func SettleCheckinDate(date string, mode string, limit int) (int, int64, error) 
 	return settled, reclaimedTotal, nil
 }
 
-// WriteOffCheckinDate 把指定日期的未清算记录直接标记为已清算且不回收任何额度。
-// 用于功能刚启用时跳过历史积压：这些额度发放时并未告知用户「当日有效」，
-// 追溯扣减会让用户余额毫无预警地大幅缩水。
-func WriteOffCheckinDate(date string, limit int) (int, error) {
-	if limit <= 0 {
-		limit = 500
-	}
-	var ids []int
-	if err := DB.Model(&Checkin{}).
-		Where("checkin_date = ? AND settled_at = 0", date).
-		Order("id asc").Limit(limit).
-		Pluck("id", &ids).Error; err != nil {
-		return 0, err
-	}
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	res := DB.Model(&Checkin{}).Where("id IN ?", ids).
-		Updates(map[string]interface{}{
-			"settled_at":    common.GetTimestamp(),
-			"expired_quota": 0,
-		})
-	if res.Error != nil {
-		return 0, res.Error
-	}
-	return int(res.RowsAffected), nil
-}

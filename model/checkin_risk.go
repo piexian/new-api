@@ -122,9 +122,14 @@ func ListCheckinRiskWatches(page, pageSize int, status string) ([]CheckinRiskWat
 		return nil, 0, err
 	}
 	var items []CheckinRiskWatchListItem
-	err := DB.Table("checkin_risk_watches").
+	// 过滤条件必须与上面 Count 保持一致，否则会出现"过滤后的 total + 未过滤的数据"
+	list := DB.Table("checkin_risk_watches").
 		Select("checkin_risk_watches.*, users.username").
-		Joins("LEFT JOIN users ON users.id = checkin_risk_watches.user_id").
+		Joins("LEFT JOIN users ON users.id = checkin_risk_watches.user_id")
+	if status != "" {
+		list = list.Where("checkin_risk_watches.status = ?", status)
+	}
+	err := list.
 		Order("checkin_risk_watches.updated_at desc").
 		Offset((page - 1) * pageSize).Limit(pageSize).
 		Scan(&items).Error

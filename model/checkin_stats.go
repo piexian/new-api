@@ -238,10 +238,12 @@ func DailyUsageStatsBetween(userId int, startDate, endDate string) (map[string]D
 		Calls int    `gorm:"column:calls"`
 		Quota int64  `gorm:"column:quota"`
 	}
-	// created_at 是秒级时间戳，按本地时区转日期分组；三库语法不同。
-	// Log 表在 LOG_DB 中，需按日志库类型分支。
+	// created_at 是秒级时间戳，按日志库服务器时区转日期分组；各库语法不同。
+	// Log 表在 LOG_DB 中，需按日志库类型分支（含 ClickHouse）。
 	var dayExpr string
 	switch {
+	case common.UsingLogDatabase(common.DatabaseTypeClickHouse):
+		dayExpr = "formatDateTime(toDateTime(created_at), '%Y-%m-%d')"
 	case common.UsingLogDatabase(common.DatabaseTypePostgreSQL):
 		dayExpr = "to_char(to_timestamp(created_at), 'YYYY-MM-DD')"
 	case common.UsingLogDatabase(common.DatabaseTypeMySQL):

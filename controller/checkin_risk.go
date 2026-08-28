@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
@@ -49,9 +50,13 @@ func AdminReleaseCheckinRiskWatch(c *gin.Context) {
 		Note string `json:"note"`
 	}
 	_ = c.ShouldBindJSON(&req) // 备注可选
-	if err := model.ReleaseCheckinRiskWatch(userId, c.GetInt("id"), req.Note); err != nil {
+	adminId := c.GetInt("id")
+	if err := model.ReleaseCheckinRiskWatch(userId, adminId, req.Note); err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	// 解除动作落审计：系统日志（含备注）+ 目标用户系统日志（不含备注）
+	common.SysLog(fmt.Sprintf("checkin risk watch released: user %d, operator %d, note: %s", userId, adminId, req.Note))
+	model.RecordLog(userId, model.LogTypeSystem, "您的签到风控锁已被管理员解除，签到奖励恢复正常")
 	common.ApiSuccess(c, nil)
 }

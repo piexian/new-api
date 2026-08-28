@@ -177,6 +177,16 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	}
+	if strings.HasPrefix(option.Key, "checkin_setting.") {
+		// 签到概率/额度配置做保存前校验：负额度会倒扣用户余额，概率越界会让大额档 100% 命中
+		proposed := *operation_setting.GetCheckinSetting()
+		configKey := strings.TrimPrefix(option.Key, "checkin_setting.")
+		config.UpdateConfigFromMap(&proposed, map[string]string{configKey: option.Value.(string)})
+		if err := operation_setting.ValidateCheckinSetting(&proposed); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
+	}
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {

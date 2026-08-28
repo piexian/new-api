@@ -193,17 +193,34 @@ func TestOldestUnsettledCheckinDate(t *testing.T) {
 	require.Equal(t, d2, oldest)
 }
 
-func TestWriteOffCheckinDate(t *testing.T) {
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+
+func TestSettleSkipsMakeupRows(t *testing.T) {
+	// 用远离其他测试用例的独特日期，保证共享库内不串扰
+	normalDate := time.Now().AddDate(0, 0, -300).Format("2006-01-02")
+	makeupDate := time.Now().AddDate(0, 0, -301).Format("2006-01-02")
 	user := seedCheckinUser(t, 10000)
-	row := seedCheckinRow(t, user.Id, yesterday, 5000, 5000)
+	seedCheckinRow(t, user.Id, normalDate, 5000, 5000)
+	// 补签只出现在没有正常签到的日期（user_id+checkin_date 唯一）
+	makeup := seedCheckinRow(t, user.Id, makeupDate, 3000, 3000)
+	require.NoError(t, DB.Model(&Checkin{}).Where("id = ?", makeup.Id).Update("is_makeup", true).Error)
 
-	n, err := WriteOffCheckinDate(yesterday, 500)
+	settled, reclaimed, err := SettleCheckinDate(normalDate, "all", 200)
 	require.NoError(t, err)
-	require.Equal(t, 1, n)
+	require.Equal(t, 1, settled, "只清算正常签到行")
+	require.Equal(t, int64(5000), reclaimed)
+	require.Equal(t, 5000, checkinUserQuotaValue(t, user.Id), "补签额度不被回收")
 
-	after := checkinRowByID(t, row.Id)
-	require.Greater(t, after.SettledAt, int64(0))
-	require.Equal(t, 0, after.ExpiredQuota)
-	require.Equal(t, 10000, checkinUserQuotaValue(t, user.Id), "核销不回收任何额度")
+	afterMakeup := checkinRowByID(t, makeup.Id)
+	require.Equal(t, int64(0), afterMakeup.SettledAt, "补签行保持未清算，被管线跳过")
+	require.Zero(t, afterMakeup.ExpiredQuota)
+
+	// 只有补签行的日期不会被当作待清算日期，避免任务空转
+	n, reclaimed2, err := SettleCheckinDate(makeupDate, "all", 200)
+	require.NoError(t, err)
+	require.Zero(t, n)
+	require.Zero(t, reclaimed2)
+
+	oldest, err := OldestUnsettledCheckinDate(time.Now().Format("2006-01-02"))
+	require.NoError(t, err)
+	require.NotEqual(t, makeupDate, oldest, "补签行不能让 OldestUnsettled 返回其日期")
 }

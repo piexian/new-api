@@ -1,6 +1,7 @@
 package operation_setting
 
 import (
+	"errors"
 	"math/rand"
 	"time"
 
@@ -170,6 +171,59 @@ func (setting CheckinSetting) IsExpireEnabled() bool {
 	return setting.ExpireEnabled
 }
 
+// SafeMinQuota 返回非负的最低奖励额度：MinQuota 为负会让签到倒扣余额，一律按 0 兜底。
+func (setting CheckinSetting) SafeMinQuota() int {
+	if setting.MinQuota < 0 {
+		return 0
+	}
+	return setting.MinQuota
+}
+
+// clamp01 把概率/比例类配置夹到 [0,1]：超上限会让大额档 100% 命中。
+func clamp01(p float64) float64 {
+	if p < 0 {
+		return 0
+	}
+	if p > 1 {
+		return 1
+	}
+	return p
+}
+
+// ValidateCheckinSetting 保存路径的全量校验（controller/option.go 调用），
+// 保证概率越界、负额度等配置无法入库。与运行时 clamp 双保险：
+// LoadFromDB 直读的历史脏数据不经过这里，仍由 SafeMinQuota/clamp01 兜底。
+func ValidateCheckinSetting(s *CheckinSetting) error {
+	if s == nil {
+		return errors.New("checkin_setting 配置为空")
+	}
+	if s.MinQuota < 0 {
+		return errors.New("签到最小额度不能为负")
+	}
+	if s.MaxQuota < s.MinQuota {
+		return errors.New("签到最大额度不能小于最小额度")
+	}
+	if s.SpecialQuota < 0 {
+		return errors.New("特殊星期额度不能为负")
+	}
+	if s.DecayFloor < 0 {
+		return errors.New("衰减下限不能为负")
+	}
+	if s.HighRewardThreshold < 0 || s.HighRewardThreshold > 1 {
+		return errors.New("高奖励阈值必须在 0-1 之间")
+	}
+	if s.BaseHighProbability < 0 || s.BaseHighProbability > 1 {
+		return errors.New("基础高奖励概率必须在 0-1 之间")
+	}
+	if s.BoostMaxProbability < 0 || s.BoostMaxProbability > 1 {
+		return errors.New("加成概率上限必须在 0-1 之间")
+	}
+	if s.ExpireMode != CheckinExpireModeUnused && s.ExpireMode != CheckinExpireModeAll {
+		return errors.New("过期模式只能是 unused 或 all")
+	}
+	return nil
+}
+
 // ApplyClientScore 按客户端环境分压制签到奖励，score 取值 0-100。
 //
 // score=100 原样返回；score=0 压到 MinQuota；中间线性插值，不设阈值。
@@ -197,7 +251,7 @@ func (setting CheckinSetting) EffectiveDecayFloor() int {
 	if setting.DecayFloor > 0 {
 		return setting.DecayFloor
 	}
-	return setting.MinQuota
+	return setting.SafeMinQuota()
 }
 
 // DecayedMax 计算衰减 N 周后的有效上限
@@ -227,13 +281,11 @@ func (setting CheckinSetting) DecayedMax(decayWeeks int) int {
 // usageWeeks / usageMonths 为连续"签到+消费"的完整周数/月数。
 // 周加成贡献区间的 60%（4 周爬满），月加成贡献 40%（3 个月爬满）。
 func (setting CheckinSetting) BoostProbability(usageWeeks, usageMonths int) float64 {
-	base := setting.BaseHighProbability
-	maxP := setting.BoostMaxProbability
+	// 概率类配置先夹到 [0,1] 再参与计算：越界值（如 >1）会让大额档 100% 命中
+	base := clamp01(setting.BaseHighProbability)
+	maxP := clamp01(setting.BoostMaxProbability)
 	if !setting.UsageBoostEnabled {
 		return base
-	}
-	if base < 0 {
-		base = 0
 	}
 	if maxP <= base {
 		return base
@@ -256,11 +308,11 @@ func (setting CheckinSetting) BoostProbability(usageWeeks, usageMonths int) floa
 // RollReward 在给定有效上限和大额概率下摇出奖励额度。
 // highProb 为落在 [threshold, effectiveMax] 的概率；其余落在 [MinQuota, threshold)。
 func (setting CheckinSetting) RollReward(effectiveMax int, highProb float64) int {
-	min := setting.MinQuota
+	min := setting.SafeMinQuota()
 	if effectiveMax <= min {
 		return min
 	}
-	threshold := min + int(float64(effectiveMax-min)*setting.HighRewardThreshold)
+	threshold := min + int(float64(effectiveMax-min)*clamp01(setting.HighRewardThreshold))
 	if threshold >= effectiveMax {
 		threshold = effectiveMax
 	}
@@ -281,7 +333,7 @@ func (setting CheckinSetting) RewardQuota(now time.Time) int {
 	if setting.IsSpecialRewardDay(now) && setting.SpecialQuota > 0 {
 		return setting.SpecialQuota
 	}
-	min := setting.MinQuota
+	min := setting.SafeMinQuota()
 	max := setting.MaxQuota
 	if max <= min {
 		return min
