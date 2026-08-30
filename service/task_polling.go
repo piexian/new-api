@@ -470,6 +470,14 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	if strings.TrimSpace(vid) != "" {
 		fetchBody["video_id"] = strings.TrimSpace(vid)
 	}
+	// model_name：agnes /agnesapi 查询 keyframe/reference 任务必需，其他平台适配器忽略该键
+	modelName := strings.TrimSpace(task.Properties.UpstreamModelName)
+	if modelName == "" {
+		modelName = strings.TrimSpace(task.Properties.OriginModelName)
+	}
+	if modelName != "" {
+		fetchBody["model_name"] = modelName
+	}
 	resp, err := adaptor.FetchTask(baseURL, key, fetchBody, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)

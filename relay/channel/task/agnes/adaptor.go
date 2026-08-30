@@ -232,10 +232,14 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy 
 	}
 
 	// 旧版 GET /v1/videos/{task_id} 完成后会返回 task_not_exist 且响应不含 url，
-	// 优先走文档推荐的 /agnesapi?video_id=；没有 video_id 的旧任务才回退旧接口
+	// 优先走文档推荐的 /agnesapi?video_id=；没有 video_id 的旧任务才回退旧接口。
+	// 文档要求 keyframe/reference 模式的查询必须带 model_name，text 模式可省略
 	var uri string
 	if videoID, ok := body["video_id"].(string); ok && strings.TrimSpace(videoID) != "" {
 		uri = fmt.Sprintf("%s%s?video_id=%s", strings.TrimRight(baseURL, "/"), videoQueryPath, url.QueryEscape(strings.TrimSpace(videoID)))
+		if modelName, ok := body["model_name"].(string); ok && strings.TrimSpace(modelName) != "" {
+			uri += "&model_name=" + url.QueryEscape(strings.TrimSpace(modelName))
+		}
 	} else {
 		uri = fmt.Sprintf("%s%s/%s", strings.TrimRight(baseURL, "/"), videoEndpoint, strings.TrimSpace(taskID))
 	}
