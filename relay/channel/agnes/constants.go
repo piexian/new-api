@@ -10,6 +10,7 @@ const (
 	ModelImage20Flash   = "agnes-image-2.0-flash"
 	ModelImage21Flash   = "agnes-image-2.1-flash"
 	ModelVideoV20       = "agnes-video-v2.0"
+	ModelVideo25Flash   = "agnes-video-2.5-flash"
 )
 
 var ModelList = []string{
@@ -21,4 +22,5 @@ var ModelList = []string{
 	ModelImage20Flash,
 	ModelImage21Flash,
 	ModelVideoV20,
+	ModelVideo25Flash,
 }
