@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
@@ -274,4 +276,182 @@ func TestEstimateAndAdjustBillingUseSeconds(t *testing.T) {
 
 	adjusted := (&TaskAdaptor{}).AdjustBillingOnSubmit(info, []byte(`{"id":"upstream","status":"queued","seconds":"10.0"}`))
 	require.Equal(t, 10.0, adjusted["seconds"])
+}
+
+func validateAgnesRequest(t *testing.T, body string) *dto.TaskError {
+	t.Helper()
+
+	c, _ := newAgnesVideoContext(body)
+	adaptor := &TaskAdaptor{}
+	return adaptor.ValidateRequestAndSetAction(c, &relaycommon.RelayInfo{})
+}
+
+func TestBuildRequestBodyPreservesVideo25Fields(t *testing.T) {
+	payload := buildAgnesPayload(t, `{
+		"model": "agnes-video-2.5-flash",
+		"prompt": "dance with <Picture 1>",
+		"mode": "reference",
+		"seconds": "8",
+		"size": "720P",
+		"aspect_ratio": "9:16",
+		"seed": 7,
+		"n": 1,
+		"images": ["https://example.com/ref1.png", "https://example.com/ref2.png"]
+	}`, &relaycommon.RelayInfo{
+		OriginModelName: ModelVideo25Flash,
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: ModelVideo25Flash},
+	})
+
+	require.Equal(t, "reference", payload["mode"])
+	require.Equal(t, "8", payload["seconds"])
+	require.Equal(t, "720P", payload["size"])
+	require.Equal(t, "9:16", payload["aspect_ratio"])
+	require.Equal(t, float64(7), payload["seed"])
+	require.Equal(t, float64(1), payload["n"])
+	images, ok := payload["images"].([]any)
+	require.True(t, ok)
+	require.Len(t, images, 2)
+}
+
+func TestValidateVideo25ModeRules(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		wantErr string
+	}{
+		{
+			name:    "mode is required",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat"}`,
+			wantErr: "mode is required",
+		},
+		{
+			name:    "invalid mode",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"remix"}`,
+			wantErr: "mode must be text, keyframe or reference",
+		},
+		{
+			name:    "text mode forbids media",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"text","images":["https://example.com/a.png"]}`,
+			wantErr: "text mode must not contain media fields",
+		},
+		{
+			name:    "keyframe mode requires a frame",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"keyframe"}`,
+			wantErr: "keyframe mode requires first_frame or last_frame",
+		},
+		{
+			name:    "keyframe mode forbids images",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"keyframe","first_frame":"https://example.com/f.png","images":["https://example.com/a.png"]}`,
+			wantErr: "keyframe mode must not contain images, audios or videos",
+		},
+		{
+			name:    "reference mode requires images or audios",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"reference"}`,
+			wantErr: "reference mode requires images or audios",
+		},
+		{
+			name:    "reference mode forbids frames",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"reference","images":["https://example.com/a.png"],"last_frame":"https://example.com/f.png"}`,
+			wantErr: "reference mode must not contain first_frame, last_frame or videos",
+		},
+		{
+			name:    "seconds out of range",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"text","seconds":"13"}`,
+			wantErr: "seconds must be between 4 and 12",
+		},
+		{
+			name:    "valid text request passes",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"text","seconds":"5","size":"720P"}`,
+			wantErr: "",
+		},
+		{
+			name:    "valid reference request passes",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"reference","seconds":"8","images":["https://example.com/a.png"],"audios":["https://example.com/a.mp3"]}`,
+			wantErr: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			taskErr := validateAgnesRequest(t, tt.body)
+			if tt.wantErr == "" {
+				require.Nil(t, taskErr)
+				return
+			}
+			require.NotNil(t, taskErr)
+			require.Contains(t, taskErr.Error.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestValidateVideo25FlashRestrictions(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		wantErr string
+	}{
+		{
+			name:    "size must be 720P",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"text","size":"1080P"}`,
+			wantErr: "size must be 720P",
+		},
+		{
+			name:    "images capped at 5",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"reference","images":["https://e.com/1.png","https://e.com/2.png","https://e.com/3.png","https://e.com/4.png","https://e.com/5.png","https://e.com/6.png"]}`,
+			wantErr: "images length must not exceed 5",
+		},
+		{
+			name:    "videos not supported",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"reference","images":["https://e.com/1.png"],"videos":[{"url":"https://e.com/in.mp4"}]}`,
+			wantErr: "videos is not supported",
+		},
+		{
+			name:    "n must be 1",
+			body:    `{"model":"agnes-video-2.5-flash","prompt":"cat","mode":"text","n":2}`,
+			wantErr: "n must be 1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			taskErr := validateAgnesRequest(t, tt.body)
+			require.NotNil(t, taskErr)
+			require.Contains(t, taskErr.Error.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestVideo20RequestSkipsVideo25Validation(t *testing.T) {
+	// v2.0 无 mode、seconds 越界均不触发 2.5 系列校验
+	taskErr := validateAgnesRequest(t, `{
+		"model": "agnes-video-v2.0",
+		"prompt": "cat",
+		"seconds": "30",
+		"num_frames": 121,
+		"frame_rate": 24
+	}`)
+	require.Nil(t, taskErr)
+}
+
+func TestValidateVideo25SetsGenerateActionForReference(t *testing.T) {
+	c, _ := newAgnesVideoContext(`{
+		"model": "agnes-video-2.5-flash",
+		"prompt": "dance",
+		"mode": "reference",
+		"images": ["https://example.com/ref.png"]
+	}`)
+	info := &relaycommon.RelayInfo{}
+	taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(c, info)
+	require.Nil(t, taskErr)
+	require.Equal(t, constant.TaskActionGenerate, info.Action)
+
+	c2, _ := newAgnesVideoContext(`{
+		"model": "agnes-video-2.5-flash",
+		"prompt": "dance",
+		"mode": "text"
+	}`)
+	info2 := &relaycommon.RelayInfo{}
+	taskErr = (&TaskAdaptor{}).ValidateRequestAndSetAction(c2, info2)
+	require.Nil(t, taskErr)
+	require.Equal(t, constant.TaskActionTextGenerate, info2.Action)
 }

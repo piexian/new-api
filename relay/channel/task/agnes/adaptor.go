@@ -1,4 +1,5 @@
 package agnes
+
 import (
 	"bytes"
 	"context"
@@ -11,9 +12,9 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
@@ -24,7 +25,7 @@ import (
 
 const (
 	videoEndpoint       = "/v1/videos"
-	videoQueryPath     = "/agnesapi" // 推荐查询接口：GET /agnesapi?video_id=，完成后返回顶层 url
+	videoQueryPath      = "/agnesapi" // 推荐查询接口：GET /agnesapi?video_id=，完成后返回顶层 url
 	requestContextKey   = "agnes_video_request"
 	defaultNumFrames    = 121
 	defaultFrameRate    = 24
@@ -103,14 +104,28 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if strings.TrimSpace(getString(req, "prompt")) == "" {
 		return service.TaskErrorWrapperLocal(fmt.Errorf("prompt is required"), "invalid_request", http.StatusBadRequest)
 	}
-	if err := validateFrameOptions(req); err != nil {
+
+	video25Family := isVideo25Family(modelName)
+	if info != nil {
+		if isVideo25Family(info.OriginModelName) {
+			video25Family = true
+		}
+		if info.ChannelMeta != nil && isVideo25Family(info.ChannelMeta.UpstreamModelName) {
+			video25Family = true
+		}
+	}
+	if video25Family {
+		if err := validateVideo25Request(modelName, req); err != nil {
+			return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+		}
+	} else if err := validateFrameOptions(req); err != nil {
 		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 	}
 
 	if info != nil {
 		ensureChannelMeta(info)
 		info.Action = constant.TaskActionTextGenerate
-		if hasImageInput(req) {
+		if hasImageInput(req) || hasVideoMediaInput(req) {
 			info.Action = constant.TaskActionGenerate
 		}
 		if info.OriginModelName == "" {
@@ -383,11 +398,22 @@ func getStoredRequest(c *gin.Context) (map[string]any, error) {
 
 func buildUpstreamRequest(req map[string]any) map[string]any {
 	payload := make(map[string]any)
+	// seconds/size/aspect_ratio/n/first_frame/last_frame/images/audios/videos
+	// 为视频 2.5 系列 API 字段；image/num_frames/frame_rate 等为 v2.0 字段
 	for _, key := range []string{
 		"model",
 		"prompt",
 		"image",
 		"mode",
+		"seconds",
+		"size",
+		"aspect_ratio",
+		"n",
+		"first_frame",
+		"last_frame",
+		"images",
+		"audios",
+		"videos",
 		"height",
 		"width",
 		"num_frames",
@@ -424,6 +450,151 @@ func validateFrameOptions(req map[string]any) error {
 		}
 	}
 	return nil
+}
+
+func isVideo25Family(modelName string) bool {
+	return strings.Contains(modelName, "agnes-video-2.5")
+}
+
+func isVideo25Flash(modelName string) bool {
+	return strings.Contains(modelName, "agnes-video-2.5-flash")
+}
+
+// validateVideo25Request 前置校验视频 2.5 系列的模式规则：
+// text 禁媒体字段；keyframe 需至少一帧且禁 images/audios/videos；
+// reference 需 images/audios 至少一个非空且禁帧与 videos；seconds 取值 4-12。
+// flash 额外限制：size 固定 720P、images ≤ 5、不支持 videos、n 仅支持 1，
+// 校验顺序与上游错误优先级（size → images → videos）保持一致。
+func validateVideo25Request(modelName string, req map[string]any) error {
+	mode := strings.TrimSpace(getString(req, "mode"))
+	switch mode {
+	case "text", "keyframe", "reference":
+	case "":
+		return fmt.Errorf("mode is required: text, keyframe or reference")
+	default:
+		return fmt.Errorf("mode must be text, keyframe or reference")
+	}
+
+	if isVideo25Flash(modelName) {
+		if size := strings.TrimSpace(getString(req, "size")); size != "" && size != "720P" {
+			return fmt.Errorf("size must be 720P")
+		}
+		if hasNonEmptyMedia(req, "images") && mediaListLength(req, "images") > 5 {
+			return fmt.Errorf("images length must not exceed 5")
+		}
+		if hasNonEmptyMedia(req, "videos") {
+			return fmt.Errorf("videos is not supported")
+		}
+		if n := getRawValue(req, "n"); n != nil {
+			if parsed, ok := numberToInt(n); !ok || parsed != 1 {
+				return fmt.Errorf("n must be 1")
+			}
+		}
+	}
+
+	if seconds := getRawValue(req, "seconds"); seconds != nil {
+		parsed := parsePositiveFloat(seconds)
+		if parsed < 4 || parsed > 12 {
+			return fmt.Errorf("seconds must be between 4 and 12")
+		}
+	}
+
+	hasFrames := hasNonEmptyMedia(req, "first_frame") || hasNonEmptyMedia(req, "last_frame")
+	hasImages := hasNonEmptyMedia(req, "images")
+	hasAudios := hasNonEmptyMedia(req, "audios")
+	hasVideos := hasNonEmptyMedia(req, "videos")
+
+	switch mode {
+	case "text":
+		if hasFrames || hasImages || hasAudios || hasVideos {
+			return fmt.Errorf("text mode must not contain media fields")
+		}
+	case "keyframe":
+		if !hasFrames {
+			return fmt.Errorf("keyframe mode requires first_frame or last_frame")
+		}
+		if hasImages || hasAudios || hasVideos {
+			return fmt.Errorf("keyframe mode must not contain images, audios or videos")
+		}
+	case "reference":
+		if !hasImages && !hasAudios {
+			return fmt.Errorf("reference mode requires images or audios")
+		}
+		if hasFrames || hasVideos {
+			return fmt.Errorf("reference mode must not contain first_frame, last_frame or videos")
+		}
+	}
+	return nil
+}
+
+func getRawValue(req map[string]any, key string) any {
+	if req == nil {
+		return nil
+	}
+	return req[key]
+}
+
+// hasNonEmptyMedia 判断媒体字段存在且至少一个元素非空（字符串或字符串数组）
+func hasNonEmptyMedia(req map[string]any, key string) bool {
+	value := getRawValue(req, key)
+	if value == nil {
+		return false
+	}
+	switch v := value.(type) {
+	case string:
+		return strings.TrimSpace(v) != ""
+	case []any:
+		for _, item := range v {
+			// videos 为对象数组，images/audios 为字符串数组，元素非空即视为有媒体输入
+			if s, ok := item.(string); ok {
+				if strings.TrimSpace(s) != "" {
+					return true
+				}
+				continue
+			}
+			if item != nil {
+				return true
+			}
+		}
+		return false
+	case []string:
+		for _, item := range v {
+			if strings.TrimSpace(item) != "" {
+				return true
+			}
+		}
+		return false
+	default:
+		return value != nil
+	}
+}
+
+func mediaListLength(req map[string]any, key string) int {
+	value := getRawValue(req, key)
+	if value == nil {
+		return 0
+	}
+	switch v := value.(type) {
+	case string:
+		if strings.TrimSpace(v) == "" {
+			return 0
+		}
+		return 1
+	case []any:
+		return len(v)
+	case []string:
+		return len(v)
+	default:
+		return 0
+	}
+}
+
+func hasVideoMediaInput(req map[string]any) bool {
+	return hasNonEmptyMedia(req, "first_frame") ||
+		hasNonEmptyMedia(req, "last_frame") ||
+		hasNonEmptyMedia(req, "images") ||
+		hasNonEmptyMedia(req, "audios") ||
+		hasNonEmptyMedia(req, "videos")
 }
 
 func hasImageInput(req map[string]any) bool {
