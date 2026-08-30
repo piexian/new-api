@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { renderGroupLimits } from './TokenRateLimits';
 import {
   Button,
   Dropdown,
@@ -480,6 +481,7 @@ export const getTokensColumns = ({
   setShowEdit,
   refresh,
   groupRatios = {},
+  groupLimits = {},
 }) => {
   return [
     {
@@ -502,6 +504,17 @@ export const getTokensColumns = ({
       dataIndex: 'group',
       key: 'group',
       render: (text, record) => renderGroupColumn(text, record, t, groupRatios),
+    },
+    {
+      title: t('RPM/并发'),
+      key: 'rate_limits',
+      render: (text, record) => {
+        // 令牌未指定分组时按用户自身分组展示
+        const info = record.group
+          ? groupLimits[record.group]
+          : Object.values(groupLimits).find((item) => item.isUserGroup);
+        return renderGroupLimits(info, t);
+      },
     },
     {
       title: t('密钥'),

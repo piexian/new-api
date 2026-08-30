@@ -1,6 +1,8 @@
 {
+    "Concurrency": "Concurrency",
     "Hidden groups": "Hidden groups",
     "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.",
+    "RPM / Concurrency": "RPM / Concurrency",
   "translation": {
     "360": "360",
     "1000": "1000",

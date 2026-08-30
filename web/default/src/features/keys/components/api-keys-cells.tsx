@@ -179,6 +179,51 @@ export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
   )
 }
 
+export function RateLimitValue({ value }: { value: number | undefined }) {
+  // undefined 表示分组信息未知；0 表示后端明确的不限制
+  if (typeof value !== 'number') {
+    return <span className='text-muted-foreground'>—</span>
+  }
+  if (value <= 0) {
+    return <span>♾️</span>
+  }
+  return (
+    <span className='tabular-nums'>
+      {Number.isInteger(value) ? value : value.toFixed(1)}
+    </span>
+  )
+}
+
+export function RateLimitsDisplay({
+  rpm,
+  concurrency,
+  layout = 'stack',
+}: {
+  rpm: number | undefined
+  concurrency: number | undefined
+  layout?: 'stack' | 'inline'
+}) {
+  const { t } = useTranslation()
+  const rows = [
+    { label: 'RPM', value: rpm },
+    { label: t('Concurrency'), value: concurrency },
+  ]
+  const content = rows.map((row) => (
+    <span key={row.label} className='inline-flex items-center gap-1'>
+      <span className='text-muted-foreground'>{row.label}</span>
+      <RateLimitValue value={row.value} />
+    </span>
+  ))
+  if (layout === 'inline') {
+    return (
+      <span className='inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs'>
+        {content}
+      </span>
+    )
+  }
+  return <div className='space-y-0.5 text-xs'>{content}</div>
+}
+
 export function IpRestrictionsCell({ apiKey }: { apiKey: ApiKey }) {
   const { t } = useTranslation()
   const allowIps = apiKey.allow_ips?.trim()

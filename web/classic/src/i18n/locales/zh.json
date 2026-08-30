@@ -1,4 +1,5 @@
 {
+    "RPM/并发": "RPM/并发",
     "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",
   "translation": {
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
@@ -1646,6 +1647,7 @@
     "平移": "平移",
     "年": "年",
     "年（时间单位）": "年",
+    "并发": "并发",
     "并确认自行承担部署": "并确认自行承担部署",
     "应付金额": "应付金额",
     "应用": "应用",

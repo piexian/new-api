@@ -65,14 +65,40 @@ func buildUserGroupsResponse(userGroup string, includeHidden bool) map[string]ma
 			usableGroups[groupName] = map[string]interface{}{
 				"ratio": service.GetUserGroupRatio(userGroup, groupName),
 				"desc":  desc,
+				"rpm":   setting.GetGroupRPM(groupName),
+				// 0 表示不限制
+				"concurrency": setting.GetUserGroupConcurrencyLimit(groupName),
+			}
+			if groupName == userGroup {
+				usableGroups[groupName]["is_user_group"] = true
 			}
 		}
 	}
 	if _, ok := userUsableGroups["auto"]; ok {
+		autoRPM, autoConcurrency := autoGroupDisplayLimits(userGroup)
 		usableGroups["auto"] = map[string]interface{}{
 			"ratio": "自动",
 			"desc":  setting.GetUsableGroupDescription("auto"),
+			"rpm":   autoRPM,
+			// 取候选分组中最严格的限制，0 表示不限制
+			"concurrency": autoConcurrency,
 		}
 	}
 	return usableGroups
+}
+
+// autoGroupDisplayLimits 计算 auto 分组展示用的 RPM/并发：取候选分组中最严格的非零限制
+func autoGroupDisplayLimits(userGroup string) (float64, int) {
+	autoGroups := service.GetUserAutoGroup(userGroup)
+	minRPM := 0.0
+	minConcurrency := 0
+	for _, group := range autoGroups {
+		if rpm := setting.GetGroupRPM(group); rpm > 0 && (minRPM == 0 || rpm < minRPM) {
+			minRPM = rpm
+		}
+		if concurrency := setting.GetUserGroupConcurrencyLimit(group); concurrency > 0 && (minConcurrency == 0 || concurrency < minConcurrency) {
+			minConcurrency = concurrency
+		}
+	}
+	return minRPM, minConcurrency
 }

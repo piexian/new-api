@@ -1,6 +1,8 @@
 {
+    "Concurrency": "Đồng thời",
     "Hidden groups": "Nhóm ẩn",
     "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "Mảng JSON gồm các tên nhóm bị ẩn với người dùng không thuộc nhóm trên trang giá và trang chọn nhóm. Thành viên của nhóm và quản trị viên vẫn thấy chúng.",
+    "RPM / Concurrency": "RPM / Đồng thời",
   "translation": {
     "360": "360",
     "1000": "1000",

@@ -33,6 +33,7 @@ import {
   displayAmountToQuota,
 } from '../../../../helpers/quota';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { renderGroupLimits } from '../TokenRateLimits';
 import {
   Button,
   SideSheet,
@@ -144,6 +145,9 @@ const EditTokenModal = (props) => {
         desc: info.desc,
         value: group,
         ratio: info.ratio,
+        rpm: info.rpm,
+        concurrency: info.concurrency,
+        isUserGroup: info.is_user_group === true,
       }));
       if (statusState?.status?.default_use_auto_group) {
         if (localGroupOptions.some((group) => group.value === 'auto')) {
@@ -393,6 +397,12 @@ const EditTokenModal = (props) => {
                         placeholder={t('令牌分组，默认为用户的分组')}
                         optionList={groups}
                         renderOptionItem={renderGroupOption}
+                        extraText={(() => {
+                          const info = values.group
+                            ? groups.find((g) => g.value === values.group)
+                            : groups.find((g) => g.isUserGroup);
+                          return renderGroupLimits(info, t);
+                        })()}
                         onChange={(value) => {
                           formApiRef.current?.setValue('group', value || '');
                           if (value !== 'auto') {

@@ -67,6 +67,8 @@ import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
+import { RateLimitsDisplay } from './api-keys-cells'
+
 import { createApiKey, updateApiKey, getApiKey } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
@@ -126,6 +128,9 @@ export function ApiKeysMutateDrawer({
       label: key,
       desc: info.desc || key,
       ratio: info.ratio,
+      rpm: info.rpm,
+      concurrency: info.concurrency,
+      isUserGroup: info.is_user_group === true,
     })
   )
   const backendHasAuto = groups.some((g) => g.value === 'auto')
@@ -248,6 +253,10 @@ export function ApiKeysMutateDrawer({
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const selectedGroup = form.watch('group')
+  // 令牌未指定分组时按用户自身分组展示限速
+  const selectedInfo = selectedGroup
+    ? groupsRaw[selectedGroup]
+    : Object.values(groupsRaw).find((info) => info.is_user_group)
   const unlimitedQuota = form.watch('unlimited_quota')
 
   return (
@@ -314,6 +323,15 @@ export function ApiKeysMutateDrawer({
                         placeholder={t('Select a group')}
                       />
                     </FormControl>
+                    {selectedInfo && (
+                      <FormDescription>
+                        <RateLimitsDisplay
+                          rpm={selectedInfo.rpm}
+                          concurrency={selectedInfo.concurrency}
+                          layout='inline'
+                        />
+                      </FormDescription>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}

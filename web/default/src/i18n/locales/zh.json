@@ -1,6 +1,8 @@
 {
+    "Concurrency": "并发",
     "Hidden groups": "隐藏分组",
     "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "JSON 数组格式，填写需要隐藏的分组名。隐藏分组在价格页、可选分组等页面对非该分组用户不可见，分组用户和管理员仍可见",
+    "RPM / Concurrency": "RPM / 并发",
   "translation": {
     "360": "360",
     "1000": "1000",

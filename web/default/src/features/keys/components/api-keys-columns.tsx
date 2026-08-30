@@ -43,6 +43,7 @@ import {
   ApiKeyCell,
   ModelLimitsCell,
   IpRestrictionsCell,
+  RateLimitsDisplay,
 } from './api-keys-cells'
 import { DataTableRowActions } from './data-table-row-actions'
 
@@ -52,20 +53,33 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
-function useGroupRatios(): Record<string, number> {
+type GroupLimitInfo = {
+  ratio?: number
+  rpm?: number
+  concurrency?: number
+  isUserGroup?: boolean
+}
+
+function useGroupInfos(): Record<string, GroupLimitInfo> {
   const { data } = useQuery({
     queryKey: ['user-groups'],
     queryFn: getUserGroups,
     staleTime: 0,
     select: (res) => {
       if (!res.success || !res.data) return {}
-      const ratios: Record<string, number> = {}
+      const infos: Record<string, GroupLimitInfo> = {}
       for (const [group, info] of Object.entries(res.data)) {
-        if (typeof info.ratio === 'number') {
-          ratios[group] = info.ratio
+        infos[group] = {
+          ratio: typeof info.ratio === 'number' ? info.ratio : undefined,
+          rpm: typeof info.rpm === 'number' ? info.rpm : undefined,
+          concurrency:
+            typeof info.concurrency === 'number'
+              ? info.concurrency
+              : undefined,
+          isUserGroup: info.is_user_group === true,
         }
       }
-      return ratios
+      return infos
     },
   })
 
@@ -74,7 +88,7 @@ function useGroupRatios(): Record<string, number> {
 
 export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
   const { t, i18n } = useTranslation()
-  const groupRatios = useGroupRatios()
+  const groupInfos = useGroupInfos()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const justNowLabel = t('Just now')
   const staleAccessThreshold = dayjs(now).subtract(3, 'month').valueOf()
@@ -201,7 +215,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       cell: ({ row }) => {
         const apiKey = row.original
         const group = row.getValue('group') as string
-        const ratio = group && group !== 'auto' ? groupRatios[group] : undefined
+        const ratio = group && group !== 'auto' ? groupInfos[group]?.ratio : undefined
 
         if (group === 'auto') {
           return (
@@ -239,6 +253,21 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         )
       },
       size: 160,
+      meta: { mobileHidden: true },
+    },
+    {
+      id: 'rate_limits',
+      header: t('RPM / Concurrency'),
+      cell: ({ row }) => {
+        const group = row.original.group
+        // 令牌未指定分组时按用户自身分组展示
+        const info = group
+          ? groupInfos[group]
+          : Object.values(groupInfos).find((item) => item.isUserGroup)
+        return <RateLimitsDisplay rpm={info?.rpm} concurrency={info?.concurrency} />
+      },
+      enableSorting: false,
+      size: 130,
       meta: { mobileHidden: true },
     },
     {

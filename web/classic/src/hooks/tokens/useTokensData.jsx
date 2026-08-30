@@ -43,6 +43,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const [tokens, setTokens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [groupRatios, setGroupRatios] = useState({});
+  const [groupLimits, setGroupLimits] = useState({});
   const [activePage, setActivePage] = useState(1);
   const [tokenCount, setTokenCount] = useState(0);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
@@ -451,10 +452,20 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       .then((res) => {
         if (res.data.success && res.data.data) {
           const ratios = {};
+          const limits = {};
           for (const [name, info] of Object.entries(res.data.data)) {
             ratios[name] = info.ratio;
+            limits[name] = {
+              rpm: typeof info.rpm === 'number' ? info.rpm : undefined,
+              concurrency:
+                typeof info.concurrency === 'number'
+                  ? info.concurrency
+                  : undefined,
+              isUserGroup: info.is_user_group === true,
+            };
           }
           setGroupRatios(ratios);
+          setGroupLimits(limits);
         }
       })
       .catch(() => {});
@@ -469,6 +480,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     pageSize,
     searching,
     groupRatios,
+    groupLimits,
 
     // Selection state
     selectedKeys,

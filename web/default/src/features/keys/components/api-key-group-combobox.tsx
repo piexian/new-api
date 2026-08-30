@@ -42,6 +42,9 @@ export type ApiKeyGroupOption = {
   label: string
   desc?: string
   ratio?: number | string
+  rpm?: number
+  concurrency?: number
+  isUserGroup?: boolean
 }
 
 type ApiKeyGroupComboboxProps = {

@@ -1,6 +1,8 @@
 {
+    "Concurrency": "Concurrence",
     "Hidden groups": "Groupes masqués",
     "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "Tableau JSON de noms de groupes masqués aux utilisateurs non membres sur les pages de tarification et de sélection de groupes. Les membres du groupe et les administrateurs les voient toujours.",
+    "RPM / Concurrency": "RPM / Concurrence",
   "translation": {
     "360": "360",
     "1000": "1000",
