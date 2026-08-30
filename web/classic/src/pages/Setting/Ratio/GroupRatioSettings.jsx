@@ -59,6 +59,7 @@ const { Text, Title, Paragraph } = Typography;
 const OPTION_KEYS = [
   'GroupRatio',
   'UserUsableGroups',
+  'HiddenUserGroups',
   'GroupGroupRatio',
   'group_ratio_setting.group_special_usable_group',
   'AutoGroups',
@@ -83,6 +84,7 @@ export default function GroupRatioSettings(props) {
   const [inputs, setInputs] = useState({
     GroupRatio: '',
     UserUsableGroups: '',
+    HiddenUserGroups: '',
     GroupGroupRatio: '',
     'group_ratio_setting.group_special_usable_group': '',
     AutoGroups: '',
@@ -159,8 +161,13 @@ export default function GroupRatioSettings(props) {
   }, [props.options]);
 
   const handleGroupTableChange = useCallback(
-    ({ GroupRatio, UserUsableGroups }) => {
-      setInputs((prev) => ({ ...prev, GroupRatio, UserUsableGroups }));
+    ({ GroupRatio, UserUsableGroups, HiddenUserGroups }) => {
+      setInputs((prev) => ({
+        ...prev,
+        GroupRatio,
+        UserUsableGroups,
+        HiddenUserGroups,
+      }));
     },
     [],
   );
@@ -198,6 +205,7 @@ export default function GroupRatioSettings(props) {
           key={`gt_${dv}`}
           groupRatio={inputs.GroupRatio}
           userUsableGroups={inputs.UserUsableGroups}
+          hiddenUserGroups={inputs.HiddenUserGroups}
           onChange={handleGroupTableChange}
         />
       </Form.Section>
@@ -339,6 +347,30 @@ export default function GroupRatioSettings(props) {
               ]}
               onChange={(value) =>
                 setInputs((prev) => ({ ...prev, UserUsableGroups: value }))
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('隐藏分组')}
+              placeholder={t('["vip", "svip"]')}
+              extraText={t(
+                '使用 JSON 数组格式填写需要隐藏的分组名。隐藏分组在价格页、可选分组等页面对非该分组用户不可见，分组用户和管理员仍可见，且不影响已有令牌的使用',
+              )}
+              field={'HiddenUserGroups'}
+              autosize={{ minRows: 3, maxRows: 8 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: t('不是合法的 JSON 字符串'),
+                },
+              ]}
+              onChange={(value) =>
+                setInputs((prev) => ({ ...prev, HiddenUserGroups: value }))
               }
             />
           </Col>

@@ -811,6 +811,9 @@ func GetUserModels(c *gin.Context) {
 		return
 	}
 	groups := service.GetUserUsableGroups(user.Group)
+	if !isPrivilegedViewer(c) {
+		groups = service.FilterHiddenGroupsForDisplay(groups, user.Group)
+	}
 	if group := c.Query("group"); group != "" {
 		if _, ok := groups[group]; !ok {
 			c.JSON(http.StatusOK, gin.H{
@@ -835,7 +838,7 @@ func GetUserModels(c *gin.Context) {
 		})
 		return
 	}
-	models := buildUserModelsResponse(user.Group)
+	models := buildUserModelsResponse(user.Group, isPrivilegedViewer(c))
 	if c.Query("with_capabilities") == "true" {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
@@ -875,7 +878,7 @@ func AdminGetUserModels(c *gin.Context) {
 	if !ok {
 		return
 	}
-	models := buildUserModelsResponse(user.Group)
+	models := buildUserModelsResponse(user.Group, true)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -883,8 +886,11 @@ func AdminGetUserModels(c *gin.Context) {
 	})
 }
 
-func buildUserModelsResponse(userGroup string) []string {
+func buildUserModelsResponse(userGroup string, includeHidden bool) []string {
 	groups := service.GetUserUsableGroups(userGroup)
+	if !includeHidden {
+		groups = service.FilterHiddenGroupsForDisplay(groups, userGroup)
+	}
 	var models []string
 	for group := range groups {
 		for _, g := range model.GetGroupEnabledModels(group) {

@@ -41,6 +41,31 @@ func GroupInUserUsableGroups(userGroup, groupName string) bool {
 	return ok
 }
 
+// FilterHiddenGroupsForDisplay 过滤展示场景中对 userGroup 用户不可见的隐藏分组。
+// 用户自身所在分组始终可见；特殊可用分组规则显式授予的分组视为可见；管理员场景由调用方跳过过滤。
+// 仅用于展示接口，中转鉴权（GroupInUserUsableGroups）不做隐藏过滤，保证已有令牌不受影响。
+func FilterHiddenGroupsForDisplay(groups map[string]string, userGroup string) map[string]string {
+	if len(groups) == 0 {
+		return groups
+	}
+	granted := make(map[string]bool)
+	if userGroup != "" {
+		if specialSettings, ok := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.Get(userGroup); ok {
+			for specialGroup := range specialSettings {
+				granted[strings.TrimPrefix(strings.TrimPrefix(specialGroup, "-:"), "+:")] = true
+			}
+		}
+	}
+	visible := make(map[string]string, len(groups))
+	for name, desc := range groups {
+		if name != userGroup && setting.IsUserGroupHidden(name) && !granted[name] {
+			continue
+		}
+		visible[name] = desc
+	}
+	return visible
+}
+
 // GetUserAutoGroup 根据用户分组获取自动分组设置
 func GetUserAutoGroup(userGroup string) []string {
 	groups := GetUserUsableGroups(userGroup)

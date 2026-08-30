@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -10,6 +11,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// isPrivilegedViewer 管理员不受隐藏分组的展示过滤
+func isPrivilegedViewer(c *gin.Context) bool {
+	return c.GetInt("role") >= common.RoleAdminUser
+}
 
 func GetGroups(c *gin.Context) {
 	groupNames := make([]string, 0)
@@ -26,7 +32,7 @@ func GetGroups(c *gin.Context) {
 func GetUserGroups(c *gin.Context) {
 	userId := c.GetInt("id")
 	userGroup, _ := model.GetUserGroup(userId, false)
-	userUsableGroups := buildUserGroupsResponse(userGroup)
+	userUsableGroups := buildUserGroupsResponse(userGroup, isPrivilegedViewer(c))
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -39,7 +45,7 @@ func AdminGetUserGroups(c *gin.Context) {
 	if !ok {
 		return
 	}
-	userUsableGroups := buildUserGroupsResponse(user.Group)
+	userUsableGroups := buildUserGroupsResponse(user.Group, true)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -47,9 +53,12 @@ func AdminGetUserGroups(c *gin.Context) {
 	})
 }
 
-func buildUserGroupsResponse(userGroup string) map[string]map[string]interface{} {
+func buildUserGroupsResponse(userGroup string, includeHidden bool) map[string]map[string]interface{} {
 	usableGroups := make(map[string]map[string]interface{})
 	userUsableGroups := service.GetUserUsableGroups(userGroup)
+	if !includeHidden {
+		userUsableGroups = service.FilterHiddenGroupsForDisplay(userUsableGroups, userGroup)
+	}
 	for groupName, _ := range ratio_setting.GetGroupRatioCopy() {
 		// UserUsableGroups contains the groups that the user can use
 		if desc, ok := userUsableGroups[groupName]; ok {

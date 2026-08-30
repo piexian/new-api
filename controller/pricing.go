@@ -81,8 +81,11 @@ func GetPricing(c *gin.Context) {
 
 	if exists {
 		usableGroup = service.GetUserUsableGroups(group)
+		if !isPrivilegedViewer(c) {
+			usableGroup = service.FilterHiddenGroupsForDisplay(usableGroup, group)
+		}
 	} else {
-		usableGroup = publicPricingUsableGroups(groupRatio)
+		usableGroup = service.FilterHiddenGroupsForDisplay(publicPricingUsableGroups(groupRatio), "")
 	}
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
 	// check groupRatio contains usableGroup

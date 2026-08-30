@@ -1,4 +1,6 @@
 {
+    "Hidden groups": "Скрытые группы",
+    "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "JSON-массив названий групп, скрытых от пользователей, не входящих в группу, на страницах цен и выбора групп. Участники группы и администраторы по-прежнему видят их.",
   "translation": {
     "360": "360",
     "1000": "1000",

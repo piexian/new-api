@@ -25,9 +25,11 @@ function parseJSON(str, fallback) {
   }
 }
 
-function buildRows(groupRatioStr, userUsableGroupsStr) {
+function buildRows(groupRatioStr, userUsableGroupsStr, hiddenUserGroupsStr) {
   const ratioMap = parseJSON(groupRatioStr, {});
   const usableMap = parseJSON(userUsableGroupsStr, {});
+  const hiddenList = parseJSON(hiddenUserGroupsStr, []);
+  const hiddenSet = new Set(Array.isArray(hiddenList) ? hiddenList : []);
 
   const allNames = new Set([
     ...Object.keys(ratioMap),
@@ -39,6 +41,7 @@ function buildRows(groupRatioStr, userUsableGroupsStr) {
     name,
     ratio: ratioMap[name] ?? 1,
     selectable: name in usableMap,
+    hidden: hiddenSet.has(name),
     description: usableMap[name] ?? '',
   }));
 }
@@ -46,6 +49,7 @@ function buildRows(groupRatioStr, userUsableGroupsStr) {
 export function serializeGroupTable(rows) {
   const groupRatio = {};
   const userUsableGroups = {};
+  const hiddenUserGroups = [];
 
   rows.forEach((row) => {
     if (!row.name) return;
@@ -53,19 +57,28 @@ export function serializeGroupTable(rows) {
     if (row.selectable) {
       userUsableGroups[row.name] = row.description;
     }
+    if (row.hidden) {
+      hiddenUserGroups.push(row.name);
+    }
   });
 
   return {
     GroupRatio: JSON.stringify(groupRatio, null, 2),
     UserUsableGroups: JSON.stringify(userUsableGroups, null, 2),
+    HiddenUserGroups: JSON.stringify(hiddenUserGroups, null, 2),
   };
 }
 
-export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
+export default function GroupTable({
+  groupRatio,
+  userUsableGroups,
+  hiddenUserGroups,
+  onChange,
+}) {
   const { t } = useTranslation();
 
   const [rows, setRows] = useState(() =>
-    buildRows(groupRatio, userUsableGroups),
+    buildRows(groupRatio, userUsableGroups, hiddenUserGroups),
   );
 
   // Use functional setRows to keep updateRow/addRow/removeRow referentially
@@ -107,6 +120,7 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
           name: newName,
           ratio: 1,
           selectable: true,
+          hidden: false,
           description: '',
         },
       ];
@@ -181,6 +195,19 @@ export default function GroupTable({ groupRatio, userUsableGroups, onChange }) {
             onChange={(e) =>
               updateRow(record._id, 'selectable', e.target.checked)
             }
+          />
+        ),
+      },
+      {
+        title: t('隐藏'),
+        dataIndex: 'hidden',
+        key: 'hidden',
+        width: 80,
+        align: 'center',
+        render: (_, record) => (
+          <Checkbox
+            checked={record.hidden}
+            onChange={(e) => updateRow(record._id, 'hidden', e.target.checked)}
           />
         ),
       },

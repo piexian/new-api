@@ -1,4 +1,5 @@
 {
+    "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",
   "translation": {
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Web search {{count}} time / 1K times * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Web search {{count}} times / 1K times * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
@@ -12,9 +13,12 @@
     "-50 表示不限，0 到 100 表示要求的最低分数": "-50 means no limit, 0 to 100 requires a minimum score",
     "{\n  \"default\": 3,\n  \"vip\": 5\n}": "{\n  \"default\": 3,\n  \"vip\": 5\n}",
     "使用 JSON 对象格式，格式为：{\"组名\": 单账号最大同时并发请求数}": "Use a JSON object: {\"groupName\": max concurrent requests per account}",
+    "使用 JSON 数组格式填写需要隐藏的分组名。隐藏分组在价格页、可选分组等页面对非该分组用户不可见，分组用户和管理员仍可见，且不影响已有令牌的使用": "JSON array of group names to hide. Hidden groups are invisible to non-member users on the pricing and group selection pages, while group members and admins can still see them. Existing tokens are not affected.",
     "分组并发限制": "Group concurrency limit",
     "按账号+分组限制同时进行中的请求数，0 或未配置的分组表示不限制。": "Limits concurrent in-flight requests per account and group; 0 or unconfigured groups are unlimited.",
     "示例：{\"default\": 3, \"vip\": 5}。": "Example: {\"default\": 3, \"vip\": 5}.",
+    "隐藏": "Hidden",
+    "隐藏分组": "Hidden groups",
     "，": ", ",
     "，另可点击 Coding Plan 查看额度窗口": ", or click Coding Plan to view quota window",
     "，另可点击 Token Plan 查看订阅窗口": ", or click Token Plan to view subscription window",

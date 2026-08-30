@@ -1,4 +1,6 @@
 {
+    "Hidden groups": "非表示グループ",
+    "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "価格ページやグループ選択ページで、非メンバーのユーザーには表示されないグループ名の JSON 配列。グループのメンバーと管理者には引き続き表示されます。",
   "translation": {
     "360": "360",
     "1000": "1000",
