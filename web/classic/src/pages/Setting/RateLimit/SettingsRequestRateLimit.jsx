@@ -39,6 +39,7 @@ export default function RequestRateLimit(props) {
     ModelRequestRateLimitSuccessCount: 1000,
     ModelRequestRateLimitDurationMinutes: 1,
     ModelRequestRateLimitGroup: '',
+    UserGroupConcurrencyLimit: '',
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -225,6 +226,45 @@ export default function RequestRateLimit(props) {
                   }
                   onChange={(value) => {
                     setInputs({ ...inputs, ModelRequestRateLimitGroup: value });
+                  }}
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col xs={24} sm={16}>
+                <Form.TextArea
+                  label={t('分组并发限制')}
+                  placeholder={t('{\n  "default": 3,\n  "vip": 5\n}')}
+                  field={'UserGroupConcurrencyLimit'}
+                  autosize={{ minRows: 4, maxRows: 12 }}
+                  trigger='blur'
+                  stopValidateWithError
+                  rules={[
+                    {
+                      validator: (rule, value) => verifyJSON(value),
+                      message: t('不是合法的 JSON 字符串'),
+                    },
+                  ]}
+                  extraText={
+                    <div>
+                      <p>{t('说明：')}</p>
+                      <ul>
+                        <li>
+                          {t(
+                            '使用 JSON 对象格式，格式为：{"组名": 单账号最大同时并发请求数}',
+                          )}
+                        </li>
+                        <li>{t('示例：{"default": 3, "vip": 5}。')}</li>
+                        <li>
+                          {t(
+                            '按账号+分组限制同时进行中的请求数，0 或未配置的分组表示不限制。',
+                          )}
+                        </li>
+                      </ul>
+                    </div>
+                  }
+                  onChange={(value) => {
+                    setInputs({ ...inputs, UserGroupConcurrencyLimit: value });
                   }}
                 />
               </Col>

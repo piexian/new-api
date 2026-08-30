@@ -32,6 +32,7 @@ const RateLimitSetting = () => {
     ModelRequestRateLimitSuccessCount: 1000,
     ModelRequestRateLimitDurationMinutes: 1,
     ModelRequestRateLimitGroup: '',
+    UserGroupConcurrencyLimit: '',
   });
 
   let [loading, setLoading] = useState(false);
@@ -42,7 +43,10 @@ const RateLimitSetting = () => {
     if (success) {
       let newInputs = {};
       data.forEach((item) => {
-        if (item.key === 'ModelRequestRateLimitGroup') {
+        if (
+          item.key === 'ModelRequestRateLimitGroup' ||
+          item.key === 'UserGroupConcurrencyLimit'
+        ) {
           item.value = JSON.stringify(JSON.parse(item.value), null, 2);
         }
 

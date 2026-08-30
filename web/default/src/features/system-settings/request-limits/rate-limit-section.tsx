@@ -66,6 +66,23 @@ const isValidJSON = (value: string | undefined) => {
   }
 }
 
+const isValidConcurrencyJSON = (value: string | undefined) => {
+  if (!value || value.trim() === '') return true
+  try {
+    const parsed = JSON.parse(value)
+    if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return false
+    }
+    for (const val of Object.values(parsed)) {
+      if (typeof val !== 'number' || !Number.isInteger(val)) return false
+      if (val < 0 || val > 2147483647) return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 const createRateLimitSchema = (t: (key: string) => string) =>
   z.object({
     ModelRequestRateLimitEnabled: z.boolean(),
@@ -76,6 +93,12 @@ const createRateLimitSchema = (t: (key: string) => string) =>
       .string()
       .optional()
       .refine(isValidJSON, {
+        message: t('Invalid JSON format or values out of allowed range'),
+      }),
+    UserGroupConcurrencyLimit: z
+      .string()
+      .optional()
+      .refine(isValidConcurrencyJSON, {
         message: t('Invalid JSON format or values out of allowed range'),
       }),
   })
@@ -308,6 +331,43 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                     </div>
                   </FormDescription>
                 )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='UserGroupConcurrencyLimit'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Group concurrency limits')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={6}
+                    placeholder={`{\n  "default": 3,\n  "vip": 5\n}`}
+                    className='font-mono text-sm'
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  <div className='space-y-1 text-xs'>
+                    <p className='font-semibold'>{t('Format:')}</p>
+                    <ul className='list-inside list-disc space-y-0.5 pl-2'>
+                      <li>
+                        {t('JSON object:')} {`{"groupName": maxConcurrent}`}
+                      </li>
+                      <li>
+                        {t('Example:')} {`{"default": 3, "vip": 5}`}
+                      </li>
+                      <li>
+                        {t(
+                          'Limits concurrent in-flight requests per account and group, 0 or missing = unlimited'
+                        )}
+                      </li>
+                    </ul>
+                  </div>
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
