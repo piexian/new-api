@@ -181,7 +181,12 @@ func toInteractionsRequest(info *relaycommon.RelayInfo, request *dto.GeminiChatR
 		return request, nil
 	}
 	trimThinkingSuffixForUpstream(info)
-	lookup := func(callID string) (string, bool) {
+	return relayconvert.GeminiChatRequestToInteractionsWithBridge(request, info.UpstreamModelName, info.IsStream, interactionsBridgeLookup(info))
+}
+
+// interactionsBridgeLookup 桥接查找闭包:校验归属与渠道,命中时锁定原上游 key
+func interactionsBridgeLookup(info *relaycommon.RelayInfo) relayconvert.BridgeLookup {
+	return func(callID string) (string, bool) {
 		bridge := service.GetGeminiInteractionToolCallBridge(callID)
 		if bridge == nil || bridge.UserID != info.UserId || bridge.ChannelID != info.ChannelId {
 			return "", false
@@ -192,7 +197,6 @@ func toInteractionsRequest(info *relaycommon.RelayInfo, request *dto.GeminiChatR
 		}
 		return bridge.InteractionID, true
 	}
-	return relayconvert.GeminiChatRequestToInteractionsWithBridge(request, info.UpstreamModelName, info.IsStream, lookup)
 }
 
 // saveGeminiInteractionToolCallBridges 记录 function_call id -> interaction 桥接
@@ -326,6 +330,11 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	// Interactions 模型走 Responses->Interactions 直接转换(两协议同构,保留 call_id 链)
+	if shouldUseInteractionsUpstream(info) {
+		trimThinkingSuffixForUpstream(info)
+		return relayconvert.ResponsesToInteractionsWithBridge(&request, info.UpstreamModelName, info.IsStream, interactionsBridgeLookup(info))
+	}
 	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, &request)
 	if err != nil {
 		return nil, err
@@ -345,13 +354,6 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info.RelayMode == constant.RelayModeResponses {
-		if info.IsStream {
-			return GeminiResponsesStreamHandler(c, info, resp)
-		}
-		return GeminiResponsesHandler(c, info, resp)
-	}
-
 	if info.RelayMode == constant.RelayModeGeminiInteractions {
 		if info.IsStream {
 			return GeminiInteractionsStreamHandler(c, info, resp)
@@ -360,8 +362,16 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	// 转换模式:上游返回 interactions 格式,先还原为 generateContent 格式再走既有 handler
+	// (含 chat/claude/gemini/responses 全部入站,须在 RelayModeResponses 分支之前)
 	if shouldUseInteractionsUpstream(info) {
 		resp = convertInteractionsUpstreamResponse(c, info, resp)
+	}
+
+	if info.RelayMode == constant.RelayModeResponses {
+		if info.IsStream {
+			return GeminiResponsesStreamHandler(c, info, resp)
+		}
+		return GeminiResponsesHandler(c, info, resp)
 	}
 
 	if info.RelayMode == constant.RelayModeGemini {

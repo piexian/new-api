@@ -20,6 +20,11 @@ func GeminiChatRequestToInteractionsWithBridge(req *dto.GeminiChatRequest, model
 	return gemini_interactions.GeminiChatRequestToInteractionsWithBridge(req, modelName, isStream, lookup)
 }
 
+// ResponsesToInteractionsWithBridge OpenAI Responses 入站直接转 Interactions(命中桥接走有状态续链)
+func ResponsesToInteractionsWithBridge(req *dto.OpenAIResponsesRequest, modelName string, isStream bool, lookup BridgeLookup) (*dto.GeminiInteractionsRequest, error) {
+	return gemini_interactions.ResponsesToInteractions(req, modelName, isStream, lookup)
+}
+
 // InteractionToGeminiChatResponse Interactions 资源转 generateContent 响应
 func InteractionToGeminiChatResponse(interaction *dto.GeminiInteraction, fallbackPromptTokens int) *dto.GeminiChatResponse {
 	return gemini_interactions.InteractionToGeminiChatResponse(interaction, fallbackPromptTokens)
