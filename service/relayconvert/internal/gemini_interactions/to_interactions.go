@@ -240,13 +240,14 @@ func contentsToSteps(contents []dto.GeminiChatContent) []dto.GeminiInteractionSt
 				})
 			case part.FunctionResponse != nil:
 				respCounter[part.FunctionResponse.Name]++
+				resultBlocks, _ := common.Marshal([]dto.GeminiInteractionContent{
+					{Type: dto.GeminiInteractionContentText, Text: marshalResponse(part.FunctionResponse.Response)},
+				})
 				steps = append(steps, dto.GeminiInteractionStep{
 					Type:   dto.GeminiInteractionStepFunctionResult,
 					CallID: deterministicCallID(part.FunctionResponse.Name, respCounter[part.FunctionResponse.Name]),
 					Name:   part.FunctionResponse.Name,
-					Result: []dto.GeminiInteractionContent{
-						{Type: dto.GeminiInteractionContentText, Text: marshalResponse(part.FunctionResponse.Response)},
-					},
+					Result: resultBlocks,
 				})
 			default:
 				if !part.Thought {
@@ -398,13 +399,14 @@ func bridgeStatefulInput(req *dto.GeminiChatRequest, lookup BridgeLookup) *bridg
 				if callID == "" {
 					return nil // 缺 call_id 无法续链
 				}
+				resultBlocks, _ := common.Marshal([]dto.GeminiInteractionContent{
+					{Type: dto.GeminiInteractionContentText, Text: marshalResponse(part.FunctionResponse.Response)},
+				})
 				steps = append(steps, dto.GeminiInteractionStep{
 					Type:   dto.GeminiInteractionStepFunctionResult,
 					CallID: callID,
 					Name:   part.FunctionResponse.Name,
-					Result: []dto.GeminiInteractionContent{
-						{Type: dto.GeminiInteractionContentText, Text: marshalResponse(part.FunctionResponse.Response)},
-					},
+					Result: resultBlocks,
 				})
 			case part.Text != "" && (content.Role == "user" || content.Role == ""):
 				pendingUserText = append(pendingUserText, dto.GeminiInteractionContent{Type: dto.GeminiInteractionContentText, Text: part.Text})
