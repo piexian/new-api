@@ -114,6 +114,76 @@ func DeleteGeminiInteractionState(id string) {
 	geminiInteractionMemoryStore.Delete(id + geminiInteractionBilledKeySuffix)
 }
 
+// GeminiInteractionToolCallBridge 转换模式(chat 入站 -> interactions 上游)的工具调用桥接:
+// 客户端可见的 tool_call id(即上游 function_call step id) -> interaction 路由信息,
+// 供下一轮 role:tool 提交时以 previous_interaction_id 有状态续链
+type GeminiInteractionToolCallBridge struct {
+	InteractionID string `json:"interaction_id"`
+	UserID        int    `json:"user_id"`
+	ChannelID     int    `json:"channel_id"`
+	Key           string `json:"key"`
+	Model         string `json:"model"`
+}
+
+func geminiInteractionBridgeRedisKey(callID string) string {
+	return geminiInteractionKeyPrefix + "call:" + callID
+}
+
+// SaveGeminiInteractionToolCallBridge 保存工具调用桥接
+func SaveGeminiInteractionToolCallBridge(callID string, bridge *GeminiInteractionToolCallBridge) {
+	if callID == "" || bridge == nil || bridge.InteractionID == "" {
+		return
+	}
+	if common.RedisEnabled {
+		data, err := common.Marshal(bridge)
+		if err != nil {
+			common.SysError("marshal gemini interaction bridge failed: " + err.Error())
+			return
+		}
+		if err := common.RDB.Set(context.Background(), geminiInteractionBridgeRedisKey(callID), data, geminiInteractionStateTTL).Err(); err != nil {
+			common.SysError("save gemini interaction bridge failed: " + err.Error())
+		}
+		return
+	}
+	geminiInteractionMemoryStore.Store(geminiInteractionBridgeRedisKey(callID), geminiInteractionMemoryEntry{
+		state:     GeminiInteractionState{Model: bridge.InteractionID, UserID: bridge.UserID, ChannelID: bridge.ChannelID, Key: bridge.Key},
+		expiresAt: time.Now().Add(geminiInteractionStateTTL),
+	})
+}
+
+// GetGeminiInteractionToolCallBridge 读取工具调用桥接
+func GetGeminiInteractionToolCallBridge(callID string) *GeminiInteractionToolCallBridge {
+	if callID == "" {
+		return nil
+	}
+	if common.RedisEnabled {
+		data, err := common.RDB.Get(context.Background(), geminiInteractionBridgeRedisKey(callID)).Bytes()
+		if err != nil {
+			return nil
+		}
+		var bridge GeminiInteractionToolCallBridge
+		if err := common.Unmarshal(data, &bridge); err != nil {
+			return nil
+		}
+		return &bridge
+	}
+	value, ok := geminiInteractionMemoryStore.Load(geminiInteractionBridgeRedisKey(callID))
+	if !ok {
+		return nil
+	}
+	entry := value.(geminiInteractionMemoryEntry)
+	if time.Now().After(entry.expiresAt) {
+		geminiInteractionMemoryStore.Delete(geminiInteractionBridgeRedisKey(callID))
+		return nil
+	}
+	return &GeminiInteractionToolCallBridge{
+		InteractionID: entry.state.Model,
+		UserID:        entry.state.UserID,
+		ChannelID:     entry.state.ChannelID,
+		Key:           entry.state.Key,
+	}
+}
+
 // ClaimGeminiInteractionBilling 原子认领计费权,首个成功者返回 true(防重复结算)
 func ClaimGeminiInteractionBilling(id string) bool {
 	if id == "" {

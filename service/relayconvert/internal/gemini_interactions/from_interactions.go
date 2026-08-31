@@ -42,6 +42,7 @@ func InteractionToGeminiChatResponse(interaction *dto.GeminiInteraction, fallbac
 				FunctionCall: &dto.FunctionCall{
 					FunctionName: step.Name,
 					Arguments:    rawJSONAny(step.Arguments),
+					ID:           step.ID,
 				},
 			})
 		}
@@ -143,10 +144,19 @@ type InteractionsSSEToGeminiSSE struct {
 	argsBuf  []byte
 	sentRole bool
 	err      error
+	// onPending: requires_action/completed 时回调(interaction id + 待续链的 function_call id),
+	// 供调用方保存有状态桥接;可为 nil
+	onPending         func(interactionID string, callIDs []string)
+	lastInteractionID string
+	pendingCallIDs    []string
 }
 
 func NewInteractionsSSEToGeminiSSE(reader io.Reader) *InteractionsSSEToGeminiSSE {
-	s := &InteractionsSSEToGeminiSSE{scanner: bufio.NewScanner(reader)}
+	return NewInteractionsSSEToGeminiSSEWithCallback(reader, nil)
+}
+
+func NewInteractionsSSEToGeminiSSEWithCallback(reader io.Reader, onPending func(interactionID string, callIDs []string)) *InteractionsSSEToGeminiSSE {
+	s := &InteractionsSSEToGeminiSSE{scanner: bufio.NewScanner(reader), onPending: onPending}
 	s.scanner.Buffer(make([]byte, 64<<10), 128<<20)
 	return s
 }
@@ -181,6 +191,9 @@ func (t *InteractionsSSEToGeminiSSE) handleLine(line string) {
 	var event dto.GeminiInteractionSseEvent
 	if err := common.UnmarshalJsonStr(payload, &event); err != nil {
 		return
+	}
+	if event.Interaction != nil && event.Interaction.ID != "" {
+		t.lastInteractionID = event.Interaction.ID
 	}
 	switch event.EventName() {
 	case "step.start":
@@ -263,10 +276,14 @@ func (t *InteractionsSSEToGeminiSSE) handleStepStop(payload string) {
 			args = json.RawMessage("{}")
 		}
 		t.argsBuf = nil
+		if step.ID != "" {
+			t.pendingCallIDs = append(t.pendingCallIDs, step.ID)
+		}
 		t.emitPart(dto.GeminiPart{
 			FunctionCall: &dto.FunctionCall{
 				FunctionName: step.Name,
 				Arguments:    rawJSONAny(args),
+				ID:           step.ID,
 			},
 		})
 	case dto.GeminiInteractionStepModelOutput:
@@ -285,6 +302,10 @@ func (t *InteractionsSSEToGeminiSSE) handleStepStop(payload string) {
 }
 
 func (t *InteractionsSSEToGeminiSSE) handleInteractionEnd(event *dto.GeminiInteractionSseEvent) {
+	if t.onPending != nil && t.lastInteractionID != "" && len(t.pendingCallIDs) > 0 {
+		t.onPending(t.lastInteractionID, t.pendingCallIDs)
+		t.pendingCallIDs = nil
+	}
 	finishReason := "STOP"
 	resp := dto.GeminiChatResponse{}
 	candidate := dto.GeminiChatCandidate{Index: 0}

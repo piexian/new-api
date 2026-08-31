@@ -334,7 +334,7 @@ func SetRelayRouter(router *gin.Engine) {
 		interactionsRouter.Use(middleware.TokenAuth())
 		interactionsRouter.Use(middleware.ModelRequestRateLimit())
 		interactionsRouter.Use(middleware.TokenRateLimit())
-		interactionsRouter.Use(middleware.GroupConcurrencyLimit())
+		interactionsRouter.Use(middleware.Distribute(), middleware.GroupConcurrencyLimit())
 		{
 			interactionsRouter.POST("", func(c *gin.Context) {
 				controller.Relay(c, types.RelayFormatGemini)

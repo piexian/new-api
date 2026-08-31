@@ -287,8 +287,12 @@ func geminiResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 	if err != nil {
 		return nil
 	}
+	callID := item.FunctionCall.ID
+	if callID == "" {
+		callID = fmt.Sprintf("call_%s", common.GetUUID())
+	}
 	return &dto.ToolCallResponse{
-		ID:   fmt.Sprintf("call_%s", common.GetUUID()),
+		ID:   callID,
 		Type: "function",
 		Function: dto.FunctionResponse{
 			Arguments: string(argsBytes),

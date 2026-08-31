@@ -35,8 +35,8 @@ func TestGeminiChatRequestToInteractionsBasic(t *testing.T) {
 	if out.Stream == nil || !*out.Stream {
 		t.Fatal("stream should be true")
 	}
-	if out.Store == nil || *out.Store {
-		t.Fatal("store should be false (stateless replay)")
+	if out.Store == nil || !*out.Store {
+		t.Fatal("store should be true (stateful chaining requires stored interactions)")
 	}
 	if sys := string(out.SystemInstruction); sys != `"be brief"` {
 		t.Fatalf("system_instruction = %s", sys)

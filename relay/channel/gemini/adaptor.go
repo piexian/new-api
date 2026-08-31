@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
@@ -170,7 +171,8 @@ func shouldUseInteractionsUpstream(info *relaycommon.RelayInfo) bool {
 	return model_setting.ShouldChatViaInteractions(info.UpstreamModelName)
 }
 
-// toInteractionsRequest 转换为 interactions create 请求;未命中开关时原样返回
+// toInteractionsRequest 转换为 interactions create 请求;未命中开关时原样返回。
+// 历史 tool_call id 命中桥接时改为有状态续链(previous_interaction_id),并回写原 key
 func toInteractionsRequest(info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
 	if request == nil {
 		return nil, nil
@@ -179,7 +181,34 @@ func toInteractionsRequest(info *relaycommon.RelayInfo, request *dto.GeminiChatR
 		return request, nil
 	}
 	trimThinkingSuffixForUpstream(info)
-	return relayconvert.GeminiChatRequestToInteractions(request, info.UpstreamModelName, info.IsStream)
+	lookup := func(callID string) (string, bool) {
+		bridge := service.GetGeminiInteractionToolCallBridge(callID)
+		if bridge == nil || bridge.UserID != info.UserId || bridge.ChannelID != info.ChannelId {
+			return "", false
+		}
+		// interaction 状态挂在上游 key 上,桥接命中时锁定原 key
+		if bridge.Key != "" {
+			info.ApiKey = bridge.Key
+		}
+		return bridge.InteractionID, true
+	}
+	return relayconvert.GeminiChatRequestToInteractionsWithBridge(request, info.UpstreamModelName, info.IsStream, lookup)
+}
+
+// saveGeminiInteractionToolCallBridges 记录 function_call id -> interaction 桥接
+func saveGeminiInteractionToolCallBridges(info *relaycommon.RelayInfo, interactionID string, callIDs []string) {
+	if info == nil || interactionID == "" || len(callIDs) == 0 {
+		return
+	}
+	for _, callID := range callIDs {
+		service.SaveGeminiInteractionToolCallBridge(callID, &service.GeminiInteractionToolCallBridge{
+			InteractionID: interactionID,
+			UserID:        info.UserId,
+			ChannelID:     info.ChannelId,
+			Key:           info.ApiKey,
+			Model:         info.OriginModelName,
+		})
+	}
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
@@ -332,7 +361,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	// 转换模式:上游返回 interactions 格式,先还原为 generateContent 格式再走既有 handler
 	if shouldUseInteractionsUpstream(info) {
-		resp = convertInteractionsUpstreamResponse(c, resp)
+		resp = convertInteractionsUpstreamResponse(c, info, resp)
 	}
 
 	if info.RelayMode == constant.RelayModeGemini {
@@ -376,12 +405,15 @@ func (a *Adaptor) GetChannelName() string {
 
 // convertInteractionsUpstreamResponse 上游 interactions 响应还原为 generateContent 格式:
 // 非流式整体换体;流式包装为翻译 reader,后续 handler 按普通 gemini SSE 消费
-func convertInteractionsUpstreamResponse(c *gin.Context, resp *http.Response) *http.Response {
+func convertInteractionsUpstreamResponse(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) *http.Response {
 	if resp == nil || resp.Body == nil {
 		return resp
 	}
 	if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
-		resp.Body = io.NopCloser(relayconvert.NewInteractionsSSETranslator(resp.Body))
+		streamInfo := info
+		resp.Body = io.NopCloser(relayconvert.NewInteractionsSSETranslatorWithCallback(resp.Body, func(interactionID string, callIDs []string) {
+			saveGeminiInteractionToolCallBridges(streamInfo, interactionID, callIDs)
+		}))
 		return resp
 	}
 	body, err := io.ReadAll(resp.Body)
@@ -394,6 +426,14 @@ func convertInteractionsUpstreamResponse(c *gin.Context, resp *http.Response) *h
 	if err := common.Unmarshal(body, &interaction); err != nil {
 		logger.LogError(c.Request.Context(), "unmarshal interactions upstream response failed: "+err.Error())
 		interaction = dto.GeminiInteraction{Status: "failed"}
+	} else {
+		var callIDs []string
+		for i := range interaction.Steps {
+			if interaction.Steps[i].Type == dto.GeminiInteractionStepFunctionCall && interaction.Steps[i].ID != "" {
+				callIDs = append(callIDs, interaction.Steps[i].ID)
+			}
+		}
+		saveGeminiInteractionToolCallBridges(info, interaction.ID, callIDs)
 	}
 	geminiResp := relayconvert.InteractionToGeminiChatResponse(&interaction, 0)
 	data, err := common.Marshal(geminiResp)

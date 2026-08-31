@@ -172,6 +172,12 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 				Name:     name,
 				Response: contentMap,
 			}
+			// 透传 tool_call_id(interactions 桥接链路用作 call_id;generateContent 上游忽略该字段)
+			if message.ToolCallId != "" {
+				if idJSON, err := common.Marshal(message.ToolCallId); err == nil {
+					functionResp.ID = idJSON
+				}
+			}
 
 			*parts = append(*parts, dto.GeminiPart{
 				FunctionResponse: functionResp,
@@ -197,6 +203,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 					FunctionCall: &dto.FunctionCall{
 						FunctionName: call.Function.Name,
 						Arguments:    args,
+						ID:           call.ID,
 					},
 				}
 				if shouldAttachThoughtSignature && !signatureAttached && sharedgemini.AttachFunctionCallThoughtSignature(&toolCall) {

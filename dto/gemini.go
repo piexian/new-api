@@ -240,6 +240,9 @@ func (g *GeminiInlineData) UnmarshalJSON(data []byte) error {
 type FunctionCall struct {
 	FunctionName string `json:"name"`
 	Arguments    any    `json:"args"`
+	// ID 为 interactions 协议的调用标识;generateContent 上游不产出该字段,
+	// 仅在 interactions 转换链路中透传,用于有状态工具调用桥接
+	ID string `json:"id,omitempty"`
 }
 
 type GeminiFunctionResponse struct {

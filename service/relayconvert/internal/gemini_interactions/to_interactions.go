@@ -12,16 +12,35 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 )
 
-// GeminiChatRequestToInteractions 转换 create 请求。
-// 无状态回放模式:历史全部转为 steps,store=false,由上游自行裁剪。
+// BridgeLookup 由调用方提供:客户端可见 tool_call id -> interaction id(有状态桥接)。
+// 返回 ok=false 时回退无状态回放。
+type BridgeLookup func(callID string) (interactionID string, ok bool)
+
+// GeminiChatRequestToInteractions 转换 create 请求(无 lookup 时纯无状态回放)。
 func GeminiChatRequestToInteractions(req *dto.GeminiChatRequest, modelName string, isStream bool) (*dto.GeminiInteractionsRequest, error) {
+	return GeminiChatRequestToInteractionsWithBridge(req, modelName, isStream, nil)
+}
+
+// GeminiChatRequestToInteractionsWithBridge 带桥接查找的转换:
+// 历史 assistant.tool_calls 携带上游 function_call id 时,若桥接命中则改为有状态续链
+// (previous_interaction_id + 仅提交其后的 function_result/user 输入),
+// 规避上游对无状态回放合成 function_call 的 signature 校验拒绝。
+func GeminiChatRequestToInteractionsWithBridge(req *dto.GeminiChatRequest, modelName string, isStream bool, lookup BridgeLookup) (*dto.GeminiInteractionsRequest, error) {
 	if req == nil {
 		return nil, nil
 	}
 	out := &dto.GeminiInteractionsRequest{
 		Model:  modelName,
 		Stream: &isStream,
-		Store:  common.GetPointer(false),
+		Store:  common.GetPointer(true),
+	}
+
+	if lookup != nil {
+		if chained := bridgeStatefulInput(req, lookup); chained != nil {
+			out.PreviousInteractionID = chained.interactionID
+			out.Input, _ = common.Marshal(chained.steps)
+			return out, nil
+		}
 	}
 
 	// system instruction: 拼接 text parts
@@ -45,10 +64,7 @@ func GeminiChatRequestToInteractions(req *dto.GeminiChatRequest, modelName strin
 		out.Tools, _ = common.Marshal(tools)
 	}
 
-	// safety settings
-	if len(req.SafetySettings) > 0 {
-		out.SafetySettings, _ = common.Marshal(convertSafetySettings(req.SafetySettings))
-	}
+	// safety_settings: generativelanguage 的 interactions 端点不接受该参数(仅 Enterprise Agent Platform 支持),丢弃
 
 	// generation config
 	if genCfg := convertGenerationConfig(&req.GenerationConfig); len(genCfg) > 0 {
@@ -136,36 +152,6 @@ func downcaseSchemaTypes(v any) any {
 		return out
 	default:
 		return v
-	}
-}
-
-func convertSafetySettings(settings []dto.GeminiChatSafetySettings) []map[string]string {
-	out := make([]map[string]string, 0, len(settings))
-	for _, s := range settings {
-		out = append(out, map[string]string{
-			"harm_category": downcaseHarmCategory(s.Category),
-			"threshold":     s.Threshold,
-		})
-	}
-	return out
-}
-
-func downcaseHarmCategory(category string) string {
-	switch category {
-	case "HARM_CATEGORY_HARASSMENT":
-		return "harassment"
-	case "HARM_CATEGORY_HATE_SPEECH":
-		return "hate_speech"
-	case "HARM_CATEGORY_SEXUALLY_EXPLICIT":
-		return "sexually_explicit"
-	case "HARM_CATEGORY_DANGEROUS_CONTENT":
-		return "dangerous_content"
-	case "HARM_CATEGORY_CIVIC_INTEGRITY":
-		return "civic_integrity"
-	case "HARM_CATEGORY_JAILBREAK":
-		return "jailbreak"
-	default:
-		return strings.ToLower(strings.TrimPrefix(category, "HARM_CATEGORY_"))
 	}
 }
 
@@ -365,4 +351,93 @@ func contentTypeFromMime(mimeType string) string {
 	default:
 		return dto.GeminiInteractionContentDocument
 	}
+}
+
+// bridgedInput 有状态续链的输入构造结果
+type bridgedInput struct {
+	interactionID string
+	steps         []dto.GeminiInteractionStep
+}
+
+// bridgeStatefulInput 扫描历史,定位最后一个带 id 且桥接命中的 functionCall part:
+// - 其后只允许 functionResponse(转 function_result,call_id 用原 id)与用户新输入(转 user_input)
+// - 若其间出现 model 输出等多轮复杂形态则放弃,回退无状态回放
+func bridgeStatefulInput(req *dto.GeminiChatRequest, lookup BridgeLookup) *bridgedInput {
+	var foundContentIdx = -1
+	var interactionID string
+	for ci := len(req.Contents) - 1; ci >= 0 && foundContentIdx == -1; ci-- {
+		content := req.Contents[ci]
+		if content.Role != "model" && content.Role != "assistant" {
+			continue
+		}
+		for pi := len(content.Parts) - 1; pi >= 0; pi-- {
+			part := content.Parts[pi]
+			if part.FunctionCall == nil || part.FunctionCall.ID == "" {
+				continue
+			}
+			if id, ok := lookup(part.FunctionCall.ID); ok {
+				interactionID = id
+				foundContentIdx = ci
+			}
+			break // 只看最后一个带 id 的 call(从后向前第一个)
+		}
+	}
+	if foundContentIdx == -1 {
+		return nil
+	}
+
+	var steps []dto.GeminiInteractionStep
+	// 桥接点之后: 同一 content 剩余 part 之后的 contents
+	rest := req.Contents[foundContentIdx+1:]
+	var pendingUserText []dto.GeminiInteractionContent
+	for _, content := range rest {
+		for _, part := range content.Parts {
+			switch {
+			case part.FunctionResponse != nil:
+				callID := rawJSONString(part.FunctionResponse.ID)
+				if callID == "" {
+					return nil // 缺 call_id 无法续链
+				}
+				steps = append(steps, dto.GeminiInteractionStep{
+					Type:   dto.GeminiInteractionStepFunctionResult,
+					CallID: callID,
+					Name:   part.FunctionResponse.Name,
+					Result: []dto.GeminiInteractionContent{
+						{Type: dto.GeminiInteractionContentText, Text: marshalResponse(part.FunctionResponse.Response)},
+					},
+				})
+			case part.Text != "" && (content.Role == "user" || content.Role == ""):
+				pendingUserText = append(pendingUserText, dto.GeminiInteractionContent{Type: dto.GeminiInteractionContentText, Text: part.Text})
+			case part.InlineData != nil || part.FileData != nil:
+				if c := partsToContents([]dto.GeminiPart{part}); len(c) > 0 {
+					pendingUserText = append(pendingUserText, c...)
+				}
+			default:
+				// model 输出 / 新的 functionCall 等复杂形态:放弃桥接
+				return nil
+			}
+		}
+	}
+	if len(steps) == 0 {
+		return nil // 桥接点后没有 function_result,无法续链
+	}
+	if len(pendingUserText) > 0 {
+		steps = append(steps, dto.GeminiInteractionStep{
+			Type:    dto.GeminiInteractionStepUserInput,
+			Content: pendingUserText,
+		})
+	}
+	return &bridgedInput{interactionID: interactionID, steps: steps}
+}
+
+// rawJSONString 从 RawMessage(JSON 字符串)解出 Go string
+func rawJSONString(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if err := common.Unmarshal(raw, &s); err != nil {
+		return ""
+	}
+	return s
 }
