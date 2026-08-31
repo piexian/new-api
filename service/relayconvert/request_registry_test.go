@@ -84,6 +84,41 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 		},
 	}
 
+	tests = append(tests,
+		struct {
+			converter      string
+			from           types.RelayFormat
+			to             types.RelayFormat
+			quality        RequestConverterQuality
+			stepConverters []string
+			advancedCustom bool
+		}{converter: ConverterOpenAIChatToInteractions, from: types.RelayFormatOpenAI, to: types.RelayFormatGeminiInteractions, quality: RequestConverterQualityGood, advancedCustom: false},
+		struct {
+			converter      string
+			from           types.RelayFormat
+			to             types.RelayFormat
+			quality        RequestConverterQuality
+			stepConverters []string
+			advancedCustom bool
+		}{converter: ConverterClaudeToInteractions, from: types.RelayFormatClaude, to: types.RelayFormatGeminiInteractions, quality: RequestConverterQualityGood, advancedCustom: false},
+		struct {
+			converter      string
+			from           types.RelayFormat
+			to             types.RelayFormat
+			quality        RequestConverterQuality
+			stepConverters []string
+			advancedCustom bool
+		}{converter: ConverterGeminiContentToInteractions, from: types.RelayFormatGemini, to: types.RelayFormatGeminiInteractions, quality: RequestConverterQualityGood, advancedCustom: false},
+		struct {
+			converter      string
+			from           types.RelayFormat
+			to             types.RelayFormat
+			quality        RequestConverterQuality
+			stepConverters []string
+			advancedCustom bool
+		}{converter: ConverterOpenAIResponsesToInteractions, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatGeminiInteractions, quality: RequestConverterQualityGood, advancedCustom: false},
+	)
+
 	require.Len(t, requestConverters, len(tests))
 
 	for _, tt := range tests {

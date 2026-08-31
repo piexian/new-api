@@ -222,7 +222,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		SupportStreamOptions: false,
 	}
 
-	if channelType == constant.ChannelTypeAzure {
+	if channelType == constant.ChannelTypeAzure || channelType == constant.ChannelTypeGeminiInteractions {
 		channelMeta.ApiVersion = GetAPIVersion(c)
 	}
 	if channelType == constant.ChannelTypeVertexAi {

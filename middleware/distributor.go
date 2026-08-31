@@ -58,7 +58,7 @@ func Distribute() func(c *gin.Context) {
 			// Gemini Interactions: previous_interaction_id 命中映射时强制回到原创建渠道+key(上游状态按 key 隔离)
 			if forcedChannelID := common.GetContextKeyInt(c, constant.ContextKeyGeminiInteractionForcedChannelId); forcedChannelID > 0 {
 				forcedKey := common.GetContextKeyString(c, constant.ContextKeyGeminiInteractionForcedChannelKey)
-				if ch, chErr := model.GetChannelById(forcedChannelID, true); chErr == nil && ch != nil && ch.Status == common.ChannelStatusEnabled && ch.Type == constant.ChannelTypeGemini && service.IsChannelKeyUsable(ch, forcedKey) {
+				if ch, chErr := model.GetChannelById(forcedChannelID, true); chErr == nil && ch != nil && ch.Status == common.ChannelStatusEnabled && (ch.Type == constant.ChannelTypeGemini || ch.Type == constant.ChannelTypeGeminiInteractions) && service.IsChannelKeyUsable(ch, forcedKey) {
 					channel = ch
 				} else {
 					common.SetContextKey(c, constant.ContextKeyGeminiInteractionForcedChannelId, 0)
@@ -614,7 +614,7 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 		c.Set("region", channel.Other)
 	case constant.ChannelTypeXunfei:
 		c.Set("api_version", channel.Other)
-	case constant.ChannelTypeGemini:
+	case constant.ChannelTypeGemini, constant.ChannelTypeGeminiInteractions:
 		c.Set("api_version", channel.Other)
 	case constant.ChannelTypeAli:
 		c.Set("plugin", channel.Other)

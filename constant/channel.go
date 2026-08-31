@@ -1,75 +1,76 @@
 package constant
 
 const (
-	ChannelTypeUnknown         = 0
-	ChannelTypeOpenAI          = 1
-	ChannelTypeMidjourney      = 2
-	ChannelTypeAzure           = 3
-	ChannelTypeOllama          = 4
-	ChannelTypeMidjourneyPlus  = 5
-	ChannelTypeOpenAIMax       = 6
-	ChannelTypeOhMyGPT         = 7
-	ChannelTypeCustom          = 8
-	ChannelTypeAILS            = 9
-	ChannelTypeAIProxy         = 10
-	ChannelTypePaLM            = 11
-	ChannelTypeAPI2GPT         = 12
-	ChannelTypeAIGC2D          = 13
-	ChannelTypeAnthropic       = 14
-	ChannelTypeBaidu           = 15
-	ChannelTypeZhipu           = 16
-	ChannelTypeAli             = 17
-	ChannelTypeXunfei          = 18
-	ChannelType360             = 19
-	ChannelTypeOpenRouter      = 20
-	ChannelTypeAIProxyLibrary  = 21
-	ChannelTypeFastGPT         = 22
-	ChannelTypeTencent         = 23
-	ChannelTypeGemini          = 24
-	ChannelTypeMoonshot        = 25
-	ChannelTypeZhipu_v4        = 26
-	ChannelTypePerplexity      = 27
-	ChannelTypeLingYiWanWu     = 31
-	ChannelTypeAws             = 33
-	ChannelTypeCohere          = 34
-	ChannelTypeMiniMax         = 35
-	ChannelTypeSunoAPI         = 36
-	ChannelTypeDify            = 37
-	ChannelTypeJina            = 38
-	ChannelCloudflare          = 39
-	ChannelTypeSiliconFlow     = 40
-	ChannelTypeVertexAi        = 41
-	ChannelTypeMistral         = 42
-	ChannelTypeDeepSeek        = 43
-	ChannelTypeMokaAI          = 44
-	ChannelTypeVolcEngine      = 45
-	ChannelTypeBaiduV2         = 46
-	ChannelTypeXinference      = 47
-	ChannelTypeXai             = 48
-	ChannelTypeCoze            = 49
-	ChannelTypeKling           = 50
-	ChannelTypeJimeng          = 51
-	ChannelTypeVidu            = 52
-	ChannelTypeSubmodel        = 53
-	ChannelTypeDoubaoVideo     = 54
-	ChannelTypeSora            = 55
-	ChannelTypeReplicate       = 56
-	ChannelTypeCodex           = 57
-	ChannelTypeKilo            = 58
-	ChannelTypePoe             = 59
-	ChannelTypeXunfeiMaaS      = 60
-	ChannelTypeXunfeiMaaSImage = 61
-	ChannelTypeXiaomiMiMo      = 62
-	ChannelTypeAgnesAI         = 63
-	ChannelTypeZenMux          = 64
-	ChannelTypeOpenCode        = 65
-	ChannelTypeMoark           = 66
-	ChannelTypeAdvancedCustom  = 67
-	ChannelTypeCerebras        = 68
-	ChannelTypeQwenTokenPlan   = 69
-	ChannelTypeMistralConsole  = 70
-	ChannelTypeGMICloud        = 71
-	ChannelTypeDummy           // this one is only for count, do not add any channel after this
+	ChannelTypeUnknown            = 0
+	ChannelTypeOpenAI             = 1
+	ChannelTypeMidjourney         = 2
+	ChannelTypeAzure              = 3
+	ChannelTypeOllama             = 4
+	ChannelTypeMidjourneyPlus     = 5
+	ChannelTypeOpenAIMax          = 6
+	ChannelTypeOhMyGPT            = 7
+	ChannelTypeCustom             = 8
+	ChannelTypeAILS               = 9
+	ChannelTypeAIProxy            = 10
+	ChannelTypePaLM               = 11
+	ChannelTypeAPI2GPT            = 12
+	ChannelTypeAIGC2D             = 13
+	ChannelTypeAnthropic          = 14
+	ChannelTypeBaidu              = 15
+	ChannelTypeZhipu              = 16
+	ChannelTypeAli                = 17
+	ChannelTypeXunfei             = 18
+	ChannelType360                = 19
+	ChannelTypeOpenRouter         = 20
+	ChannelTypeAIProxyLibrary     = 21
+	ChannelTypeFastGPT            = 22
+	ChannelTypeTencent            = 23
+	ChannelTypeGemini             = 24
+	ChannelTypeMoonshot           = 25
+	ChannelTypeZhipu_v4           = 26
+	ChannelTypePerplexity         = 27
+	ChannelTypeLingYiWanWu        = 31
+	ChannelTypeAws                = 33
+	ChannelTypeCohere             = 34
+	ChannelTypeMiniMax            = 35
+	ChannelTypeSunoAPI            = 36
+	ChannelTypeDify               = 37
+	ChannelTypeJina               = 38
+	ChannelCloudflare             = 39
+	ChannelTypeSiliconFlow        = 40
+	ChannelTypeVertexAi           = 41
+	ChannelTypeMistral            = 42
+	ChannelTypeDeepSeek           = 43
+	ChannelTypeMokaAI             = 44
+	ChannelTypeVolcEngine         = 45
+	ChannelTypeBaiduV2            = 46
+	ChannelTypeXinference         = 47
+	ChannelTypeXai                = 48
+	ChannelTypeCoze               = 49
+	ChannelTypeKling              = 50
+	ChannelTypeJimeng             = 51
+	ChannelTypeVidu               = 52
+	ChannelTypeSubmodel           = 53
+	ChannelTypeDoubaoVideo        = 54
+	ChannelTypeSora               = 55
+	ChannelTypeReplicate          = 56
+	ChannelTypeCodex              = 57
+	ChannelTypeKilo               = 58
+	ChannelTypePoe                = 59
+	ChannelTypeXunfeiMaaS         = 60
+	ChannelTypeXunfeiMaaSImage    = 61
+	ChannelTypeXiaomiMiMo         = 62
+	ChannelTypeAgnesAI            = 63
+	ChannelTypeZenMux             = 64
+	ChannelTypeOpenCode           = 65
+	ChannelTypeMoark              = 66
+	ChannelTypeAdvancedCustom     = 67
+	ChannelTypeCerebras           = 68
+	ChannelTypeQwenTokenPlan      = 69
+	ChannelTypeMistralConsole     = 70
+	ChannelTypeGMICloud           = 71
+	ChannelTypeGeminiInteractions = 72
+	ChannelTypeDummy              // this one is only for count, do not add any channel after this
 
 )
 
@@ -146,77 +147,79 @@ var ChannelBaseURLs = []string{
 	QwenTokenPlanRootURL,                             //69
 	"https://console.mistral.ai",                     //70
 	"https://api.gmi-serving.com",                    //71
+	"https://generativelanguage.googleapis.com",      //72
 }
 
 var ChannelTypeNames = map[int]string{
-	ChannelTypeUnknown:         "Unknown",
-	ChannelTypeOpenAI:          "OpenAI",
-	ChannelTypeMidjourney:      "Midjourney",
-	ChannelTypeAzure:           "Azure",
-	ChannelTypeOllama:          "Ollama",
-	ChannelTypeMidjourneyPlus:  "MidjourneyPlus",
-	ChannelTypeOpenAIMax:       "OpenAIMax",
-	ChannelTypeOhMyGPT:         "OhMyGPT",
-	ChannelTypeCustom:          "Custom",
-	ChannelTypeAILS:            "AILS",
-	ChannelTypeAIProxy:         "AIProxy",
-	ChannelTypePaLM:            "PaLM",
-	ChannelTypeAPI2GPT:         "API2GPT",
-	ChannelTypeAIGC2D:          "AIGC2D",
-	ChannelTypeAnthropic:       "Anthropic",
-	ChannelTypeBaidu:           "Baidu",
-	ChannelTypeZhipu:           "Zhipu",
-	ChannelTypeAli:             "Ali",
-	ChannelTypeXunfei:          "Xunfei",
-	ChannelType360:             "360",
-	ChannelTypeOpenRouter:      "OpenRouter",
-	ChannelTypeAIProxyLibrary:  "AIProxyLibrary",
-	ChannelTypeFastGPT:         "FastGPT",
-	ChannelTypeTencent:         "Tencent",
-	ChannelTypeGemini:          "Gemini",
-	ChannelTypeMoonshot:        "Moonshot",
-	ChannelTypeZhipu_v4:        "ZhipuV4",
-	ChannelTypePerplexity:      "Perplexity",
-	ChannelTypeLingYiWanWu:     "LingYiWanWu",
-	ChannelTypeAws:             "AWS",
-	ChannelTypeCohere:          "Cohere",
-	ChannelTypeMiniMax:         "MiniMax",
-	ChannelTypeSunoAPI:         "SunoAPI",
-	ChannelTypeDify:            "Dify",
-	ChannelTypeJina:            "Jina",
-	ChannelCloudflare:          "Cloudflare",
-	ChannelTypeSiliconFlow:     "SiliconFlow",
-	ChannelTypeVertexAi:        "VertexAI",
-	ChannelTypeMistral:         "Mistral",
-	ChannelTypeDeepSeek:        "DeepSeek",
-	ChannelTypeMokaAI:          "MokaAI",
-	ChannelTypeVolcEngine:      "VolcEngine",
-	ChannelTypeBaiduV2:         "BaiduV2",
-	ChannelTypeXinference:      "Xinference",
-	ChannelTypeXai:             "xAI",
-	ChannelTypeCoze:            "Coze",
-	ChannelTypeKling:           "Kling",
-	ChannelTypeJimeng:          "Jimeng",
-	ChannelTypeVidu:            "Vidu",
-	ChannelTypeSubmodel:        "Submodel",
-	ChannelTypeDoubaoVideo:     "DoubaoVideo",
-	ChannelTypeSora:            "Sora",
-	ChannelTypeReplicate:       "Replicate",
-	ChannelTypeCodex:           "Codex",
-	ChannelTypeKilo:            "KiloGateway",
-	ChannelTypePoe:             "Poe",
-	ChannelTypeXunfeiMaaS:      "XunfeiMaaS",
-	ChannelTypeXunfeiMaaSImage: "XunfeiMaaSImage",
-	ChannelTypeXiaomiMiMo:      "XiaomiMiMo",
-	ChannelTypeAgnesAI:         "AgnesAI",
-	ChannelTypeZenMux:          "ZenMux",
-	ChannelTypeOpenCode:        "OpenCode",
-	ChannelTypeMoark:           "模力方舟",
-	ChannelTypeAdvancedCustom:  "Advanced Custom",
-	ChannelTypeCerebras:        "Cerebras",
-	ChannelTypeQwenTokenPlan:   "Qwen Token Plan",
-	ChannelTypeMistralConsole:  "Mistral Console",
-	ChannelTypeGMICloud:        "GMI Cloud",
+	ChannelTypeUnknown:            "Unknown",
+	ChannelTypeOpenAI:             "OpenAI",
+	ChannelTypeMidjourney:         "Midjourney",
+	ChannelTypeAzure:              "Azure",
+	ChannelTypeOllama:             "Ollama",
+	ChannelTypeMidjourneyPlus:     "MidjourneyPlus",
+	ChannelTypeOpenAIMax:          "OpenAIMax",
+	ChannelTypeOhMyGPT:            "OhMyGPT",
+	ChannelTypeCustom:             "Custom",
+	ChannelTypeAILS:               "AILS",
+	ChannelTypeAIProxy:            "AIProxy",
+	ChannelTypePaLM:               "PaLM",
+	ChannelTypeAPI2GPT:            "API2GPT",
+	ChannelTypeAIGC2D:             "AIGC2D",
+	ChannelTypeAnthropic:          "Anthropic",
+	ChannelTypeBaidu:              "Baidu",
+	ChannelTypeZhipu:              "Zhipu",
+	ChannelTypeAli:                "Ali",
+	ChannelTypeXunfei:             "Xunfei",
+	ChannelType360:                "360",
+	ChannelTypeOpenRouter:         "OpenRouter",
+	ChannelTypeAIProxyLibrary:     "AIProxyLibrary",
+	ChannelTypeFastGPT:            "FastGPT",
+	ChannelTypeTencent:            "Tencent",
+	ChannelTypeGemini:             "Gemini",
+	ChannelTypeMoonshot:           "Moonshot",
+	ChannelTypeZhipu_v4:           "ZhipuV4",
+	ChannelTypePerplexity:         "Perplexity",
+	ChannelTypeLingYiWanWu:        "LingYiWanWu",
+	ChannelTypeAws:                "AWS",
+	ChannelTypeCohere:             "Cohere",
+	ChannelTypeMiniMax:            "MiniMax",
+	ChannelTypeSunoAPI:            "SunoAPI",
+	ChannelTypeDify:               "Dify",
+	ChannelTypeJina:               "Jina",
+	ChannelCloudflare:             "Cloudflare",
+	ChannelTypeSiliconFlow:        "SiliconFlow",
+	ChannelTypeVertexAi:           "VertexAI",
+	ChannelTypeMistral:            "Mistral",
+	ChannelTypeDeepSeek:           "DeepSeek",
+	ChannelTypeMokaAI:             "MokaAI",
+	ChannelTypeVolcEngine:         "VolcEngine",
+	ChannelTypeBaiduV2:            "BaiduV2",
+	ChannelTypeXinference:         "Xinference",
+	ChannelTypeXai:                "xAI",
+	ChannelTypeCoze:               "Coze",
+	ChannelTypeKling:              "Kling",
+	ChannelTypeJimeng:             "Jimeng",
+	ChannelTypeVidu:               "Vidu",
+	ChannelTypeSubmodel:           "Submodel",
+	ChannelTypeDoubaoVideo:        "DoubaoVideo",
+	ChannelTypeSora:               "Sora",
+	ChannelTypeReplicate:          "Replicate",
+	ChannelTypeCodex:              "Codex",
+	ChannelTypeKilo:               "KiloGateway",
+	ChannelTypePoe:                "Poe",
+	ChannelTypeXunfeiMaaS:         "XunfeiMaaS",
+	ChannelTypeXunfeiMaaSImage:    "XunfeiMaaSImage",
+	ChannelTypeXiaomiMiMo:         "XiaomiMiMo",
+	ChannelTypeAgnesAI:            "AgnesAI",
+	ChannelTypeZenMux:             "ZenMux",
+	ChannelTypeOpenCode:           "OpenCode",
+	ChannelTypeMoark:              "模力方舟",
+	ChannelTypeAdvancedCustom:     "Advanced Custom",
+	ChannelTypeCerebras:           "Cerebras",
+	ChannelTypeQwenTokenPlan:      "Qwen Token Plan",
+	ChannelTypeMistralConsole:     "Mistral Console",
+	ChannelTypeGMICloud:           "GMI Cloud",
+	ChannelTypeGeminiInteractions: "Gemini Interactions",
 }
 
 func GetChannelTypeName(channelType int) string {

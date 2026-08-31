@@ -99,6 +99,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeCerebras
 	case constant.ChannelTypeQwenTokenPlan:
 		apiType = constant.APITypeQwenTokenPlan
+	case constant.ChannelTypeGeminiInteractions:
+		apiType = constant.APITypeGeminiInteractions
 	case constant.ChannelTypeGMICloud:
 		apiType = constant.APITypeGMICloud
 	case constant.ChannelTypeMistralConsole:

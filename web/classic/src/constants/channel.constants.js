@@ -29,6 +29,7 @@ export const CHANNEL_TYPE_ADVANCED_CUSTOM = 67;
 export const CHANNEL_TYPE_CEREBRAS = 68;
 export const CHANNEL_TYPE_QWEN_TOKEN_PLAN = 69;
 export const CHANNEL_TYPE_GMICLOUD = 71;
+export const CHANNEL_TYPE_GEMINI_INTERACTIONS = 72;
 
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
@@ -126,6 +127,11 @@ export const CHANNEL_OPTIONS = [
     value: 24,
     color: 'orange',
     label: 'Google Gemini',
+  },
+  {
+    value: 72,
+    color: 'purple',
+    label: 'Gemini Interactions',
   },
   {
     value: 11,

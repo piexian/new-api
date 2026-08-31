@@ -46,6 +46,63 @@ var (
 	textConverterAliases = make(map[string]string)
 )
 
+// Interactions 直接转换器(请求一步到位;响应 interactions<->gemini 后接既有路由)
+var builtinInteractionsConverters = []TextConverterSpec{
+	{
+		ID:      ConverterOpenAIChatToInteractions,
+		From:    types.RelayFormatOpenAI,
+		To:      types.RelayFormatGeminiInteractions,
+		Quality: TextConverterQualityGood,
+		Req: TextRequestSide{
+			Convert: convertOpenAIChatToInteractions,
+		},
+		Resp: TextResponseSide{
+			Convert:            convertGeminiInteractionsToOpenAIChat,
+			NewStreamState:     newGeminiInteractionsToOpenAIChatStreamState,
+			ConvertStreamChunk: convertGeminiInteractionsStreamChunkToOpenAIChat,
+		},
+	},
+	{
+		ID:      ConverterClaudeToInteractions,
+		From:    types.RelayFormatClaude,
+		To:      types.RelayFormatGeminiInteractions,
+		Quality: TextConverterQualityGood,
+		Req: TextRequestSide{
+			Convert: convertClaudeMessagesToInteractions,
+		},
+		Resp: TextResponseSide{
+			Convert:       convertGeminiInteractionsToClaude,
+			ConvertStream: convertGeminiInteractionsStreamToClaude,
+		},
+	},
+	{
+		ID:      ConverterGeminiContentToInteractions,
+		From:    types.RelayFormatGemini,
+		To:      types.RelayFormatGeminiInteractions,
+		Quality: TextConverterQualityGood,
+		Req: TextRequestSide{
+			Convert: convertGeminiContentToInteractions,
+		},
+		Resp: TextResponseSide{
+			Convert:       convertGeminiInteractionsToGeminiContent,
+			ConvertStream: convertGeminiInteractionsStreamToGeminiContent,
+		},
+	},
+	{
+		ID:      ConverterOpenAIResponsesToInteractions,
+		From:    types.RelayFormatOpenAIResponses,
+		To:      types.RelayFormatGeminiInteractions,
+		Quality: TextConverterQualityGood,
+		Req: TextRequestSide{
+			Convert: convertResponsesToInteractions,
+		},
+		Resp: TextResponseSide{
+			Convert:       convertGeminiInteractionsToOpenAIResponses,
+			ConvertStream: convertGeminiInteractionsStreamToOpenAIResponses,
+		},
+	},
+}
+
 var builtinTextConverters = []TextConverterSpec{
 	{
 		ID:      ConverterClaudeMessagesToOpenAIChat,
@@ -247,6 +304,9 @@ var builtinTextConverters = []TextConverterSpec{
 
 func init() {
 	for _, spec := range builtinTextConverters {
+		registerBuiltinTextConverter(spec)
+	}
+	for _, spec := range builtinInteractionsConverters {
 		registerBuiltinTextConverter(spec)
 	}
 }

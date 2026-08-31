@@ -26,7 +26,6 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -142,8 +141,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 
 	endpointType = normalizeChannelTestEndpoint(channel, testModel, endpointType)
-	// Gemini Interactions 模型(antigravity/deep-research 等)自动走 interactions 端点
-	if endpointType == "" && channel.Type == constant.ChannelTypeGemini && model_setting.ShouldChatViaInteractions(testModel) {
+	// Gemini Interactions 独立渠道自动走 interactions 端点
+	if endpointType == "" && channel.Type == constant.ChannelTypeGeminiInteractions {
 		endpointType = string(constant.EndpointTypeGeminiInteractions)
 	}
 

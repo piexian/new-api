@@ -1,8 +1,6 @@
 package model_setting
 
 import (
-	"strings"
-
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -27,11 +25,6 @@ var defaultGeminiSettings = GeminiSettings{
 	VersionSettings: map[string]string{
 		"default":        "v1beta",
 		"gemini-1.0-pro": "v1",
-	},
-	// 仅存在于 Interactions API 的 agent 模型默认改走 interactions 上游
-	ChatViaInteractionsModels: []string{
-		"antigravity",
-		"deep-research",
 	},
 	SupportedImagineModels: []string{
 		"gemini-2.0-flash-exp-image-generation",
@@ -78,21 +71,6 @@ func GetGeminiVersionSetting(key string) string {
 func IsGeminiModelSupportImagine(model string) bool {
 	for _, v := range geminiSettings.SupportedImagineModels {
 		if v == model {
-			return true
-		}
-	}
-	return false
-}
-
-// ShouldChatViaInteractions 判断模型是否应将 chat/claude/原生 gemini 入站改走 Interactions 上游(前缀匹配)
-func ShouldChatViaInteractions(model string) bool {
-	for _, prefix := range geminiSettings.ChatViaInteractionsModels {
-		trimmed := strings.TrimSpace(prefix)
-		if trimmed == "" {
-			continue
-		}
-		trimmed = strings.TrimSuffix(trimmed, "*")
-		if trimmed != "" && strings.HasPrefix(model, trimmed) {
 			return true
 		}
 	}

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	rootconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -45,7 +44,7 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 			}
 		}
 	}
-	return toInteractionsRequest(info, request)
+	return request, nil
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
@@ -60,7 +59,7 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	if info != nil {
 		info.FinalRequestRelayFormat = types.RelayFormatGemini
 	}
-	return toInteractionsRequest(info, geminiRequest)
+	return geminiRequest, nil
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -156,49 +155,6 @@ func trimThinkingSuffixForUpstream(info *relaycommon.RelayInfo) {
 	}
 }
 
-// shouldUseInteractionsUpstream chat/claude/原生 gemini 入站命中 ChatViaInteractionsModels 时改走 interactions 上游。
-// 入站 interactions(RelayModeGeminiInteractions)走透传,不做二次转换。
-func shouldUseInteractionsUpstream(info *relaycommon.RelayInfo) bool {
-	if info == nil || info.ChannelMeta == nil {
-		return false
-	}
-	if info.RelayMode == constant.RelayModeGeminiInteractions {
-		return false
-	}
-	if info.ChannelType != rootconstant.ChannelTypeGemini {
-		return false
-	}
-	return model_setting.ShouldChatViaInteractions(info.UpstreamModelName)
-}
-
-// toInteractionsRequest 转换为 interactions create 请求;未命中开关时原样返回。
-// 历史 tool_call id 命中桥接时改为有状态续链(previous_interaction_id),并回写原 key
-func toInteractionsRequest(info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	if request == nil {
-		return nil, nil
-	}
-	if !shouldUseInteractionsUpstream(info) {
-		return request, nil
-	}
-	trimThinkingSuffixForUpstream(info)
-	return relayconvert.GeminiChatRequestToInteractionsWithBridge(request, info.UpstreamModelName, info.IsStream, interactionsBridgeLookup(info))
-}
-
-// interactionsBridgeLookup 桥接查找闭包:校验归属与渠道,命中时锁定原上游 key
-func interactionsBridgeLookup(info *relaycommon.RelayInfo) relayconvert.BridgeLookup {
-	return func(callID string) (string, bool) {
-		bridge := service.GetGeminiInteractionToolCallBridge(callID)
-		if bridge == nil || bridge.UserID != info.UserId || bridge.ChannelID != info.ChannelId {
-			return "", false
-		}
-		// interaction 状态挂在上游 key 上,桥接命中时锁定原 key
-		if bridge.Key != "" {
-			info.ApiKey = bridge.Key
-		}
-		return bridge.InteractionID, true
-	}
-}
-
 // saveGeminiInteractionToolCallBridges 记录 function_call id -> interaction 桥接
 func saveGeminiInteractionToolCallBridges(info *relaycommon.RelayInfo, interactionID string, callIDs []string) {
 	if info == nil || interactionID == "" || len(callIDs) == 0 {
@@ -220,12 +176,6 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 	if info.RelayMode == constant.RelayModeGeminiInteractions {
 		return geminiInteractionsRequestURL(info)
-	}
-
-	// 转换模式:模型命中 ChatViaInteractionsModels,统一走 interactions create 端点
-	if shouldUseInteractionsUpstream(info) {
-		version := model_setting.GetGeminiVersionSetting(info.UpstreamModelName)
-		return fmt.Sprintf("%s/%s/interactions", strings.TrimRight(info.ChannelBaseUrl, "/"), version), nil
 	}
 
 	version := model_setting.GetGeminiVersionSetting(info.UpstreamModelName)
@@ -268,11 +218,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
-	if !ok {
-		return result.Value, nil
-	}
-	return toInteractionsRequest(info, geminiRequest)
+	return result.Value, nil
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -330,11 +276,6 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// Interactions 模型走 Responses->Interactions 直接转换(两协议同构,保留 call_id 链)
-	if shouldUseInteractionsUpstream(info) {
-		trimThinkingSuffixForUpstream(info)
-		return relayconvert.ResponsesToInteractionsWithBridge(&request, info.UpstreamModelName, info.IsStream, interactionsBridgeLookup(info))
-	}
 	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, &request)
 	if err != nil {
 		return nil, err
@@ -346,7 +287,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	if info != nil {
 		info.FinalRequestRelayFormat = types.RelayFormatGemini
 	}
-	return toInteractionsRequest(info, geminiRequest)
+	return geminiRequest, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -359,12 +300,6 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			return GeminiInteractionsStreamHandler(c, info, resp)
 		}
 		return GeminiInteractionsHandler(c, info, resp)
-	}
-
-	// 转换模式:上游返回 interactions 格式,先还原为 generateContent 格式再走既有 handler
-	// (含 chat/claude/gemini/responses 全部入站,须在 RelayModeResponses 分支之前)
-	if shouldUseInteractionsUpstream(info) {
-		resp = convertInteractionsUpstreamResponse(c, info, resp)
 	}
 
 	if info.RelayMode == constant.RelayModeResponses {
@@ -415,7 +350,9 @@ func (a *Adaptor) GetChannelName() string {
 
 // convertInteractionsUpstreamResponse 上游 interactions 响应还原为 generateContent 格式:
 // 非流式整体换体;流式包装为翻译 reader,后续 handler 按普通 gemini SSE 消费
-func convertInteractionsUpstreamResponse(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) *http.Response {
+// ConvertInteractionsUpstreamResponse 导出供 gemini_interactions 独立渠道复用:
+// interactions 上游响应还原为 generateContent 形状
+func ConvertInteractionsUpstreamResponse(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) *http.Response {
 	if resp == nil || resp.Body == nil {
 		return resp
 	}

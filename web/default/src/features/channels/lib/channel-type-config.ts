@@ -221,6 +221,20 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Configure settings.advanced_custom.advanced_routes to map incoming paths, upstream paths, auth, and converters',
     },
   },
+  72: {
+    id: 72,
+    name: CHANNEL_TYPES[72],
+    icon: 'https://generativelanguage.googleapis.com/favicon.ico',
+    defaultBaseUrl: 'https://generativelanguage.googleapis.com',
+    hints: {
+      baseUrl: 'Default: https://generativelanguage.googleapis.com',
+      key: 'Google AI Studio API Key (x-goog-api-key)',
+      models:
+        'gemini-3.1-flash-lite,deep-research-preview-04-2026,antigravity-preview-05-2026',
+      other:
+        'Interactions API only: create/get/cancel/delete with server-side state, agents (deep-research, antigravity) and step-based tools; chat/messages/responses inbound converted to interactions',
+    },
+  },
   71: {
     id: 71,
     name: CHANNEL_TYPES[71],

@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/deepseek"
 	"github.com/QuantumNous/new-api/relay/channel/dify"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	geminiinteractions "github.com/QuantumNous/new-api/relay/channel/gemini_interactions"
 	"github.com/QuantumNous/new-api/relay/channel/gmicloud"
 	"github.com/QuantumNous/new-api/relay/channel/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/jina"
@@ -74,6 +75,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &baidu.Adaptor{}
 	case constant.APITypeGemini:
 		return &gemini.Adaptor{}
+	case constant.APITypeGeminiInteractions:
+		return &geminiinteractions.Adaptor{}
 	case constant.APITypeOpenAI:
 		return &openai.Adaptor{}
 	case constant.APITypePaLM:

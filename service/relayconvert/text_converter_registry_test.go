@@ -112,6 +112,56 @@ func TestLookupBuiltinTextConverters(t *testing.T) {
 			respAlias: responseConverterResponsesToGemini,
 		},
 	}
+	tests = append(tests,
+		struct {
+			id           string
+			from         types.RelayFormat
+			to           types.RelayFormat
+			quality      TextConverterQuality
+			reqSteps     []string
+			respSteps    []string
+			reqDirect    bool
+			respDirect   bool
+			respAlias    string
+			streamDirect bool
+		}{id: ConverterOpenAIChatToInteractions, from: types.RelayFormatOpenAI, to: types.RelayFormatGeminiInteractions, quality: TextConverterQualityGood, reqDirect: true, respDirect: true},
+		struct {
+			id           string
+			from         types.RelayFormat
+			to           types.RelayFormat
+			quality      TextConverterQuality
+			reqSteps     []string
+			respSteps    []string
+			reqDirect    bool
+			respDirect   bool
+			respAlias    string
+			streamDirect bool
+		}{id: ConverterClaudeToInteractions, from: types.RelayFormatClaude, to: types.RelayFormatGeminiInteractions, quality: TextConverterQualityGood, reqDirect: true, respDirect: true},
+		struct {
+			id           string
+			from         types.RelayFormat
+			to           types.RelayFormat
+			quality      TextConverterQuality
+			reqSteps     []string
+			respSteps    []string
+			reqDirect    bool
+			respDirect   bool
+			respAlias    string
+			streamDirect bool
+		}{id: ConverterGeminiContentToInteractions, from: types.RelayFormatGemini, to: types.RelayFormatGeminiInteractions, quality: TextConverterQualityGood, reqDirect: true, respDirect: true},
+		struct {
+			id           string
+			from         types.RelayFormat
+			to           types.RelayFormat
+			quality      TextConverterQuality
+			reqSteps     []string
+			respSteps    []string
+			reqDirect    bool
+			respDirect   bool
+			respAlias    string
+			streamDirect bool
+		}{id: ConverterOpenAIResponsesToInteractions, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatGeminiInteractions, quality: TextConverterQualityGood, reqDirect: true, respDirect: true},
+	)
 
 	require.Len(t, textConverters, len(tests))
 
@@ -129,9 +179,11 @@ func TestLookupBuiltinTextConverters(t *testing.T) {
 			assert.Equal(t, tt.respDirect, spec.Resp.Convert != nil)
 			assert.Equal(t, tt.streamDirect, spec.Resp.NewStreamState != nil && spec.Resp.ConvertStreamChunk != nil && spec.Resp.FinalizeStream != nil)
 
-			aliasSpec, ok := LookupTextConverter(tt.respAlias)
-			require.True(t, ok)
-			assert.Equal(t, tt.id, aliasSpec.ID)
+			if tt.respAlias != "" {
+				aliasSpec, ok := LookupTextConverter(tt.respAlias)
+				require.True(t, ok)
+				assert.Equal(t, tt.id, aliasSpec.ID)
+			}
 		})
 	}
 }

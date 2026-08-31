@@ -80,6 +80,11 @@ const (
 	ConverterOpenAIResponsesToGemini     = "openai_responses_to_gemini_generate_content"
 	ConverterGeminiContentToOpenAIChat   = "gemini_generate_content_to_openai_chat_completions"
 	ConverterOpenAIChatToGeminiContent   = "openai_chat_completions_to_gemini_generate_content"
+
+	ConverterOpenAIChatToInteractions      = "openai_chat_completions_to_gemini_interactions"
+	ConverterClaudeToInteractions          = "claude_messages_to_gemini_interactions"
+	ConverterGeminiContentToInteractions   = "gemini_generate_content_to_gemini_interactions"
+	ConverterOpenAIResponsesToInteractions = "openai_responses_to_gemini_interactions"
 )
 
 func registerBuiltinRequestConverter(spec RequestConverterSpec) {
