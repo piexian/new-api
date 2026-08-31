@@ -22,8 +22,9 @@ func GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayMode == constant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
 		return fmt.Sprintf("%s/v1/chat/completions", baseURL), nil
 	}
+	// /v1/chat/completions 与 /v1/messages 经 Path2RelayMode 后 RelayMode 为 Unknown(0)，需按聊天补全处理
 	switch info.RelayMode {
-	case constant.RelayModeChatCompletions:
+	case constant.RelayModeUnknown, constant.RelayModeChatCompletions:
 		return fmt.Sprintf("%s/v1/chat/completions", baseURL), nil
 	case constant.RelayModeResponses:
 		return fmt.Sprintf("%s/v1/responses", baseURL), nil

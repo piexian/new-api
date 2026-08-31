@@ -323,8 +323,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		}
 		return fmt.Sprintf("%s/chat/completions", volcengineV3BaseURL(baseUrl)), nil
 	default:
+		// /v1/chat/completions 与 /v1/messages 经 Path2RelayMode 后 RelayMode 为 Unknown(0)，需按聊天补全处理
 		switch info.RelayMode {
-		case constant.RelayModeChatCompletions:
+		case constant.RelayModeUnknown, constant.RelayModeChatCompletions:
 			openAIBaseURL := volcengineOpenAIBaseURL(baseUrl, specialPlan, hasSpecialPlan)
 			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
 				return fmt.Sprintf("%s/chat/completions", openAIBaseURL), nil
