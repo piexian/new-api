@@ -172,13 +172,14 @@ type GeminiInteractionModalityTokens struct {
 	Tokens   int    `json:"tokens,omitempty"`
 }
 
-// GeminiInteraction Interactions API 资源(仅解析路由/计费所需字段,其余透传)
+// GeminiInteraction Interactions API 资源(解析计费/转换所需字段)
 type GeminiInteraction struct {
 	ID     string                  `json:"id,omitempty"`
 	Object string                  `json:"object,omitempty"`
 	Model  string                  `json:"model,omitempty"`
 	Agent  string                  `json:"agent,omitempty"`
 	Status string                  `json:"status,omitempty"`
+	Steps  []GeminiInteractionStep `json:"steps,omitempty"`
 	Usage  *GeminiInteractionUsage `json:"usage,omitempty"`
 }
 
@@ -277,3 +278,38 @@ func (u *GeminiInteractionUsage) ToUsage(fallbackPromptTokens int) *Usage {
 	}
 	return usage
 }
+
+// GeminiInteractionStep 构建请求时的强类型 Step
+type GeminiInteractionStep struct {
+	Type      string                     `json:"type"`
+	ID        string                     `json:"id,omitempty"`
+	Name      string                     `json:"name,omitempty"`
+	CallID    string                     `json:"call_id,omitempty"`
+	Arguments json.RawMessage            `json:"arguments,omitempty"`
+	Content   []GeminiInteractionContent `json:"content,omitempty"`
+	Result    []GeminiInteractionContent `json:"result,omitempty"`
+}
+
+// GeminiInteractionContent 构建请求时的强类型 Content 块
+type GeminiInteractionContent struct {
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	Data     string `json:"data,omitempty"`
+	URI      string `json:"uri,omitempty"`
+	MimeType string `json:"mime_type,omitempty"`
+}
+
+// 常量
+const (
+	GeminiInteractionStepUserInput      = "user_input"
+	GeminiInteractionStepModelOutput    = "model_output"
+	GeminiInteractionStepThought        = "thought"
+	GeminiInteractionStepFunctionCall   = "function_call"
+	GeminiInteractionStepFunctionResult = "function_result"
+
+	GeminiInteractionContentText     = "text"
+	GeminiInteractionContentImage    = "image"
+	GeminiInteractionContentAudio    = "audio"
+	GeminiInteractionContentVideo    = "video"
+	GeminiInteractionContentDocument = "document"
+)

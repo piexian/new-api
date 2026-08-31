@@ -1,18 +1,22 @@
 package model_setting
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
 // GeminiSettings defines Gemini model configuration. 注意bool要以enabled结尾才可以生效编辑
 type GeminiSettings struct {
-	SafetySettings                        map[string]string `json:"safety_settings"`
-	VersionSettings                       map[string]string `json:"version_settings"`
-	SupportedImagineModels                []string          `json:"supported_imagine_models"`
-	ThinkingAdapterEnabled                bool              `json:"thinking_adapter_enabled"`
-	ThinkingAdapterBudgetTokensPercentage float64           `json:"thinking_adapter_budget_tokens_percentage"`
-	FunctionCallThoughtSignatureEnabled   bool              `json:"function_call_thought_signature_enabled"`
-	RemoveFunctionResponseIdEnabled       bool              `json:"remove_function_response_id_enabled"`
+	SafetySettings  map[string]string `json:"safety_settings"`
+	VersionSettings map[string]string `json:"version_settings"`
+	// ChatViaInteractionsModels 命中前缀的模型在 chat/claude/原生 gemini 入站时改走 Interactions 上游
+	ChatViaInteractionsModels             []string `json:"chat_via_interactions_models"`
+	SupportedImagineModels                []string `json:"supported_imagine_models"`
+	ThinkingAdapterEnabled                bool     `json:"thinking_adapter_enabled"`
+	ThinkingAdapterBudgetTokensPercentage float64  `json:"thinking_adapter_budget_tokens_percentage"`
+	FunctionCallThoughtSignatureEnabled   bool     `json:"function_call_thought_signature_enabled"`
+	RemoveFunctionResponseIdEnabled       bool     `json:"remove_function_response_id_enabled"`
 }
 
 // 默认配置
@@ -23,6 +27,11 @@ var defaultGeminiSettings = GeminiSettings{
 	VersionSettings: map[string]string{
 		"default":        "v1beta",
 		"gemini-1.0-pro": "v1",
+	},
+	// 仅存在于 Interactions API 的 agent 模型默认改走 interactions 上游
+	ChatViaInteractionsModels: []string{
+		"antigravity",
+		"deep-research",
 	},
 	SupportedImagineModels: []string{
 		"gemini-2.0-flash-exp-image-generation",
@@ -69,6 +78,21 @@ func GetGeminiVersionSetting(key string) string {
 func IsGeminiModelSupportImagine(model string) bool {
 	for _, v := range geminiSettings.SupportedImagineModels {
 		if v == model {
+			return true
+		}
+	}
+	return false
+}
+
+// ShouldChatViaInteractions 判断模型是否应将 chat/claude/原生 gemini 入站改走 Interactions 上游(前缀匹配)
+func ShouldChatViaInteractions(model string) bool {
+	for _, prefix := range geminiSettings.ChatViaInteractionsModels {
+		trimmed := strings.TrimSpace(prefix)
+		if trimmed == "" {
+			continue
+		}
+		trimmed = strings.TrimSuffix(trimmed, "*")
+		if trimmed != "" && strings.HasPrefix(model, trimmed) {
 			return true
 		}
 	}

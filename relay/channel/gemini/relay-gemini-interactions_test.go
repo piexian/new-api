@@ -3,6 +3,7 @@ package gemini
 import (
 	"testing"
 
+	rootconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 )
@@ -39,5 +40,55 @@ func TestGeminiInteractionsRequestURL(t *testing.T) {
 		if got != tc.want {
 			t.Fatalf("path %s: got %s want %s", tc.path, got, tc.want)
 		}
+	}
+}
+
+func TestShouldUseInteractionsUpstream(t *testing.T) {
+	// 命中默认前缀
+	info := &common.RelayInfo{}
+	info.ChannelMeta = &common.ChannelMeta{
+		ChannelType: rootconstant.ChannelTypeGemini,
+	}
+	info.UpstreamModelName = "antigravity-preview-05-2026"
+	if !shouldUseInteractionsUpstream(info) {
+		t.Fatal("antigravity model should use interactions upstream")
+	}
+	info.UpstreamModelName = "deep-research-max-preview-04-2026"
+	if !shouldUseInteractionsUpstream(info) {
+		t.Fatal("deep-research model should use interactions upstream")
+	}
+	// 普通 gemini 模型不转换
+	info.UpstreamModelName = "gemini-3.6-flash"
+	if shouldUseInteractionsUpstream(info) {
+		t.Fatal("normal gemini model should not convert")
+	}
+	// 入站 interactions 不做二次转换
+	info.UpstreamModelName = "antigravity-preview-05-2026"
+	info.RelayMode = constant.RelayModeGeminiInteractions
+	if shouldUseInteractionsUpstream(info) {
+		t.Fatal("inbound interactions passthrough should not re-convert")
+	}
+	// 非 gemini 渠道(vertex 复用 handler)不转换
+	info.RelayMode = 0
+	info.ChannelType = rootconstant.ChannelTypeVertexAi
+	if shouldUseInteractionsUpstream(info) {
+		t.Fatal("vertex channel must not convert")
+	}
+}
+
+func TestGetRequestURLInteractionsConvertedMode(t *testing.T) {
+	info := &common.RelayInfo{RelayMode: constant.RelayModeChatCompletions}
+	info.ChannelMeta = &common.ChannelMeta{
+		ChannelType:    rootconstant.ChannelTypeGemini,
+		ChannelBaseUrl: "https://generativelanguage.googleapis.com",
+	}
+	info.UpstreamModelName = "antigravity-preview-05-2026"
+	adaptor := &Adaptor{}
+	url, err := adaptor.GetRequestURL(info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if url != "https://generativelanguage.googleapis.com/v1beta/interactions" {
+		t.Fatalf("converted url = %s", url)
 	}
 }
