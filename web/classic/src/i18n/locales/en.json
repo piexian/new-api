@@ -1,6 +1,6 @@
 {
-    "RPM/并发": "RPM / Concurrency",
-    "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",
+  "RPM/并发": "RPM / Concurrency",
+  "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",
   "translation": {
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Web search {{count}} time / 1K times * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Web search {{count}} times / 1K times * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
@@ -5177,7 +5177,15 @@
     "默认智谱地址": "Default Zhipu Address",
     "默认测试模型": "Default Test Model",
     "默认用户消息": "Default User Message",
-    "默认补全倍率": "Default completion ratio"
+    "默认补全倍率": "Default completion ratio",
+    "可视化模式": "Visual Mode",
+    "最大并发数": "Max Concurrent",
+    "最多请求次数": "Max Requests",
+    "最多成功次数": "Max Success",
+    "暂无配置，点击下方按钮添加": "No entries yet. Click the button below to add one.",
+    "当前 JSON 无法解析，请切换到 JSON 模式修复后再使用可视化编辑。": "The current JSON cannot be parsed. Switch to JSON mode to fix it before using the visual editor.",
+    "按账号+分组限制同时进行中的请求数，0 表示不限制。": "Limits concurrent in-flight requests per account and group. 0 = unlimited.",
+    "最多请求次数含失败请求（0 代表不限制），最多成功次数只计成功请求；限制周期使用上方全局值。": "Max requests includes failed requests (0 = unlimited); max success counts only successful requests. The period uses the global value above."
   },
   "通道测试模式": "Channel test mode",
   "定时全量测试": "Scheduled full test",

@@ -1,6 +1,6 @@
 {
-    "RPM/并发": "RPM / Concurrence",
-    "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",
+  "RPM/并发": "RPM / Concurrence",
+  "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",
   "translation": {
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Recherche Web {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_many": " + Recherche Web {{count}} fois / 1K fois * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
@@ -5073,7 +5073,15 @@
     "默认智谱地址": "Adresse Zhipu par défaut",
     "默认测试模型": "Modèle de test par défaut",
     "默认用户消息": "Bonjour",
-    "默认补全倍率": "Taux de complétion par défaut"
+    "默认补全倍率": "Taux de complétion par défaut",
+    "可视化模式": "Mode visuel",
+    "最大并发数": "Concurrence max.",
+    "最多请求次数": "Requêtes max.",
+    "最多成功次数": "Succès max.",
+    "暂无配置，点击下方按钮添加": "Aucune configuration. Cliquez sur le bouton ci-dessous pour ajouter.",
+    "当前 JSON 无法解析，请切换到 JSON 模式修复后再使用可视化编辑。": "Le JSON actuel ne peut pas être analysé. Passez en mode JSON pour le corriger avant d'utiliser l'éditeur visuel.",
+    "按账号+分组限制同时进行中的请求数，0 表示不限制。": "Limite les requêtes simultanées par compte et par groupe. 0 = illimité.",
+    "最多请求次数含失败请求（0 代表不限制），最多成功次数只计成功请求；限制周期使用上方全局值。": "Le nombre max de requêtes inclut les échecs (0 = illimité) ; le nombre max de succès ne compte que les requêtes réussies. La période utilise la valeur globale ci-dessus."
   },
   "通道测试模式": "Mode de test des canaux",
   "定时全量测试": "Test complet planifié",

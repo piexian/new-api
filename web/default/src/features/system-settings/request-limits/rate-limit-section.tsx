@@ -113,7 +113,8 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const [useVisualEditor, setUseVisualEditor] = useState(true)
-
+  const [useVisualConcurrencyEditor, setUseVisualConcurrencyEditor] =
+    useState(true)
   const rateLimitSchema = createRateLimitSchema(t)
 
   const form = useForm<RateLimitFormValues>({
@@ -341,33 +342,67 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
             name='UserGroupConcurrencyLimit'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Group concurrency limits')}</FormLabel>
+                <div className='flex items-center justify-between'>
+                  <FormLabel>{t('Group concurrency limits')}</FormLabel>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() =>
+                      setUseVisualConcurrencyEditor(
+                        !useVisualConcurrencyEditor,
+                      )
+                    }
+                  >
+                    {useVisualConcurrencyEditor ? (
+                      <>
+                        <Code2 className='mr-2 h-4 w-4' />
+                        {t('JSON Mode')}
+                      </>
+                    ) : (
+                      <>
+                        <Palette className='mr-2 h-4 w-4' />
+                        {t('Visual Mode')}
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <FormControl>
-                  <Textarea
-                    rows={6}
-                    placeholder={`{\n  "default": 3,\n  "vip": 5\n}`}
-                    className='font-mono text-sm'
-                    {...field}
-                  />
+                  {useVisualConcurrencyEditor ? (
+                    <RateLimitVisualEditor
+                      mode='concurrency'
+                      value={field.value || ''}
+                      onChange={field.onChange}
+                    />
+                  ) : (
+                    <Textarea
+                      rows={6}
+                      placeholder={`{\n  "default": 3,\n  "vip": 5\n}`}
+                      className='font-mono text-sm'
+                      {...field}
+                    />
+                  )}
                 </FormControl>
-                <FormDescription>
-                  <div className='space-y-1 text-xs'>
-                    <p className='font-semibold'>{t('Format:')}</p>
-                    <ul className='list-inside list-disc space-y-0.5 pl-2'>
-                      <li>
-                        {t('JSON object:')} {`{"groupName": maxConcurrent}`}
-                      </li>
-                      <li>
-                        {t('Example:')} {`{"default": 3, "vip": 5}`}
-                      </li>
-                      <li>
-                        {t(
-                          'Limits concurrent in-flight requests per account and group, 0 or missing = unlimited'
-                        )}
-                      </li>
-                    </ul>
-                  </div>
-                </FormDescription>
+                {!useVisualConcurrencyEditor && (
+                  <FormDescription>
+                    <div className='space-y-1 text-xs'>
+                      <p className='font-semibold'>{t('Format:')}</p>
+                      <ul className='list-inside list-disc space-y-0.5 pl-2'>
+                        <li>
+                          {t('JSON object:')} {`{"groupName": maxConcurrent}`}
+                        </li>
+                        <li>
+                          {t('Example:')} {`{"default": 3, "vip": 5}`}
+                        </li>
+                        <li>
+                          {t(
+                            'Limits concurrent in-flight requests per account and group, 0 or missing = unlimited'
+                          )}
+                        </li>
+                      </ul>
+                    </div>
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}

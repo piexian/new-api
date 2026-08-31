@@ -1,8 +1,8 @@
 {
-    "Concurrency": "Concurrency",
-    "Hidden groups": "Hidden groups",
-    "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.",
-    "RPM / Concurrency": "RPM / Concurrency",
+  "Concurrency": "Concurrency",
+  "Hidden groups": "Hidden groups",
+  "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.",
+  "RPM / Concurrency": "RPM / Concurrency",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -6396,7 +6396,15 @@
     "Release": "Release",
     "Released successfully": "Released successfully",
     "Watching": "Watching",
-    "Whether only unused quota expires or all earned quota expires": "Whether only unused quota expires or all earned quota expires"
+    "Whether only unused quota expires or all earned quota expires": "Whether only unused quota expires or all earned quota expires",
+    "Max Concurrent Requests": "Max Concurrent Requests",
+    "requests": "requests",
+    "In-flight requests allowed per account in this group. 0 = unlimited.": "In-flight requests allowed per account in this group. 0 = unlimited.",
+    "Edit group concurrency limit": "Edit group concurrency limit",
+    "Add group concurrency limit": "Add group concurrency limit",
+    "Limit concurrent in-flight requests per account for a specific group.": "Limit concurrent in-flight requests per account for a specific group.",
+    "Max Concurrent": "Max Concurrent",
+    "No group concurrency limits configured. Click \"Add group\" to get started.": "No group concurrency limits configured. Click \"Add group\" to get started."
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

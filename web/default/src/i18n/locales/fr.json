@@ -1,8 +1,8 @@
 {
-    "Concurrency": "Concurrence",
-    "Hidden groups": "Groupes masqués",
-    "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "Tableau JSON de noms de groupes masqués aux utilisateurs non membres sur les pages de tarification et de sélection de groupes. Les membres du groupe et les administrateurs les voient toujours.",
-    "RPM / Concurrency": "RPM / Concurrence",
+  "Concurrency": "Concurrence",
+  "Hidden groups": "Groupes masqués",
+  "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "Tableau JSON de noms de groupes masqués aux utilisateurs non membres sur les pages de tarification et de sélection de groupes. Les membres du groupe et les administrateurs les voient toujours.",
+  "RPM / Concurrency": "RPM / Concurrence",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -6396,7 +6396,15 @@
     "Release": "Lever",
     "Released successfully": "Levée réussie",
     "Watching": "Sous surveillance",
-    "Whether only unused quota expires or all earned quota expires": "Seul le quota non utilisé expire, ou tout le quota gagné expire"
+    "Whether only unused quota expires or all earned quota expires": "Seul le quota non utilisé expire, ou tout le quota gagné expire",
+    "Max Concurrent Requests": "Requêtes simultanées max.",
+    "requests": "requêtes",
+    "In-flight requests allowed per account in this group. 0 = unlimited.": "Requêtes simultanées autorisées par compte dans ce groupe. 0 = illimité.",
+    "Edit group concurrency limit": "Modifier la limite de concurrence du groupe",
+    "Add group concurrency limit": "Ajouter une limite de concurrence de groupe",
+    "Limit concurrent in-flight requests per account for a specific group.": "Limiter les requêtes simultanées par compte pour un groupe donné.",
+    "Max Concurrent": "Concurrence max.",
+    "No group concurrency limits configured. Click \"Add group\" to get started.": "Aucune limite de concurrence de groupe configurée. Cliquez sur « Ajouter un groupe » pour commencer."
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

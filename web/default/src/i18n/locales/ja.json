@@ -1,8 +1,8 @@
 {
-    "Concurrency": "同時実行数",
-    "Hidden groups": "非表示グループ",
-    "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "価格ページやグループ選択ページで、非メンバーのユーザーには表示されないグループ名の JSON 配列。グループのメンバーと管理者には引き続き表示されます。",
-    "RPM / Concurrency": "RPM / 同時実行数",
+  "Concurrency": "同時実行数",
+  "Hidden groups": "非表示グループ",
+  "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "価格ページやグループ選択ページで、非メンバーのユーザーには表示されないグループ名の JSON 配列。グループのメンバーと管理者には引き続き表示されます。",
+  "RPM / Concurrency": "RPM / 同時実行数",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -6396,7 +6396,15 @@
     "Release": "解除",
     "Released successfully": "解除しました",
     "Watching": "監視中",
-    "Whether only unused quota expires or all earned quota expires": "未使用クォータのみ失効するか、獲得した全クォータが失効するか"
+    "Whether only unused quota expires or all earned quota expires": "未使用クォータのみ失効するか、獲得した全クォータが失効するか",
+    "Max Concurrent Requests": "最大同時リクエスト数",
+    "requests": "リクエスト",
+    "In-flight requests allowed per account in this group. 0 = unlimited.": "このグループでアカウントごとに許可される同時実行リクエスト数。0 = 無制限。",
+    "Edit group concurrency limit": "グループの同時実行制限を編集",
+    "Add group concurrency limit": "グループの同時実行制限を追加",
+    "Limit concurrent in-flight requests per account for a specific group.": "特定のグループでアカウントごとの同時実行リクエスト数を制限します。",
+    "Max Concurrent": "最大同時実行数",
+    "No group concurrency limits configured. Click \"Add group\" to get started.": "グループの同時実行制限が設定されていません。「グループを追加」をクリックして開始してください。"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

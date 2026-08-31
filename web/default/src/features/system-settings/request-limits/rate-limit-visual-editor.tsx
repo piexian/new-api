@@ -27,20 +27,26 @@ import { Input } from '@/components/ui/input'
 
 import { safeJsonParseWithValidation } from '../utils/json-parser'
 import { isObjectRecord } from '../utils/json-validators'
-import { RateLimitDialog, type RateLimitEntryData } from './rate-limit-dialog'
+import {
+  RateLimitDialog,
+  type RateLimitEditorMode,
+  type RateLimitEntryData,
+} from './rate-limit-dialog'
 
 type RateLimitVisualEditorProps = {
   value: string
   onChange: (value: string) => void
+  mode?: RateLimitEditorMode
 }
-
 type RateLimitEntry = RateLimitEntryData
 
 export function RateLimitVisualEditor({
   value,
   onChange,
+  mode = 'rate',
 }: RateLimitVisualEditorProps) {
   const { t } = useTranslation()
+  const isConcurrency = mode === 'concurrency'
   const [searchText, setSearchText] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editData, setEditData] = useState<RateLimitEntry | null>(null)
@@ -56,23 +62,27 @@ export function RateLimitVisualEditor({
     })
 
     return Object.entries(parsed)
-      .map(([groupName, limits]) => {
+      .map(([groupName, limits]): RateLimitEntry | null => {
         if (
-          Array.isArray(limits) &&
-          limits.length === 2 &&
-          typeof limits[0] === 'number' &&
-          typeof limits[1] === 'number'
+          isConcurrency
+            ? typeof limits === 'number'
+            : Array.isArray(limits) &&
+              limits.length === 2 &&
+              typeof limits[0] === 'number' &&
+              typeof limits[1] === 'number'
         ) {
-          return {
-            groupName,
-            maxRequests: limits[0],
-            maxSuccess: limits[1],
-          }
+          return isConcurrency
+            ? { groupName, maxConcurrent: limits as number }
+            : {
+                groupName,
+                maxRequests: (limits as number[])[0],
+                maxSuccess: (limits as number[])[1],
+              }
         }
         return null
       })
       .filter((item): item is RateLimitEntry => item !== null)
-  }, [value])
+  }, [value, isConcurrency])
 
   const filteredRateLimits = useMemo(() => {
     if (!searchText) return rateLimits
@@ -93,8 +103,9 @@ export function RateLimitVisualEditor({
       delete parsed[editData.groupName]
     }
 
-    parsed[data.groupName] = [data.maxRequests, data.maxSuccess]
-
+    parsed[data.groupName] = isConcurrency
+      ? (data.maxConcurrent ?? 0)
+      : [data.maxRequests ?? 0, data.maxSuccess ?? 1]
     onChange(JSON.stringify(parsed, null, 2))
   }
 
@@ -144,9 +155,13 @@ export function RateLimitVisualEditor({
         emptyContent={
           searchText
             ? t('No groups match your search')
-            : t(
-                'No group-based rate limits configured. Click "Add group" to get started.'
-              )
+            : isConcurrency
+              ? t(
+                  'No group concurrency limits configured. Click "Add group" to get started.'
+                )
+              : t(
+                  'No group-based rate limits configured. Click "Add group" to get started.'
+                )
         }
         columns={[
           {
@@ -155,30 +170,48 @@ export function RateLimitVisualEditor({
             cellClassName: 'font-medium',
             cell: (limit) => limit.groupName,
           },
-          {
-            id: 'max-requests',
-            header: t('Max Requests (incl. failures)'),
-            className: 'text-right',
-            cellClassName: 'text-right',
-            cell: (limit) => (
-              <span className='font-mono'>
-                {limit.maxRequests === 0
-                  ? t('Unlimited')
-                  : limit.maxRequests.toLocaleString()}
-              </span>
-            ),
-          },
-          {
-            id: 'max-success',
-            header: t('Max Success'),
-            className: 'text-right',
-            cellClassName: 'text-right',
-            cell: (limit) => (
-              <span className='font-mono'>
-                {limit.maxSuccess.toLocaleString()}
-              </span>
-            ),
-          },
+          ...(isConcurrency
+            ? [
+                {
+                  id: 'max-concurrent',
+                  header: t('Max Concurrent'),
+                  className: 'text-right',
+                  cellClassName: 'text-right',
+                  cell: (limit: RateLimitEntry) => (
+                    <span className='font-mono'>
+                      {(limit.maxConcurrent ?? 0) === 0
+                        ? t('Unlimited')
+                        : (limit.maxConcurrent ?? 0).toLocaleString()}
+                    </span>
+                  ),
+                },
+              ]
+            : [
+                {
+                  id: 'max-requests',
+                  header: t('Max Requests (incl. failures)'),
+                  className: 'text-right',
+                  cellClassName: 'text-right',
+                  cell: (limit: RateLimitEntry) => (
+                    <span className='font-mono'>
+                      {(limit.maxRequests ?? 0) === 0
+                        ? t('Unlimited')
+                        : (limit.maxRequests ?? 0).toLocaleString()}
+                    </span>
+                  ),
+                },
+                {
+                  id: 'max-success',
+                  header: t('Max Success'),
+                  className: 'text-right',
+                  cellClassName: 'text-right',
+                  cell: (limit: RateLimitEntry) => (
+                    <span className='font-mono'>
+                      {(limit.maxSuccess ?? 1).toLocaleString()}
+                    </span>
+                  ),
+                },
+              ]),
           {
             id: 'actions',
             header: t('Actions'),
@@ -202,6 +235,7 @@ export function RateLimitVisualEditor({
         onOpenChange={setDialogOpen}
         onSave={handleSave}
         editData={editData}
+        mode={mode}
       />
     </div>
   )

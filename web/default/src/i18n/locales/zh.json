@@ -1,8 +1,8 @@
 {
-    "Concurrency": "并发",
-    "Hidden groups": "隐藏分组",
-    "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "JSON 数组格式，填写需要隐藏的分组名。隐藏分组在价格页、可选分组等页面对非该分组用户不可见，分组用户和管理员仍可见",
-    "RPM / Concurrency": "RPM / 并发",
+  "Concurrency": "并发",
+  "Hidden groups": "隐藏分组",
+  "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "JSON 数组格式，填写需要隐藏的分组名。隐藏分组在价格页、可选分组等页面对非该分组用户不可见，分组用户和管理员仍可见",
+  "RPM / Concurrency": "RPM / 并发",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -6396,7 +6396,15 @@
     "Release": "解除",
     "Released successfully": "解除成功",
     "Watching": "观察中",
-    "Whether only unused quota expires or all earned quota expires": "仅未使用的额度会过期，还是全部已获得额度都会过期"
+    "Whether only unused quota expires or all earned quota expires": "仅未使用的额度会过期，还是全部已获得额度都会过期",
+    "Max Concurrent Requests": "最大并发请求数",
+    "requests": "个请求",
+    "In-flight requests allowed per account in this group. 0 = unlimited.": "该分组下单个账号允许同时进行中的请求数，0 表示不限制。",
+    "Edit group concurrency limit": "编辑分组并发限制",
+    "Add group concurrency limit": "添加分组并发限制",
+    "Limit concurrent in-flight requests per account for a specific group.": "限制指定分组内单个账号同时进行中的请求数。",
+    "Max Concurrent": "最大并发数",
+    "No group concurrency limits configured. Click \"Add group\" to get started.": "尚未配置分组并发限制。点击“添加分组”开始配置。"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

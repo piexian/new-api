@@ -1,6 +1,6 @@
 {
-    "RPM/并发": "RPM / Đồng thời",
-    "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",
+  "RPM/并发": "RPM / Đồng thời",
+  "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",
   "translation": {
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_one": " + Tìm kiếm Web {{count}} lần / 1K lần * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
     " + Web搜索 {{count}}次 / 1K 次 * {{symbol}}{{price}} * {{ratioType}} {{ratio}}_other": " + Tìm kiếm Web {{count}} lần / 1K lần * {{symbol}}{{price}} * {{ratioType}} {{ratio}}",
@@ -5583,7 +5583,15 @@
     "默认智谱地址": "Địa chỉ Zhipu mặc định",
     "默认测试模型": "Mô hình kiểm tra mặc định",
     "默认用户消息": "Xin chào",
-    "默认补全倍率": "Tỷ lệ hoàn thành mặc định"
+    "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
+    "可视化模式": "Chế độ trực quan",
+    "最大并发数": "Đồng thời tối đa",
+    "最多请求次数": "Số yêu cầu tối đa",
+    "最多成功次数": "Số thành công tối đa",
+    "暂无配置，点击下方按钮添加": "Chưa có cấu hình. Nhấn nút bên dưới để thêm.",
+    "当前 JSON 无法解析，请切换到 JSON 模式修复后再使用可视化编辑。": "Không thể phân tích JSON hiện tại. Hãy chuyển sang chế độ JSON để sửa trước khi dùng trình chỉnh sửa trực quan.",
+    "按账号+分组限制同时进行中的请求数，0 表示不限制。": "Giới hạn số yêu cầu đang xử lý đồng thời theo tài khoản + nhóm. 0 = không giới hạn.",
+    "最多请求次数含失败请求（0 代表不限制），最多成功次数只计成功请求；限制周期使用上方全局值。": "Số yêu cầu tối đa bao gồm cả yêu cầu thất bại (0 = không giới hạn); số thành công tối đa chỉ tính yêu cầu thành công. Chu kỳ dùng giá trị toàn cục phía trên."
   },
   "通道测试模式": "Chế độ kiểm tra kênh",
   "定时全量测试": "Kiểm tra toàn bộ theo lịch",

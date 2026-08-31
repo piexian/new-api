@@ -28,6 +28,7 @@ import {
   verifyJSON,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import GroupLimitEditor from './components/GroupLimitEditor';
 
 export default function RequestRateLimit(props) {
   const { t } = useTranslation();
@@ -43,7 +44,8 @@ export default function RequestRateLimit(props) {
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
-
+  const [useVisualRate, setUseVisualRate] = useState(true);
+  const [useVisualConcurrency, setUseVisualConcurrency] = useState(true);
   function onSubmit() {
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
@@ -180,93 +182,146 @@ export default function RequestRateLimit(props) {
             </Row>
             <Row>
               <Col xs={24} sm={16}>
-                <Form.TextArea
-                  label={t('分组速率限制')}
-                  placeholder={t(
-                    '{\n  "default": [200, 100],\n  "vip": [0, 1000]\n}',
-                  )}
-                  field={'ModelRequestRateLimitGroup'}
-                  autosize={{ minRows: 5, maxRows: 15 }}
-                  trigger='blur'
-                  stopValidateWithError
-                  rules={[
-                    {
-                      validator: (rule, value) => verifyJSON(value),
-                      message: t('不是合法的 JSON 字符串'),
-                    },
-                  ]}
-                  extraText={
-                    <div>
-                      <p>{t('说明：')}</p>
-                      <ul>
-                        <li>
-                          {t(
-                            '使用 JSON 对象格式，格式为：{"组名": [最多请求次数, 最多请求完成次数]}',
-                          )}
-                        </li>
-                        <li>
-                          {t(
-                            '示例：{"default": [200, 100], "vip": [0, 1000]}。',
-                          )}
-                        </li>
-                        <li>
-                          {t(
-                            '[最多请求次数]必须大于等于0，[最多请求完成次数]必须大于等于1。',
-                          )}
-                        </li>
-                        <li>
-                          {t(
-                            '[最多请求次数]和[最多请求完成次数]的最大值为2147483647。',
-                          )}
-                        </li>
-                        <li>{t('分组速率配置优先级高于全局速率限制。')}</li>
-                        <li>{t('限制周期统一使用上方配置的“限制周期”值。')}</li>
-                      </ul>
-                    </div>
-                  }
-                  onChange={(value) => {
-                    setInputs({ ...inputs, ModelRequestRateLimitGroup: value });
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 8,
                   }}
-                />
+                >
+                  <span>{t('分组速率限制')}</span>
+                  <Button
+                    size='small'
+                    theme='outline'
+                    onClick={() => setUseVisualRate(!useVisualRate)}
+                  >
+                    {useVisualRate ? t('JSON 模式') : t('可视化模式')}
+                  </Button>
+                </div>
+                {useVisualRate ? (
+                  <GroupLimitEditor
+                    mode='rate'
+                    value={inputs.ModelRequestRateLimitGroup}
+                    onChange={(value) =>
+                      setInputs({ ...inputs, ModelRequestRateLimitGroup: value })
+                    }
+                  />
+                ) : (
+                  <Form.TextArea
+                    placeholder={t(
+                      '{\n  "default": [200, 100],\n  "vip": [0, 1000]\n}',
+                    )}
+                    field={'ModelRequestRateLimitGroup'}
+                    autosize={{ minRows: 5, maxRows: 15 }}
+                    trigger='blur'
+                    stopValidateWithError
+                    rules={[
+                      {
+                        validator: (rule, value) => verifyJSON(value),
+                        message: t('不是合法的 JSON 字符串'),
+                      },
+                    ]}
+                    extraText={
+                      <div>
+                        <p>{t('说明：')}</p>
+                        <ul>
+                          <li>
+                            {t(
+                              '使用 JSON 对象格式，格式为：{"组名": [最多请求次数, 最多请求完成次数]}',
+                            )}
+                          </li>
+                          <li>
+                            {t(
+                              '示例：{"default": [200, 100], "vip": [0, 1000]}。',
+                            )}
+                          </li>
+                          <li>
+                            {t(
+                              '[最多请求次数]必须大于等于0，[最多请求完成次数]必须大于等于1。',
+                            )}
+                          </li>
+                          <li>
+                            {t(
+                              '[最多请求次数]和[最多请求完成次数]的最大值为2147483647。',
+                            )}
+                          </li>
+                          <li>{t('分组速率配置优先级高于全局速率限制。')}</li>
+                          <li>{t('限制周期统一使用上方配置的“限制周期”值。')}</li>
+                        </ul>
+                      </div>
+                    }
+                    onChange={(value) => {
+                      setInputs({ ...inputs, ModelRequestRateLimitGroup: value });
+                    }}
+                  />
+                )}
               </Col>
             </Row>
             <Row>
               <Col xs={24} sm={16}>
-                <Form.TextArea
-                  label={t('分组并发限制')}
-                  placeholder={t('{\n  "default": 3,\n  "vip": 5\n}')}
-                  field={'UserGroupConcurrencyLimit'}
-                  autosize={{ minRows: 4, maxRows: 12 }}
-                  trigger='blur'
-                  stopValidateWithError
-                  rules={[
-                    {
-                      validator: (rule, value) => verifyJSON(value),
-                      message: t('不是合法的 JSON 字符串'),
-                    },
-                  ]}
-                  extraText={
-                    <div>
-                      <p>{t('说明：')}</p>
-                      <ul>
-                        <li>
-                          {t(
-                            '使用 JSON 对象格式，格式为：{"组名": 单账号最大同时并发请求数}',
-                          )}
-                        </li>
-                        <li>{t('示例：{"default": 3, "vip": 5}。')}</li>
-                        <li>
-                          {t(
-                            '按账号+分组限制同时进行中的请求数，0 或未配置的分组表示不限制。',
-                          )}
-                        </li>
-                      </ul>
-                    </div>
-                  }
-                  onChange={(value) => {
-                    setInputs({ ...inputs, UserGroupConcurrencyLimit: value });
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 8,
+                    marginTop: 8,
                   }}
-                />
+                >
+                  <span>{t('分组并发限制')}</span>
+                  <Button
+                    size='small'
+                    theme='outline'
+                    onClick={() => setUseVisualConcurrency(!useVisualConcurrency)}
+                  >
+                    {useVisualConcurrency ? t('JSON 模式') : t('可视化模式')}
+                  </Button>
+                </div>
+                {useVisualConcurrency ? (
+                  <GroupLimitEditor
+                    mode='concurrency'
+                    value={inputs.UserGroupConcurrencyLimit}
+                    onChange={(value) =>
+                      setInputs({ ...inputs, UserGroupConcurrencyLimit: value })
+                    }
+                  />
+                ) : (
+                  <Form.TextArea
+                    placeholder={t('{\n  "default": 3,\n  "vip": 5\n}')}
+                    field={'UserGroupConcurrencyLimit'}
+                    autosize={{ minRows: 4, maxRows: 12 }}
+                    trigger='blur'
+                    stopValidateWithError
+                    rules={[
+                      {
+                        validator: (rule, value) => verifyJSON(value),
+                        message: t('不是合法的 JSON 字符串'),
+                      },
+                    ]}
+                    extraText={
+                      <div>
+                        <p>{t('说明：')}</p>
+                        <ul>
+                          <li>
+                            {t(
+                              '使用 JSON 对象格式，格式为：{"组名": 单账号最大同时并发请求数}',
+                            )}
+                          </li>
+                          <li>{t('示例：{"default": 3, "vip": 5}。')}</li>
+                          <li>
+                            {t(
+                              '按账号+分组限制同时进行中的请求数，0 或未配置的分组表示不限制。',
+                            )}
+                          </li>
+                        </ul>
+                      </div>
+                    }
+                    onChange={(value) => {
+                      setInputs({ ...inputs, UserGroupConcurrencyLimit: value });
+                    }}
+                  />
+                )}
               </Col>
             </Row>
             <Row>

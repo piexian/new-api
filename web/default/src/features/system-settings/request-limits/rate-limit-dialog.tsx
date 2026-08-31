@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
@@ -47,14 +47,29 @@ const rateLimitDialogSchema = z.object({
     .max(2147483647, 'Must be ≤ 2,147,483,647'),
 })
 
-type RateLimitDialogFormValues = z.infer<typeof rateLimitDialogSchema>
+const concurrencyDialogSchema = z.object({
+  groupName: z.string().min(1, 'Group name is required'),
+  maxConcurrent: z
+    .number()
+    .int('Must be an integer')
+    .min(0, 'Must be ≥ 0')
+    .max(2147483647, 'Must be ≤ 2,147,483,647'),
+})
 
-const RATE_LIMIT_FORM_ID = 'rate-limit-form'
+export type RateLimitEditorMode = 'rate' | 'concurrency'
 
 export type RateLimitEntryData = {
   groupName: string
-  maxRequests: number
-  maxSuccess: number
+  maxRequests?: number
+  maxSuccess?: number
+  maxConcurrent?: number
+}
+
+type RateLimitDialogFormValues = {
+  groupName: string
+  maxRequests?: number
+  maxSuccess?: number
+  maxConcurrent?: number
 }
 
 type RateLimitDialogProps = {
@@ -62,6 +77,7 @@ type RateLimitDialogProps = {
   onOpenChange: (open: boolean) => void
   onSave: (data: RateLimitEntryData) => void
   editData?: RateLimitEntryData | null
+  mode?: RateLimitEditorMode
 }
 
 export function RateLimitDialog({
@@ -69,16 +85,23 @@ export function RateLimitDialog({
   onOpenChange,
   onSave,
   editData,
+  mode = 'rate',
 }: RateLimitDialogProps) {
   const { t } = useTranslation()
   const isEditMode = !!editData
+  const isConcurrency = mode === 'concurrency'
+  // 同一页面可能同时挂载速率与并发两个弹窗，表单 id 需按模式区分
+  const formId = `rate-limit-form-${mode}`
 
   const form = useForm<RateLimitDialogFormValues>({
-    resolver: zodResolver(rateLimitDialogSchema),
+    resolver: zodResolver(
+      isConcurrency ? concurrencyDialogSchema : rateLimitDialogSchema,
+    ) as unknown as Resolver<RateLimitDialogFormValues>,
     defaultValues: {
       groupName: '',
       maxRequests: 0,
       maxSuccess: 1,
+      maxConcurrent: 0,
     },
   })
 
@@ -90,6 +113,7 @@ export function RateLimitDialog({
         groupName: '',
         maxRequests: 0,
         maxSuccess: 1,
+        maxConcurrent: 0,
       })
     }
   }, [editData, form, open])
@@ -100,16 +124,24 @@ export function RateLimitDialog({
     onOpenChange(false)
   }
 
+  const title = isConcurrency
+    ? isEditMode
+      ? t('Edit group concurrency limit')
+      : t('Add group concurrency limit')
+    : isEditMode
+      ? t('Edit group rate limit')
+      : t('Add group rate limit')
+
+  const description = isConcurrency
+    ? t('Limit concurrent in-flight requests per account for a specific group.')
+    : t('Configure rate limiting rules for a specific user group.')
+
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title={
-        isEditMode ? t('Edit group rate limit') : t('Add group rate limit')
-      }
-      description={t(
-        'Configure rate limiting rules for a specific user group.'
-      )}
+      title={title}
+      description={description}
       contentClassName='sm:max-w-[500px]'
       contentHeight='auto'
       bodyClassName='space-y-4'
@@ -122,7 +154,7 @@ export function RateLimitDialog({
           >
             {t('Cancel')}
           </Button>
-          <Button type='submit' form={RATE_LIMIT_FORM_ID}>
+          <Button type='submit' form={formId}>
             {isEditMode ? t('Update') : t('Add')}
           </Button>
         </>
@@ -130,7 +162,7 @@ export function RateLimitDialog({
     >
       <Form {...form}>
         <form
-          id={RATE_LIMIT_FORM_ID}
+          id={formId}
           onSubmit={form.handleSubmit(handleSubmit)}
           className='space-y-4'
         >
@@ -157,67 +189,106 @@ export function RateLimitDialog({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name='maxRequests'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Max Requests (including failures)')}</FormLabel>
-                <FormControl>
-                  <div className='flex items-center gap-2'>
-                    <Input
-                      type='number'
-                      min={0}
-                      max={2147483647}
-                      step={1}
-                      {...field}
-                      onChange={(e) =>
-                        field.onChange(parseInt(e.target.value) || 0)
-                      }
-                    />
-                    <span className='text-muted-foreground text-sm'>
-                      {t('times')}
-                    </span>
-                  </div>
-                </FormControl>
-                <FormDescription>
-                  {t('Total requests allowed per period. 0 = unlimited.')}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {isConcurrency ? (
+            <FormField
+              control={form.control}
+              name='maxConcurrent'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Max Concurrent Requests')}</FormLabel>
+                  <FormControl>
+                    <div className='flex items-center gap-2'>
+                      <Input
+                        type='number'
+                        min={0}
+                        max={2147483647}
+                        step={1}
+                        {...field}
+                        onChange={(e) =>
+                          field.onChange(parseInt(e.target.value) || 0)
+                        }
+                      />
+                      <span className='text-muted-foreground text-sm'>
+                        {t('requests')}
+                      </span>
+                    </div>
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'In-flight requests allowed per account in this group. 0 = unlimited.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          ) : (
+            <>
+              <FormField
+                control={form.control}
+                name='maxRequests'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {t('Max Requests (including failures)')}
+                    </FormLabel>
+                    <FormControl>
+                      <div className='flex items-center gap-2'>
+                        <Input
+                          type='number'
+                          min={0}
+                          max={2147483647}
+                          step={1}
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value) || 0)
+                          }
+                        />
+                        <span className='text-muted-foreground text-sm'>
+                          {t('times')}
+                        </span>
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      {t('Total requests allowed per period. 0 = unlimited.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <FormField
-            control={form.control}
-            name='maxSuccess'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Max Successful Requests')}</FormLabel>
-                <FormControl>
-                  <div className='flex items-center gap-2'>
-                    <Input
-                      type='number'
-                      min={1}
-                      max={2147483647}
-                      step={1}
-                      {...field}
-                      onChange={(e) =>
-                        field.onChange(parseInt(e.target.value) || 1)
-                      }
-                    />
-                    <span className='text-muted-foreground text-sm'>
-                      {t('times')}
-                    </span>
-                  </div>
-                </FormControl>
-                <FormDescription>
-                  {t('Only successful requests count toward this limit.')}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              <FormField
+                control={form.control}
+                name='maxSuccess'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Max Successful Requests')}</FormLabel>
+                    <FormControl>
+                      <div className='flex items-center gap-2'>
+                        <Input
+                          type='number'
+                          min={1}
+                          max={2147483647}
+                          step={1}
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(parseInt(e.target.value) || 1)
+                          }
+                        />
+                        <span className='text-muted-foreground text-sm'>
+                          {t('times')}
+                        </span>
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      {t('Only successful requests count toward this limit.')}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </>
+          )}
         </form>
       </Form>
     </Dialog>

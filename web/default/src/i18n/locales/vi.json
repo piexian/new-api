@@ -1,8 +1,8 @@
 {
-    "Concurrency": "Đồng thời",
-    "Hidden groups": "Nhóm ẩn",
-    "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "Mảng JSON gồm các tên nhóm bị ẩn với người dùng không thuộc nhóm trên trang giá và trang chọn nhóm. Thành viên của nhóm và quản trị viên vẫn thấy chúng.",
-    "RPM / Concurrency": "RPM / Đồng thời",
+  "Concurrency": "Đồng thời",
+  "Hidden groups": "Nhóm ẩn",
+  "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "Mảng JSON gồm các tên nhóm bị ẩn với người dùng không thuộc nhóm trên trang giá và trang chọn nhóm. Thành viên của nhóm và quản trị viên vẫn thấy chúng.",
+  "RPM / Concurrency": "RPM / Đồng thời",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -6396,7 +6396,15 @@
     "Release": "Gỡ",
     "Released successfully": "Gỡ thành công",
     "Watching": "Đang giám sát",
-    "Whether only unused quota expires or all earned quota expires": "Chỉ quota chưa dùng hết hạn hay toàn bộ quota đã nhận đều hết hạn"
+    "Whether only unused quota expires or all earned quota expires": "Chỉ quota chưa dùng hết hạn hay toàn bộ quota đã nhận đều hết hạn",
+    "Max Concurrent Requests": "Số yêu cầu đồng thời tối đa",
+    "requests": "yêu cầu",
+    "In-flight requests allowed per account in this group. 0 = unlimited.": "Số yêu cầu đang xử lý được phép cho mỗi tài khoản trong nhóm này. 0 = không giới hạn.",
+    "Edit group concurrency limit": "Sửa giới hạn đồng thời của nhóm",
+    "Add group concurrency limit": "Thêm giới hạn đồng thời của nhóm",
+    "Limit concurrent in-flight requests per account for a specific group.": "Giới hạn số yêu cầu đang xử lý đồng thời cho mỗi tài khoản trong một nhóm cụ thể.",
+    "Max Concurrent": "Đồng thời tối đa",
+    "No group concurrency limits configured. Click \"Add group\" to get started.": "Chưa cấu hình giới hạn đồng thời theo nhóm. Nhấn \"Thêm nhóm\" để bắt đầu."
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

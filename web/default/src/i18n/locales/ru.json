@@ -1,8 +1,8 @@
 {
-    "Concurrency": "Параллельные запросы",
-    "Hidden groups": "Скрытые группы",
-    "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "JSON-массив названий групп, скрытых от пользователей, не входящих в группу, на страницах цен и выбора групп. Участники группы и администраторы по-прежнему видят их.",
-    "RPM / Concurrency": "RPM / Параллельные запросы",
+  "Concurrency": "Параллельные запросы",
+  "Hidden groups": "Скрытые группы",
+  "JSON array of group names hidden from non-member users on pricing and group selection pages. Members of the group and admins can still see them.": "JSON-массив названий групп, скрытых от пользователей, не входящих в группу, на страницах цен и выбора групп. Участники группы и администраторы по-прежнему видят их.",
+  "RPM / Concurrency": "RPM / Параллельные запросы",
   "translation": {
     "360": "360",
     "1000": "1000",
@@ -6396,7 +6396,15 @@
     "Release": "Снять",
     "Released successfully": "Успешно снято",
     "Watching": "Под наблюдением",
-    "Whether only unused quota expires or all earned quota expires": "Истекает только неиспользованная квота или вся полученная квота"
+    "Whether only unused quota expires or all earned quota expires": "Истекает только неиспользованная квота или вся полученная квота",
+    "Max Concurrent Requests": "Макс. одновременных запросов",
+    "requests": "запросов",
+    "In-flight requests allowed per account in this group. 0 = unlimited.": "Количество одновременных запросов на аккаунт в этой группе. 0 = без ограничений.",
+    "Edit group concurrency limit": "Изменить лимит параллелизма группы",
+    "Add group concurrency limit": "Добавить лимит параллелизма группы",
+    "Limit concurrent in-flight requests per account for a specific group.": "Ограничить число одновременных запросов на аккаунт для указанной группы.",
+    "Max Concurrent": "Макс. параллельно",
+    "No group concurrency limits configured. Click \"Add group\" to get started.": "Лимиты параллелизма для групп не настроены. Нажмите «Добавить группу», чтобы начать."
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",
