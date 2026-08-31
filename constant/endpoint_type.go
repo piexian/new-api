@@ -13,6 +13,7 @@ const (
 	EndpointTypeImageEdit             EndpointType = "image-edit"
 	EndpointTypeEmbeddings            EndpointType = "embeddings"
 	EndpointTypeGeminiEmbeddings      EndpointType = "gemini-embeddings"
+	EndpointTypeGeminiInteractions    EndpointType = "gemini-interactions"
 	EndpointTypeOpenAIVideo           EndpointType = "openai-video"
 	EndpointTypeVideoEdit             EndpointType = "video-edit"
 	EndpointTypeVideoExtension        EndpointType = "video-extension"

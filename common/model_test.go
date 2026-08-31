@@ -373,6 +373,7 @@ func TestDefaultEndpointInfoCoversGeneralTemplates(t *testing.T) {
 	tests := map[constant.EndpointType]string{
 		constant.EndpointTypeGemini:             "/v1beta/models/{model}:generateContent",
 		constant.EndpointTypeGeminiEmbeddings:   "/v1beta/models/{model}:embedContent",
+		constant.EndpointTypeGeminiInteractions: "/v1beta/interactions",
 		constant.EndpointTypeImageEdit:          "/v1/images/edits",
 		constant.EndpointTypeVideoEdit:          "/v1/videos/edits",
 		constant.EndpointTypeVideoExtension:     "/v1/videos/extensions",

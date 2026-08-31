@@ -92,6 +92,10 @@ const ModelTestModal = ({
       value: 'gemini',
       label: 'Gemini (/v1beta/models/{model}:generateContent)',
     },
+    {
+      value: 'gemini-interactions',
+      label: 'Gemini Interactions (/v1beta/interactions)',
+    },
     { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
     {
       value: 'image-generation',
