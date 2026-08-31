@@ -25,7 +25,9 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 	case types.RelayFormatOpenAI:
 		request, err = GetAndValidateTextRequest(c, relayMode)
 	case types.RelayFormatGemini:
-		if strings.Contains(c.Request.URL.Path, ":embedContent") {
+		if relayMode == relayconstant.RelayModeGeminiInteractions {
+			request, err = GetAndValidateGeminiInteractionsRequest(c)
+		} else if strings.Contains(c.Request.URL.Path, ":embedContent") {
 			request, err = GetAndValidateGeminiEmbeddingRequest(c)
 		} else if strings.Contains(c.Request.URL.Path, ":batchEmbedContents") {
 			request, err = GetAndValidateGeminiBatchEmbeddingRequest(c)
@@ -428,6 +430,20 @@ func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error)
 	//	relayInfo.IsStream = true
 	//}
 
+	return request, nil
+}
+
+func GetAndValidateGeminiInteractionsRequest(c *gin.Context) (*dto.GeminiInteractionsRequest, error) {
+	request := &dto.GeminiInteractionsRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" && request.Agent == "" {
+		return nil, errors.New("model or agent is required")
+	}
+	if len(request.Input) == 0 {
+		return nil, errors.New("input is required")
+	}
 	return request, nil
 }
 

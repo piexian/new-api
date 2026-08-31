@@ -325,6 +325,25 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatGemini)
 		})
 	}
+
+	// Gemini Interactions API: create 走标准分发;get/cancel/delete 经映射表路由到原渠道原 key
+	for _, versionPrefix := range []string{"/v1beta", "/v1beta2", "/v1"} {
+		interactionsRouter := router.Group(versionPrefix + "/interactions")
+		interactionsRouter.Use(middleware.RouteTag("relay"))
+		interactionsRouter.Use(middleware.SystemPerformanceCheck())
+		interactionsRouter.Use(middleware.TokenAuth())
+		interactionsRouter.Use(middleware.ModelRequestRateLimit())
+		interactionsRouter.Use(middleware.TokenRateLimit())
+		interactionsRouter.Use(middleware.GroupConcurrencyLimit())
+		{
+			interactionsRouter.POST("", func(c *gin.Context) {
+				controller.Relay(c, types.RelayFormatGemini)
+			})
+			interactionsRouter.GET("/:id", controller.RelayGeminiInteractionState)
+			interactionsRouter.POST("/:id/cancel", controller.RelayGeminiInteractionState)
+			interactionsRouter.DELETE("/:id", controller.RelayGeminiInteractionState)
+		}
+	}
 }
 
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {

@@ -150,6 +150,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		}
 	}
 
+	if info.RelayMode == constant.RelayModeGeminiInteractions {
+		return geminiInteractionsRequestURL(info)
+}
+
 	version := model_setting.GetGeminiVersionSetting(info.UpstreamModelName)
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
@@ -272,6 +276,13 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			return GeminiResponsesStreamHandler(c, info, resp)
 		}
 		return GeminiResponsesHandler(c, info, resp)
+	}
+
+	if info.RelayMode == constant.RelayModeGeminiInteractions {
+		if info.IsStream {
+			return GeminiInteractionsStreamHandler(c, info, resp)
+		}
+		return GeminiInteractionsHandler(c, info, resp)
 	}
 
 	if info.RelayMode == constant.RelayModeGemini {

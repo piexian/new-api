@@ -55,7 +55,16 @@ func Distribute() func(c *gin.Context) {
 				return
 			}
 		} else {
-			// Select a channel for the user
+			// Gemini Interactions: previous_interaction_id 命中映射时强制回到原创建渠道+key(上游状态按 key 隔离)
+			if forcedChannelID := common.GetContextKeyInt(c, constant.ContextKeyGeminiInteractionForcedChannelId); forcedChannelID > 0 {
+				forcedKey := common.GetContextKeyString(c, constant.ContextKeyGeminiInteractionForcedChannelKey)
+				if ch, chErr := model.GetChannelById(forcedChannelID, true); chErr == nil && ch != nil && ch.Status == common.ChannelStatusEnabled && ch.Type == constant.ChannelTypeGemini && service.IsChannelKeyUsable(ch, forcedKey) {
+					channel = ch
+				} else {
+					common.SetContextKey(c, constant.ContextKeyGeminiInteractionForcedChannelId, 0)
+					common.SetContextKey(c, constant.ContextKeyGeminiInteractionForcedChannelKey, "")
+				}
+			}
 			// check token model mapping
 			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
 			if modelLimitEnable {
@@ -77,98 +86,106 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 
-			if shouldSelectChannel {
-				if modelRequest.Model == "" {
-					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
-					return
-				}
-				var selectGroup string
-				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-				// check path is /pg/chat/completions
-				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
-					playgroundRequest := &dto.PlayGroundRequest{}
-					err = common.UnmarshalBodyReusable(c, playgroundRequest)
-					if err != nil {
-						abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": err.Error()}))
+			if channel == nil {
+				if shouldSelectChannel {
+					if modelRequest.Model == "" {
+						abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
 						return
 					}
-					if playgroundRequest.Group != "" {
-						if !service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) && playgroundRequest.Group != usingGroup {
-							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
+					var selectGroup string
+					usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+					// check path is /pg/chat/completions
+					if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
+						playgroundRequest := &dto.PlayGroundRequest{}
+						err = common.UnmarshalBodyReusable(c, playgroundRequest)
+						if err != nil {
+							abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": err.Error()}))
 							return
 						}
-						usingGroup = playgroundRequest.Group
-						common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
-					}
-				}
-
-				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
-					affinityUsable := false
-					preferred, err := model.CacheGetChannel(preferredChannelID)
-					if err == nil && preferred != nil {
-						if preferred.Status != common.ChannelStatusEnabled {
-							if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
+						if playgroundRequest.Group != "" {
+							if !service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) && playgroundRequest.Group != usingGroup {
+								abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
 								return
 							}
-						} else if !channelSupportsRequestPath(preferred, c.Request.URL.Path) {
-							// Skip this affinity hit; the normal selector will choose a route-compatible channel.
-						} else if usingGroup == "auto" {
-							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetUserAutoGroup(userGroup)
-							for _, g := range autoGroups {
-								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
-									selectGroup = g
-									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-									channel = preferred
-									affinityUsable = true
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
-									break
-								}
-							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
-							channel = preferred
-							selectGroup = usingGroup
-							affinityUsable = true
-							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+							usingGroup = playgroundRequest.Group
+							common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 						}
 					}
-					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
-						service.ClearCurrentChannelAffinityCache(c)
-					}
-				}
 
-				if channel == nil {
-					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:         c,
-						ModelName:   modelRequest.Model,
-						TokenGroup:  usingGroup,
-						RequestPath: c.Request.URL.Path,
-						Retry:       common.GetPointer(0),
-					})
-					if err != nil {
-						showGroup := usingGroup
-						if usingGroup == "auto" {
-							showGroup = fmt.Sprintf("auto(%s)", selectGroup)
+					if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+						affinityUsable := false
+						preferred, err := model.CacheGetChannel(preferredChannelID)
+						if err == nil && preferred != nil {
+							if preferred.Status != common.ChannelStatusEnabled {
+								if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+									abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
+									return
+								}
+							} else if !channelSupportsRequestPath(preferred, c.Request.URL.Path) {
+								// Skip this affinity hit; the normal selector will choose a route-compatible channel.
+							} else if usingGroup == "auto" {
+								userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+								autoGroups := service.GetUserAutoGroup(userGroup)
+								for _, g := range autoGroups {
+									if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
+										selectGroup = g
+										common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+										channel = preferred
+										affinityUsable = true
+										service.MarkChannelAffinityUsed(c, g, preferred.Id)
+										break
+									}
+								}
+							} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
+								channel = preferred
+								selectGroup = usingGroup
+								affinityUsable = true
+								service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+							}
 						}
-						message := i18n.T(c, i18n.MsgDistributorGetChannelFailed, map[string]any{"Group": showGroup, "Model": modelRequest.Model, "Error": err.Error()})
-						// 如果错误，但是渠道不为空，说明是数据库一致性问题
-						//if channel != nil {
-						//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
-						//	message = "数据库一致性已被破坏，请联系管理员"
-						//}
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
-						return
+						if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
+							service.ClearCurrentChannelAffinityCache(c)
+						}
 					}
+
 					if channel == nil {
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
-						return
+						channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+							Ctx:         c,
+							ModelName:   modelRequest.Model,
+							TokenGroup:  usingGroup,
+							RequestPath: c.Request.URL.Path,
+							Retry:       common.GetPointer(0),
+						})
+						if err != nil {
+							showGroup := usingGroup
+							if usingGroup == "auto" {
+								showGroup = fmt.Sprintf("auto(%s)", selectGroup)
+							}
+							message := i18n.T(c, i18n.MsgDistributorGetChannelFailed, map[string]any{"Group": showGroup, "Model": modelRequest.Model, "Error": err.Error()})
+							// 如果错误，但是渠道不为空，说明是数据库一致性问题
+							//if channel != nil {
+							//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
+							//	message = "数据库一致性已被破坏，请联系管理员"
+							//}
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
+							return
+						}
+						if channel == nil {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
+							return
+						}
 					}
 				}
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		// Gemini Interactions 强制路由命中时,用映射记录的原 key 覆盖轮询选出的 key
+		if channel != nil && common.GetContextKeyInt(c, constant.ContextKeyGeminiInteractionForcedChannelId) == channel.Id {
+			if forcedKey := common.GetContextKeyString(c, constant.ContextKeyGeminiInteractionForcedChannelKey); forcedKey != "" {
+				common.SetContextKey(c, constant.ContextKeyChannelKey, forcedKey)
+			}
+		}
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
@@ -370,6 +387,24 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/lyrics_generation") {
 		modelRequest.Model = minimax.LyricsGenerationModel
 		c.Set("relay_mode", relayconstant.RelayModeMiniMaxLyricsGeneration)
+	} else if isGeminiInteractionsPath(c.Request.URL.Path) {
+		// Gemini Interactions API: create 从 body 提取 model/agent;get/cancel/delete 无模型,由控制器经映射表路由
+		c.Set("relay_mode", relayconstant.RelayModeGeminiInteractions)
+		if c.Request.Method == http.MethodPost && isGeminiInteractionsCreatePath(c.Request.URL.Path) {
+			interactionReq, parseErr := getGeminiInteractionRouteInfo(c)
+			if parseErr != nil {
+				return nil, false, parseErr
+			}
+			modelRequest.Model = interactionReq.model
+			if interactionReq.previousInteractionID != "" {
+				if state, found := service.GetGeminiInteractionState(interactionReq.previousInteractionID); found && state.UserID == common.GetContextKeyInt(c, constant.ContextKeyUserId) {
+					common.SetContextKey(c, constant.ContextKeyGeminiInteractionForcedChannelId, state.ChannelID)
+					common.SetContextKey(c, constant.ContextKeyGeminiInteractionForcedChannelKey, state.Key)
+				}
+			}
+		} else {
+			shouldSelectChannel = false
+		}
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
@@ -621,4 +656,53 @@ func extractModelNameFromGeminiPath(path string) string {
 
 	// 返回模型名部分
 	return path[startIndex : startIndex+colonIndex]
+}
+
+// isGeminiInteractionsPath 判断是否为 Gemini Interactions API 路径(含 v1beta/v1beta2/v1)
+func isGeminiInteractionsPath(path string) bool {
+	return strings.HasPrefix(path, "/v1beta/interactions") ||
+		strings.HasPrefix(path, "/v1beta2/interactions") ||
+		strings.HasPrefix(path, "/v1/interactions")
+}
+
+// isGeminiInteractionsCreatePath 判断是否为 interactions create(精确路径,不含 {id} 子路径)
+func isGeminiInteractionsCreatePath(path string) bool {
+	return path == "/v1beta/interactions" || path == "/v1beta2/interactions" || path == "/v1/interactions"
+}
+
+type geminiInteractionRouteInfo struct {
+	model                 string
+	previousInteractionID string
+}
+
+// getGeminiInteractionRouteInfo 从 create 请求体读取 model/agent/previous_interaction_id;
+// agent 请求以 agent 名作为伪模型名参与路由与计费
+func getGeminiInteractionRouteInfo(c *gin.Context) (*geminiInteractionRouteInfo, error) {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return nil, err
+	}
+	body, err := storage.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	if !gjson.ValidBytes(body) {
+		return nil, errors.New("invalid JSON request body")
+	}
+	values := gjson.GetManyBytes(body, "model", "agent", "previous_interaction_id")
+	info := &geminiInteractionRouteInfo{}
+	if values[0].Exists() && values[0].Type == gjson.String {
+		info.model = values[0].String()
+	}
+	if info.model == "" && values[1].Exists() && values[1].Type == gjson.String {
+		info.model = values[1].String()
+	}
+	if values[2].Exists() && values[2].Type == gjson.String {
+		info.previousInteractionID = values[2].String()
+	}
+	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+		return nil, seekErr
+	}
+	c.Request.Body = io.NopCloser(storage)
+	return info, nil
 }

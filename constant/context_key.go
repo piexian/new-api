@@ -38,6 +38,9 @@ const (
 	ContextKeyChannelIsMultiKey        ContextKey = "channel_is_multi_key"
 	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
 	ContextKeyChannelKey               ContextKey = "channel_key"
+	// ContextKeyGeminiInteractionForcedChannelId / ForcedChannelKey: previous_interaction_id 命中原创建渠道时强制路由
+	ContextKeyGeminiInteractionForcedChannelId  ContextKey = "gemini_interaction_forced_channel_id"
+	ContextKeyGeminiInteractionForcedChannelKey ContextKey = "gemini_interaction_forced_channel_key"
 
 	ContextKeyAutoGroup           ContextKey = "auto_group"
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"

@@ -63,6 +63,8 @@ const (
 	RelayModeClaudeCountTokens
 
 	RelayModeOCR
+
+	RelayModeGeminiInteractions
 )
 
 func Path2RelayMode(path string) int {
@@ -138,6 +140,8 @@ func Path2RelayMode(path string) int {
 	} else if strings.HasPrefix(path, "/v1/video/generations/") ||
 		strings.HasPrefix(path, "/v1/videos/") {
 		relayMode = RelayModeVideoFetchByID
+	} else if strings.HasPrefix(path, "/v1beta/interactions") || strings.HasPrefix(path, "/v1beta2/interactions") || strings.HasPrefix(path, "/v1/interactions") {
+		relayMode = RelayModeGeminiInteractions
 	} else if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
 		relayMode = RelayModeGemini
 	} else if strings.HasPrefix(path, "/mj") {

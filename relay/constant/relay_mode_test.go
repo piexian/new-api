@@ -25,3 +25,28 @@ func TestPath2RelayModeVideoEndpoints(t *testing.T) {
 		})
 	}
 }
+
+func TestPath2RelayModeGeminiInteractions(t *testing.T) {
+	for _, path := range []string{
+		"/v1beta/interactions",
+		"/v1beta2/interactions",
+		"/v1/interactions",
+		"/v1beta/interactions/v1_abc",
+		"/v1beta/interactions/v1_abc/cancel",
+	} {
+		if mode := Path2RelayMode(path); mode != RelayModeGeminiInteractions {
+			t.Fatalf("path %s: got mode %d, want RelayModeGeminiInteractions", path, mode)
+		}
+	}
+	// 回归: models 路径不受影响
+	if mode := Path2RelayMode("/v1beta/models/gemini-2.0-flash:generateContent"); mode != RelayModeGemini {
+		t.Fatalf("models path mode = %d", mode)
+	}
+	if mode := Path2RelayMode("/v1/models/gemini-2.0-flash:generateContent"); mode != RelayModeGemini {
+		t.Fatalf("v1 models path mode = %d", mode)
+	}
+	// 回归: interactions 前缀不被其他分支抢占
+	if mode := Path2RelayMode("/v1/videos/abc"); mode != RelayModeVideoFetchByID {
+		t.Fatalf("videos path mode = %d", mode)
+	}
+}

@@ -67,7 +67,9 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 
 func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	var err *types.NewAPIError
-	if strings.Contains(c.Request.URL.Path, "embed") {
+	if info.RelayMode == relayconstant.RelayModeGeminiInteractions {
+		err = relay.GeminiInteractionsHelper(c, info)
+	} else if strings.Contains(c.Request.URL.Path, "embed") {
 		err = relay.GeminiEmbeddingHandler(c, info)
 	} else {
 		err = relay.GeminiHelper(c, info)
@@ -317,6 +319,22 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
+	// Gemini Interactions 链式请求(previous_interaction_id)命中强制路由时,重试也固定原渠道,
+	// 避免 interaction 状态(按上游 key 隔离)落到不存在的其他渠道
+	if info.RelayMode == relayconstant.RelayModeGeminiInteractions &&
+		common.GetContextKeyInt(c, constant.ContextKeyGeminiInteractionForcedChannelId) > 0 {
+		autoBan := c.GetBool("auto_ban")
+		autoBanInt := 1
+		if !autoBan {
+			autoBanInt = 0
+		}
+		return &model.Channel{
+			Id:      c.GetInt("channel_id"),
+			Type:    c.GetInt("channel_type"),
+			Name:    c.GetString("channel_name"),
+			AutoBan: &autoBanInt,
+		}, nil
+	}
 	if info.ChannelMeta == nil {
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
