@@ -414,16 +414,23 @@ export const getTaskLogsColumns = ({
         const hasResultUrl =
           typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl);
         if (isSuccess && isVideoTask && hasResultUrl) {
+          // 经本站代理拉取内容，避免向前端暴露上游直链
+          const videoUrl = `/v1/videos/${record.task_id}/content`;
           return (
-            <a
-              href='#'
-              onClick={(e) => {
-                e.preventDefault();
-                openVideoModal(resultUrl);
-              }}
-            >
-              {t('点击预览视频')}
-            </a>
+            <Space direction='vertical' spacing={4}>
+              <a
+                href='#'
+                onClick={(e) => {
+                  e.preventDefault();
+                  openVideoModal(videoUrl);
+                }}
+              >
+                {t('点击预览视频')}
+              </a>
+              <a href={videoUrl} download>
+                {t('下载视频')}
+              </a>
+            </Space>
           );
         }
         if (!text) {

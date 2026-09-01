@@ -45,10 +45,20 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 	if !exists || task == nil {
+		// 日志页管理员查看他人任务时按 id 找不到，允许管理员取任意任务内容
+		if c.GetInt("role") >= common.RoleAdminUser {
+			task, exists, err = model.GetByOnlyTaskId(taskID)
+			if err != nil {
+				logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to query task %s: %s", taskID, err.Error()))
+				videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to query task")
+				return
+			}
+		}
+	}
+	if !exists || task == nil {
 		videoProxyError(c, http.StatusNotFound, "invalid_request_error", "Task not found")
 		return
 	}
-
 	if task.Status != model.TaskStatusSuccess {
 		videoProxyError(c, http.StatusBadRequest, "invalid_request_error",
 			fmt.Sprintf("Task is not completed yet, current status: %s", task.Status))

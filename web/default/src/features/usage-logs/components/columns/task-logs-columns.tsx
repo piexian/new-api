@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
-import { Music, Settings2 } from 'lucide-react'
+import { Download, Music, Settings2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -349,6 +349,7 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
         const failReason = row.getValue('fail_reason') as string
         const status = log.status
         const [dialogOpen, setDialogOpen] = useState(false)
+        const [videoOpen, setVideoOpen] = useState(false)
         const paramRows = buildGenerationParamRows(taskGenerationParams(log), t)
         const hasParams = paramRows.length > 0
         const paramSummary = generationParamsSummary(paramRows, t)
@@ -383,17 +384,24 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
 
         if (isSuccess && isVideoTask && isUrl) {
           const videoUrl = `/v1/videos/${log.task_id}/content`
+          const pillClass =
+            'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs transition-colors hover:bg-accent'
           return (
             <>
               <div className='flex max-w-[220px] flex-col gap-1'>
-                <a
-                  href={videoUrl}
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='text-foreground text-xs hover:underline'
-                >
-                  {t('Click to preview video')}
-                </a>
+                <div className='flex items-center gap-1'>
+                  <button
+                    type='button'
+                    className={cn(pillClass, 'text-foreground')}
+                    onClick={() => setVideoOpen(true)}
+                  >
+                    {t('Click to preview video')}
+                  </button>
+                  <a href={videoUrl} download className={cn(pillClass, 'text-muted-foreground')}>
+                    <Download className='size-3' />
+                    {t('Download')}
+                  </a>
+                </div>
                 {hasParams && (
                   <button
                     type='button'
@@ -404,6 +412,21 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
                   </button>
                 )}
               </div>
+              <Dialog open={videoOpen} onOpenChange={setVideoOpen}>
+                <DialogContent className='max-w-3xl'>
+                  <DialogHeader>
+                    <DialogTitle>{t('Click to preview video')}</DialogTitle>
+                  </DialogHeader>
+                  {videoOpen && (
+                    <video
+                      src={videoUrl}
+                      controls
+                      autoPlay
+                      className='max-h-[70vh] w-full rounded-md border'
+                    />
+                  )}
+                </DialogContent>
+              </Dialog>
               <TaskDetailsDialog
                 log={log}
                 open={dialogOpen}
