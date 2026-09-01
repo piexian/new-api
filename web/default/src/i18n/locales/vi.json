@@ -5311,6 +5311,8 @@
     "Upload photo": "Tải ảnh lên",
     "Upscale": "Phóng to",
     "Upstream": "Thượng nguồn",
+    "Upstream OpenAI Compat": "Truyền thẳng OpenAI tương thích upstream",
+    "Send OpenAI chat requests straight to the upstream OpenAI-compatible endpoint (Gemini channels only)": "Gửi yêu cầu chat OpenAI thẳng tới endpoint tương thích OpenAI của upstream (chỉ kênh Gemini)",
     "Upstream did not return reset credit details.": "Upstream không trả về chi tiết lượt đặt lại.",
     "Upstream Model Detection Settings": "Cài đặt phát hiện mô hình nguồn",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "Đã bắt đầu tác vụ phát hiện mô hình thượng nguồn. Theo dõi tiến trình trong Thông tin hệ thống, sau đó làm mới để xem các cập nhật đang chờ.",

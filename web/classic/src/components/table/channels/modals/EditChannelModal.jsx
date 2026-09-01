@@ -245,6 +245,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    upstream_openai_compat_enabled: false,
     use_responses_api: false,
     chat_completions_to_responses_mode: 'inherit',
     chat_completions_to_responses_models: [],
@@ -584,6 +585,7 @@ const EditChannelModal = (props) => {
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    upstream_openai_compat_enabled: false,
     use_responses_api: false,
     chat_completions_to_responses_mode: 'inherit',
     chat_completions_to_responses_models: [],
@@ -1021,6 +1023,8 @@ const EditChannelModal = (props) => {
           data.proxy = parsedSettings.proxy || '';
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
+          data.upstream_openai_compat_enabled =
+            parsedSettings.upstream_openai_compat_enabled === true;
           data.use_responses_api = parsedSettings.use_responses_api === true;
           data.chat_completions_to_responses_mode =
             typeof parsedSettings.chat_completions_to_responses_enabled ===
@@ -1052,6 +1056,7 @@ const EditChannelModal = (props) => {
           data.proxy = '';
           data.pass_through_body_enabled = false;
           data.use_responses_api = false;
+          data.upstream_openai_compat_enabled = false;
           data.chat_completions_to_responses_mode = 'inherit';
           data.chat_completions_to_responses_models = [];
           data.system_prompt = '';
@@ -1064,6 +1069,7 @@ const EditChannelModal = (props) => {
         data.proxy = '';
         data.pass_through_body_enabled = false;
         data.use_responses_api = false;
+        data.upstream_openai_compat_enabled = false;
         data.chat_completions_to_responses_mode = 'inherit';
         data.chat_completions_to_responses_models = [];
         data.system_prompt = '';
@@ -1194,6 +1200,8 @@ const EditChannelModal = (props) => {
         thinking_to_content: data.thinking_to_content,
         proxy: data.proxy,
         pass_through_body_enabled: data.pass_through_body_enabled,
+        upstream_openai_compat_enabled:
+          data.upstream_openai_compat_enabled === true,
         use_responses_api: data.use_responses_api || false,
         chat_completions_to_responses_mode:
           data.chat_completions_to_responses_mode || 'inherit',
@@ -1241,6 +1249,7 @@ const EditChannelModal = (props) => {
         (data.system_prompt && data.system_prompt.trim()) ||
         data.thinking_to_content ||
         data.pass_through_body_enabled ||
+        data.upstream_openai_compat_enabled === true ||
         data.force_format ||
         data.claude_beta_query ||
         data.system_prompt_override;
@@ -1603,6 +1612,7 @@ const EditChannelModal = (props) => {
       thinking_to_content: false,
       proxy: '',
       pass_through_body_enabled: false,
+      upstream_openai_compat_enabled: false,
       use_responses_api: false,
       chat_completions_to_responses_mode: 'inherit',
       chat_completions_to_responses_models: [],
@@ -2015,6 +2025,8 @@ const EditChannelModal = (props) => {
       thinking_to_content: localInputs.thinking_to_content || false,
       proxy: localInputs.proxy || '',
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
+      upstream_openai_compat_enabled:
+        localInputs.upstream_openai_compat_enabled === true,
       use_responses_api: false,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
@@ -2125,6 +2137,7 @@ const EditChannelModal = (props) => {
     delete localInputs.thinking_to_content;
     delete localInputs.proxy;
     delete localInputs.pass_through_body_enabled;
+    delete localInputs.upstream_openai_compat_enabled;
     delete localInputs.use_responses_api;
     delete localInputs.chat_completions_to_responses_mode;
     delete localInputs.chat_completions_to_responses_models;
@@ -3090,6 +3103,24 @@ const EditChannelModal = (props) => {
                     }
                     extraText={t('启用请求体透传功能')}
                   />
+
+                  {(inputs.type === 24 || inputs.type === 72) && (
+                    <Form.Switch
+                      field='upstream_openai_compat_enabled'
+                      label={t('上游 OpenAI 兼容直传')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange(
+                          'upstream_openai_compat_enabled',
+                          value,
+                        )
+                      }
+                      extraText={t(
+                        '开启后 OpenAI 格式对话请求直接转发到上游 OpenAI 兼容端点，不再做协议转换（仅 Gemini 系渠道）',
+                      )}
+                    />
+                  )}
 
                   <Form.Input
                     field='proxy'

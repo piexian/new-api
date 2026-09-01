@@ -703,6 +703,15 @@ func (info *RelayInfo) AppendRequestModelRouting(route string) {
 	info.RequestModelRoutingChain = append(info.RequestModelRoutingChain, route)
 }
 
+// UpstreamOpenAICompatChat 渠道级开关:OpenAI Chat 入站直传上游 OpenAI 兼容端点
+// 仅对 chat completions 请求生效;responses/legacy completions/embeddings 等其余模式不受影响
+func (info *RelayInfo) UpstreamOpenAICompatChat() bool {
+	if info == nil || !info.ChannelSetting.UpstreamOpenAICompatEnabled {
+		return false
+	}
+	return info.RelayMode == relayconstant.RelayModeUnknown || info.RelayMode == relayconstant.RelayModeChatCompletions
+}
+
 func (info *RelayInfo) GetFinalRequestRelayFormat() types.RelayFormat {
 	if info == nil {
 		return ""

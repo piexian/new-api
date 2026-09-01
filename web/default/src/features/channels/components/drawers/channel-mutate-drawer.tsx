@@ -314,6 +314,7 @@ const SENSITIVE_FORM_FIELDS = [
   'thinking_to_content',
   'proxy',
   'pass_through_body_enabled',
+  'upstream_openai_compat_enabled',
   'system_prompt',
   'system_prompt_override',
   'allow_service_tier',
@@ -372,6 +373,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.plan_quota_cooldown_enabled ||
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
+    values.upstream_openai_compat_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
@@ -795,6 +797,9 @@ export function ChannelMutateDrawer({
   )
   const currentThinkingToContent = form.watch('thinking_to_content')
   const currentPassThroughBodyEnabled = form.watch('pass_through_body_enabled')
+  const currentUpstreamOpenAICompatEnabled = form.watch(
+    'upstream_openai_compat_enabled'
+  )
   const currentDisableTaskPollingSleep = form.watch(
     'disable_task_polling_sleep'
   )
@@ -1079,6 +1084,7 @@ export function ChannelMutateDrawer({
     currentXaiCodexCompatibilityEnabled ||
     currentThinkingToContent ||
     currentPassThroughBodyEnabled ||
+    currentUpstreamOpenAICompatEnabled ||
     currentDisableTaskPollingSleep ||
     currentProxy?.trim() ||
     currentSystemPrompt?.trim() ||
@@ -2824,9 +2830,7 @@ export function ChannelMutateDrawer({
                                             ![
                                               AGNES_AI_BASE_URL,
                                               AGNES_AI_CN_BASE_URL,
-                                            ].includes(
-                                              String(field.value)
-                                            ) && (
+                                            ].includes(String(field.value)) && (
                                               <SelectItem
                                                 value={String(field.value)}
                                               >
@@ -2836,9 +2840,7 @@ export function ChannelMutateDrawer({
                                           <SelectItem value='__default__'>
                                             {t('Default AgnesAI endpoint')}
                                           </SelectItem>
-                                          <SelectItem
-                                            value={AGNES_AI_BASE_URL}
-                                          >
+                                          <SelectItem value={AGNES_AI_BASE_URL}>
                                             {t('AgnesAI Global')}
                                             {' - '}
                                             {AGNES_AI_BASE_URL}
@@ -4976,6 +4978,33 @@ export function ChannelMutateDrawer({
                                   </FormItem>
                                 )}
                               />
+
+                              {(currentType === 24 || currentType === 72) && (
+                                <FormField
+                                  control={form.control}
+                                  name='upstream_openai_compat_enabled'
+                                  render={({ field }) => (
+                                    <FormItem className='flex items-center justify-between px-4 py-3'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel>
+                                          {t('Upstream OpenAI Compat')}
+                                        </FormLabel>
+                                        <FormDescription>
+                                          {t(
+                                            'Send OpenAI chat requests straight to the upstream OpenAI-compatible endpoint (Gemini channels only)'
+                                          )}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value}
+                                          onCheckedChange={field.onChange}
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
 
                               <FormField
                                 control={form.control}

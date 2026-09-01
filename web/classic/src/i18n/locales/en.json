@@ -4830,6 +4830,7 @@
     "选择预设...": "Select preset...",
     "选择预设模板（可选）": "Select Preset Template (optional)",
     "透传请求体": "Pass through body",
+    "上游 OpenAI 兼容直传": "Upstream OpenAI Compat Passthrough",    "开启后 OpenAI 格式对话请求直接转发到上游 OpenAI 兼容端点，不再做协议转换（仅 Gemini 系渠道）": "When enabled, OpenAI-format chat requests are forwarded directly to the upstream OpenAI-compatible endpoint without protocol conversion (Gemini channels only)",
     "透传请求头": "",
     "逐日对比": "Day-by-day comparison",
     "递归": "Recursive",

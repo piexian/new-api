@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -76,6 +77,12 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		}
 		return "", fmt.Errorf("unsupported gemini interactions path: %s", requestPath)
 	}
+
+	// 渠道级开关:OpenAI Chat 入站直传上游 OpenAI 兼容端点,不再转 Interactions
+	if info.UpstreamOpenAICompatChat() {
+		return fmt.Sprintf("%s/v1beta/openai/chat/completions", baseURL), nil
+	}
+
 	// Google 未将 embeddings 迁入 Interactions,embed 沿用原生 models/{model}:embedContent 老路径
 	if info.RelayMode == constant.RelayModeEmbeddings || isEmbeddingModelName(info.UpstreamModelName) {
 		return (&gemini.Adaptor{}).GetRequestURL(info)
@@ -99,6 +106,13 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, info *relaycommon.RelayInfo, re
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	if info.UpstreamOpenAICompatChat() {
+		// 直传上游兼容层:请求保持 OpenAI 形状;流式必须显式索要 usage 供计费
+		if request != nil && request.Stream != nil && *request.Stream && request.StreamOptions == nil {
+			request.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+		}
+		return request, nil
+	}
 	return a.ConvertRequest(c, info, request)
 }
 
@@ -170,6 +184,14 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			return gemini.GeminiInteractionsStreamHandler(c, info, resp)
 		}
 		return gemini.GeminiInteractionsHandler(c, info, resp)
+	}
+
+	// 渠道级开关开启时上游返回 OpenAI 形状,直接走 OpenAI 响应处理
+	if info.UpstreamOpenAICompatChat() {
+		if info.IsStream {
+			return openai.OaiStreamHandler(c, info, resp)
+		}
+		return openai.OpenaiHandler(c, info, resp)
 	}
 
 	// embed 响应解析复用 Gemini 原生实现(NativeGeminiEmbeddingHandler / GeminiEmbeddingHandler)

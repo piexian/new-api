@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -178,6 +179,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return geminiInteractionsRequestURL(info)
 	}
 
+	// 渠道级开关:OpenAI Chat 入站直传上游 OpenAI 兼容端点,省去 OpenAI->Gemini 转换
+	if info.UpstreamOpenAICompatChat() {
+		return fmt.Sprintf("%s/v1beta/openai/chat/completions", strings.TrimRight(info.ChannelBaseUrl, "/")), nil
+	}
+
 	version := model_setting.GetGeminiVersionSetting(info.UpstreamModelName)
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
@@ -213,6 +219,13 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
+	}
+	if info.UpstreamOpenAICompatChat() {
+		// 直传上游兼容层:请求保持 OpenAI 形状;流式必须显式索要 usage 供计费
+		if request.Stream != nil && *request.Stream && request.StreamOptions == nil {
+			request.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+		}
+		return request, nil
 	}
 	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, request)
 	if err != nil {
@@ -295,6 +308,13 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	// 渠道级开关开启时上游返回 OpenAI 形状,直接走 OpenAI 响应处理
+	if info.UpstreamOpenAICompatChat() {
+		if info.IsStream {
+			return openai.OaiStreamHandler(c, info, resp)
+		}
+		return openai.OpenaiHandler(c, info, resp)
+	}
 	if info.RelayMode == constant.RelayModeGeminiInteractions {
 		if info.IsStream {
 			return GeminiInteractionsStreamHandler(c, info, resp)

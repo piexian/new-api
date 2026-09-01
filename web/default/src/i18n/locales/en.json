@@ -5311,6 +5311,8 @@
     "Upload photo": "Upload photo",
     "Upscale": "Upscale",
     "Upstream": "Upstream",
+    "Upstream OpenAI Compat": "Upstream OpenAI Compat",
+    "Send OpenAI chat requests straight to the upstream OpenAI-compatible endpoint (Gemini channels only)": "Send OpenAI chat requests straight to the upstream OpenAI-compatible endpoint (Gemini channels only)",
     "Upstream did not return reset credit details.": "Upstream did not return reset credit details.",
     "Upstream Model Detection Settings": "Upstream Model Detection Settings",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.",

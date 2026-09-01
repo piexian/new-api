@@ -5311,6 +5311,8 @@
     "Upload photo": "写真をアップロード",
     "Upscale": "アップスケール",
     "Upstream": "アップストリーム",
+    "Upstream OpenAI Compat": "上流 OpenAI 互換直送",
+    "Send OpenAI chat requests straight to the upstream OpenAI-compatible endpoint (Gemini channels only)": "OpenAI 形式のチャットリクエストを上流の OpenAI 互換エンドポイントへ直接転送します（Gemini チャネルのみ）",
     "Upstream did not return reset credit details.": "上流からリセット回数の詳細が返されませんでした。",
     "Upstream Model Detection Settings": "アップストリームモデル検出設定",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "上流モデル検出タスクを開始しました。システム情報で進捗を確認し、完了後に更新してステージングされた変更をご確認ください。",

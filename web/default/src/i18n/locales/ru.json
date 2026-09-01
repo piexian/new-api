@@ -5311,6 +5311,8 @@
     "Upload photo": "Загрузить фото",
     "Upscale": "Увеличение",
     "Upstream": "Источник",
+    "Upstream OpenAI Compat": "Прямая передача в совместимый OpenAI интерфейс",
+    "Send OpenAI chat requests straight to the upstream OpenAI-compatible endpoint (Gemini channels only)": "Отправлять OpenAI-запросы чата напрямую в совместимый с OpenAI эндпоинт апстрима (только каналы Gemini)",
     "Upstream did not return reset credit details.": "Вышестоящий сервис не вернул сведения о сбросах лимита.",
     "Upstream Model Detection Settings": "Настройки обнаружения моделей провайдера",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "Задача обнаружения моделей вышестоящего источника запущена. Следите за ходом в разделе «Информация о системе», затем обновите, чтобы просмотреть подготовленные изменения.",

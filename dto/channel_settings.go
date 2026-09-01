@@ -16,6 +16,7 @@ type ChannelSettings struct {
 	Proxy                             string   `json:"proxy"`
 	PassThroughBodyEnabled            bool     `json:"pass_through_body_enabled,omitempty"`
 	UseResponsesApi                   bool     `json:"use_responses_api,omitempty"`
+	UpstreamOpenAICompatEnabled       bool     `json:"upstream_openai_compat_enabled,omitempty"` // OpenAI Chat 入站直传上游 OpenAI 兼容端点(仅 Gemini 系渠道)
 	ChatCompletionsToResponsesEnabled *bool    `json:"chat_completions_to_responses_enabled,omitempty"`
 	ChatCompletionsToResponsesModels  []string `json:"chat_completions_to_responses_models,omitempty"`
 	SystemPrompt                      string   `json:"system_prompt,omitempty"`
