@@ -58,6 +58,10 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if info != nil && info.RelayMode == relayconstant.RelayModeModerations {
+		// moderation 模型不在 chat 端点上，必须走独立的 /v1/moderations
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/moderations", info.ChannelType), nil
+	}
 	if info != nil && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/chat/completions", info.ChannelType), nil
 	}
@@ -73,6 +77,10 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
+	}
+	if info != nil && info.RelayMode == relayconstant.RelayModeModerations {
+		// ClassificationRequest 仅收 model/input，独立类型避免聊天字段混入（additionalProperties: false）
+		return moderationRequest{Model: request.Model, Input: request.Input}, nil
 	}
 	convertedRequest := requestOpenAI2Mistral(request)
 	if info != nil {

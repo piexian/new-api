@@ -5,7 +5,12 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	globalconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/types"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -175,4 +180,32 @@ func TestRequestOpenAI2MistralNormalizesBuiltInToolTypes(t *testing.T) {
 	// 转换不应改写调用方的 request.Tools
 	require.Equal(t, "web_search_preview", request.Tools[0].Type)
 	require.Equal(t, "web_search_20250305", request.Tools[2].Type)
+}
+
+func TestConvertOpenAIRequestModerationUsesClassificationRequest(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeModerations,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:    globalconstant.ChannelTypeMistral,
+			ChannelBaseUrl: "https://api.mistral.ai",
+		},
+	}
+
+	converted, err := adaptor.ConvertOpenAIRequest(nil, info, &dto.GeneralOpenAIRequest{
+		Model: "mistral-moderation-latest",
+		Input: "hello world",
+	})
+	require.NoError(t, err)
+
+	body, err := common.Marshal(converted)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"mistral-moderation-latest","input":"hello world"}`, string(body))
+
+	url, err := adaptor.GetRequestURL(info)
+	require.NoError(t, err)
+	require.Equal(t, "https://api.mistral.ai/v1/moderations", url)
 }

@@ -11,6 +11,13 @@ import (
 
 var mistralToolCallIdRegexp = regexp.MustCompile("^[a-zA-Z0-9]{9}$")
 
+// moderationRequest 对应 Mistral /v1/moderations 的 ClassificationRequest，
+// 与 OpenAI moderations 请求共用 {model, input} 形状。
+type moderationRequest struct {
+	Model string `json:"model"`
+	Input any    `json:"input"`
+}
+
 func requestOpenAI2Mistral(request *dto.GeneralOpenAIRequest) *dto.GeneralOpenAIRequest {
 	messages := make([]dto.Message, 0, len(request.Messages))
 	idMap := make(map[string]string)
