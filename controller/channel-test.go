@@ -454,6 +454,20 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				newAPIError: types.NewError(errors.New("invalid gemini interactions request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
+	case relayconstant.RelayModeGemini:
+		// gemini / gemini-embeddings 端点测试路径为 /v1beta/models/...,RelayMode 同为 Gemini
+		switch req := request.(type) {
+		case *dto.EmbeddingRequest:
+			convertedRequest, err = adaptor.ConvertEmbeddingRequest(c, info, *req)
+		case *dto.GeneralOpenAIRequest:
+			convertedRequest, err = adaptor.ConvertOpenAIRequest(c, info, req)
+		default:
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid gemini request type"),
+				newAPIError: types.NewError(errors.New("invalid gemini request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
 	default:
 		// Chat/Completion 等其他请求类型
 		if generalReq, ok := request.(*dto.GeneralOpenAIRequest); ok {

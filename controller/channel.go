@@ -1334,7 +1334,8 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 
-	if req.Type == constant.ChannelTypeGemini {
+	// Interactions 渠道的模型目录与 Gemini 同源,复用原生 models.list 拉取
+	if req.Type == constant.ChannelTypeGemini || req.Type == constant.ChannelTypeGeminiInteractions {
 		models, err := gemini.FetchGeminiModels(baseURL, key, "")
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{

@@ -312,7 +312,8 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return normalizeModelNames(allModels), nil
 	}
 
-	if channel.Type == constant.ChannelTypeGemini {
+	// Interactions 渠道的模型目录与 Gemini 同源,复用原生 models.list 拉取
+	if channel.Type == constant.ChannelTypeGemini || channel.Type == constant.ChannelTypeGeminiInteractions {
 		key, _, apiErr := channel.GetNextEnabledKey()
 		if apiErr != nil {
 			return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)

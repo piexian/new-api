@@ -44,6 +44,9 @@ var ModelList = []string{
 	"deep-research-preview-04-2026",
 	"deep-research-max-preview-04-2026",
 	"antigravity-preview-05-2026",
+	// embedding 不在 Interactions 协议内,仍走原生 embedContent 老路径
+	"gemini-embedding-001",
+	"gemini-embedding-2-preview",
 }
 
 type Adaptor struct {
@@ -72,6 +75,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			}
 		}
 		return "", fmt.Errorf("unsupported gemini interactions path: %s", requestPath)
+	}
+	// Google 未将 embeddings 迁入 Interactions,embed 沿用原生 models/{model}:embedContent 老路径
+	if info.RelayMode == constant.RelayModeEmbeddings || isEmbeddingModelName(info.UpstreamModelName) {
+		return (&gemini.Adaptor{}).GetRequestURL(info)
 	}
 	version := common.GetStringIfEmpty(info.ApiVersion, "v1beta")
 	return fmt.Sprintf("%s/%s/interactions", baseURL, version), nil
@@ -118,7 +125,8 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
-	return nil, fmt.Errorf("gemini interactions channel does not support embeddings")
+	// embed 载荷构造复用 Gemini 原生实现(embedContent / batchEmbedContents)
+	return (&gemini.Adaptor{}).ConvertEmbeddingRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -127,6 +135,13 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	return nil, fmt.Errorf("gemini interactions channel does not support image generation")
+}
+
+// isEmbeddingModelName Google 未把 embeddings 迁入 Interactions,该类模型仍走原生 embedContent 老路径
+func isEmbeddingModelName(name string) bool {
+	return strings.HasPrefix(name, "text-embedding") ||
+		strings.HasPrefix(name, "embedding") ||
+		strings.HasPrefix(name, "gemini-embedding")
 }
 
 // interactionsBridgeLookup 工具调用桥接查找:校验归属,命中锁定原上游 key
@@ -157,6 +172,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return gemini.GeminiInteractionsHandler(c, info, resp)
 	}
 
+	// embed 响应解析复用 Gemini 原生实现(NativeGeminiEmbeddingHandler / GeminiEmbeddingHandler)
+	if info.RelayMode == constant.RelayModeEmbeddings || isEmbeddingModelName(info.UpstreamModelName) {
+		return (&gemini.Adaptor{}).DoResponse(c, resp, info)
+	}
 	converted := gemini.ConvertInteractionsUpstreamResponse(c, info, resp)
 	switch info.RelayFormat {
 	case types.RelayFormatGemini:
