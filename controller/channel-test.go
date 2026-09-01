@@ -443,6 +443,17 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
+	case relayconstant.RelayModeGeminiInteractions:
+		// 原生 interactions 测试请求直接透传,与入站 relay 行为一致
+		if interactionsReq, ok := request.(*dto.GeminiInteractionsRequest); ok {
+			convertedRequest = interactionsReq
+		} else {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid gemini interactions request type"),
+				newAPIError: types.NewError(errors.New("invalid gemini interactions request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
 	default:
 		// Chat/Completion 等其他请求类型
 		if generalReq, ok := request.(*dto.GeneralOpenAIRequest); ok {
