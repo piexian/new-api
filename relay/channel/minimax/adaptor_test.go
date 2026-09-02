@@ -293,6 +293,108 @@ func TestConvertImageRequestPassesThroughNativeEndpoint(t *testing.T) {
 	}
 }
 
+func TestGetRequestURLForImageEdits(t *testing.T) {
+	t.Parallel()
+
+	got, err := GetRequestURL(&relaycommon.RelayInfo{
+		RelayMode: relayconstant.RelayModeImagesEdits,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://api.minimax.chat",
+		},
+	})
+	if err != nil {
+		t.Fatalf("GetRequestURL returned error: %v", err)
+	}
+	if want := "https://api.minimax.chat/v1/image_generation"; got != want {
+		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
+	}
+}
+
+func TestConvertImageRequestMapsEditsImageToSubjectReference(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeImagesEdits,
+		OriginModelName: "image-01",
+	}
+	request := dto.ImageRequest{
+		Model:  "image-01",
+		Prompt: "make the character wave",
+		Image:  json.RawMessage(`"https://example.com/ref.png"`),
+	}
+
+	got, err := adaptor.ConvertImageRequest(gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()), info, request)
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+
+	body, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("json.Marshal returned error: %v", err)
+	}
+
+	var payload struct {
+		SubjectReference []MiniMaxImageSubjectReference `json:"subject_reference"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+	if len(payload.SubjectReference) != 1 ||
+		payload.SubjectReference[0].Type != "character" ||
+		payload.SubjectReference[0].ImageFile != "https://example.com/ref.png" {
+		t.Fatalf("subject_reference = %#v", payload.SubjectReference)
+	}
+}
+
+func TestConvertImageRequestPrefersExplicitSubjectReference(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeImagesEdits,
+		OriginModelName: "image-01",
+	}
+	request := dto.ImageRequest{
+		Model:  "image-01",
+		Prompt: "a portrait",
+		Image:  json.RawMessage(`"https://example.com/ignored.png"`),
+		Extra: map[string]json.RawMessage{
+			"subject_reference": json.RawMessage(`[{"type":"character","image_file":"https://example.com/explicit.png"}]`),
+		},
+	}
+
+	got, err := adaptor.ConvertImageRequest(gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()), info, request)
+	if err != nil {
+		t.Fatalf("ConvertImageRequest returned error: %v", err)
+	}
+
+	body, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("json.Marshal returned error: %v", err)
+	}
+
+	var payload struct {
+		SubjectReference []MiniMaxImageSubjectReference `json:"subject_reference"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("json.Unmarshal returned error: %v", err)
+	}
+	if len(payload.SubjectReference) != 1 || payload.SubjectReference[0].ImageFile != "https://example.com/explicit.png" {
+		t.Fatalf("subject_reference = %#v", payload.SubjectReference)
+	}
+}
+
+func TestConvertImageRequestRejectsUnsupportedRelayMode(t *testing.T) {
+	t.Parallel()
+
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeUnknown}
+	_, err := adaptor.ConvertImageRequest(nil, info, dto.ImageRequest{})
+	if err == nil || !strings.Contains(err.Error(), "unsupported image relay mode") {
+		t.Fatalf("err = %v, want unsupported image relay mode", err)
+	}
+}
 func TestPath2RelayModeSupportsMiniMaxNativeImageEndpoint(t *testing.T) {
 	t.Parallel()
 

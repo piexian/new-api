@@ -222,3 +222,85 @@ func TestValidateEndpointForModelIgnoresNonMiniMaxChannel(t *testing.T) {
 		t.Fatalf("ValidateEndpointForModel returned error for non-MiniMax channel: %v", err)
 	}
 }
+
+func newMiniMaxRouteInfo(relayMode int, relayFormat types.RelayFormat, path string) *relaycommon.RelayInfo {
+	return &relaycommon.RelayInfo{
+		RelayMode:      relayMode,
+		RelayFormat:    relayFormat,
+		RequestURLPath: path,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:    appconstant.ChannelTypeMiniMax,
+			ChannelBaseUrl: "https://api.minimaxi.com",
+		},
+	}
+}
+
+func TestValidateEndpointForModelAllowsImageRoutes(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name string
+		info *relaycommon.RelayInfo
+	}{
+		{name: "openai generations entry", info: newMiniMaxRouteInfo(relayconstant.RelayModeImagesGenerations, types.RelayFormatOpenAIImage, "/v1/images/generations")},
+		{name: "native passthrough entry", info: newMiniMaxRouteInfo(relayconstant.RelayModeImagesGenerations, types.RelayFormatOpenAIImage, "/v1/image_generation")},
+		{name: "openai edits entry", info: newMiniMaxRouteInfo(relayconstant.RelayModeImagesEdits, types.RelayFormatOpenAIImage, "/v1/images/edits")},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			test.info.UpstreamModelName = "image-01"
+
+			if err := ValidateEndpointForModel(test.info); err != nil {
+				t.Fatalf("ValidateEndpointForModel returned error: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidateEndpointForModelRejectsImageModelOnChatRoute(t *testing.T) {
+	t.Parallel()
+
+	info := newMiniMaxRouteInfo(relayconstant.RelayModeUnknown, types.RelayFormatOpenAI, "/v1/chat/completions")
+	info.UpstreamModelName = "image-01"
+
+	err := ValidateEndpointForModel(info)
+	if err == nil || !strings.Contains(err.Error(), "MiniMax image model must be called with /v1/image_generation") {
+		t.Fatalf("err = %v, want image endpoint guidance", err)
+	}
+}
+
+func TestValidateEndpointForModelRejectsChatModelOnImageRoute(t *testing.T) {
+	t.Parallel()
+
+	info := newMiniMaxRouteInfo(relayconstant.RelayModeImagesGenerations, types.RelayFormatOpenAIImage, "/v1/images/generations")
+	info.UpstreamModelName = "MiniMax-M2"
+
+	err := ValidateEndpointForModel(info)
+	if err == nil || !strings.Contains(err.Error(), "MiniMax text model must be called with /v1/chat/completions") {
+		t.Fatalf("err = %v, want chat endpoint guidance", err)
+	}
+}
+
+// /v1/chat/completions 直连经 Path2RelayMode 后为 Unknown(0)，text 模型必须放行
+func TestValidateEndpointForModelAllowsUnknownRelayModeChatForTextModel(t *testing.T) {
+	t.Parallel()
+
+	info := newMiniMaxRouteInfo(relayconstant.RelayModeUnknown, types.RelayFormatOpenAI, "/v1/chat/completions")
+	info.UpstreamModelName = "MiniMax-M3"
+
+	if err := ValidateEndpointForModel(info); err != nil {
+		t.Fatalf("ValidateEndpointForModel returned error: %v", err)
+	}
+}
+
+func TestValidateEndpointForModelAllowsExplicitChatCompletionsForTextModel(t *testing.T) {
+	t.Parallel()
+
+	info := newMiniMaxRouteInfo(relayconstant.RelayModeChatCompletions, types.RelayFormatOpenAI, "/v1/chat/completions")
+	info.UpstreamModelName = "MiniMax-M3"
+
+	if err := ValidateEndpointForModel(info); err != nil {
+		t.Fatalf("ValidateEndpointForModel returned error: %v", err)
+	}
+}

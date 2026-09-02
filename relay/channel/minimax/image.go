@@ -81,8 +81,37 @@ func oaiImage2MiniMaxImageRequest(request dto.ImageRequest) MiniMaxImageRequest 
 	}
 	applyMiniMaxImageRawFields(request.Extra, &minimaxRequest)
 	applyMiniMaxImageExtraFields(request.ExtraFields, &minimaxRequest)
+	if len(minimaxRequest.SubjectReference) == 0 {
+		minimaxRequest.SubjectReference = subjectReferenceFromImageInput(request.Image, request.Images)
+	}
 
 	return minimaxRequest
+}
+
+// OpenAI edits 的 image/images 入参近似映射为 MiniMax subject_reference 角色参考图
+func subjectReferenceFromImageInput(inputs ...json.RawMessage) []MiniMaxImageSubjectReference {
+	var urls []string
+	for _, raw := range inputs {
+		if len(raw) == 0 {
+			continue
+		}
+		var list []string
+		if err := common.Unmarshal(raw, &list); err == nil {
+			urls = append(urls, list...)
+			continue
+		}
+		var single string
+		if err := common.Unmarshal(raw, &single); err == nil && single != "" {
+			urls = append(urls, single)
+		}
+	}
+	refs := make([]MiniMaxImageSubjectReference, 0, len(urls))
+	for _, u := range urls {
+		if u = strings.TrimSpace(u); u != "" {
+			refs = append(refs, MiniMaxImageSubjectReference{Type: "character", ImageFile: u})
+		}
+	}
+	return refs
 }
 
 func applyMiniMaxImageExtraFields(extraFields json.RawMessage, minimaxRequest *MiniMaxImageRequest) {

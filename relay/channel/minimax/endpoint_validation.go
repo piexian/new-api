@@ -96,7 +96,8 @@ func endpointMatchesRelayMode(info *relaycommon.RelayInfo, endpoint string) bool
 	case LyricsGenerationEndpoint:
 		return info.RelayMode == relayconstant.RelayModeMiniMaxLyricsGeneration
 	case ChatCompletionsEndpoint:
-		return info.RelayMode == relayconstant.RelayModeChatCompletions && info.RelayFormat != types.RelayFormatClaude
+		// /v1/chat/completions 直连经 Path2RelayMode 后为 Unknown(0)，与显式 ChatCompletions 等价
+		return (info.RelayMode == relayconstant.RelayModeUnknown || info.RelayMode == relayconstant.RelayModeChatCompletions) && info.RelayFormat != types.RelayFormatClaude
 	case ResponsesEndpoint:
 		return info.RelayFormat == types.RelayFormatOpenAIResponses &&
 			(info.RelayMode == relayconstant.RelayModeResponses || info.RelayMode == relayconstant.RelayModeResponsesInputTokens)
@@ -105,7 +106,8 @@ func endpointMatchesRelayMode(info *relaycommon.RelayInfo, endpoint string) bool
 	case SpeechEndpoint:
 		return info.RelayMode == relayconstant.RelayModeAudioSpeech
 	case ImageGenerationEndpoint:
-		return info.RelayMode == relayconstant.RelayModeImagesGenerations && strings.HasPrefix(info.RequestURLPath, ImageGenerationEndpoint)
+		// /v1/images/generations(OpenAI 转换)、/v1/image_generation(原生透传)、/v1/images/edits(映射 subject_reference) 均为合法入口
+		return info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits
 	default:
 		return false
 	}

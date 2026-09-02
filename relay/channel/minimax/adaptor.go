@@ -108,7 +108,7 @@ func convertMusicRequest(c *gin.Context, info *relaycommon.RelayInfo, request dt
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	if info.RelayMode != constant.RelayModeImagesGenerations {
+	if info.RelayMode != constant.RelayModeImagesGenerations && info.RelayMode != constant.RelayModeImagesEdits {
 		return nil, fmt.Errorf("unsupported image relay mode: %d", info.RelayMode)
 	}
 	if isMiniMaxNativeImageEndpoint(c) {
@@ -209,7 +209,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if info.RelayMode == constant.RelayModeAudioSpeech {
 		return handleTTSResponse(c, resp, info)
 	}
-	if info.RelayMode == constant.RelayModeImagesGenerations {
+	if info.RelayMode == constant.RelayModeImagesGenerations || info.RelayMode == constant.RelayModeImagesEdits {
 		if isMiniMaxNativeImageEndpoint(c) {
 			return miniMaxNativeImageHandler(c, resp)
 		}
