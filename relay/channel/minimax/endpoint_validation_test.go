@@ -304,3 +304,52 @@ func TestValidateEndpointForModelAllowsExplicitChatCompletionsForTextModel(t *te
 		t.Fatalf("ValidateEndpointForModel returned error: %v", err)
 	}
 }
+
+// MiniMax 上游模型名大小写不敏感，分类必须与写法无关
+func TestExpectedEndpointForModelCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		model, endpoint string
+	}{
+		{"MiniMax-M3", ChatCompletionsEndpoint},
+		{"minimax-m3", ChatCompletionsEndpoint},
+		{"MINIMAX-M2.7", ChatCompletionsEndpoint},
+		{"abab6.5s-chat", ChatCompletionsEndpoint},
+		{"Image-01", ImageGenerationEndpoint},
+		{"IMAGE-01-LIVE", ImageGenerationEndpoint},
+		{"Music-2.6", MusicGenerationEndpoint},
+		{"Speech-2.8-HD", SpeechEndpoint},
+		{"MUSIC_COVER_PREPROCESS", MusicCoverPreprocessEndpoint},
+		{"Lyrics_Generation", LyricsGenerationEndpoint},
+	} {
+		got, ok := expectedEndpointForModel(tt.model, types.RelayFormatOpenAI)
+		if !ok || got.Endpoint != tt.endpoint {
+			t.Fatalf("model %q: endpoint = %q (ok=%v), want %q", tt.model, got.Endpoint, ok, tt.endpoint)
+		}
+	}
+}
+
+// 小写写法此前完全绕过校验，现在必须与标准写法同规则
+func TestValidateEndpointForModelCaseInsensitiveModelClassification(t *testing.T) {
+	t.Parallel()
+
+	img := newMiniMaxRouteInfo(relayconstant.RelayModeImagesGenerations, types.RelayFormatOpenAIImage, "/v1/images/generations")
+	img.UpstreamModelName = "IMAGE-01"
+	if err := ValidateEndpointForModel(img); err != nil {
+		t.Fatalf("uppercase image model on generations: %v", err)
+	}
+
+	chat := newMiniMaxRouteInfo(relayconstant.RelayModeUnknown, types.RelayFormatOpenAI, "/v1/chat/completions")
+	chat.UpstreamModelName = "minimax-m3"
+	if err := ValidateEndpointForModel(chat); err != nil {
+		t.Fatalf("lowercase text model on chat: %v", err)
+	}
+
+	wrongRoute := newMiniMaxRouteInfo(relayconstant.RelayModeImagesGenerations, types.RelayFormatOpenAIImage, "/v1/images/generations")
+	wrongRoute.UpstreamModelName = "minimax-m3"
+	err := ValidateEndpointForModel(wrongRoute)
+	if err == nil || !strings.Contains(err.Error(), "MiniMax text model must be called with /v1/chat/completions") {
+		t.Fatalf("lowercase text model on image route: err = %v, want chat guidance", err)
+	}
+}

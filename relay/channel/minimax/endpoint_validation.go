@@ -22,7 +22,7 @@ func ValidateEndpointForModel(info *relaycommon.RelayInfo) *types.NewAPIError {
 	if info == nil || info.ChannelType != appconstant.ChannelTypeMiniMax {
 		return nil
 	}
-	if info.RelayMode == relayconstant.RelayModeMiniMaxMusicCoverPreprocess && info.UpstreamModelName == "music-cover" {
+	if info.RelayMode == relayconstant.RelayModeMiniMaxMusicCoverPreprocess && strings.EqualFold(info.UpstreamModelName, "music-cover") {
 		return nil
 	}
 	guide, ok := ExpectedEndpointForModel(info)
@@ -63,9 +63,9 @@ func expectedEndpointForModel(modelName string, relayFormat types.RelayFormat) (
 	switch {
 	case isMiniMaxMusicModel(modelName):
 		return EndpointGuide{Endpoint: MusicGenerationEndpoint, DocURL: MusicGenerationDocURL, Label: "music model"}, true
-	case modelName == MusicCoverPreprocessModel:
+	case strings.EqualFold(modelName, MusicCoverPreprocessModel):
 		return EndpointGuide{Endpoint: MusicCoverPreprocessEndpoint, DocURL: MusicCoverPreprocessDocURL, Label: "music cover preprocess model"}, true
-	case modelName == LyricsGenerationModel:
+	case strings.EqualFold(modelName, LyricsGenerationModel):
 		return EndpointGuide{Endpoint: LyricsGenerationEndpoint, DocURL: LyricsGenerationDocURL, Label: "lyrics generation model"}, true
 	case isMiniMaxSpeechModel(modelName):
 		return EndpointGuide{Endpoint: SpeechEndpoint, DocURL: SpeechDocURL, Label: "speech model"}, true

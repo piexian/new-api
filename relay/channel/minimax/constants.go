@@ -72,18 +72,25 @@ var NativeEndpointModelList = []string{
 	LyricsGenerationModel,
 }
 
+// MiniMax 上游模型名大小写不敏感，分类统一按小写匹配，避免同名模型因写法不同绕过或触发校验
 func isMiniMaxMusicModel(model string) bool {
-	return strings.HasPrefix(model, "music-")
+	return strings.HasPrefix(strings.ToLower(model), "music-")
 }
 
 func isMiniMaxSpeechModel(model string) bool {
-	return strings.HasPrefix(model, "speech-")
+	return strings.HasPrefix(strings.ToLower(model), "speech-")
 }
 
 func isMiniMaxImageModel(model string) bool {
-	return model == "image-01" || model == "image-01-live"
+	switch strings.ToLower(model) {
+	case "image-01", "image-01-live":
+		return true
+	default:
+		return false
+	}
 }
 
 func isMiniMaxTextModel(model string) bool {
-	return strings.HasPrefix(model, "MiniMax-") || strings.HasPrefix(model, "abab")
+	model = strings.ToLower(model)
+	return strings.HasPrefix(model, "minimax-") || strings.HasPrefix(model, "abab")
 }
