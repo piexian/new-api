@@ -73,9 +73,7 @@ function useGroupInfos(): Record<string, GroupLimitInfo> {
           ratio: typeof info.ratio === 'number' ? info.ratio : undefined,
           rpm: typeof info.rpm === 'number' ? info.rpm : undefined,
           concurrency:
-            typeof info.concurrency === 'number'
-              ? info.concurrency
-              : undefined,
+            typeof info.concurrency === 'number' ? info.concurrency : undefined,
           isUserGroup: info.is_user_group === true,
         }
       }
@@ -215,7 +213,8 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       cell: ({ row }) => {
         const apiKey = row.original
         const group = row.getValue('group') as string
-        const ratio = group && group !== 'auto' ? groupInfos[group]?.ratio : undefined
+        const ratio =
+          group && group !== 'auto' ? groupInfos[group]?.ratio : undefined
 
         if (group === 'auto') {
           return (
@@ -264,7 +263,9 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
         const info = group
           ? groupInfos[group]
           : Object.values(groupInfos).find((item) => item.isUserGroup)
-        return <RateLimitsDisplay rpm={info?.rpm} concurrency={info?.concurrency} />
+        return (
+          <RateLimitsDisplay rpm={info?.rpm} concurrency={info?.concurrency} />
+        )
       },
       enableSorting: false,
       size: 130,

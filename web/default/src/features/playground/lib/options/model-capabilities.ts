@@ -1,4 +1,8 @@
-import { CHAT_CAPABLE_ENDPOINTS, type ModelOption, type ModelsDevEntry } from '../../types'
+import {
+  CHAT_CAPABLE_ENDPOINTS,
+  type ModelOption,
+  type ModelsDevEntry,
+} from '../../types'
 
 /**
  * 判断模型是否支持对话（按 endpoint types 优先，models.dev 兜底）
@@ -47,7 +51,6 @@ export function filterChatCapableModels(
   return models.filter((m) => isChatCapableModel(m, catalog))
 }
 
-
 /**
  * 从 models.dev catalog 获取模型能力信息
  */
@@ -67,9 +70,7 @@ export function isImageCapableModel(
   catalog?: Record<string, ModelsDevEntry>
 ): boolean {
   if (model.supportedEndpointTypes && model.supportedEndpointTypes.length > 0) {
-    return model.supportedEndpointTypes.some((et) =>
-      et.includes('image')
-    )
+    return model.supportedEndpointTypes.some((et) => et.includes('image'))
   }
   if (catalog) {
     const entry = catalog[model.value] || catalog[model.label]
@@ -100,9 +101,7 @@ export function isVideoCapableModel(
   catalog?: Record<string, ModelsDevEntry>
 ): boolean {
   if (model.supportedEndpointTypes && model.supportedEndpointTypes.length > 0) {
-    return model.supportedEndpointTypes.some((et) =>
-      et.includes('video')
-    )
+    return model.supportedEndpointTypes.some((et) => et.includes('video'))
   }
   if (catalog) {
     const entry = catalog[model.value] || catalog[model.label]
@@ -133,9 +132,7 @@ export function isAudioCapableModel(
   catalog?: Record<string, ModelsDevEntry>
 ): boolean {
   if (model.supportedEndpointTypes && model.supportedEndpointTypes.length > 0) {
-    return model.supportedEndpointTypes.some((et) =>
-      et.includes('audio')
-    )
+    return model.supportedEndpointTypes.some((et) => et.includes('audio'))
   }
   if (catalog) {
     const entry = catalog[model.value] || catalog[model.label]

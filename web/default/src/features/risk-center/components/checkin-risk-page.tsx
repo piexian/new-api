@@ -129,7 +129,10 @@ export function CheckinRiskPage() {
     if (!releaseUser) return
     setReleaseLoading(true)
     try {
-      const res = await releaseCheckinRiskWatch(releaseUser.user_id, releaseNote)
+      const res = await releaseCheckinRiskWatch(
+        releaseUser.user_id,
+        releaseNote
+      )
       if (res.success) {
         toast.success(t('Released successfully'))
         setReleaseUser(null)

@@ -47,7 +47,12 @@ import {
   shouldClearModelForGroup,
   filterChatCapableModels,
 } from '../lib'
-import type { GroupOption, ModelOption, PlaygroundConfig, ModelsDevEntry } from '../types'
+import type {
+  GroupOption,
+  ModelOption,
+  PlaygroundConfig,
+  ModelsDevEntry,
+} from '../types'
 
 type UsePlaygroundOptionsParams = {
   currentGroup: string

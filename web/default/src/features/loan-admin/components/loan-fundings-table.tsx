@@ -48,14 +48,19 @@ import { formatPercent, formatTimestamp } from '@/lib/format'
 
 import { getAdminLoanFundings } from '../api'
 import type { LoanAdminFunding } from '../types'
-
 import { QueryErrorState } from './query-error'
 import { TablePagination } from './table-pagination'
 import { UserCell } from './user-cell'
 
 const PAGE_SIZE = 10
 
-const FUNDING_STATUS_OPTIONS = ['all', 'active', 'overdue', 'repaid', 'written_off'] as const
+const FUNDING_STATUS_OPTIONS = [
+  'all',
+  'active',
+  'overdue',
+  'repaid',
+  'written_off',
+] as const
 
 type FundingStatusFilter = (typeof FUNDING_STATUS_OPTIONS)[number]
 
@@ -319,7 +324,12 @@ export function LoanFundingsTable() {
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <Button type='submit' variant='outline' size='sm' className='h-8 px-2.5'>
+            <Button
+              type='submit'
+              variant='outline'
+              size='sm'
+              className='h-8 px-2.5'
+            >
               <Search className='h-3.5 w-3.5' />
               {t('Search')}
             </Button>

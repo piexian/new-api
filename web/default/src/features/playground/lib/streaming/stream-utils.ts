@@ -82,9 +82,11 @@ export function parseStreamMessageUpdates(data: string): StreamMessageUpdate[] {
     updates.push({ type: 'content', chunk: delta.content })
   }
 
-
   if (delta.tool_calls) {
-    updates.push({ type: 'tool_calls', chunk: JSON.stringify(delta.tool_calls) })
+    updates.push({
+      type: 'tool_calls',
+      chunk: JSON.stringify(delta.tool_calls),
+    })
   }
 
   return updates

@@ -28,7 +28,7 @@ export function UserCell({
 }) {
   return (
     <div className='flex min-w-0 flex-col'>
-      <span className='font-medium truncate'>{username || '-'}</span>
+      <span className='truncate font-medium'>{username || '-'}</span>
       <span className='text-muted-foreground text-xs'>#{userId}</span>
     </div>
   )

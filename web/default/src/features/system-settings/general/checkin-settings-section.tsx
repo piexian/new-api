@@ -114,7 +114,9 @@ const OPTION_KEYS: Array<[keyof Values, string]> = [
 ]
 
 function GroupTitle({ children }: { children: ReactNode }) {
-  return <h4 className='text-muted-foreground text-sm font-medium'>{children}</h4>
+  return (
+    <h4 className='text-muted-foreground text-sm font-medium'>{children}</h4>
+  )
 }
 
 export function CheckinSettingsSection({

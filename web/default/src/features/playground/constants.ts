@@ -59,14 +59,36 @@ export const PLAYGROUND_MODES = [
 
 // Chat 接口选项
 export const CHAT_INTERFACE_OPTIONS = [
-  { value: 'openai' as const, endpoint: '/pg/chat/completions', labelKey: 'OpenAI' },
-  { value: 'openai-response' as const, endpoint: '/pg/responses', labelKey: 'Responses API' },
-  { value: 'anthropic' as const, endpoint: '/pg/messages', labelKey: 'Anthropic' },
-  { value: 'gemini' as const, endpoint: '/pg/v1beta/models/gemini-pro:generateContent', labelKey: 'Gemini' },
+  {
+    value: 'openai' as const,
+    endpoint: '/pg/chat/completions',
+    labelKey: 'OpenAI',
+  },
+  {
+    value: 'openai-response' as const,
+    endpoint: '/pg/responses',
+    labelKey: 'Responses API',
+  },
+  {
+    value: 'anthropic' as const,
+    endpoint: '/pg/messages',
+    labelKey: 'Anthropic',
+  },
+  {
+    value: 'gemini' as const,
+    endpoint: '/pg/v1beta/models/gemini-pro:generateContent',
+    labelKey: 'Gemini',
+  },
 ]
 
 // 图片尺寸选项
-export const IMAGE_SIZE_OPTIONS = ['256x256', '512x512', '1024x1024', '1792x1024', '1024x1792'] as const
+export const IMAGE_SIZE_OPTIONS = [
+  '256x256',
+  '512x512',
+  '1024x1024',
+  '1792x1024',
+  '1024x1792',
+] as const
 
 // 图片质量选项
 export const IMAGE_QUALITY_OPTIONS = ['standard', 'hd'] as const
@@ -75,7 +97,14 @@ export const IMAGE_QUALITY_OPTIONS = ['standard', 'hd'] as const
 export const IMAGE_STYLE_OPTIONS = ['vivid', 'natural'] as const
 
 // 音频 TTS voice 选项
-export const AUDIO_VOICE_OPTIONS = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'] as const
+export const AUDIO_VOICE_OPTIONS = [
+  'alloy',
+  'echo',
+  'fable',
+  'onyx',
+  'nova',
+  'shimmer',
+] as const
 
 // Default group — uses 'default' as the safe fallback; auto-group is
 // only selected when the backend confirms it is available for the user.

@@ -397,7 +397,11 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
                   >
                     {t('Click to preview video')}
                   </button>
-                  <a href={videoUrl} download className={cn(pillClass, 'text-muted-foreground')}>
+                  <a
+                    href={videoUrl}
+                    download
+                    className={cn(pillClass, 'text-muted-foreground')}
+                  >
                     <Download className='size-3' />
                     {t('Download')}
                   </a>

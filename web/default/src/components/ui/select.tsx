@@ -77,9 +77,7 @@ function SelectValue({
       }
       if (Array.isArray(value)) {
         return value
-          .map(
-            (item) => registry?.current.get(String(item)) ?? String(item)
-          )
+          .map((item) => registry?.current.get(String(item)) ?? String(item))
           .join(', ')
       }
       if (typeof value === 'string' || typeof value === 'number') {

@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
+import { ModelGroupSelector } from '@/components/model-group-selector'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,9 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ModelGroupSelector } from '@/components/model-group-selector'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from 'sonner'
 
 import {
   API_ENDPOINTS,
@@ -21,7 +21,12 @@ import {
   IMAGE_SIZE_OPTIONS,
   IMAGE_STYLE_OPTIONS,
 } from '../../constants'
-import type { ImageInterface, ImageResponse, ModelOption, GroupOption } from '../../types'
+import type {
+  ImageInterface,
+  ImageResponse,
+  ModelOption,
+  GroupOption,
+} from '../../types'
 
 interface PlaygroundImageProps {
   models: ModelOption[]
@@ -41,7 +46,8 @@ export function PlaygroundImage({
   onGroupChange,
 }: PlaygroundImageProps) {
   const { t } = useTranslation()
-  const [imageInterface, setImageInterface] = useState<ImageInterface>('generations')
+  const [imageInterface, setImageInterface] =
+    useState<ImageInterface>('generations')
   const [prompt, setPrompt] = useState('')
   const [size, setSize] = useState<string>('1024x1024')
   const [quality, setQuality] = useState<string>('standard')
@@ -96,13 +102,26 @@ export function PlaygroundImage({
     } finally {
       setIsLoading(false)
     }
-  }, [prompt, selectedModel, selectedGroup, imageInterface, count, size, quality, style, editImage])
+  }, [
+    prompt,
+    selectedModel,
+    selectedGroup,
+    imageInterface,
+    count,
+    size,
+    quality,
+    style,
+    editImage,
+  ])
 
   return (
     <div className='mx-auto flex w-full max-w-4xl flex-col gap-4 p-4'>
       {/* 模式切换 */}
       <div className='flex items-center gap-2'>
-        <Select value={imageInterface} onValueChange={(v) => setImageInterface(v as ImageInterface)}>
+        <Select
+          value={imageInterface}
+          onValueChange={(v) => setImageInterface(v as ImageInterface)}
+        >
           <SelectTrigger className='w-40'>
             <SelectValue />
           </SelectTrigger>
@@ -231,7 +250,7 @@ export function PlaygroundImage({
                 />
               ) : null}
               {img.revised_prompt && (
-                <p className='truncate p-2 text-xs text-muted-foreground'>
+                <p className='text-muted-foreground truncate p-2 text-xs'>
                   {img.revised_prompt}
                 </p>
               )}

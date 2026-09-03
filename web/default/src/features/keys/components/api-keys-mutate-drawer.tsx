@@ -67,8 +67,6 @@ import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
-import { RateLimitsDisplay } from './api-keys-cells'
-
 import { createApiKey, updateApiKey, getApiKey } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
@@ -83,6 +81,7 @@ import {
   ApiKeyGroupCombobox,
   type ApiKeyGroupOption,
 } from './api-key-group-combobox'
+import { RateLimitsDisplay } from './api-keys-cells'
 import { useApiKeys } from './api-keys-provider'
 
 type ApiKeyMutateDrawerProps = {

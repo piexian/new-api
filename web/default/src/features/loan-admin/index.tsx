@@ -62,9 +62,7 @@ export function LoanAdminPage() {
               <TabsTrigger value='applications'>
                 {t('Applications')}
               </TabsTrigger>
-              <TabsTrigger value='overview'>
-                {t('Market Overview')}
-              </TabsTrigger>
+              <TabsTrigger value='overview'>{t('Market Overview')}</TabsTrigger>
               <TabsTrigger value='offers'>{t('Offers')}</TabsTrigger>
               <TabsTrigger value='fundings'>{t('Fundings')}</TabsTrigger>
             </TabsList>

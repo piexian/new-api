@@ -46,7 +46,6 @@ import {
 import { formatTimestamp } from '@/lib/format'
 
 import { getAdminLoanApplications } from '../api'
-
 import { QueryErrorState } from './query-error'
 import { TablePagination } from './table-pagination'
 import { UserCell } from './user-cell'
@@ -147,7 +146,9 @@ export function LoanApplicationsTable() {
             <TableBody>
               {applications.map((application) => (
                 <TableRow key={application.id}>
-                  <TableCell className='tabular-nums'>#{application.id}</TableCell>
+                  <TableCell className='tabular-nums'>
+                    #{application.id}
+                  </TableCell>
                   <TableCell>
                     <UserCell
                       username={application.username}
@@ -169,7 +170,7 @@ export function LoanApplicationsTable() {
                       ? `${application.rating}/5`
                       : t('Unrated')}
                   </TableCell>
-                  <TableCell className='max-w-64 text-muted-foreground'>
+                  <TableCell className='text-muted-foreground max-w-64'>
                     {application.rating_comment || '-'}
                   </TableCell>
                   <TableCell className='text-muted-foreground text-xs'>
@@ -203,7 +204,9 @@ export function LoanApplicationsTable() {
               <Bot className='h-4 w-4 sm:h-5 sm:w-5' strokeWidth={2} />
             </IconBadge>
             <div className='min-w-0'>
-              <CardTitle className='text-lg'>{t('Loan Applications')}</CardTitle>
+              <CardTitle className='text-lg'>
+                {t('Loan Applications')}
+              </CardTitle>
               <p className='text-muted-foreground mt-0.5 text-xs sm:text-sm'>
                 {t('AI loan officer applications')}
               </p>
@@ -246,7 +249,12 @@ export function LoanApplicationsTable() {
                 placeholder={t('Filter by user ID')}
                 className='h-8 w-40 sm:w-44'
               />
-              <Button type='submit' variant='outline' size='sm' className='h-8 px-2.5'>
+              <Button
+                type='submit'
+                variant='outline'
+                size='sm'
+                className='h-8 px-2.5'
+              >
                 <Search className='h-3.5 w-3.5' />
                 {t('Search')}
               </Button>

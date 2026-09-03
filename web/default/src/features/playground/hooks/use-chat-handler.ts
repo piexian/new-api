@@ -90,25 +90,45 @@ export function useChatHandler({
     }
 
     const pendingChunks = pendingStreamChunksRef.current
-    if (!pendingChunks.reasoning && !pendingChunks.content && !pendingChunks.toolCalls) {
+    if (
+      !pendingChunks.reasoning &&
+      !pendingChunks.content &&
+      !pendingChunks.toolCalls
+    ) {
       return
     }
 
-    pendingStreamChunksRef.current = { content: '', reasoning: '', toolCalls: '' }
+    pendingStreamChunksRef.current = {
+      content: '',
+      reasoning: '',
+      toolCalls: '',
+    }
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) => {
         let updatedMessage = message
 
         if (pendingChunks.reasoning) {
-          updatedMessage = applyStreamingChunk(updatedMessage, 'reasoning', pendingChunks.reasoning)
+          updatedMessage = applyStreamingChunk(
+            updatedMessage,
+            'reasoning',
+            pendingChunks.reasoning
+          )
         }
 
         if (pendingChunks.content) {
-          updatedMessage = applyStreamingChunk(updatedMessage, 'content', pendingChunks.content)
+          updatedMessage = applyStreamingChunk(
+            updatedMessage,
+            'content',
+            pendingChunks.content
+          )
         }
 
         if (pendingChunks.toolCalls) {
-          updatedMessage = applyStreamingChunk(updatedMessage, 'tool_calls', pendingChunks.toolCalls)
+          updatedMessage = applyStreamingChunk(
+            updatedMessage,
+            'tool_calls',
+            pendingChunks.toolCalls
+          )
         }
 
         return updatedMessage
@@ -209,13 +229,14 @@ export function useChatHandler({
         config,
         parameterEnabled
       )
-      const endpoint = config.chatInterface === 'openai-response'
-        ? API_ENDPOINTS.RESPONSES
-        : config.chatInterface === 'anthropic'
-          ? API_ENDPOINTS.MESSAGES
-          : config.chatInterface === 'gemini'
-            ? `${API_ENDPOINTS.RESPONSES}?format=gemini`
-            : undefined
+      const endpoint =
+        config.chatInterface === 'openai-response'
+          ? API_ENDPOINTS.RESPONSES
+          : config.chatInterface === 'anthropic'
+            ? API_ENDPOINTS.MESSAGES
+            : config.chatInterface === 'gemini'
+              ? `${API_ENDPOINTS.RESPONSES}?format=gemini`
+              : undefined
       sendStreamRequest(
         payload,
         handleStreamUpdate,
@@ -250,13 +271,14 @@ export function useChatHandler({
 
       try {
         setIsRequesting(true)
-        const endpoint = config.chatInterface === 'openai-response'
-          ? API_ENDPOINTS.RESPONSES
-          : config.chatInterface === 'anthropic'
-            ? API_ENDPOINTS.MESSAGES
-            : config.chatInterface === 'gemini'
-              ? `${API_ENDPOINTS.RESPONSES}?format=gemini`
-              : undefined
+        const endpoint =
+          config.chatInterface === 'openai-response'
+            ? API_ENDPOINTS.RESPONSES
+            : config.chatInterface === 'anthropic'
+              ? API_ENDPOINTS.MESSAGES
+              : config.chatInterface === 'gemini'
+                ? `${API_ENDPOINTS.RESPONSES}?format=gemini`
+                : undefined
         const response = await sendChatCompletion(
           payload,
           abortController.signal,

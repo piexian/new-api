@@ -40,7 +40,6 @@ import { formatPercent, formatTimestamp } from '@/lib/format'
 
 import { getAdminLoanOffers } from '../api'
 import type { LoanAdminOffer } from '../types'
-
 import { QueryErrorState } from './query-error'
 import { TablePagination } from './table-pagination'
 import { UserCell } from './user-cell'
@@ -240,7 +239,12 @@ export function LoanOffersTable() {
               placeholder={t('Search by lender username or ID')}
               className='h-8 w-48 sm:w-56'
             />
-            <Button type='submit' variant='outline' size='sm' className='h-8 px-2.5'>
+            <Button
+              type='submit'
+              variant='outline'
+              size='sm'
+              className='h-8 px-2.5'
+            >
               <Search className='h-3.5 w-3.5' />
               {t('Search')}
             </Button>

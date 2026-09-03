@@ -119,17 +119,22 @@ export function PlaygroundMessageContent({
       )}
 
       {message.toolCalls && message.toolCalls.length > 0 && (
-        <div className='mb-2 rounded-lg border border-border bg-muted/30 p-3'>
-          <div className='mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground'>
+        <div className='border-border bg-muted/30 mb-2 rounded-lg border p-3'>
+          <div className='text-muted-foreground mb-1 flex items-center gap-1.5 text-xs font-medium'>
             <TerminalIcon className='size-3.5' />
             {t('Tool Calls')}
           </div>
           <div className='space-y-2'>
             {message.toolCalls.map((tc, i) => (
-              <div key={`${tc.id}-${i}`} className='rounded border border-border/50 bg-background/50 p-2 text-xs'>
-                <div className='font-mono font-semibold text-primary'>{tc.name}</div>
+              <div
+                key={`${tc.id}-${i}`}
+                className='border-border/50 bg-background/50 rounded border p-2 text-xs'
+              >
+                <div className='text-primary font-mono font-semibold'>
+                  {tc.name}
+                </div>
                 {tc.arguments && (
-                  <pre className='mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-muted-foreground'>
+                  <pre className='text-muted-foreground mt-1 max-h-40 overflow-auto font-mono break-all whitespace-pre-wrap'>
                     {tc.arguments}
                   </pre>
                 )}

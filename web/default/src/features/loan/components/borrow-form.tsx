@@ -112,7 +112,9 @@ export function BorrowForm(props: BorrowFormProps) {
         // 借款后即时提示：本次放款含秒结清惩罚条款的资金，说明手动提前结清的
         // 惩罚与签到自动还款的豁免（签到视为正常还款，不触发惩罚）
         const penaltyTotal = (res.data.fundings ?? []).reduce(
-          (sum, f) => sum + (f.fast_repay_penalty_quota > 0 ? f.fast_repay_penalty_quota : 0),
+          (sum, f) =>
+            sum +
+            (f.fast_repay_penalty_quota > 0 ? f.fast_repay_penalty_quota : 0),
           0
         )
         if (penaltyTotal > 0) {

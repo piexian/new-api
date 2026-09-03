@@ -27,7 +27,6 @@ import dayjs from '@/lib/dayjs'
 import { formatPercent } from '@/lib/format'
 
 import type { LoanStatus } from '../types'
-
 import { QueryErrorState } from './query-error'
 
 interface LoanStatusCardProps {
@@ -52,9 +51,7 @@ function StatusItem({
         {label}
       </p>
       <p className='text-lg font-semibold tabular-nums'>{value}</p>
-      {hint ? (
-        <p className='text-muted-foreground text-xs'>{hint}</p>
-      ) : null}
+      {hint ? <p className='text-muted-foreground text-xs'>{hint}</p> : null}
     </div>
   )
 }

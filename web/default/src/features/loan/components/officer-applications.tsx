@@ -48,12 +48,7 @@ import {
   rateLoanApplication,
   replyLoanApplication,
 } from '../api'
-import {
-  LOAN_TOPIC_KEYS,
-  type LoanApplication,
-  type LoanTopic,
-} from '../types'
-
+import { LOAN_TOPIC_KEYS, type LoanApplication, type LoanTopic } from '../types'
 import { QueryErrorState } from './query-error'
 
 const PAGE_SIZE = 10
@@ -90,9 +85,7 @@ function StarRating({
           aria-label={t('Rate {{count}} star', { count: star })}
           className={cn(
             'rounded p-0.5 outline-none focus-visible:ring-2',
-            onChange && !disabled
-              ? 'cursor-pointer'
-              : 'cursor-default'
+            onChange && !disabled ? 'cursor-pointer' : 'cursor-default'
           )}
         >
           <Star
@@ -350,7 +343,10 @@ function ApplicationDetailDialog({
               return (
                 <div
                   key={msg.id}
-                  className={cn('flex', isUser ? 'justify-end' : 'justify-start')}
+                  className={cn(
+                    'flex',
+                    isUser ? 'justify-end' : 'justify-start'
+                  )}
                 >
                   <div
                     className={cn(
@@ -591,7 +587,9 @@ export function OfficerApplications() {
                 <Bot className='h-4 w-4 sm:h-5 sm:w-5' strokeWidth={2} />
               </IconBadge>
               <div className='min-w-0'>
-                <CardTitle className='text-lg'>{t('AI Loan Officer')}</CardTitle>
+                <CardTitle className='text-lg'>
+                  {t('AI Loan Officer')}
+                </CardTitle>
                 <p className='text-muted-foreground mt-0.5 text-xs sm:text-sm'>
                   {t(
                     'Apply for a higher limit, a lower rate, or a grace period'

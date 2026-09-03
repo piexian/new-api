@@ -196,14 +196,19 @@ export function InviteRewards() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [selfResponse, codeResponse, invitedResponse, topupResponse, loanResponse] =
-        await Promise.all([
-          getSelf(),
-          getAffiliateCode(),
-          getInvitedUsers(),
-          getInviteTopupInfo(),
-          getLoanStatus(),
-        ])
+      const [
+        selfResponse,
+        codeResponse,
+        invitedResponse,
+        topupResponse,
+        loanResponse,
+      ] = await Promise.all([
+        getSelf(),
+        getAffiliateCode(),
+        getInvitedUsers(),
+        getInviteTopupInfo(),
+        getLoanStatus(),
+      ])
 
       if (selfResponse.success && selfResponse.data) {
         setUser(selfResponse.data as InviteRewardsUserData)
@@ -393,7 +398,9 @@ export function InviteRewards() {
                     <Button
                       variant='outline'
                       onClick={handleGenerateOneTimeCode}
-                      disabled={loading || generatingOneTimeCode || inviteBlocked}
+                      disabled={
+                        loading || generatingOneTimeCode || inviteBlocked
+                      }
                     >
                       <HugeiconsIcon
                         icon={Coupon01Icon}

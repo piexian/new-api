@@ -16,30 +16,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 
 import { getModelsDevCatalog } from './api'
-import { PlaygroundModeTabs } from './components/playground-mode-tabs'
-import { PlaygroundImage } from './components/image/playground-image'
-import { PlaygroundVideo } from './components/video/playground-video'
 import { PlaygroundAudio } from './components/audio/playground-audio'
 import { PlaygroundChat } from './components/chat/playground-chat'
+import { PlaygroundImage } from './components/image/playground-image'
 import { PlaygroundInput } from './components/input/playground-input'
+import { PlaygroundModeTabs } from './components/playground-mode-tabs'
+import { PlaygroundVideo } from './components/video/playground-video'
 import {
   useChatHandler,
   usePlaygroundConversation,
   usePlaygroundOptions,
   usePlaygroundState,
 } from './hooks'
-import type { PlaygroundMode } from './types'
 import {
   filterAudioCapableModels,
   filterImageCapableModels,
   filterVideoCapableModels,
 } from './lib/options/model-capabilities'
-
-
+import type { PlaygroundMode } from './types'
 
 export function Playground() {
   const [mode, setMode] = useState<PlaygroundMode>('chat')

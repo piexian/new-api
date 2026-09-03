@@ -127,8 +127,18 @@ export interface ChatCompletionChunk {
       content?: string
       reasoning_content?: string
       tool_calls?: Array<
-        | { index: number; id?: string; function: { name?: string; arguments?: string }; type?: string }
-        | { index: number; id: string; function: { name: string; arguments: string }; type: 'function' }
+        | {
+            index: number
+            id?: string
+            function: { name?: string; arguments?: string }
+            type?: string
+          }
+        | {
+            index: number
+            id: string
+            function: { name: string; arguments: string }
+            type: 'function'
+          }
       >
     }
     finish_reason: string | null

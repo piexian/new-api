@@ -1062,7 +1062,6 @@ export function DetailsDialog(props: DetailsDialogProps) {
           </DetailSection>
         )}
 
-
         {/* System prompt override */}
         {other?.is_system_prompt_overwritten && (
           <DetailRow

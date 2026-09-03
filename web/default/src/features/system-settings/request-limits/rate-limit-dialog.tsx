@@ -95,7 +95,7 @@ export function RateLimitDialog({
 
   const form = useForm<RateLimitDialogFormValues>({
     resolver: zodResolver(
-      isConcurrency ? concurrencyDialogSchema : rateLimitDialogSchema,
+      isConcurrency ? concurrencyDialogSchema : rateLimitDialogSchema
     ) as unknown as Resolver<RateLimitDialogFormValues>,
     defaultValues: {
       groupName: '',

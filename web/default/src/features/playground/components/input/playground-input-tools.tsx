@@ -16,7 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { GlobeIcon, PaperclipIcon, TerminalIcon, Trash2Icon, ZapIcon } from 'lucide-react'
+import {
+  GlobeIcon,
+  PaperclipIcon,
+  TerminalIcon,
+  Trash2Icon,
+  ZapIcon,
+} from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -32,7 +38,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Tooltip,
   TooltipContent,
@@ -41,13 +53,9 @@ import {
 import { cn } from '@/lib/utils'
 
 import { CHAT_INTERFACE_OPTIONS } from '../../constants'
-import {
-  ATTACHMENT_ACTIONS,
-  getAttachmentActionNotice,
-} from '../../lib'
+import { ATTACHMENT_ACTIONS, getAttachmentActionNotice } from '../../lib'
 import type { ParameterEnabled, PlaygroundConfig } from '../../types'
 import { PlaygroundParameterPanel } from './playground-parameter-panel'
-
 
 type PlaygroundInputToolsProps = {
   config: PlaygroundConfig
@@ -141,7 +149,9 @@ export function PlaygroundInputTools({
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
                 )}
                 disabled={disabled}
-                onClick={() => onConfigChange('webSearchEnabled', !config.webSearchEnabled)}
+                onClick={() =>
+                  onConfigChange('webSearchEnabled', !config.webSearchEnabled)
+                }
                 variant='ghost'
               >
                 <GlobeIcon size={16} />
@@ -166,7 +176,12 @@ export function PlaygroundInputTools({
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
                 )}
                 disabled={disabled}
-                onClick={() => onConfigChange('codeInterpreterEnabled', !config.codeInterpreterEnabled)}
+                onClick={() =>
+                  onConfigChange(
+                    'codeInterpreterEnabled',
+                    !config.codeInterpreterEnabled
+                  )
+                }
                 variant='ghost'
               >
                 <TerminalIcon size={16} />
@@ -181,13 +196,28 @@ export function PlaygroundInputTools({
         {/* Reasoning 思考等级 */}
         <Select
           value={config.reasoningEffort}
-          onValueChange={(v) => v && onConfigChange('reasoningEffort', v as PlaygroundConfig['reasoningEffort'])}
+          onValueChange={(v) =>
+            v &&
+            onConfigChange(
+              'reasoningEffort',
+              v as PlaygroundConfig['reasoningEffort']
+            )
+          }
         >
           <Tooltip>
             <TooltipTrigger
               render={
-                <SelectTrigger className='h-8 w-[36px] justify-center px-0' aria-label={t('Reasoning')}>
-                  <ZapIcon size={16} className={cn(config.reasoningEffort !== 'none' && 'text-amber-500 fill-amber-500/20')} />
+                <SelectTrigger
+                  className='h-8 w-[36px] justify-center px-0'
+                  aria-label={t('Reasoning')}
+                >
+                  <ZapIcon
+                    size={16}
+                    className={cn(
+                      config.reasoningEffort !== 'none' &&
+                        'text-amber-500 fill-amber-500/20'
+                    )}
+                  />
                 </SelectTrigger>
               }
             />
@@ -206,7 +236,13 @@ export function PlaygroundInputTools({
 
         <Select
           value={config.chatInterface}
-          onValueChange={(v) => v && onConfigChange('chatInterface', v as PlaygroundConfig['chatInterface'])}
+          onValueChange={(v) =>
+            v &&
+            onConfigChange(
+              'chatInterface',
+              v as PlaygroundConfig['chatInterface']
+            )
+          }
         >
           <SelectTrigger className='h-8 w-[130px] text-xs'>
             <SelectValue />

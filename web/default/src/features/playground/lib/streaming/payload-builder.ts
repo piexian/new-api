@@ -69,7 +69,6 @@ export function buildChatCompletionPayload(
     payload.seed = config.seed
   }
 
-
   // 思考等级
   if (config.reasoningEffort && config.reasoningEffort !== 'none') {
     payload.reasoning_effort = config.reasoningEffort

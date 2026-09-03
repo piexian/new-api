@@ -454,7 +454,12 @@ function GroupPricingTable({
 }: GroupPricingTableProps) {
   const { t } = useTranslation()
   const [rows, setRows] = useState<GroupPricingRow[]>(() =>
-    buildGroupPricingRows(groupRatio, userUsableGroups, topupGroupRatio, hiddenUserGroups)
+    buildGroupPricingRows(
+      groupRatio,
+      userUsableGroups,
+      topupGroupRatio,
+      hiddenUserGroups
+    )
   )
 
   useEffect(() => {

@@ -38,7 +38,6 @@ import { formatQuotaWithCurrency } from '@/lib/currency'
 import { formatPercent, formatTimestamp } from '@/lib/format'
 
 import { getAdminLoanAccounts } from '../api'
-
 import { QueryErrorState } from './query-error'
 import { TablePagination } from './table-pagination'
 import { UserCell } from './user-cell'
@@ -121,7 +120,10 @@ export function LoanAccountsTable() {
               {accounts.map((account) => (
                 <TableRow key={account.user_id}>
                   <TableCell>
-                    <UserCell username={account.username} userId={account.user_id} />
+                    <UserCell
+                      username={account.username}
+                      userId={account.user_id}
+                    />
                   </TableCell>
                   <TableCell className='font-medium tabular-nums'>
                     {formatQuotaWithCurrency(account.principal_quota)}
@@ -147,7 +149,7 @@ export function LoanAccountsTable() {
                   </TableCell>
                   <TableCell>
                     {account.terms_agreed_at > 0 ? (
-                      <span className='tabular-nums text-xs'>
+                      <span className='text-xs tabular-nums'>
                         {formatTimestamp(account.terms_agreed_at)}
                       </span>
                     ) : (
@@ -207,7 +209,12 @@ export function LoanAccountsTable() {
               placeholder={t('Search by username or user ID')}
               className='h-8 w-48 sm:w-56'
             />
-            <Button type='submit' variant='outline' size='sm' className='h-8 px-2.5'>
+            <Button
+              type='submit'
+              variant='outline'
+              size='sm'
+              className='h-8 px-2.5'
+            >
               <Search className='h-3.5 w-3.5' />
               {t('Search')}
             </Button>

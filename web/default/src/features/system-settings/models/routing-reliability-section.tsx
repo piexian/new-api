@@ -254,7 +254,8 @@ const normalizeFormValues = (
     values.notify_setting.channel_auto_enabled,
   'notify_setting.channel_quota_cooldown':
     values.notify_setting.channel_quota_cooldown,
-  'notify_setting.channel_test_result': values.notify_setting.channel_test_result,
+  'notify_setting.channel_test_result':
+    values.notify_setting.channel_test_result,
 })
 
 export function RoutingReliabilitySection({
@@ -565,9 +566,7 @@ export function RoutingReliabilitySection({
                     <SettingsSwitchContent>
                       <FormLabel>{t('Plan quota cooldown')}</FormLabel>
                       <FormDescription>
-                        {t(
-                          'Notify when a channel enters plan quota cooldown'
-                        )}
+                        {t('Notify when a channel enters plan quota cooldown')}
                       </FormDescription>
                     </SettingsSwitchContent>
                     <FormControl>
@@ -587,9 +586,7 @@ export function RoutingReliabilitySection({
                     <SettingsSwitchContent>
                       <FormLabel>{t('Channel test summary')}</FormLabel>
                       <FormDescription>
-                        {t(
-                          'Notify after a manual full channel test completes'
-                        )}
+                        {t('Notify after a manual full channel test completes')}
                       </FormDescription>
                     </SettingsSwitchContent>
                     <FormControl>

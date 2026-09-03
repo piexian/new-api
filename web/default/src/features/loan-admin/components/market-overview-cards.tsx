@@ -33,13 +33,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 
 import { getAdminLoanMarketOverview } from '../api'
-
 import { QueryErrorState } from './query-error'
 
-function offerStatusLabel(
-  t: (key: string) => string,
-  status: string
-): string {
+function offerStatusLabel(t: (key: string) => string, status: string): string {
   if (status === 'active') return t('Active')
   if (status === 'paused') return t('Paused')
   return t('Closed')
@@ -64,9 +60,7 @@ export function MarketOverviewCards() {
   })
 
   if (isError) {
-    return (
-      <QueryErrorState message={error.message} onRetry={() => refetch()} />
-    )
+    return <QueryErrorState message={error.message} onRetry={() => refetch()} />
   }
 
   if (isLoading || !data) {

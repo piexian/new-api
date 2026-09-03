@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
+import { ModelGroupSelector } from '@/components/model-group-selector'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,9 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ModelGroupSelector } from '@/components/model-group-selector'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from 'sonner'
 
 import { API_ENDPOINTS, AUDIO_VOICE_OPTIONS } from '../../constants'
 import type { AudioInterface, GroupOption, ModelOption } from '../../types'
@@ -115,13 +115,18 @@ export function PlaygroundAudio({
   return (
     <div className='mx-auto flex w-full max-w-4xl flex-col gap-4 p-4'>
       {/* 模式切换 */}
-      <Select value={audioInterface} onValueChange={(v) => setAudioInterface(v as AudioInterface)}>
+      <Select
+        value={audioInterface}
+        onValueChange={(v) => setAudioInterface(v as AudioInterface)}
+      >
         <SelectTrigger className='w-48'>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value='speech'>{t('Text to Speech')}</SelectItem>
-          <SelectItem value='transcriptions'>{t('Audio Transcription')}</SelectItem>
+          <SelectItem value='transcriptions'>
+            {t('Audio Transcription')}
+          </SelectItem>
         </SelectContent>
       </Select>
 
@@ -190,19 +195,13 @@ export function PlaygroundAudio({
           <Button onClick={handleSpeech} disabled={isLoading || !text.trim()}>
             {isLoading ? t('Generating...') : t('Generate Speech')}
           </Button>
-          {audioUrl && (
-            <audio src={audioUrl} controls className='w-full' />
-          )}
+          {audioUrl && <audio src={audioUrl} controls className='w-full' />}
         </>
       ) : (
         <>
           <div className='flex flex-col gap-2'>
             <Label>{t('Upload audio file')}</Label>
-            <Input
-              ref={fileRef}
-              type='file'
-              accept='audio/*'
-            />
+            <Input ref={fileRef} type='file' accept='audio/*' />
           </div>
           <Button onClick={handleTranscription} disabled={isLoading}>
             {isLoading ? t('Transcribing...') : t('Transcribe')}
@@ -210,7 +209,7 @@ export function PlaygroundAudio({
           {transcription && (
             <div className='rounded-lg border p-4'>
               <Label className='mb-2 block text-xs'>{t('Transcription')}</Label>
-              <p className='whitespace-pre-wrap text-sm'>{transcription}</p>
+              <p className='text-sm whitespace-pre-wrap'>{transcription}</p>
             </div>
           )}
         </>

@@ -349,9 +349,7 @@ export function RateLimitSection({ defaultValues }: RateLimitSectionProps) {
                     variant='outline'
                     size='sm'
                     onClick={() =>
-                      setUseVisualConcurrencyEditor(
-                        !useVisualConcurrencyEditor,
-                      )
+                      setUseVisualConcurrencyEditor(!useVisualConcurrencyEditor)
                     }
                   >
                     {useVisualConcurrencyEditor ? (

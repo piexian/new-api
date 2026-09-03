@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
+import { ModelGroupSelector } from '@/components/model-group-selector'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,12 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ModelGroupSelector } from '@/components/model-group-selector'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from 'sonner'
 
 import { API_ENDPOINTS } from '../../constants'
-import type { GroupOption, ModelOption, VideoInterface, VideoTaskResponse } from '../../types'
+import type {
+  GroupOption,
+  ModelOption,
+  VideoInterface,
+  VideoTaskResponse,
+} from '../../types'
 
 const VIDEO_SIZE_OPTIONS = ['640x480', '1280x720', '1920x1080'] as const
 
@@ -38,7 +43,8 @@ export function PlaygroundVideo({
   onGroupChange,
 }: PlaygroundVideoProps) {
   const { t } = useTranslation()
-  const [videoInterface, setVideoInterface] = useState<VideoInterface>('generations')
+  const [videoInterface, setVideoInterface] =
+    useState<VideoInterface>('generations')
   const [prompt, setPrompt] = useState('')
   const [size, setSize] = useState<string>('1280x720')
   const [duration, setDuration] = useState(5)
@@ -55,28 +61,25 @@ export function PlaygroundVideo({
     }
   }
 
-  const pollTask = useCallback(
-    async (taskId: string) => {
-      stopPolling()
-      pollRef.current = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/video/task/${taskId}`, {
-            credentials: 'include',
-          })
-          if (!res.ok) return
-          const data: VideoTaskResponse = await res.json()
-          setResult(data)
-          if (data.status === 'succeeded' || data.status === 'failed') {
-            stopPolling()
-            setIsLoading(false)
-          }
-        } catch {
-          // 忽略轮询错误
+  const pollTask = useCallback(async (taskId: string) => {
+    stopPolling()
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/video/task/${taskId}`, {
+          credentials: 'include',
+        })
+        if (!res.ok) return
+        const data: VideoTaskResponse = await res.json()
+        setResult(data)
+        if (data.status === 'succeeded' || data.status === 'failed') {
+          stopPolling()
+          setIsLoading(false)
         }
-      }, 3000)
-    },
-    [],
-  )
+      } catch {
+        // 忽略轮询错误
+      }
+    }, 3000)
+  }, [])
 
   const handleSubmit = useCallback(async () => {
     if (!prompt.trim() || !selectedModel) return
@@ -128,12 +131,25 @@ export function PlaygroundVideo({
       toast.error(err instanceof Error ? err.message : String(err))
       setIsLoading(false)
     }
-  }, [prompt, selectedModel, selectedGroup, videoInterface, size, duration, fps, imageInput, pollTask])
+  }, [
+    prompt,
+    selectedModel,
+    selectedGroup,
+    videoInterface,
+    size,
+    duration,
+    fps,
+    imageInput,
+    pollTask,
+  ])
 
   return (
     <div className='mx-auto flex w-full max-w-4xl flex-col gap-4 p-4'>
       {/* 模式切换 */}
-      <Select value={videoInterface} onValueChange={(v) => v && setVideoInterface(v as VideoInterface)}>
+      <Select
+        value={videoInterface}
+        onValueChange={(v) => v && setVideoInterface(v as VideoInterface)}
+      >
         <SelectTrigger className='w-48'>
           <SelectValue />
         </SelectTrigger>
@@ -235,7 +251,7 @@ export function PlaygroundVideo({
             />
           )}
           {result.status === 'failed' && result.error && (
-            <p className='text-sm text-destructive'>{result.error.message}</p>
+            <p className='text-destructive text-sm'>{result.error.message}</p>
           )}
         </div>
       )}
