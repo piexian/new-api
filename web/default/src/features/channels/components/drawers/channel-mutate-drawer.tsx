@@ -314,6 +314,7 @@ const SENSITIVE_FORM_FIELDS = [
   'proxy',
   'pass_through_body_enabled',
   'upstream_openai_compat_enabled',
+  'zcode_mode_enabled',
   'system_prompt',
   'system_prompt_override',
   'allow_service_tier',
@@ -373,6 +374,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.thinking_to_content ||
     values.pass_through_body_enabled ||
     values.upstream_openai_compat_enabled ||
+    values.zcode_mode_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
@@ -800,6 +802,7 @@ export function ChannelMutateDrawer({
   const currentUpstreamOpenAICompatEnabled = form.watch(
     'upstream_openai_compat_enabled'
   )
+  const currentZcodeModeEnabled = form.watch('zcode_mode_enabled')
   const currentDisableTaskPollingSleep = form.watch(
     'disable_task_polling_sleep'
   )
@@ -1086,6 +1089,7 @@ export function ChannelMutateDrawer({
     currentThinkingToContent ||
     currentPassThroughBodyEnabled ||
     currentUpstreamOpenAICompatEnabled ||
+    currentZcodeModeEnabled ||
     currentDisableTaskPollingSleep ||
     currentProxy?.trim() ||
     currentSystemPrompt?.trim() ||
@@ -5033,6 +5037,31 @@ export function ChannelMutateDrawer({
                                         <FormDescription>
                                           {t(
                                             'Send OpenAI chat requests straight to the upstream OpenAI-compatible endpoint (Gemini channels only)'
+                                          )}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value}
+                                          onCheckedChange={field.onChange}
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
+
+                              {currentType === 26 && (
+                                <FormField
+                                  control={form.control}
+                                  name='zcode_mode_enabled'
+                                  render={({ field }) => (
+                                    <FormItem className='flex items-center justify-between px-4 py-3'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel>{t('ZCode Mode')}</FormLabel>
+                                        <FormDescription>
+                                          {t(
+                                            'Route all LLM requests via /v1/messages with the ZCode client fingerprint (GLM Coding Plan channels only)'
                                           )}
                                         </FormDescription>
                                       </div>

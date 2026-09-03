@@ -17,6 +17,7 @@ type ChannelSettings struct {
 	PassThroughBodyEnabled            bool     `json:"pass_through_body_enabled,omitempty"`
 	UseResponsesApi                   bool     `json:"use_responses_api,omitempty"`
 	UpstreamOpenAICompatEnabled       bool     `json:"upstream_openai_compat_enabled,omitempty"` // OpenAI Chat 入站直传上游 OpenAI 兼容端点(仅 Gemini 系渠道)
+	ZcodeModeEnabled                  bool     `json:"zcode_mode_enabled,omitempty"`             // ZCode 模式:GLM Coding Plan 全部 LLM 请求固定转 /v1/messages 并注入 ZCode 指纹(仅智谱 Coding Plan 渠道)
 	ChatCompletionsToResponsesEnabled *bool    `json:"chat_completions_to_responses_enabled,omitempty"`
 	ChatCompletionsToResponsesModels  []string `json:"chat_completions_to_responses_models,omitempty"`
 	SystemPrompt                      string   `json:"system_prompt,omitempty"`

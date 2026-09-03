@@ -95,6 +95,15 @@ func isZhipuCodingPlan(info *relaycommon.RelayInfo) bool {
 	return false
 }
 
+// isZhipuZcodeMode 判定 Coding Plan 渠道是否开启 ZCode 模式：开启后全部 LLM 请求
+// 固定转 /v1/messages 并注入 ZCode 设备指纹；关闭保持原有透传逻辑。
+func isZhipuZcodeMode(info *relaycommon.RelayInfo) bool {
+	if !isZhipuCodingPlan(info) {
+		return false
+	}
+	return info.ChannelSetting.ZcodeModeEnabled
+}
+
 func zhipuSpecialBase(baseURL string) (channelconstant.ChannelSpecialBase, bool) {
 	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if specialBase, ok := channelconstant.ChannelSpecialBases[normalized]; ok {
@@ -118,8 +127,10 @@ func setupZhipuClaudeCompatibleHeaders(c *gin.Context, req *http.Header, info *r
 	}
 	req.Set("anthropic-version", anthropicVersion)
 	claude.CommonClaudeHeadersOperation(c, req, info)
-	if isZhipuCodingPlan(info) {
+	if isZhipuZcodeMode(info) {
 		setupZCodeCompatibilityHeaders(req)
+	} else if isZhipuCodingPlan(info) {
+		setupZCodeTraceHeaders(req)
 	}
 }
 
@@ -219,7 +230,8 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	// Keep that compatibility path on OpenAI Chat so its response handler can
 	// aggregate the upstream stream back into the original Chat contract.
 	// shouldUseZhipuClaudeCompatibleAPI 对 nil 返回 false，短路后 info 必非 nil
-	if shouldUseZhipuClaudeCompatibleAPI(info) && info.RelayFormat != types.RelayFormatOpenAI {
+	// ZCode 模式下 Responses 入站也固定转 Claude Messages，不走 OpenAI 直连。
+	if shouldUseZhipuClaudeCompatibleAPI(info) && (info.RelayFormat != types.RelayFormatOpenAI || isZhipuZcodeMode(info)) {
 		info.FinalRequestRelayFormat = types.RelayFormatClaude
 		return relayconvert.OpenAIResponsesRequestToClaudeMessages(c, &request)
 	}

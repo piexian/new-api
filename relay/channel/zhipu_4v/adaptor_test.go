@@ -105,7 +105,7 @@ func TestSetupRequestHeaderUsesClaudeCompatibleHeadersForClaudeModel(t *testing.
 	}
 }
 
-func TestSetupRequestHeaderAddsZCodeTraceHeadersForCodingPlan(t *testing.T) {
+func TestSetupRequestHeaderAddsZCodeFingerprintForCodingPlan(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
@@ -120,6 +120,7 @@ func TestSetupRequestHeaderAddsZCodeTraceHeadersForCodingPlan(t *testing.T) {
 			ChannelBaseUrl:    "glm-coding-plan",
 			ApiKey:            "coding-plan-key",
 			UpstreamModelName: "glm-4.6",
+			ChannelSetting:    dto.ChannelSettings{ZcodeModeEnabled: true},
 		},
 	}
 
@@ -132,17 +133,31 @@ func TestSetupRequestHeaderAddsZCodeTraceHeadersForCodingPlan(t *testing.T) {
 	if headers.Get("x-api-key") != "coding-plan-key" {
 		t.Fatalf("x-api-key = %q, want coding-plan-key", headers.Get("x-api-key"))
 	}
-	for _, name := range []string{"x-request-id", "x-zcode-session-type", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
+	zcodeFingerprint := map[string]string{
+		"User-Agent":           "ZCode/" + zcodeClientVersion,
+		"HTTP-Referer":         "https://zcode.z.ai",
+		"X-Title":              "Z Code@electron",
+		"X-ZCode-App-Version":  zcodeClientVersion,
+		"X-Platform":           "win32-x64",
+		"X-Release-Channel":    "production",
+		"X-Client-Language":    "zh-CN",
+		"X-Client-Timezone":    "Asia/Shanghai",
+		"X-Os-Category":        "windows",
+		"x-zcode-session-type": "main",
+	}
+	for name, want := range zcodeFingerprint {
+		if value := headers.Get(name); value != want {
+			t.Fatalf("%s = %q, want %q", name, value, want)
+		}
+	}
+	for _, name := range []string{"x-request-id", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
 		if value := headers.Get(name); value == "" {
 			t.Fatalf("%s is empty", name)
 		}
 	}
-	if headers.Get("x-zcode-session-type") != "main" {
-		t.Fatalf("x-zcode-session-type = %q, want main", headers.Get("x-zcode-session-type"))
-	}
-	for _, name := range []string{"HTTP-Referer", "User-Agent", "X-ZCode-App-Version", "X-Title", "X-ZCode-Agent", "X-Platform", "X-Release-Channel", "X-Client-Language", "X-Client-Timezone", "X-Os-Category", "X-Os-Version", "X-Device-Mid", "X-Stainless-Runtime", "X-Stainless-Package-Version", "x-app", "X-Claude-Code-Session-Id"} {
+	for _, name := range []string{"X-Stainless-Runtime", "X-Stainless-Package-Version", "x-app", "X-Claude-Code-Session-Id", "x-client-request-id", "anthropic-client-platform", "anthropic-client-version", "anthropic-dangerous-direct-browser-access"} {
 		if value := headers.Get(name); value != "" {
-			t.Fatalf("%s = %q, want empty for non-forged ZCode-compatible requests", name, value)
+			t.Fatalf("%s = %q, want cleared from Claude fingerprint", name, value)
 		}
 	}
 	for _, name := range []string{"x-request-id", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
@@ -247,5 +262,145 @@ func TestConvertInternalChatResponsesRequestKeepsOpenAIFormat(t *testing.T) {
 	}
 	if info.FinalRequestRelayFormat != types.RelayFormatOpenAI {
 		t.Fatalf("FinalRequestRelayFormat = %q, want %q", info.FinalRequestRelayFormat, types.RelayFormatOpenAI)
+	}
+}
+
+func TestSetupRequestHeaderPassthroughForResponsesOpenAIPathWhenZcodeModeOff(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	headers := make(http.Header)
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "glm-coding-plan",
+			ApiKey:            "coding-plan-key",
+			UpstreamModelName: "glm-5.3-flash",
+		},
+	}
+
+	// ZCode 模式关闭时 Responses→OpenAI chat 直连保持透传，不注入任何 ZCode 头。
+	info.RelayMode = relayconstant.RelayModeResponses
+	info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+
+	if err := (&Adaptor{}).SetupRequestHeader(c, &headers, info); err != nil {
+		t.Fatalf("SetupRequestHeader returned error: %v", err)
+	}
+	if headers.Get("Authorization") != "Bearer coding-plan-key" {
+		t.Fatalf("Authorization = %q, want Bearer coding-plan-key", headers.Get("Authorization"))
+	}
+	for _, name := range []string{"User-Agent", "HTTP-Referer", "X-ZCode-App-Version", "X-Release-Channel", "x-zcode-session-type", "x-request-id"} {
+		if value := headers.Get(name); value != "" {
+			t.Fatalf("%s = %q, want empty for passthrough when ZCode mode is off", name, value)
+		}
+	}
+}
+
+func TestSetupRequestHeaderSkipsZCodeFingerprintForEmbeddings(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/embeddings", nil)
+
+	headers := make(http.Header)
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "glm-coding-plan",
+			ApiKey:            "coding-plan-key",
+			UpstreamModelName: "embedding-3",
+		},
+	}
+	info.RelayMode = relayconstant.RelayModeEmbeddings
+
+	if err := (&Adaptor{}).SetupRequestHeader(c, &headers, info); err != nil {
+		t.Fatalf("SetupRequestHeader returned error: %v", err)
+	}
+	if headers.Get("Authorization") != "Bearer coding-plan-key" {
+		t.Fatalf("Authorization = %q, want Bearer coding-plan-key", headers.Get("Authorization"))
+	}
+	for _, name := range []string{"User-Agent", "X-ZCode-App-Version", "X-Release-Channel", "x-zcode-session-type"} {
+		if value := headers.Get(name); value != "" {
+			t.Fatalf("%s = %q, want empty for non-LLM coding plan requests", name, value)
+		}
+	}
+}
+
+func TestSetupRequestHeaderTraceOnlyForCodingPlanWhenZcodeModeOff(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	headers := make(http.Header)
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "glm-coding-plan",
+			ApiKey:            "coding-plan-key",
+			UpstreamModelName: "glm-4.6",
+		},
+	}
+
+	if err := (&Adaptor{}).SetupRequestHeader(c, &headers, info); err != nil {
+		t.Fatalf("SetupRequestHeader returned error: %v", err)
+	}
+	if headers.Get("x-api-key") != "coding-plan-key" {
+		t.Fatalf("x-api-key = %q, want coding-plan-key", headers.Get("x-api-key"))
+	}
+	// tracing 头保留（原有透传逻辑），ZCode 设备指纹不注入
+	for _, name := range []string{"x-request-id", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
+		if value := headers.Get(name); value == "" {
+			t.Fatalf("%s is empty", name)
+		}
+		if _, err := uuid.Parse(headers.Get(name)); err != nil {
+			t.Fatalf("%s = %q is not a UUID: %v", name, headers.Get(name), err)
+		}
+	}
+	if headers.Get("x-zcode-session-type") != "main" {
+		t.Fatalf("x-zcode-session-type = %q, want main", headers.Get("x-zcode-session-type"))
+	}
+	for _, name := range []string{"User-Agent", "HTTP-Referer", "X-ZCode-App-Version", "X-Release-Channel", "X-Platform", "X-Os-Category"} {
+		if value := headers.Get(name); value != "" {
+			t.Fatalf("%s = %q, want empty when ZCode mode is off", name, value)
+		}
+	}
+}
+
+func TestConvertOpenAIResponsesRequestForcesClaudeWhenZcodeModeOn(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeResponses,
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "glm-coding-plan",
+			UpstreamModelName: "glm-5.3-flash",
+			ChannelSetting:    dto.ChannelSettings{ZcodeModeEnabled: true},
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		Model: "glm-5.3-flash",
+		Input: []byte(`"hello"`),
+	})
+	if err != nil {
+		t.Fatalf("ConvertOpenAIResponsesRequest returned error: %v", err)
+	}
+	if info.FinalRequestRelayFormat != types.RelayFormatClaude {
+		t.Fatalf("FinalRequestRelayFormat = %q, want %q", info.FinalRequestRelayFormat, types.RelayFormatClaude)
+	}
+	if _, ok := converted.(*dto.ClaudeRequest); !ok {
+		t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want *dto.ClaudeRequest", converted)
 	}
 }

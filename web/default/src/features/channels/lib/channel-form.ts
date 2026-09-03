@@ -214,6 +214,7 @@ export const channelFormSchema = z
     proxy: z.string().optional(),
     pass_through_body_enabled: z.boolean().optional(),
     upstream_openai_compat_enabled: z.boolean().optional(),
+    zcode_mode_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
     plan_quota_cooldown_enabled: z.boolean().optional(),
@@ -377,6 +378,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   proxy: '',
   pass_through_body_enabled: false,
   upstream_openai_compat_enabled: false,
+  zcode_mode_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
   plan_quota_cooldown_enabled: false,
@@ -424,6 +426,7 @@ export function transformChannelToFormDefaults(
     proxy: '',
     pass_through_body_enabled: false,
     upstream_openai_compat_enabled: false,
+    zcode_mode_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
     plan_quota_cooldown_enabled: false,
@@ -461,6 +464,7 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         upstream_openai_compat_enabled:
           parsed.upstream_openai_compat_enabled === true,
+        zcode_mode_enabled: parsed.zcode_mode_enabled === true,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
         plan_quota_cooldown_enabled:
@@ -598,6 +602,7 @@ function buildSettingJSON(formData: ChannelFormValues): string {
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
     upstream_openai_compat_enabled:
       formData.upstream_openai_compat_enabled === true,
+    zcode_mode_enabled: formData.zcode_mode_enabled === true,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
     plan_quota_cooldown_enabled: formData.plan_quota_cooldown_enabled === true,

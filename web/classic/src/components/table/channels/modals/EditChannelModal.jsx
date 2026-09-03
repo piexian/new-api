@@ -245,6 +245,7 @@ const EditChannelModal = (props) => {
     proxy: '',
     pass_through_body_enabled: false,
     upstream_openai_compat_enabled: false,
+    zcode_mode_enabled: false,
     use_responses_api: false,
     chat_completions_to_responses_mode: 'inherit',
     chat_completions_to_responses_models: [],
@@ -586,6 +587,7 @@ const EditChannelModal = (props) => {
     proxy: '',
     pass_through_body_enabled: false,
     upstream_openai_compat_enabled: false,
+    zcode_mode_enabled: false,
     use_responses_api: false,
     chat_completions_to_responses_mode: 'inherit',
     chat_completions_to_responses_models: [],
@@ -1026,6 +1028,7 @@ const EditChannelModal = (props) => {
             parsedSettings.pass_through_body_enabled || false;
           data.upstream_openai_compat_enabled =
             parsedSettings.upstream_openai_compat_enabled === true;
+          data.zcode_mode_enabled = parsedSettings.zcode_mode_enabled === true;
           data.use_responses_api = parsedSettings.use_responses_api === true;
           data.chat_completions_to_responses_mode =
             typeof parsedSettings.chat_completions_to_responses_enabled ===
@@ -1058,6 +1061,7 @@ const EditChannelModal = (props) => {
           data.pass_through_body_enabled = false;
           data.use_responses_api = false;
           data.upstream_openai_compat_enabled = false;
+          data.zcode_mode_enabled = false;
           data.chat_completions_to_responses_mode = 'inherit';
           data.chat_completions_to_responses_models = [];
           data.system_prompt = '';
@@ -1071,6 +1075,7 @@ const EditChannelModal = (props) => {
         data.pass_through_body_enabled = false;
         data.use_responses_api = false;
         data.upstream_openai_compat_enabled = false;
+        data.zcode_mode_enabled = false;
         data.chat_completions_to_responses_mode = 'inherit';
         data.chat_completions_to_responses_models = [];
         data.system_prompt = '';
@@ -1203,6 +1208,7 @@ const EditChannelModal = (props) => {
         pass_through_body_enabled: data.pass_through_body_enabled,
         upstream_openai_compat_enabled:
           data.upstream_openai_compat_enabled === true,
+        zcode_mode_enabled: data.zcode_mode_enabled === true,
         use_responses_api: data.use_responses_api || false,
         chat_completions_to_responses_mode:
           data.chat_completions_to_responses_mode || 'inherit',
@@ -1251,6 +1257,7 @@ const EditChannelModal = (props) => {
         data.thinking_to_content ||
         data.pass_through_body_enabled ||
         data.upstream_openai_compat_enabled === true ||
+        data.zcode_mode_enabled === true ||
         data.force_format ||
         data.claude_beta_query ||
         data.system_prompt_override;
@@ -1603,6 +1610,7 @@ const EditChannelModal = (props) => {
       proxy: '',
       pass_through_body_enabled: false,
       upstream_openai_compat_enabled: false,
+      zcode_mode_enabled: false,
       use_responses_api: false,
       chat_completions_to_responses_mode: 'inherit',
       chat_completions_to_responses_models: [],
@@ -2027,6 +2035,7 @@ const EditChannelModal = (props) => {
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
       upstream_openai_compat_enabled:
         localInputs.upstream_openai_compat_enabled === true,
+      zcode_mode_enabled: localInputs.zcode_mode_enabled === true,
       use_responses_api: false,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
@@ -2138,6 +2147,7 @@ const EditChannelModal = (props) => {
     delete localInputs.proxy;
     delete localInputs.pass_through_body_enabled;
     delete localInputs.upstream_openai_compat_enabled;
+    delete localInputs.zcode_mode_enabled;
     delete localInputs.use_responses_api;
     delete localInputs.chat_completions_to_responses_mode;
     delete localInputs.chat_completions_to_responses_models;
@@ -3131,6 +3141,21 @@ const EditChannelModal = (props) => {
                       }
                       extraText={t(
                         '开启后 OpenAI 格式对话请求直接转发到上游 OpenAI 兼容端点，不再做协议转换（仅 Gemini 系渠道）',
+                      )}
+                    />
+                  )}
+
+                  {inputs.type === 26 && (
+                    <Form.Switch
+                      field='zcode_mode_enabled'
+                      label={t('ZCode 模式')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange('zcode_mode_enabled', value)
+                      }
+                      extraText={t(
+                        '开启后全部 LLM 请求固定转换为 /v1/messages 并携带 ZCode 客户端指纹；关闭保持原有透传逻辑（仅 GLM Coding Plan 渠道）',
                       )}
                     />
                   )}
