@@ -353,6 +353,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeAdvancedCustom: true,
 	constant.ChannelTypeQwenTokenPlan:  true,
 	constant.ChannelTypeGMICloud:       true,
+	constant.ChannelTypeCLIProxyAPI:    true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {

@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/baidu_v2"
 	"github.com/QuantumNous/new-api/relay/channel/cerebras"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
+	cliproxyapi "github.com/QuantumNous/new-api/relay/channel/cliproxyapi"
 	"github.com/QuantumNous/new-api/relay/channel/cloudflare"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/relay/channel/cohere"
@@ -161,6 +162,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &mistralconsole.Adaptor{}
 	case constant.APITypeGMICloud:
 		return &gmicloud.Adaptor{}
+	case constant.APITypeCLIProxyAPI:
+		return &cliproxyapi.Adaptor{}
 	}
 	return nil
 }

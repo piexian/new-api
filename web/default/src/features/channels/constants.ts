@@ -91,6 +91,7 @@ export const CHANNEL_TYPES = {
   70: 'Mistral Console',
   71: 'GMI Cloud',
   72: 'Gemini Interactions',
+  73: 'CLIProxyAPI',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
@@ -98,6 +99,7 @@ const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   46, 23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 67, 57, 58, 59, 22, 21,
   44, 2, 5, 36, 50, 51, 52, 53, 54, 55, 56, 60, 61, 62, 63, 64, 65, 66, 70, 71,
   72,
+  73,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -402,7 +404,7 @@ export const FIELD_DESCRIPTIONS = {
 // 注意：与 web/classic/src/constants/channel.constants.js 的 MODEL_FETCHABLE_CHANNEL_TYPES 为两份手工同步清单，新增渠道类型时需同时更新。
 export const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 17, 20, 23, 24, 25, 26, 27, 31, 34, 35, 40, 42, 43, 47, 48, 58, 59,
-  62, 63, 64, 65, 66, 68, 69, 71, 72,
+  62, 63, 64, 65, 66, 68, 69, 71, 72, 73,
 ])
 
 export const TYPE_TO_KEY_PROMPT: Record<number, string> = {

@@ -29,7 +29,7 @@ func GeminiInteractionsHelper(c *gin.Context, info *relaycommon.RelayInfo) (newA
 	}
 
 	// Interactions 状态归属上游项目,仅放行 Gemini 原生渠道
-	if info.ChannelType != constant.ChannelTypeGemini && info.ChannelType != constant.ChannelTypeGeminiInteractions {
+	if info.ChannelType != constant.ChannelTypeGemini && info.ChannelType != constant.ChannelTypeGeminiInteractions && info.ChannelType != constant.ChannelTypeCLIProxyAPI {
 		return types.NewErrorWithStatusCode(fmt.Errorf("gemini interactions API only supports gemini channels, got channel type %d", info.ChannelType), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 

@@ -250,6 +250,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Supports OpenAI Chat/Responses, Anthropic Messages, and GMI requestqueue audio models (TTS, voice clone, music)',
     },
   },
+  73: {
+    id: 73,
+    name: CHANNEL_TYPES[73],
+    icon: 'https://github.com/router-for-me.png',
+    hints: {
+      baseUrl: 'Your CLIProxyAPI instance address, e.g. http://localhost:8317',
+      key: 'API key from CLIProxyAPI config (api-keys)',
+      models: 'gpt-5.6,claude-opus-4-8,gemini-3.1-pro',
+      other:
+        'Native passthrough for OpenAI / OpenAI Responses / Anthropic Messages / Gemini / Gemini Interactions endpoints',
+    },
+  },
 }
 
 /**

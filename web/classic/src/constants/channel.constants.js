@@ -30,6 +30,7 @@ export const CHANNEL_TYPE_CEREBRAS = 68;
 export const CHANNEL_TYPE_QWEN_TOKEN_PLAN = 69;
 export const CHANNEL_TYPE_GMICLOUD = 71;
 export const CHANNEL_TYPE_GEMINI_INTERACTIONS = 72;
+export const CHANNEL_TYPE_CLIPROXYAPI = 73;
 
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
@@ -132,6 +133,11 @@ export const CHANNEL_OPTIONS = [
     value: 72,
     color: 'purple',
     label: 'Gemini Interactions',
+  },
+  {
+    value: CHANNEL_TYPE_CLIPROXYAPI,
+    color: 'blue',
+    label: 'CLIProxyAPI',
   },
   {
     value: 11,
@@ -300,6 +306,7 @@ export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
   CHANNEL_TYPE_AGNES_AI,
   CHANNEL_TYPE_GMICLOUD,
   CHANNEL_TYPE_GEMINI_INTERACTIONS,
+  CHANNEL_TYPE_CLIPROXYAPI,
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;

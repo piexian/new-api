@@ -41,7 +41,7 @@ func RelayGeminiInteractionState(c *gin.Context) {
 
 	channel, err := model.GetChannelById(state.ChannelID, true)
 	if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled ||
-		(channel.Type != constant.ChannelTypeGemini && channel.Type != constant.ChannelTypeGeminiInteractions) || !service.IsChannelKeyUsable(channel, state.Key) {
+		(channel.Type != constant.ChannelTypeGemini && channel.Type != constant.ChannelTypeGeminiInteractions && channel.Type != constant.ChannelTypeCLIProxyAPI) || !service.IsChannelKeyUsable(channel, state.Key) {
 		logger.LogWarn(c, fmt.Sprintf("gemini interaction %s channel %d unavailable: %v", interactionID, state.ChannelID, err))
 		abortWithGeminiInteractionError(c, http.StatusNotFound, "interaction not found")
 		return

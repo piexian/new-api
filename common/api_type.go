@@ -103,6 +103,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeGeminiInteractions
 	case constant.ChannelTypeGMICloud:
 		apiType = constant.APITypeGMICloud
+	case constant.ChannelTypeCLIProxyAPI:
+		apiType = constant.APITypeCLIProxyAPI
 	case constant.ChannelTypeMistralConsole:
 		apiType = constant.APITypeMistralConsole
 	}
