@@ -1,6 +1,8 @@
 package opencode
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -107,6 +109,13 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
+	// 会话头用于上游 sticky 路由：优先透传客户端值，否则按用户+令牌生成稳定回退 ID
+	session := strings.TrimSpace(c.Request.Header.Get("x-opencode-session"))
+	if session == "" {
+		sum := sha256.Sum256([]byte(fmt.Sprintf("newapi:%d:%d", info.UserId, info.TokenId)))
+		session = "newapi-" + hex.EncodeToString(sum[:8])
+	}
+	req.Set("x-opencode-session", session)
 	switch a.RequestMode {
 	case requestModeClaude:
 		req.Set("x-api-key", info.ApiKey)

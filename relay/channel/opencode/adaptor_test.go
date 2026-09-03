@@ -446,3 +446,84 @@ func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
 	require.NotContains(t, channelconstant.OpenCodeGoChatModels, "glm-5")
 	require.NotContains(t, channelconstant.OpenCodeZenClaudeModels, "claude-opus-4-1")
 }
+
+func TestSetupRequestHeaderForwardsClientSessionHeader(t *testing.T) {
+	t.Parallel()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Request.Header.Set("x-opencode-session", "sess-abc")
+	info := &relaycommon.RelayInfo{
+		UserId:  7,
+		TokenId: 42,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:         "opencode-key",
+			ChannelBaseUrl: channelconstant.OpenCodeZenBaseURLAlias,
+			ChannelType:    channelconstant.ChannelTypeOpenCode,
+		},
+	}
+	adaptor := &Adaptor{}
+	adaptor.Init(info)
+	headers := make(http.Header)
+
+	require.NoError(t, adaptor.SetupRequestHeader(c, &headers, info))
+	require.Equal(t, "sess-abc", headers.Get("x-opencode-session"))
+}
+
+func TestSetupRequestHeaderGeneratesStableSessionFallback(t *testing.T) {
+	t.Parallel()
+
+	newInfo := func(tokenId int) *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			UserId:  7,
+			TokenId: tokenId,
+			ChannelMeta: &relaycommon.ChannelMeta{
+				ApiKey:         "opencode-key",
+				ChannelBaseUrl: channelconstant.OpenCodeZenBaseURLAlias,
+				ChannelType:    channelconstant.ChannelTypeOpenCode,
+			},
+		}
+	}
+	adaptor := &Adaptor{}
+	info := newInfo(42)
+	adaptor.Init(info)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	headers := make(http.Header)
+
+	require.NoError(t, adaptor.SetupRequestHeader(c, &headers, info))
+	session := headers.Get("x-opencode-session")
+	require.Regexp(t, `^newapi-[0-9a-f]{16}$`, session)
+
+	repeat := make(http.Header)
+	require.NoError(t, adaptor.SetupRequestHeader(c, &repeat, info))
+	require.Equal(t, session, repeat.Get("x-opencode-session"))
+
+	other := make(http.Header)
+	require.NoError(t, adaptor.SetupRequestHeader(c, &other, newInfo(43)))
+	require.NotEqual(t, session, other.Get("x-opencode-session"))
+}
+
+func TestSetupRequestHeaderSetsSessionForClaudeMode(t *testing.T) {
+	t.Parallel()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		UserId:      1,
+		TokenId:     2,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:         "opencode-key",
+			ChannelBaseUrl: channelconstant.OpenCodeZenBaseURLAlias,
+			ChannelType:    channelconstant.ChannelTypeOpenCode,
+		},
+	}
+	adaptor := &Adaptor{}
+	adaptor.Init(info)
+	require.Equal(t, requestModeClaude, adaptor.RequestMode)
+	headers := make(http.Header)
+
+	require.NoError(t, adaptor.SetupRequestHeader(c, &headers, info))
+	require.Regexp(t, `^newapi-[0-9a-f]{16}$`, headers.Get("x-opencode-session"))
+}
