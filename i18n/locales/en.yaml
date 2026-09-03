@@ -354,6 +354,9 @@ channel.ollama_only: "This operation is only supported for Ollama channels"
 channel.coding_plan_only: "Channel is not a Coding Plan base"
 channel.qwen_single_key_only: "Qwen Token Plan only supports single-key mode"
 channel.qwen_single_cred_only: "Qwen Token Plan only supports a single bound credential"
+channel.qwen_console_cred_missing: "Qwen Token Plan channel is missing the Aliyun console credential; backfill console_token or access_key_id/access_key_secret in the channel key JSON"
+channel.qwen_console_token_failed: "Failed to generate the Qwen Token Plan console access token; check the AccessKey or retry later"
+channel.qwen_console_token_expired: "Qwen Token Plan console credential expired; backfill a new console token or configure an AccessKey pair for automatic refresh"
 
 # System task messages
 task.target_timestamp_required: "Target timestamp is required"

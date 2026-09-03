@@ -180,10 +180,6 @@ import {
   type MissingModelsAction,
 } from '../dialogs/missing-models-confirmation-dialog'
 import { ParamOverrideEditorDialog } from '../dialogs/param-override-editor-dialog'
-import {
-  QwenOAuthDialog,
-  type QwenOAuthIdentity,
-} from '../dialogs/qwen-oauth-dialog'
 import { StatusCodeRiskDialog } from '../dialogs/status-code-risk-dialog'
 import { ModelMappingEditor } from '../model-mapping-editor'
 import {
@@ -293,6 +289,9 @@ const SENSITIVE_FORM_FIELDS = [
   'type',
   'base_url',
   'key',
+  'qwen_console_token',
+  'qwen_access_key_id',
+  'qwen_access_key_secret',
   'openai_organization',
   'other',
   'key_mode',
@@ -654,10 +653,7 @@ export function ChannelMutateDrawer({
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
-  const [qwenOAuthDialogOpen, setQwenOAuthDialogOpen] = useState(false)
   const [qwenAPIKeyInput, setQwenAPIKeyInput] = useState('')
-  const [qwenOAuthIdentity, setQwenOAuthIdentity] =
-    useState<QwenOAuthIdentity | null>(null)
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
   const initialStatusCodeMappingRef = useRef<string>('')
@@ -734,9 +730,10 @@ export function ChannelMutateDrawer({
     if (!open) {
       setChannelKey(null)
       setIsChannelKeyLoading(false)
-      setQwenOAuthDialogOpen(false)
       setQwenAPIKeyInput('')
-      setQwenOAuthIdentity(null)
+      form.resetField('qwen_console_token')
+      form.resetField('qwen_access_key_id')
+      form.resetField('qwen_access_key_secret')
     } else if (channelId) {
       setChannelKey(null)
     }
@@ -751,6 +748,9 @@ export function ChannelMutateDrawer({
     resolver: zodResolver(channelFormSchema),
     defaultValues: CHANNEL_FORM_DEFAULT_VALUES,
   })
+  const qwenConsoleToken = form.watch('qwen_console_token') || ''
+  const qwenAccessKeyID = form.watch('qwen_access_key_id') || ''
+  const qwenAccessKeySecret = form.watch('qwen_access_key_secret') || ''
 
   // Watch form values for conditional rendering
   const multiKeyMode = form.watch('multi_key_mode')
@@ -918,9 +918,10 @@ export function ChannelMutateDrawer({
       form.setValue('multi_key_mode', 'single', { shouldValidate: true })
     }
     if (currentType !== 69) {
-      setQwenOAuthDialogOpen(false)
       setQwenAPIKeyInput('')
-      setQwenOAuthIdentity(null)
+      form.resetField('qwen_console_token')
+      form.resetField('qwen_access_key_id')
+      form.resetField('qwen_access_key_secret')
     }
   }, [currentType, form, multiKeyMode])
 
@@ -1494,31 +1495,6 @@ export function ChannelMutateDrawer({
     }
   }, [channelId, queryClient, t])
 
-  const handleQwenOAuthSuccess = useCallback(
-    (key: string | undefined, identity: QwenOAuthIdentity) => {
-      if (key) {
-        form.setValue('key', key, {
-          shouldDirty: true,
-          shouldValidate: true,
-        })
-      } else if (channelId) {
-        form.setValue('key', '', {
-          shouldDirty: false,
-          shouldValidate: true,
-        })
-        setQwenAPIKeyInput('')
-      }
-      setQwenOAuthIdentity(identity)
-      if (channelId) {
-        queryClient.invalidateQueries({
-          queryKey: channelsQueryKeys.detail(channelId),
-        })
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
-      }
-    },
-    [channelId, form, queryClient]
-  )
-
   // Unified function to update models
   const updateModels = useCallback(
     (newModels: string[], merge: boolean = false) => {
@@ -1830,6 +1806,20 @@ export function ChannelMutateDrawer({
         }
       }
 
+      // type=69：key 只传裸 sk-sp-；console 凭证作为独立增量字段随 payload 提交，
+      // 编辑时留空即保持已存绑定不变，互不干扰。
+      if (data.type === 69) {
+        data.key = qwenAPIKeyInput.trim()
+        if (!data.qwen_console_token?.trim()) delete data.qwen_console_token
+        if (
+          !data.qwen_access_key_id?.trim() ||
+          !data.qwen_access_key_secret?.trim()
+        ) {
+          delete data.qwen_access_key_id
+          delete data.qwen_access_key_secret
+        }
+      }
+
       await channelMutation.mutateAsync(data)
     },
     [
@@ -1840,6 +1830,7 @@ export function ChannelMutateDrawer({
       confirmStatusCodeRisk,
       channelMutation,
       t,
+      qwenAPIKeyInput,
     ]
   )
 
@@ -3572,10 +3563,6 @@ export function ChannelMutateDrawer({
                                     const credentialBound = Boolean(
                                       currentKey?.trim().startsWith('{')
                                     )
-                                    const authorizeButtonLabel =
-                                      isEditing || credentialBound
-                                        ? t('Authorize again')
-                                        : t('Authorize and bind')
                                     return (
                                       <FormItem>
                                         <FormLabel>
@@ -3594,7 +3581,6 @@ export function ChannelMutateDrawer({
                                               const nextAPIKey =
                                                 event.target.value
                                               setQwenAPIKeyInput(nextAPIKey)
-                                              setQwenOAuthIdentity(null)
                                               form.setValue('key', nextAPIKey, {
                                                 shouldDirty: true,
                                                 shouldValidate: true,
@@ -3616,44 +3602,99 @@ export function ChannelMutateDrawer({
                                         </FormDescription>
 
                                         <div className='flex flex-wrap items-center gap-2'>
-                                          <Button
-                                            type='button'
-                                            variant='outline'
-                                            size='sm'
-                                            disabled={
-                                              sensitiveLocked ||
-                                              (!qwenAPIKeyInput
-                                                .trim()
-                                                .startsWith('sk-sp-') &&
-                                                (!isEditing ||
-                                                  qwenAPIKeyInput.trim() !==
-                                                    ''))
-                                            }
-                                            onClick={() =>
-                                              setQwenOAuthDialogOpen(true)
-                                            }
-                                          >
-                                            <KeyRound className='mr-2 h-4 w-4' />
-                                            {authorizeButtonLabel}
-                                          </Button>
                                           {credentialBound && (
                                             <Badge variant='secondary'>
                                               {t('Bound credential ready')}
                                             </Badge>
                                           )}
-                                          {qwenOAuthIdentity && (
-                                            <span className='text-muted-foreground text-xs break-all'>
-                                              {qwenOAuthIdentity.email ||
-                                                qwenOAuthIdentity.aliyunId ||
-                                                t('Unknown account')}
-                                            </span>
-                                          )}
                                         </div>
+
+                                        <FormLabel>
+                                          {t('Aliyun console token')}
+                                        </FormLabel>
+                                        <FormControl>
+                                          <Input
+                                            type='password'
+                                            autoComplete='new-password'
+                                            value={qwenConsoleToken}
+                                            placeholder={
+                                              isEditing
+                                                ? t(
+                                                    'Leave empty to keep the current console binding'
+                                                  )
+                                                : t(
+                                                    'Optional: paste access_token from ~/.bailian/config.json'
+                                                  )
+                                            }
+                                            disabled={sensitiveLocked}
+                                            onChange={(event) =>
+                                              form.setValue(
+                                                'qwen_console_token',
+                                                event.target.value,
+                                                { shouldDirty: true }
+                                              )
+                                            }
+                                          />
+                                        </FormControl>
+                                        <FormLabel>
+                                          {t('AccessKey ID')}
+                                        </FormLabel>
+                                        <FormControl>
+                                          <Input
+                                            type='password'
+                                            autoComplete='new-password'
+                                            value={qwenAccessKeyID}
+                                            placeholder={
+                                              isEditing
+                                                ? t(
+                                                    'Leave empty to keep the current console binding'
+                                                  )
+                                                : t(
+                                                    'Optional: for auto token refresh'
+                                                  )
+                                            }
+                                            disabled={sensitiveLocked}
+                                            onChange={(event) =>
+                                              form.setValue(
+                                                'qwen_access_key_id',
+                                                event.target.value,
+                                                { shouldDirty: true }
+                                              )
+                                            }
+                                          />
+                                        </FormControl>
+                                        <FormLabel>
+                                          {t('AccessKey Secret')}
+                                        </FormLabel>
+                                        <FormControl>
+                                          <Input
+                                            type='password'
+                                            autoComplete='new-password'
+                                            value={qwenAccessKeySecret}
+                                            placeholder={
+                                              isEditing
+                                                ? t(
+                                                    'Leave empty to keep the current console binding'
+                                                  )
+                                                : t(
+                                                    'Optional: for auto token refresh'
+                                                  )
+                                            }
+                                            disabled={sensitiveLocked}
+                                            onChange={(event) =>
+                                              form.setValue(
+                                                'qwen_access_key_secret',
+                                                event.target.value,
+                                                { shouldDirty: true }
+                                              )
+                                            }
+                                          />
+                                        </FormControl>
 
                                         <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
                                           <AlertDescription>
                                             {t(
-                                              'Sign in with the QianWen account used for Token Plan usage lookup. The API key remains the inference credential.'
+                                              'Plan usage is queried via the Aliyun Bailian console gateway. Backfill a console token from bl auth login --console, or an AccessKey pair for automatic token refresh. The sk-sp- key remains the inference credential.'
                                             )}
                                           </AlertDescription>
                                         </Alert>
@@ -5564,14 +5605,6 @@ export function ChannelMutateDrawer({
             ? parseModelsString(form.getValues('models') || '')
             : undefined
         }
-      />
-
-      <QwenOAuthDialog
-        open={qwenOAuthDialogOpen}
-        onOpenChange={setQwenOAuthDialogOpen}
-        apiKey={qwenAPIKeyInput}
-        channelId={isEditing ? channelId || undefined : undefined}
-        onSuccess={handleQwenOAuthSuccess}
       />
 
       <SecureVerificationDialog

@@ -405,13 +405,16 @@ const (
 
 // Channel provider usage related messages
 const (
-	MsgChannelTypeNotMatched      = "channel.type_not_matched"
-	MsgChannelMultiKeyUnsupported = "channel.multi_key_unsupported"
-	MsgChannelCredentialMissing   = "channel.credential_missing"
-	MsgChannelOllamaOnly          = "channel.ollama_only"
-	MsgChannelCodingPlanOnly      = "channel.coding_plan_only"
-	MsgChannelQwenSingleKeyOnly   = "channel.qwen_single_key_only"
-	MsgChannelQwenSingleCredOnly  = "channel.qwen_single_cred_only"
+	MsgChannelTypeNotMatched          = "channel.type_not_matched"
+	MsgChannelMultiKeyUnsupported     = "channel.multi_key_unsupported"
+	MsgChannelCredentialMissing       = "channel.credential_missing"
+	MsgChannelOllamaOnly              = "channel.ollama_only"
+	MsgChannelCodingPlanOnly          = "channel.coding_plan_only"
+	MsgChannelQwenSingleKeyOnly       = "channel.qwen_single_key_only"
+	MsgChannelQwenSingleCredOnly      = "channel.qwen_single_cred_only"
+	MsgChannelQwenConsoleCredMissing  = "channel.qwen_console_cred_missing"
+	MsgChannelQwenConsoleTokenFailed  = "channel.qwen_console_token_failed"
+	MsgChannelQwenConsoleTokenExpired = "channel.qwen_console_token_expired"
 )
 
 // System task related messages

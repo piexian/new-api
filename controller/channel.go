@@ -588,6 +588,10 @@ type AddChannelRequest struct {
 	MultiKeyMode              constant.MultiKeyMode `json:"multi_key_mode"`
 	BatchAddSetKeyPrefix2Name bool                  `json:"batch_add_set_key_prefix_2_name"`
 	Channel                   *model.Channel        `json:"channel"`
+	// Qwen Token Plan console 凭证（创建时与 key 组装为绑定凭证）
+	QwenConsoleToken    *string `json:"qwen_console_token,omitempty"`
+	QwenAccessKeyID     *string `json:"qwen_access_key_id,omitempty"`
+	QwenAccessKeySecret *string `json:"qwen_access_key_secret,omitempty"`
 }
 
 func getVertexArrayKeys(keys string) ([]string, error) {
@@ -646,6 +650,19 @@ func AddChannel(c *gin.Context) {
 			"message": err.Error(),
 		})
 		return
+	}
+
+	if addChannelRequest.Channel.Type == constant.ChannelTypeQwenTokenPlan {
+		mergedKey, err := qwentokenplan.MergeChannelKey("", addChannelRequest.Channel.Key,
+			addChannelRequest.QwenConsoleToken, addChannelRequest.QwenAccessKeyID, addChannelRequest.QwenAccessKeySecret)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		addChannelRequest.Channel.Key = mergedKey
 	}
 
 	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
@@ -940,6 +957,10 @@ type PatchChannel struct {
 	model.Channel
 	MultiKeyMode *string `json:"multi_key_mode"`
 	KeyMode      *string `json:"key_mode"` // 多key模式下密钥覆盖或者追加
+	// Qwen Token Plan console 凭证增量补丁：nil=不变，非nil空串=清除
+	QwenConsoleToken    *string `json:"qwen_console_token,omitempty"`
+	QwenAccessKeyID     *string `json:"qwen_access_key_id,omitempty"`
+	QwenAccessKeySecret *string `json:"qwen_access_key_secret,omitempty"`
 }
 
 type ChannelStatusRequest struct {
@@ -1032,8 +1053,9 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 
-	if channel.Type == constant.ChannelTypeQwenTokenPlan && strings.TrimSpace(channel.Key) != "" {
-		mergedKey, err := qwentokenplan.MergeAPIKey(originChannel.Key, channel.Key, time.Now())
+	if channel.Type == constant.ChannelTypeQwenTokenPlan {
+		mergedKey, err := qwentokenplan.MergeChannelKey(originChannel.Key, channel.Key,
+			channel.QwenConsoleToken, channel.QwenAccessKeyID, channel.QwenAccessKeySecret)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,

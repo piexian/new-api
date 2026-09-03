@@ -69,7 +69,6 @@ import ModelSelectModal from './ModelSelectModal';
 import SingleModelSelectModal from './SingleModelSelectModal';
 import OllamaModelModal from './OllamaModelModal';
 import CodexOAuthModal from './CodexOAuthModal';
-import QwenOAuthModal from './QwenOAuthModal';
 import ParamOverrideEditorModal from './ParamOverrideEditorModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
@@ -438,10 +437,11 @@ const EditChannelModal = (props) => {
   const [isIonetChannel, setIsIonetChannel] = useState(false);
   const [ionetMetadata, setIonetMetadata] = useState(null);
   const [codexOAuthModalVisible, setCodexOAuthModalVisible] = useState(false);
-  const [qwenOAuthModalVisible, setQwenOAuthModalVisible] = useState(false);
   const [qwenApiKeyInput, setQwenApiKeyInput] = useState('');
   const [qwenCredentialBound, setQwenCredentialBound] = useState(false);
-  const [qwenOAuthIdentity, setQwenOAuthIdentity] = useState(null);
+  const [qwenConsoleToken, setQwenConsoleToken] = useState('');
+  const [qwenAccessKeyID, setQwenAccessKeyID] = useState('');
+  const [qwenAccessKeySecret, setQwenAccessKeySecret] = useState('');
   const [codexCredentialRefreshing, setCodexCredentialRefreshing] =
     useState(false);
   const [paramOverrideEditorVisible, setParamOverrideEditorVisible] =
@@ -848,10 +848,11 @@ const EditChannelModal = (props) => {
         setInputs((prev) => ({ ...prev, vertex_files: [] }));
       }
       if (value !== CHANNEL_TYPE_QWEN_TOKEN_PLAN) {
-        setQwenOAuthModalVisible(false);
         setQwenApiKeyInput('');
         setQwenCredentialBound(false);
-        setQwenOAuthIdentity(null);
+        setQwenConsoleToken('');
+        setQwenAccessKeyID('');
+        setQwenAccessKeySecret('');
       }
     }
     //setAutoBan
@@ -1447,17 +1448,6 @@ const EditChannelModal = (props) => {
     formatJsonField('key');
   };
 
-  const handleQwenOAuthGenerated = (key, identity) => {
-    if (key) {
-      handleInputChange('key', key);
-    } else if (isEdit) {
-      handleInputChange('key', '');
-      setQwenApiKeyInput('');
-    }
-    setQwenCredentialBound(true);
-    setQwenOAuthIdentity(identity || null);
-  };
-
   const handleRefreshCodexCredential = async () => {
     if (!isEdit) return;
 
@@ -1828,10 +1818,8 @@ const EditChannelModal = (props) => {
       }
 
       const rawKey = String(localInputs.key || '').trim();
-      if (!isEdit && rawKey === '') {
-        showInfo(t('请输入 sk-sp- Token Plan API Key'));
-        return;
-      }
+
+      // key 输入允许：空（编辑保留）、裸 sk-sp-、完整 JSON 凭证（整体替换）
       if (rawKey !== '' && !rawKey.startsWith('sk-sp-')) {
         if (!verifyJSON(rawKey)) {
           showInfo(t('请输入 sk-sp- Token Plan API Key'));
@@ -1843,11 +1831,7 @@ const EditChannelModal = (props) => {
             !parsed ||
             parsed.type !== 'qwen_token_plan' ||
             typeof parsed.api_key !== 'string' ||
-            !parsed.api_key.startsWith('sk-sp-') ||
-            typeof parsed.access_token !== 'string' ||
-            !parsed.access_token.trim() ||
-            typeof parsed.expires_at !== 'string' ||
-            !parsed.expires_at.trim()
+            !parsed.api_key.startsWith('sk-sp-')
           ) {
             showInfo(t('Qwen Token Plan 绑定凭据缺少必要字段'));
             return;
@@ -1857,6 +1841,22 @@ const EditChannelModal = (props) => {
           showInfo(t('Qwen Token Plan 凭据解析失败'));
           return;
         }
+      }
+      if (!isEdit && rawKey === '') {
+        showInfo(t('请输入 sk-sp- Token Plan API Key'));
+        return;
+      }
+
+      // console 凭证作为独立增量字段提交：留空保持已存绑定不变
+      const consoleToken = qwenConsoleToken.trim();
+      const accessKeyID = qwenAccessKeyID.trim();
+      const accessKeySecret = qwenAccessKeySecret.trim();
+      if (consoleToken) {
+        localInputs.qwen_console_token = consoleToken;
+      }
+      if (accessKeyID && accessKeySecret) {
+        localInputs.qwen_access_key_id = accessKeyID;
+        localInputs.qwen_access_key_secret = accessKeySecret;
       }
     }
 
@@ -2181,9 +2181,22 @@ const EditChannelModal = (props) => {
         key_mode: isMultiKeyChannel ? keyMode : undefined, // 只在多key模式下传递
       });
     } else {
+      const qwenConsolePatch = {};
+      if (localInputs.qwen_console_token) {
+        qwenConsolePatch.qwen_console_token = localInputs.qwen_console_token;
+      }
+      if (
+        localInputs.qwen_access_key_id &&
+        localInputs.qwen_access_key_secret
+      ) {
+        qwenConsolePatch.qwen_access_key_id = localInputs.qwen_access_key_id;
+        qwenConsolePatch.qwen_access_key_secret =
+          localInputs.qwen_access_key_secret;
+      }
       res = await API.post(`/api/channel/`, {
         mode: mode,
         multi_key_mode: mode === 'multi_to_single' ? multiKeyMode : undefined,
+        ...qwenConsolePatch,
         channel: localInputs,
       });
     }
@@ -3451,72 +3464,73 @@ const EditChannelModal = (props) => {
                       ) : (
                         <>
                           {inputs.type === CHANNEL_TYPE_QWEN_TOKEN_PLAN ? (
-                            <>
-                              <div className='flex flex-col gap-3'>
-                                <Input
-                                  type='password'
-                                  value={qwenApiKeyInput}
-                                  disabled={isIonetLocked}
-                                  placeholder={t(
-                                    '请输入 sk-sp- Token Plan API Key',
-                                  )}
-                                  onChange={(value) => {
-                                    setQwenApiKeyInput(value);
-                                    setQwenCredentialBound(false);
-                                    setQwenOAuthIdentity(null);
-                                    handleInputChange('key', value);
-                                  }}
-                                  prefix={t('Token Plan API Key')}
-                                />
-                                <Space wrap spacing='tight'>
-                                  <Button
-                                    size='small'
-                                    type='primary'
-                                    theme='outline'
-                                    disabled={
-                                      isIonetLocked ||
-                                      (!qwenApiKeyInput
-                                        .trim()
-                                        .startsWith('sk-sp-') &&
-                                        (!isEdit ||
-                                          qwenApiKeyInput.trim() !== ''))
-                                    }
-                                    onClick={() =>
-                                      setQwenOAuthModalVisible(true)
-                                    }
-                                  >
-                                    {isEdit || qwenCredentialBound
-                                      ? t('重新授权')
-                                      : t('授权并绑定')}
-                                  </Button>
-                                  {qwenCredentialBound && (
-                                    <Tag color='green'>
-                                      {t('绑定凭据已就绪')}
-                                    </Tag>
-                                  )}
-                                  {qwenOAuthIdentity && (
-                                    <Text type='tertiary' size='small'>
-                                      {qwenOAuthIdentity.email ||
-                                        qwenOAuthIdentity.aliyunId ||
-                                        t('未知账号')}
-                                    </Text>
-                                  )}
-                                </Space>
-                                <Banner
-                                  type='warning'
-                                  description={t(
-                                    'OAuth 用于查询 Token Plan 套餐与用量，sk-sp- API Key 仍用于模型推理。授权页完成登录后，本页面会自动轮询并绑定凭据。',
-                                  )}
-                                />
-                              </div>
-                              <QwenOAuthModal
-                                visible={qwenOAuthModalVisible}
-                                onCancel={() => setQwenOAuthModalVisible(false)}
-                                onSuccess={handleQwenOAuthGenerated}
-                                apiKey={qwenApiKeyInput}
-                                channelId={isEdit ? channelId : undefined}
+                            <div className='flex flex-col gap-3'>
+                              <Input
+                                type='password'
+                                value={qwenApiKeyInput}
+                                disabled={isIonetLocked}
+                                placeholder={t(
+                                  '请输入 sk-sp- Token Plan API Key',
+                                )}
+                                onChange={(value) => {
+                                  setQwenApiKeyInput(value);
+                                  setQwenCredentialBound(
+                                    value.trim().startsWith('{'),
+                                  );
+                                  handleInputChange('key', value);
+                                }}
+                                prefix={t('Token Plan API Key')}
                               />
-                            </>
+                              <Space wrap spacing='tight'>
+                                {qwenCredentialBound && (
+                                  <Tag color='green'>{t('绑定凭据已就绪')}</Tag>
+                                )}
+                              </Space>
+                              <Input
+                                type='password'
+                                value={qwenConsoleToken}
+                                disabled={isIonetLocked}
+                                placeholder={
+                                  isEdit
+                                    ? t('留空保持现有 console 绑定不变')
+                                    : t(
+                                        '可选：粘贴 ~/.bailian/config.json 中的 access_token',
+                                      )
+                                }
+                                onChange={setQwenConsoleToken}
+                                prefix={t('阿里云 console 令牌')}
+                              />
+                              <Input
+                                type='password'
+                                value={qwenAccessKeyID}
+                                disabled={isIonetLocked}
+                                placeholder={
+                                  isEdit
+                                    ? t('留空保持现有 console 绑定不变')
+                                    : t('可选：用于自动换签 token')
+                                }
+                                onChange={setQwenAccessKeyID}
+                                prefix={t('AccessKey ID')}
+                              />
+                              <Input
+                                type='password'
+                                value={qwenAccessKeySecret}
+                                disabled={isIonetLocked}
+                                placeholder={
+                                  isEdit
+                                    ? t('留空保持现有 console 绑定不变')
+                                    : t('可选：用于自动换签 token')
+                                }
+                                onChange={setQwenAccessKeySecret}
+                                prefix={t('AccessKey Secret')}
+                              />
+                              <Banner
+                                type='warning'
+                                description={t(
+                                  '计划额度经阿里云百炼 console 网关查询。回填 bl auth login --console 得到的 console 令牌，或填入 AccessKey 自动换签保活。sk-sp- 密钥仍为推理凭证。',
+                                )}
+                              />
+                            </div>
                           ) : inputs.type === 57 ? (
                             <>
                               <Form.TextArea

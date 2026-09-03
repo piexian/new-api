@@ -125,11 +125,7 @@ function isQwenTokenPlanCredential(value: string | undefined): boolean {
     return (
       parsed.type === 'qwen_token_plan' &&
       typeof parsed.api_key === 'string' &&
-      parsed.api_key.startsWith('sk-sp-') &&
-      typeof parsed.access_token === 'string' &&
-      parsed.access_token.trim() !== '' &&
-      typeof parsed.expires_at === 'string' &&
-      parsed.expires_at.trim() !== ''
+      parsed.api_key.startsWith('sk-sp-')
     )
   } catch {
     return false
@@ -154,6 +150,9 @@ export const channelFormSchema = z
     type: z.number().min(0, ERROR_MESSAGES.REQUIRED_TYPE),
     base_url: z.string().optional(),
     key: z.string(),
+    qwen_console_token: z.string().optional(),
+    qwen_access_key_id: z.string().optional(),
+    qwen_access_key_secret: z.string().optional(),
     openai_organization: z.string().optional(),
     models: z.string().min(1, ERROR_MESSAGES.REQUIRED_MODELS),
     group: z.array(z.string()).min(1, ERROR_MESSAGES.REQUIRED_GROUP),
@@ -778,6 +777,33 @@ function normalizeBaseUrl(value: string | undefined): string {
 /**
  * Transform form data to API payload for creating channel
  */
+// buildQwenConsolePatch 提取 type=69 的 console 凭证增量字段（空值不发送=保持不变）。
+function buildQwenConsolePatch(
+  formData: ChannelFormValues
+): Partial<
+  Record<
+    'qwen_console_token' | 'qwen_access_key_id' | 'qwen_access_key_secret',
+    string
+  >
+> {
+  if (formData.type !== 69) return {}
+  const patch: Partial<
+    Record<
+      'qwen_console_token' | 'qwen_access_key_id' | 'qwen_access_key_secret',
+      string
+    >
+  > = {}
+  if (formData.qwen_console_token?.trim())
+    patch.qwen_console_token = formData.qwen_console_token.trim()
+  const ak = formData.qwen_access_key_id?.trim()
+  const sk = formData.qwen_access_key_secret?.trim()
+  if (ak && sk) {
+    patch.qwen_access_key_id = ak
+    patch.qwen_access_key_secret = sk
+  }
+  return patch
+}
+
 export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
   mode: 'single' | 'batch' | 'multi_to_single'
   multi_key_mode?: 'random' | 'polling'
@@ -823,6 +849,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
       mode === 'multi_to_single' ? formData.multi_key_type : undefined,
     batch_add_set_key_prefix_2_name:
       mode === 'batch' ? formData.batch_add_set_key_prefix_2_name : undefined,
+    ...buildQwenConsolePatch(formData),
     channel,
   }
 }
@@ -880,7 +907,7 @@ export function transformFormDataToUpdatePayload(
   payload.param_override = formData.param_override || ''
   payload.header_override = formData.header_override || ''
 
-  return payload
+  return { ...payload, ...buildQwenConsolePatch(formData) }
 }
 
 // ============================================================================

@@ -355,6 +355,9 @@ channel.ollama_only: "此操作仅支持 Ollama 渠道"
 channel.coding_plan_only: "渠道不是 Coding Plan 基础地址"
 channel.qwen_single_key_only: "Qwen Token Plan 仅支持单密钥模式"
 channel.qwen_single_cred_only: "Qwen Token Plan 仅支持单个绑定凭证"
+channel.qwen_console_cred_missing: "Qwen Token Plan 渠道缺少阿里云 console 凭证，请在渠道密钥 JSON 中回填 console_token 或 access_key_id/access_key_secret"
+channel.qwen_console_token_failed: "生成 Qwen Token Plan console 访问凭证失败，请检查 AccessKey 或稍后重试"
+channel.qwen_console_token_expired: "Qwen Token Plan console 凭证已失效，请重新回填 console 令牌或配置 AccessKey 自动换签"
 
 # System task messages
 task.target_timestamp_required: "目标时间戳不能为空"

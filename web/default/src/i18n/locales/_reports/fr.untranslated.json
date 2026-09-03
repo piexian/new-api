@@ -1,4 +1,5 @@
 {
+  "Plan usage is queried via the Aliyun Bailian console gateway. Backfill a console token from bl auth login --console, or an AccessKey pair for automatic token refresh. The sk-sp- key remains the inference credential.": "Plan usage is queried via the Aliyun Bailian console gateway. Backfill a console token from bl auth login --console, or an AccessKey pair for automatic token refresh. The sk-sp- key remains the inference credential.",
   "Failed to load IP states": "Failed to load IP states",
   "Failed to load ban logs": "Failed to load ban logs",
   "Failed to load config": "Failed to load config",

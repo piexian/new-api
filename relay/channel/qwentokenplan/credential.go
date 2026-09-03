@@ -3,17 +3,23 @@ package qwentokenplan
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 )
 
+// Credential 是 Qwen Token Plan 渠道的绑定凭证：
+// api_key 为 sk-sp- 推理密钥；console_token / access_key_id / access_key_secret
+// 用于阿里云百炼 console 网关查询计划额度（bailian-cli 协议）。
+// access_token / expires_at / user 为旧版千问 OAuth 字段，仅保留解析兼容。
 type Credential struct {
-	Type        string         `json:"type"`
-	APIKey      string         `json:"api_key"`
-	AccessToken string         `json:"access_token"`
-	ExpiresAt   string         `json:"expires_at"`
-	User        CredentialUser `json:"user"`
+	Type            string         `json:"type"`
+	APIKey          string         `json:"api_key"`
+	ConsoleToken    string         `json:"console_token,omitempty"`
+	AccessKeyID     string         `json:"access_key_id,omitempty"`
+	AccessKeySecret string         `json:"access_key_secret,omitempty"`
+	AccessToken     string         `json:"access_token,omitempty"`
+	ExpiresAt       string         `json:"expires_at,omitempty"`
+	User            CredentialUser `json:"user,omitempty"`
 }
 
 type CredentialUser struct {
@@ -59,19 +65,14 @@ func ParseCredential(raw string) (*Credential, error) {
 	}
 	credential.Type = strings.TrimSpace(credential.Type)
 	credential.APIKey = strings.TrimSpace(credential.APIKey)
-	credential.AccessToken = strings.TrimSpace(credential.AccessToken)
-	credential.ExpiresAt = strings.TrimSpace(credential.ExpiresAt)
+	credential.ConsoleToken = strings.TrimSpace(credential.ConsoleToken)
+	credential.AccessKeyID = strings.TrimSpace(credential.AccessKeyID)
+	credential.AccessKeySecret = strings.TrimSpace(credential.AccessKeySecret)
 	if credential.Type != "qwen_token_plan" {
 		return nil, errors.New("qwen token plan credential has an invalid type")
 	}
 	if !strings.HasPrefix(credential.APIKey, "sk-sp-") {
 		return nil, errors.New("qwen token plan credential must include an sk-sp- API key")
-	}
-	if credential.AccessToken == "" {
-		return nil, errors.New("qwen token plan credential must include an OAuth access token")
-	}
-	if credential.ExpiresAt == "" {
-		return nil, errors.New("qwen token plan credential must include OAuth expiration time")
 	}
 	return &credential, nil
 }
@@ -84,38 +85,62 @@ func EncodeCredential(credential Credential) (string, error) {
 	return string(encoded), nil
 }
 
-func MergeAPIKey(existing string, replacement string, now time.Time) (string, error) {
-	if replacementCredential, err := ParseCredential(replacement); err == nil {
-		return EncodeCredential(*replacementCredential)
-	}
-
-	apiKey, err := ExtractAPIKey(replacement)
-	if err != nil {
-		return "", err
-	}
-	existingCredential, err := ParseCredential(existing)
-	if err != nil || existingCredential.OAuthExpired(now) {
-		return apiKey, nil
-	}
-	existingCredential.APIKey = apiKey
-	return EncodeCredential(*existingCredential)
-}
-
-func (credential *Credential) OAuthExpired(now time.Time) bool {
+// HasConsoleCredential 判断是否具备查询计划额度的阿里云 console 凭证
+// （手动回填的 console token，或可自动换签 token 的 AK/SK）。
+func (credential *Credential) HasConsoleCredential() bool {
 	if credential == nil {
-		return true
+		return false
 	}
-	expiresAt, ok := parseOAuthExpiration(credential.ExpiresAt)
-	return !ok || !expiresAt.After(now)
+	return credential.ConsoleToken != "" ||
+		(credential.AccessKeyID != "" && credential.AccessKeySecret != "")
 }
 
-func parseOAuthExpiration(value string) (time.Time, bool) {
-	value = strings.TrimSpace(value)
-	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05"} {
-		parsed, err := time.Parse(layout, value)
-		if err == nil {
-			return parsed, true
+// MergeAPIKey 在仅更换 sk-sp- 推理密钥时保留已绑定的 console 凭证（保活），
+// 避免轮换密钥导致额度查询凭证丢失；整体 JSON 凭证则原样替换。
+func MergeAPIKey(existing string, replacement string) (string, error) {
+	return MergeChannelKey(existing, replacement, nil, nil, nil)
+}
+
+// MergeChannelKey 把渠道更新合并为最终凭证：
+// key 为空表示保留已存 api_key；console 补丁字段为 nil 表示不变、
+// 非nil空串表示清除；key 可为裸 sk-sp- 或完整 JSON 凭证（后者整体替换原凭证）。
+func MergeChannelKey(existing string, key string, consoleToken *string, accessKeyID *string, accessKeySecret *string) (string, error) {
+	credential := &Credential{}
+	if existingCredential, err := ParseCredential(existing); err == nil {
+		*credential = *existingCredential
+	} else if apiKey, err := ExtractAPIKey(existing); err == nil {
+		credential.APIKey = apiKey
+	}
+
+	if strings.TrimSpace(key) != "" {
+		if replacement, err := ParseCredential(key); err == nil {
+			*credential = *replacement
+		} else {
+			apiKey, err := ExtractAPIKey(key)
+			if err != nil {
+				return "", err
+			}
+			credential.APIKey = apiKey
 		}
 	}
-	return time.Time{}, false
+
+	if credential.Type == "" {
+		credential.Type = "qwen_token_plan"
+	}
+	if consoleToken != nil {
+		credential.ConsoleToken = strings.TrimSpace(*consoleToken)
+	}
+	if accessKeyID != nil {
+		credential.AccessKeyID = strings.TrimSpace(*accessKeyID)
+	}
+	if accessKeySecret != nil {
+		credential.AccessKeySecret = strings.TrimSpace(*accessKeySecret)
+	}
+	if (credential.AccessKeyID == "") != (credential.AccessKeySecret == "") {
+		return "", errors.New("qwen token plan AccessKey ID and Secret must be provided together")
+	}
+	if !strings.HasPrefix(credential.APIKey, "sk-sp-") {
+		return "", errors.New("qwen token plan credential must include an sk-sp- API key")
+	}
+	return EncodeCredential(*credential)
 }

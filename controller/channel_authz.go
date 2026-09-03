@@ -1,6 +1,11 @@
 package controller
 
-import "github.com/QuantumNous/new-api/model"
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/channel/qwentokenplan"
+)
 
 func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, requestData map[string]any) bool {
 	if _, ok := requestData["type"]; ok && channel.Type != origin.Type {
@@ -33,6 +38,9 @@ func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, re
 	if _, ok := requestData["key_mode"]; ok && channel.KeyMode != nil {
 		return true
 	}
+	if qwenConsolePatchPresent(requestData) && !qwenConsolePatchMatchesOrigin(channel, origin) {
+		return true
+	}
 	// Fail closed: any field present in the request that is neither a known
 	// sensitive field (gated above) nor an explicitly classified non-sensitive
 	// field must be treated as sensitive. This keeps a newly added channel field
@@ -61,16 +69,44 @@ func channelHasSensitiveChanges(channel *PatchChannel, origin *model.Channel, re
 // channelHasSensitiveChanges with a precise old-vs-new comparison; this set is
 // used to exclude them from the fail-closed scan for unknown fields.
 var channelSensitiveFields = map[string]struct{}{
-	"type":                {},
-	"key":                 {},
-	"base_url":            {},
-	"openai_organization": {},
-	"header_override":     {},
-	"param_override":      {},
-	"setting":             {},
-	"other":               {},
-	"settings":            {},
-	"key_mode":            {},
+	"type":                   {},
+	"key":                    {},
+	"base_url":               {},
+	"openai_organization":    {},
+	"header_override":        {},
+	"param_override":         {},
+	"setting":                {},
+	"other":                  {},
+	"settings":               {},
+	"key_mode":               {},
+	"qwen_console_token":     {},
+	"qwen_access_key_id":     {},
+	"qwen_access_key_secret": {},
+}
+
+func qwenConsolePatchPresent(requestData map[string]any) bool {
+	_, token := requestData["qwen_console_token"]
+	_, ak := requestData["qwen_access_key_id"]
+	_, sk := requestData["qwen_access_key_secret"]
+	return token || ak || sk
+}
+
+// qwenConsolePatchMatchesOrigin 判断 console 补丁是否与已存凭证一致（一致则不算敏感变更）。
+func qwenConsolePatchMatchesOrigin(channel *PatchChannel, origin *model.Channel) bool {
+	originCredential, err := qwentokenplan.ParseCredential(origin.Key)
+	if err != nil {
+		originCredential = &qwentokenplan.Credential{}
+	}
+	if channel.QwenConsoleToken != nil && strings.TrimSpace(*channel.QwenConsoleToken) != originCredential.ConsoleToken {
+		return false
+	}
+	if channel.QwenAccessKeyID != nil && strings.TrimSpace(*channel.QwenAccessKeyID) != originCredential.AccessKeyID {
+		return false
+	}
+	if channel.QwenAccessKeySecret != nil && strings.TrimSpace(*channel.QwenAccessKeySecret) != originCredential.AccessKeySecret {
+		return false
+	}
+	return true
 }
 
 // channelOperationalFields lists fields managed by operation endpoints instead

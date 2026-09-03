@@ -21,7 +21,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   Collapse,
-  Descriptions,
   Modal,
   Progress,
   Spin,
@@ -31,12 +30,6 @@ import {
 import { API, showError } from '../../../../helpers';
 
 const { Text } = Typography;
-
-const formatCredits = (value) => {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) return '-';
-  return numericValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
-};
 
 const formatResetAt = (value) => {
   const numericValue = Number(value);
@@ -103,38 +96,48 @@ const QwenTokenPlanUsage = ({ t, record }) => {
   }
 
   const usage = payload?.data || {};
-  const usedPercent = clampPercent(usage.used_percent);
-  const descriptionData = [
-    { key: t('套餐'), value: usage.plan_name || '-' },
-    {
-      key: t('订阅状态'),
-      value: (
-        <Tag color={usage.subscribed ? 'green' : 'grey'}>
-          {usage.subscribed ? t('有效') : t('未订阅或已失效')}
-        </Tag>
-      ),
-    },
-    { key: t('总额度'), value: formatCredits(usage.total_credits) },
-    { key: t('已用额度'), value: formatCredits(usage.used_credits) },
-    { key: t('剩余额度'), value: formatCredits(usage.remaining_credits) },
-    { key: t('重置时间'), value: formatResetAt(usage.reset_at) },
-    { key: t('额度类型'), value: usage.capacity_type || '-' },
-  ];
+  const per5Hour = usage.per_5_hour || {};
+  const per1Week = usage.per_1_week || {};
+
+  const renderWindow = (label, window) => {
+    const present = window.present === true;
+    const usedPercent = clampPercent(window.used_percent);
+    return (
+      <div className='flex flex-col gap-2'>
+        <div className='flex items-center justify-between gap-3'>
+          <Text strong>{label}</Text>
+          <Tag
+            color={
+              usedPercent >= 80 ? 'red' : usedPercent >= 50 ? 'orange' : 'green'
+            }
+          >
+            {Math.floor(usedPercent)}% {t('已用')}
+          </Tag>
+        </div>
+        <Progress
+          percent={usedPercent}
+          showInfo={false}
+          stroke={usedPercent >= 80 ? '#ef4444' : '#22c55e'}
+        />
+        <Text type='tertiary' size='small'>
+          {present
+            ? `${t('重置时间')}：${formatResetAt(window.reset_at)}`
+            : t('该窗口暂无限额数据')}
+        </Text>
+      </div>
+    );
+  };
 
   return (
     <div className='flex flex-col gap-4'>
       <div className='flex items-center justify-between gap-3'>
         <Text strong>{record?.name || 'Qwen Token Plan'}</Text>
-        <Button size='small' theme='outline' onClick={fetchUsage}>
-          {t('刷新')}
-        </Button>
+        <Tag color={usage.subscribed ? 'green' : 'grey'}>
+          {usage.subscribed ? t('有效') : t('未订阅或已失效')}
+        </Tag>
       </div>
-      <Progress
-        percent={usedPercent}
-        showInfo
-        stroke={usedPercent >= 80 ? '#ef4444' : '#22c55e'}
-      />
-      <Descriptions data={descriptionData} row />
+      {renderWindow(t('5 小时窗口额度'), per5Hour)}
+      {renderWindow(t('1 周窗口额度'), per1Week)}
       <Collapse>
         <Collapse.Panel header={t('原始响应')} itemKey='raw'>
           <pre className='overflow-auto whitespace-pre-wrap break-all text-xs'>

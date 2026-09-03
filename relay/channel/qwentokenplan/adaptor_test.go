@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	channelconstant "github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -116,10 +115,4 @@ func TestBoundCredentialParsing(t *testing.T) {
 	require.Equal(t, "123", credential.User.AliyunID)
 	_, err = ParseCredential("sk-sp-relay")
 	require.Error(t, err)
-}
-
-func TestOAuthExpiredAcceptsQwenTimestampFormat(t *testing.T) {
-	t.Parallel()
-	credential := &Credential{ExpiresAt: "2099-01-01 00:00:00"}
-	require.False(t, credential.OAuthExpired(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)))
 }

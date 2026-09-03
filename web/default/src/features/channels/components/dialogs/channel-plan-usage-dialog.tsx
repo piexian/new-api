@@ -1259,8 +1259,35 @@ function QwenTokenPlanUsageView({
 }) {
   const { t } = useTranslation()
   const usage = toRecord(response?.data)
-  const usedPercent = clampPercent(usage?.used_percent)
   const subscribed = usage?.subscribed === true
+  const per5Hour = toRecord(usage?.per_5_hour)
+  const per1Week = toRecord(usage?.per_1_week)
+
+  const renderWindow = (
+    label: string,
+    window: Record<string, unknown> | null
+  ) => {
+    const present = window?.present === true
+    const usedPercent = clampPercent(window?.used_percent)
+    return (
+      <div className='space-y-2 rounded-lg border p-3'>
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <div className='text-sm font-semibold'>{label}</div>
+          <StatusBadge
+            label={`${Math.floor(usedPercent)}% ${t('Used')}`}
+            variant={getProgressVariant(usedPercent)}
+            copyable={false}
+          />
+        </div>
+        <Progress value={usedPercent} />
+        <div className='text-muted-foreground text-xs'>
+          {present
+            ? `${t('Reset Time')}: ${formatDateTime(window?.reset_at)}`
+            : t('No window limit reported')}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className='space-y-4'>
@@ -1310,44 +1337,9 @@ function QwenTokenPlanUsageView({
       </div>
 
       {usage && response?.success !== false && (
-        <div className='space-y-3 rounded-lg border p-4'>
-          <div className='flex flex-wrap items-center justify-between gap-2'>
-            <div className='text-sm font-semibold'>
-              {String(usage.plan_name || t('Token Plan'))}
-            </div>
-            <StatusBadge
-              label={`${Math.floor(usedPercent)}% ${t('Used')}`}
-              variant={getProgressVariant(usedPercent)}
-              copyable={false}
-            />
-          </div>
-          <Progress value={usedPercent} />
-          <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
-            <MetaBlock
-              label={t('Total')}
-              value={formatCount(usage.total_credits)}
-            />
-            <MetaBlock
-              label={t('Used')}
-              value={formatCount(usage.used_credits)}
-            />
-            <MetaBlock
-              label={t('Remaining')}
-              value={formatCount(usage.remaining_credits)}
-            />
-            <MetaBlock
-              label={t('Status')}
-              value={String(usage.status || '-')}
-            />
-            <MetaBlock
-              label={t('Reset Time')}
-              value={formatDateTime(usage.reset_at)}
-            />
-            <MetaBlock
-              label={t('Capacity Type')}
-              value={String(usage.capacity_type || '-')}
-            />
-          </div>
+        <div className='space-y-3'>
+          {renderWindow(t('5-hour quota'), per5Hour)}
+          {renderWindow(t('1-week quota'), per1Week)}
         </div>
       )}
     </div>

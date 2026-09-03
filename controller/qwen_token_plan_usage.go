@@ -1,14 +1,18 @@
 package controller
 
 import (
-	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
+	"net/url"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -17,54 +21,42 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/qwentokenplan"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/google/uuid"
 
 	"github.com/gin-gonic/gin"
 )
 
+// 额度查询走阿里云百炼 console 网关（bailian-cli `bl usage token-plan` 同源协议）：
+// POST /cli/api.json?action=BroadScopeAspnGateway&product=sfm_bailian&api=zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage
+// Bearer 为阿里云账号 console 凭证；凭证可用 AK/SK 经 GenerateCLIAccessToken 按需换签（保活）。
 const (
-	qwenTokenPlanUsageURL      = "https://cli.qianwenai.com/data/v2/api.json"
-	qwenTokenPlanCommodityCode = "sfm_tokenplanpersonal_dp_cn"
+	qwenTokenPlanGatewayAction  = "BroadScopeAspnGateway"
+	qwenTokenPlanGatewayProduct = "sfm_bailian"
+	qwenTokenPlanUsageAPI       = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage"
+	qwenTokenPlanConsoleRegion  = "cn-beijing"
+	qwenTokenPlanTokenHost      = "modelstudio.cn-beijing.aliyuncs.com"
+	qwenTokenPlanTokenPath      = "/modelstudio/cli/generateAccessToken"
+	qwenTokenPlanTokenAction    = "GenerateCLIAccessToken"
+	qwenTokenPlanTokenVersion   = "2026-02-10"
+	qwenTokenPlanRequestTimeout = 15 * time.Second
 )
 
-type qwenTokenPlanGatewayRequest struct {
-	Product string            `json:"product"`
-	Action  string            `json:"action"`
-	Region  string            `json:"region"`
-	Params  map[string]string `json:"params"`
-}
+// 测试会将其覆写指向 httptest 服务器
+var (
+	qwenTokenPlanGatewayURL = "https://bailian-cs.console.aliyun.com/cli/api.json"
+	qwenTokenPlanTokenURL   = "https://modelstudio.cn-beijing.aliyuncs.com/modelstudio/cli/generateAccessToken"
+)
 
-type qwenTokenPlanGatewayEnvelope struct {
-	Code    any                       `json:"code"`
-	Message string                    `json:"message"`
-	Data    qwenTokenPlanInstancePage `json:"data"`
-}
-
-type qwenTokenPlanInstancePage struct {
-	Data []qwenTokenPlanInstance `json:"Data"`
-}
-
-type qwenTokenPlanInstance struct {
-	CommodityName           string `json:"CommodityName"`
-	TemplateName            string `json:"TemplateName"`
-	Status                  any    `json:"Status"`
-	StatusCode              string `json:"StatusCode"`
-	InitCapacityBaseValue   any    `json:"InitCapacityBaseValue"`
-	CurrCapacityBaseValue   any    `json:"CurrCapacityBaseValue"`
-	PeriodCapacityBaseValue any    `json:"periodCapacityBaseValue"`
-	CapacityTypeCode        string `json:"CapacityTypeCode"`
-	EndTime                 any    `json:"EndTime"`
+type qwenTokenPlanUsageWindow struct {
+	Present     bool    `json:"present"`
+	UsedPercent float64 `json:"used_percent"`
+	ResetAt     int64   `json:"reset_at,omitempty"`
 }
 
 type qwenTokenPlanUsage struct {
-	Subscribed       bool    `json:"subscribed"`
-	PlanName         string  `json:"plan_name,omitempty"`
-	Status           string  `json:"status,omitempty"`
-	TotalCredits     float64 `json:"total_credits"`
-	RemainingCredits float64 `json:"remaining_credits"`
-	UsedCredits      float64 `json:"used_credits"`
-	UsedPercent      float64 `json:"used_percent"`
-	ResetAt          int64   `json:"reset_at,omitempty"`
-	CapacityType     string  `json:"capacity_type,omitempty"`
+	Subscribed bool                     `json:"subscribed"`
+	Per5Hour   qwenTokenPlanUsageWindow `json:"per_5_hour"`
+	Per1Week   qwenTokenPlanUsageWindow `json:"per_1_week"`
 }
 
 func GetQwenTokenPlanUsage(c *gin.Context) {
@@ -94,16 +86,11 @@ func GetQwenTokenPlanUsage(c *gin.Context) {
 		return
 	}
 	response := qwenTokenPlanUsageResponse(ch, keySelection)
+
 	credential, err := qwentokenplan.ParseCredential(keySelection.Key)
-	if err != nil {
+	if err != nil || !credential.HasConsoleCredential() {
 		response["success"] = false
-		response["message"] = err.Error()
-		c.JSON(http.StatusOK, response)
-		return
-	}
-	if credential.OAuthExpired(time.Now()) {
-		response["success"] = false
-		response["message"] = "QianWen OAuth credential has expired; authorize the channel again"
+		response["message"] = i18n.T(c, i18n.MsgChannelQwenConsoleCredMissing)
 		c.JSON(http.StatusOK, response)
 		return
 	}
@@ -113,23 +100,48 @@ func GetQwenTokenPlanUsage(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), qwenTokenPlanRequestTimeout)
 	defer cancel()
 
-	statusCode, body, err := doQwenTokenPlanUsageRequest(ctx, client, qwenTokenPlanUsageURL, credential.AccessToken)
+	accessToken := credential.ConsoleToken
+	if credential.AccessKeyID != "" && credential.AccessKeySecret != "" {
+		accessToken, err = cachedQwenConsoleToken(ctx, client, credential.AccessKeyID, credential.AccessKeySecret)
+		if err != nil {
+			response["success"] = false
+			response["message"] = i18n.T(c, i18n.MsgChannelQwenConsoleTokenFailed)
+			c.JSON(http.StatusOK, response)
+			return
+		}
+	}
+
+	statusCode, body, err := doQwenTokenPlanUsageRequest(ctx, client, accessToken)
 	if err != nil {
 		common.SysError("failed to fetch qwen token plan usage: " + err.Error())
 		response["success"] = false
-		response["message"] = "获取 Qwen Token Plan 额度失败，请稍后重试"
+		response["message"] = i18n.T(c, i18n.MsgRetryLater)
 		c.JSON(http.StatusOK, response)
 		return
 	}
+	payload, notLogined, success, message := parseQwenTokenPlanUsageResponse(statusCode, body)
 
-	payload, success, message := parseQwenTokenPlanUsageResponse(statusCode, body)
+	// console token 失效且有 AK/SK：作废缓存重新换签一次（凭证保活）
+	if notLogined && credential.AccessKeyID != "" && credential.AccessKeySecret != "" {
+		accessToken, err = invalidateQwenConsoleToken(ctx, client, credential.AccessKeyID, credential.AccessKeySecret)
+		if err == nil {
+			statusCode, body, err = doQwenTokenPlanUsageRequest(ctx, client, accessToken)
+			if err == nil {
+				payload, notLogined, success, message = parseQwenTokenPlanUsageResponse(statusCode, body)
+			}
+		}
+	}
+
+	if notLogined {
+		message = i18n.T(c, i18n.MsgChannelQwenConsoleTokenExpired)
+	}
 	response["success"] = success
 	response["message"] = message
 	response["upstream_status"] = statusCode
-	response["request_url"] = qwenTokenPlanUsageURL
+	response["request_url"] = qwenTokenPlanGatewayURL
 	response["data"] = payload
 	c.JSON(http.StatusOK, response)
 }
@@ -148,29 +160,27 @@ func qwenTokenPlanUsageResponse(ch *model.Channel, selection *channelUsageKeySel
 	}
 }
 
-func doQwenTokenPlanUsageRequest(ctx context.Context, client *http.Client, requestURL string, accessToken string) (statusCode int, body []byte, err error) {
-	payload := qwenTokenPlanGatewayRequest{
-		Product: "BssOpenAPI-V3",
-		Action:  "DescribeFrInstances",
-		Region:  "cn-beijing",
-		Params: map[string]string{
-			"Group":         "tokenPlan",
-			"CommodityCode": qwenTokenPlanCommodityCode,
-			"PageNum":       "1",
-			"PageSize":      "10",
-		},
-	}
-	requestBody, err := common.Marshal(payload)
+func doQwenTokenPlanUsageRequest(ctx context.Context, client *http.Client, accessToken string) (statusCode int, body []byte, err error) {
+	envelope := fmt.Sprintf(
+		`{"Api":%s,"V":"1.0","Data":{"cornerstoneParam":{"protocol":"V2","console":"ONE_CONSOLE","productCode":"p_efm","switchUserType":3,"consoleSite":"BAILIAN_ALIYUN"}}}`,
+		strconv.Quote(qwenTokenPlanUsageAPI),
+	)
+	form := url.Values{}
+	form.Set("params", envelope)
+	form.Set("region", qwenTokenPlanConsoleRegion)
+
+	requestURL := fmt.Sprintf(
+		"%s?action=%s&product=%s&api=%s",
+		qwenTokenPlanGatewayURL, qwenTokenPlanGatewayAction, qwenTokenPlanGatewayProduct,
+		url.QueryEscape(qwenTokenPlanUsageAPI),
+	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return 0, nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, requestURL, bytes.NewReader(requestBody))
-	if err != nil {
-		return 0, nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(accessToken))
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -184,115 +194,227 @@ func doQwenTokenPlanUsageRequest(ctx context.Context, client *http.Client, reque
 	return resp.StatusCode, body, nil
 }
 
-func parseQwenTokenPlanUsageResponse(statusCode int, body []byte) (qwenTokenPlanUsage, bool, string) {
-	usage := qwenTokenPlanUsage{}
+type qwenTokenPlanGatewayData struct {
+	Success   bool   `json:"success"`
+	ErrorCode string `json:"errorCode"`
+	ErrorMsg  string `json:"errorMsg"`
+	DataV2    *struct {
+		Data struct {
+			Success bool                   `json:"success"`
+			Code    string                 `json:"code"`
+			Msg     string                 `json:"msg"`
+			Data    map[string]interface{} `json:"data"`
+		} `json:"data"`
+	} `json:"DataV2"`
+}
+
+func parseQwenTokenPlanUsageResponse(statusCode int, body []byte) (usage qwenTokenPlanUsage, notLogined bool, success bool, message string) {
+	usage = qwenTokenPlanUsage{}
 	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
-		return usage, false, fmt.Sprintf("upstream status: %d", statusCode)
+		return usage, false, false, fmt.Sprintf("upstream status: %d", statusCode)
 	}
 
-	var envelope qwenTokenPlanGatewayEnvelope
+	var envelope struct {
+		Data qwenTokenPlanGatewayData `json:"data"`
+	}
 	if err := common.Unmarshal(body, &envelope); err != nil {
-		return usage, false, "invalid Qwen CLI usage response"
+		return usage, false, false, "invalid Qwen console gateway response"
 	}
-	if strings.TrimSpace(fmt.Sprint(envelope.Code)) != "200" {
-		message := strings.TrimSpace(envelope.Message)
+	if !envelope.Data.Success {
+		message = strings.TrimSpace(envelope.Data.ErrorMsg)
 		if message == "" {
-			message = fmt.Sprintf("Qwen CLI gateway code: %v", envelope.Code)
+			message = fmt.Sprintf("Qwen console gateway error: %s", envelope.Data.ErrorCode)
 		}
-		return usage, false, message
+		if strings.Contains(envelope.Data.ErrorCode, "NotLogined") {
+			return usage, true, false, message
+		}
+		return usage, false, false, message
 	}
-	if len(envelope.Data.Data) == 0 {
-		return usage, true, ""
+	if envelope.Data.DataV2 == nil {
+		return usage, false, false, "invalid Qwen console gateway response"
 	}
 
-	instance := envelope.Data.Data[0]
-	for _, candidate := range envelope.Data.Data {
-		if qwenTokenPlanStatus(candidate) == "valid" {
-			instance = candidate
-			break
+	raw := envelope.Data.DataV2.Data.Data
+	if !envelope.Data.DataV2.Data.Success && raw == nil {
+		detail := strings.TrimSpace(envelope.Data.DataV2.Data.Msg)
+		if detail == "" {
+			detail = envelope.Data.DataV2.Data.Code
 		}
-	}
-	status := qwenTokenPlanStatus(instance)
-	total := qwenTokenPlanNumber(instance.InitCapacityBaseValue)
-	remaining := qwenTokenPlanNumber(instance.CurrCapacityBaseValue)
-	if instance.CapacityTypeCode == "periodMonthlyShift" {
-		periodRemaining := qwenTokenPlanNumber(instance.PeriodCapacityBaseValue)
-		if periodRemaining != 0 || !isEmptyQwenTokenPlanValue(instance.PeriodCapacityBaseValue) {
-			remaining = periodRemaining
-		}
-	}
-	used := math.Max(total-remaining, 0)
-	usedPercent := 0.0
-	if total > 0 {
-		usedPercent = used / total * 100
+		return usage, false, false, fmt.Sprintf("Qwen token plan usage error: %s", detail)
 	}
 
-	usage = qwenTokenPlanUsage{
-		Subscribed:       status == "valid",
-		PlanName:         firstNonEmptyString(instance.TemplateName, instance.CommodityName),
-		Status:           status,
-		TotalCredits:     total,
-		RemainingCredits: remaining,
-		UsedCredits:      used,
-		UsedPercent:      usedPercent,
-		ResetAt:          qwenTokenPlanTimestamp(instance.EndTime),
-		CapacityType:     instance.CapacityTypeCode,
-	}
-	return usage, true, ""
+	usage.Per5Hour = qwenTokenPlanWindow(raw, "per5Hour")
+	usage.Per1Week = qwenTokenPlanWindow(raw, "per1Week")
+	usage.Subscribed = usage.Per5Hour.Present || usage.Per1Week.Present
+	return usage, false, true, ""
 }
 
-func qwenTokenPlanStatus(instance qwenTokenPlanInstance) string {
-	if status, ok := instance.Status.(string); ok {
-		return strings.TrimSpace(status)
+func qwenTokenPlanWindow(raw map[string]interface{}, prefix string) qwenTokenPlanUsageWindow {
+	window := qwenTokenPlanUsageWindow{}
+	percent, ok := qwenTokenPlanFloat(raw, prefix+"Percentage")
+	if !ok {
+		return window
 	}
-	if status, ok := instance.Status.(map[string]any); ok {
-		if code, ok := status["Code"]; ok {
-			return strings.TrimSpace(fmt.Sprint(code))
-		}
+	window.Present = true
+	window.UsedPercent = mathClampPercent(percent * 100)
+	if reset, ok := qwenTokenPlanFloat(raw, prefix+"ResetTime"); ok {
+		window.ResetAt = int64(reset)
 	}
-	return strings.TrimSpace(instance.StatusCode)
+	return window
 }
 
-func qwenTokenPlanNumber(value any) float64 {
-	if value == nil {
-		return 0
+func qwenTokenPlanFloat(raw map[string]interface{}, key string) (float64, bool) {
+	value, ok := raw[key]
+	if !ok || value == nil {
+		return 0, false
 	}
 	switch typed := value.(type) {
 	case float64:
-		return typed
-	case float32:
-		return float64(typed)
-	case int:
-		return float64(typed)
-	case int64:
-		return float64(typed)
+		return typed, true
 	case string:
-		parsed, _ := strconv.ParseFloat(strings.TrimSpace(typed), 64)
-		return parsed
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
 	default:
-		parsed, _ := strconv.ParseFloat(strings.TrimSpace(fmt.Sprint(typed)), 64)
-		return parsed
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(fmt.Sprint(typed)), 64)
+		if err != nil {
+			return 0, false
+		}
+		return parsed, true
 	}
 }
 
-func qwenTokenPlanTimestamp(value any) int64 {
-	numeric := qwenTokenPlanNumber(value)
-	if numeric > 0 {
-		return int64(numeric)
-	}
-	text := strings.TrimSpace(fmt.Sprint(value))
-	if text == "" {
+func mathClampPercent(value float64) float64 {
+	if value < 0 {
 		return 0
 	}
-	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05"} {
-		parsed, err := time.Parse(layout, text)
-		if err == nil {
-			return parsed.UnixMilli()
-		}
+	if value > 100 {
+		return 100
 	}
-	return 0
+	return value
 }
 
-func isEmptyQwenTokenPlanValue(value any) bool {
-	return value == nil || strings.TrimSpace(fmt.Sprint(value)) == ""
+// ---- console token 保活：AK/SK 换签短时 token，NotLogined 时作废重签 ----
+
+var qwenConsoleTokenCache sync.Map // accessKeyID -> console access token
+
+func cachedQwenConsoleToken(ctx context.Context, client *http.Client, accessKeyID string, accessKeySecret string) (string, error) {
+	if cached, ok := qwenConsoleTokenCache.Load(accessKeyID); ok {
+		if token, ok := cached.(string); ok && token != "" {
+			return token, nil
+		}
+	}
+	return invalidateQwenConsoleToken(ctx, client, accessKeyID, accessKeySecret)
+}
+
+func invalidateQwenConsoleToken(ctx context.Context, client *http.Client, accessKeyID string, accessKeySecret string) (string, error) {
+	token, err := generateQwenConsoleToken(ctx, client, accessKeyID, accessKeySecret)
+	if err != nil {
+		return "", err
+	}
+	qwenConsoleTokenCache.Store(accessKeyID, token)
+	return token, nil
+}
+
+func generateQwenConsoleToken(ctx context.Context, client *http.Client, accessKeyID string, accessKeySecret string) (string, error) {
+	body := []byte{}
+	headers := qwenAcs3SignHeaders(http.MethodPost, qwenTokenPlanTokenHost, qwenTokenPlanTokenPath, "",
+		qwenTokenPlanTokenAction, qwenTokenPlanTokenVersion, accessKeyID, accessKeySecret, "", body)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, qwenTokenPlanTokenURL, strings.NewReader(string(body)))
+	if err != nil {
+		return "", err
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return "", fmt.Errorf("generate access token status %d: %s", resp.StatusCode, strings.TrimSpace(string(responseBody)))
+	}
+
+	var payload struct {
+		CliAccessToken string `json:"cliAccessToken"`
+	}
+	if err := common.Unmarshal(responseBody, &payload); err != nil {
+		return "", err
+	}
+	token := strings.TrimSpace(payload.CliAccessToken)
+	if token == "" {
+		return "", fmt.Errorf("generate access token response missing cliAccessToken")
+	}
+	return token, nil
+}
+
+// qwenAcs3SignHeaders 按阿里云 ACS3-HMAC-SHA256 规范生成签名请求头（时间与 nonce 自动生成）。
+func qwenAcs3SignHeaders(method string, host string, pathName string, queryString string,
+	action string, version string, accessKeyID string, accessKeySecret string, securityToken string, body []byte) map[string]string {
+	return qwenAcs3Sign(method, host, pathName, queryString, action, version,
+		accessKeyID, accessKeySecret, securityToken, body,
+		time.Now().UTC().Format("2006-01-02T15:04:05Z"), uuid.NewString())
+}
+
+// qwenAcs3Sign 为 ACS3 签名核心，signedAt/nonce 由调用方注入以便测试与复现。
+func qwenAcs3Sign(method string, host string, pathName string, queryString string,
+	action string, version string, accessKeyID string, accessKeySecret string, securityToken string, body []byte,
+	signedAt string, nonce string) map[string]string {
+	payloadHash := sha256.Sum256(body)
+	headers := map[string]string{
+		"host":                  host,
+		"x-acs-action":          action,
+		"x-acs-version":         version,
+		"x-acs-date":            signedAt,
+		"x-acs-signature-nonce": nonce,
+		"x-acs-content-sha256":  hex.EncodeToString(payloadHash[:]),
+		"content-type":          "application/json",
+	}
+	if securityToken != "" {
+		headers["x-acs-security-token"] = securityToken
+	}
+
+	signedKeys := make([]string, 0, len(headers))
+	for key := range headers {
+		if key == "host" || key == "content-type" || strings.HasPrefix(key, "x-acs-") {
+			signedKeys = append(signedKeys, key)
+		}
+	}
+	sort.Strings(signedKeys)
+
+	canonicalHeaders := strings.Builder{}
+	for _, key := range signedKeys {
+		canonicalHeaders.WriteString(key)
+		canonicalHeaders.WriteString(":")
+		canonicalHeaders.WriteString(headers[key])
+		canonicalHeaders.WriteString("\n")
+	}
+	canonicalRequest := strings.Join([]string{
+		method,
+		pathName,
+		queryString,
+		canonicalHeaders.String(),
+		strings.Join(signedKeys, ";"),
+		headers["x-acs-content-sha256"],
+	}, "\n")
+
+	canonicalHash := sha256.Sum256([]byte(canonicalRequest))
+	stringToSign := "ACS3-HMAC-SHA256\n" + hex.EncodeToString(canonicalHash[:])
+	mac := hmac.New(sha256.New, []byte(accessKeySecret))
+	mac.Write([]byte(stringToSign))
+	signature := hex.EncodeToString(mac.Sum(nil))
+
+	headers["authorization"] = fmt.Sprintf(
+		"ACS3-HMAC-SHA256 Credential=%s,SignedHeaders=%s,Signature=%s",
+		accessKeyID, strings.Join(signedKeys, ";"), signature,
+	)
+	return headers
 }

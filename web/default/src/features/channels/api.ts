@@ -98,29 +98,6 @@ export type CodexCredentialRefreshResponse = {
   }
 }
 
-export type QwenOAuthStartResponse = {
-  success: boolean
-  message?: string
-  data?: {
-    verification_url?: string
-    expires_in?: number
-    interval?: number
-  }
-}
-
-export type QwenOAuthCompleteResponse = {
-  success: boolean
-  message?: string
-  data?: {
-    status?: string
-    key?: string
-    email?: string
-    aliyun_id?: string
-    expires_at?: string
-    channel_id?: number
-  }
-}
-
 // ============================================================================
 // Base Channel CRUD Operations
 // ============================================================================
@@ -366,32 +343,6 @@ export async function refreshCodexCredential(
     {},
     channelActionConfig()
   )
-  return res.data
-}
-
-// ============================================================================
-// Qwen Token Plan OAuth Operations
-// ============================================================================
-
-export async function startQwenOAuth(
-  apiKey: string,
-  channelId?: number
-): Promise<QwenOAuthStartResponse> {
-  const path = channelId
-    ? `/api/channel/${channelId}/qwen/oauth/start`
-    : '/api/channel/qwen/oauth/start'
-  const res = await api.post(path, { api_key: apiKey }, channelActionConfig())
-  return res.data
-}
-
-export async function completeQwenOAuth(
-  apiKey: string,
-  channelId?: number
-): Promise<QwenOAuthCompleteResponse> {
-  const path = channelId
-    ? `/api/channel/${channelId}/qwen/oauth/complete`
-    : '/api/channel/qwen/oauth/complete'
-  const res = await api.post(path, { api_key: apiKey }, channelActionConfig())
   return res.data
 }
 

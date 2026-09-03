@@ -1,4 +1,11 @@
 {
+  "Aliyun console token": "Aliyun console token",
+  "Optional: paste access_token from ~/.bailian/config.json": "Optional: paste access_token from ~/.bailian/config.json",
+  "Optional: for auto token refresh": "Optional: for auto token refresh",
+  "Plan usage is queried via the Aliyun Bailian console gateway. Backfill a console token from bl auth login --console, or an AccessKey pair for automatic token refresh. The sk-sp- key remains the inference credential.": "Plan usage is queried via the Aliyun Bailian console gateway. Backfill a console token from bl auth login --console, or an AccessKey pair for automatic token refresh. The sk-sp- key remains the inference credential.",
+  "5-hour quota": "5-hour quota",
+  "1-week quota": "1-week quota",
+  "No window limit reported": "No window limit reported",
   "Active Rules": "Active Rules",
   "Add Tier": "Add Tier",
   "Appeal Hint": "Appeal Hint",
