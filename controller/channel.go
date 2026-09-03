@@ -1432,6 +1432,26 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 	if req.Type == constant.ChannelTypeOpenCode {
+		if modelsURL, ok := opencode.ModelsURL(baseURL); ok {
+			request, err := http.NewRequest("GET", modelsURL, nil)
+			if err == nil {
+				request.Header.Set("Authorization", "Bearer "+key)
+				response, err := client.Do(request)
+				if err == nil {
+					body, readErr := io.ReadAll(response.Body)
+					response.Body.Close()
+					if readErr == nil && response.StatusCode == http.StatusOK {
+						if models, parseErr := opencode.ParseModelsResponse(body); parseErr == nil && len(models) > 0 {
+							c.JSON(http.StatusOK, gin.H{
+								"success": true,
+								"data":    models,
+							})
+							return
+						}
+					}
+				}
+			}
+		}
 		if staticModels := opencode.StaticModelListForBase(baseURL); len(staticModels) > 0 {
 			c.JSON(http.StatusOK, gin.H{
 				"success": true,
@@ -1439,55 +1459,11 @@ func FetchModels(c *gin.Context) {
 			})
 			return
 		}
-		if modelsURL, ok := opencode.ModelsURL(baseURL); ok {
-			url := modelsURL
-			request, err := http.NewRequest("GET", url, nil)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"success": false,
-					"message": err.Error(),
-				})
-				return
-			}
-			request.Header.Set("Authorization", "Bearer "+key)
-			response, err := client.Do(request)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"success": false,
-					"message": err.Error(),
-				})
-				return
-			}
-			defer response.Body.Close()
-			if response.StatusCode != http.StatusOK {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"success": false,
-					"message": "Failed to fetch models",
-				})
-				return
-			}
-			body, err := io.ReadAll(response.Body)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"success": false,
-					"message": err.Error(),
-				})
-				return
-			}
-			models, err := opencode.ParseModelsResponse(body)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"success": false,
-					"message": err.Error(),
-				})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{
-				"success": true,
-				"data":    models,
-			})
-			return
-		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to fetch models",
+		})
+		return
 	}
 	url := fmt.Sprintf("%s/v1/models", baseURL)
 	if req.Type == constant.ChannelTypeQwenTokenPlan {

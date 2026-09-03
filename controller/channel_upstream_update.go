@@ -278,11 +278,6 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeZenMux {
 		baseURL = zenmux.OpenAIBaseURL(baseURL)
 	}
-	if channel.Type == constant.ChannelTypeOpenCode {
-		if staticModels := opencode.StaticModelListForBase(baseURL); len(staticModels) > 0 {
-			return normalizeModelNames(staticModels), nil
-		}
-	}
 	if channel.Type == constant.ChannelTypeOllama {
 		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])
 		models, err := ollama.FetchOllamaModels(baseURL, key)
@@ -377,6 +372,11 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 
 	body, err := GetResponseBody(http.MethodGet, url, channel, headers)
 	if err != nil {
+		if channel.Type == constant.ChannelTypeOpenCode {
+			if staticModels := opencode.StaticModelListForBase(baseURL); len(staticModels) > 0 {
+				return normalizeModelNames(staticModels), nil
+			}
+		}
 		return nil, err
 	}
 
@@ -384,6 +384,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeOpenCode {
 		ids, err = opencode.ParseModelsResponse(body)
 		if err != nil {
+			if staticModels := opencode.StaticModelListForBase(baseURL); len(staticModels) > 0 {
+				return normalizeModelNames(staticModels), nil
+			}
 			return nil, err
 		}
 	} else {

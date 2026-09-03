@@ -76,6 +76,14 @@ func TestGetRequestURLSwitchesOpenCodeEndpointsByRelayFormat(t *testing.T) {
 			requestPath: "/v1/messages",
 			want:        "https://opencode.ai/zen/go/v1/messages",
 		},
+		{
+			name:        "go responses",
+			baseURL:     channelconstant.OpenCodeGoBaseURLAlias,
+			relayFormat: types.RelayFormatOpenAIResponses,
+			relayMode:   relayconstant.RelayModeResponses,
+			requestPath: "/v1/responses",
+			want:        "https://opencode.ai/zen/go/v1/responses",
+		},
 	}
 
 	for _, tt := range tests {
@@ -116,12 +124,6 @@ func TestGetRequestURLRejectsUnsupportedGoProtocols(t *testing.T) {
 		relayMode   int
 		requestPath string
 	}{
-		{
-			name:        "responses",
-			relayFormat: types.RelayFormatOpenAIResponses,
-			relayMode:   relayconstant.RelayModeResponses,
-			requestPath: "/v1/responses",
-		},
 		{
 			name:        "gemini",
 			relayFormat: types.RelayFormatGemini,
@@ -171,8 +173,9 @@ func TestNormalizeRootAndModelSources(t *testing.T) {
 	require.Empty(t, StaticModelListForBase(channelconstant.OpenCodeZenBaseURLAlias))
 	require.NotEmpty(t, StaticModelListForBase(channelconstant.OpenCodeGoBaseURLAlias))
 
-	_, ok = ModelsURL(channelconstant.OpenCodeGoBaseURLAlias)
-	require.False(t, ok)
+	goModelsURL, ok := ModelsURL(channelconstant.OpenCodeGoBaseURLAlias)
+	require.True(t, ok)
+	require.Equal(t, "https://opencode.ai/zen/go/v1/models", goModelsURL)
 }
 
 func TestParseModelsResponse(t *testing.T) {
@@ -240,11 +243,18 @@ func TestGetRequestURLRoutesKnownModelsByBase(t *testing.T) {
 			mode:    requestModeGemini,
 		},
 		{
-			name:    "zen chat Grok 4.5",
+			name:    "zen responses Grok 4.5",
 			baseURL: channelconstant.OpenCodeZenBaseURLAlias,
 			model:   "grok-4.5",
-			want:    "https://opencode.ai/zen/v1/chat/completions",
-			mode:    requestModeOpenAI,
+			want:    "https://opencode.ai/zen/v1/responses",
+			mode:    requestModeResponses,
+		},
+		{
+			name:    "go responses Grok 4.5",
+			baseURL: channelconstant.OpenCodeGoBaseURLAlias,
+			model:   "grok-4.5",
+			want:    "https://opencode.ai/zen/go/v1/responses",
+			mode:    requestModeResponses,
 		},
 	}
 
@@ -349,14 +359,14 @@ func TestOpenCodeModelRoutingConvertsResponsesToChat(t *testing.T) {
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelBaseUrl:    channelconstant.OpenCodeZenBaseURLAlias,
 			ChannelType:       channelconstant.ChannelTypeOpenCode,
-			UpstreamModelName: "grok-4.5",
+			UpstreamModelName: "kimi-k2.6",
 		},
 	}
 	adaptor := &Adaptor{}
 	adaptor.Init(info)
 
 	converted, err := adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
-		Model: "grok-4.5",
+		Model: "kimi-k2.6",
 		Input: []byte(`[{"role":"user","content":"hi"}]`),
 	})
 
@@ -424,7 +434,7 @@ func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
 	t.Parallel()
 
 	require.Equal(t, []string{
-		"grok-4.5",
+		"glm-5.3",
 		"glm-5.2",
 		"glm-5.1",
 		"kimi-k3",
@@ -434,6 +444,7 @@ func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
 		"deepseek-v4-flash",
 		"mimo-v2.5",
 		"mimo-v2.5-pro",
+		"hy3",
 	}, channelconstant.OpenCodeGoChatModels)
 	require.Contains(t, channelconstant.OpenCodeGoClaudeModels, "minimax-m3")
 	require.Contains(t, channelconstant.OpenCodeZenResponsesModels, "gpt-5.6-sol")
@@ -442,7 +453,8 @@ func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
 	require.Contains(t, channelconstant.OpenCodeZenClaudeModels, "claude-sonnet-5")
 	require.Contains(t, channelconstant.OpenCodeZenChatModels, "glm-5.2")
 	require.Contains(t, channelconstant.OpenCodeZenChatModels, "kimi-k2.7-code")
-	require.Contains(t, channelconstant.OpenCodeZenChatModels, "grok-4.5")
+	require.Contains(t, channelconstant.OpenCodeZenResponsesModels, "grok-4.5")
+	require.Contains(t, channelconstant.OpenCodeGoResponsesModels, "gpt-5.6-luna")
 	require.NotContains(t, channelconstant.OpenCodeGoChatModels, "glm-5")
 	require.NotContains(t, channelconstant.OpenCodeZenClaudeModels, "claude-opus-4-1")
 }

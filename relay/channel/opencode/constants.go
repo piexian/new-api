@@ -65,9 +65,6 @@ func IsGoBase(baseURL string) bool {
 }
 
 func ModelsURL(baseURL string) (string, bool) {
-	if IsGoBase(baseURL) {
-		return "", false
-	}
 	return NormalizeRoot(baseURL) + "/v1/models", true
 }
 
@@ -85,6 +82,8 @@ func requestModeForModel(baseURL string, model string) (int, bool) {
 	}
 	if IsGoBase(baseURL) {
 		switch {
+		case stringListContains(channelconstant.OpenCodeGoResponsesModels, model):
+			return requestModeResponses, true
 		case stringListContains(channelconstant.OpenCodeGoClaudeModels, model):
 			return requestModeClaude, true
 		case stringListContains(channelconstant.OpenCodeGoChatModels, model):

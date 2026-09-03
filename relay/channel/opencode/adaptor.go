@@ -84,10 +84,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info != nil && IsGoBase(info.ChannelBaseUrl) {
-		switch a.RequestMode {
-		case requestModeResponses:
-			return "", errors.New("opencode go does not support OpenAI Responses endpoint")
-		case requestModeGemini:
+		if a.RequestMode == requestModeGemini {
 			return "", errors.New("opencode go does not support Gemini endpoint")
 		}
 	}
