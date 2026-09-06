@@ -53,6 +53,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				info.ReasoningEffort = r.Effort
 			}
 		}
+		info.ReasoningEffortOrigin = info.ReasoningEffort
 	}
 
 	err = helper.ModelMappedHelper(c, info, request)
@@ -63,6 +64,9 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		return newAPIError
 	}
 	if newAPIError = xai.ValidateEndpointForModel(info); newAPIError != nil {
+		return newAPIError
+	}
+	if newAPIError = helper.ValidateCerebrasImageInput(c, info, request); newAPIError != nil {
 		return newAPIError
 	}
 

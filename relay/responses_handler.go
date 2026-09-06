@@ -79,6 +79,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	// 提早捕获 reasoning.effort，确保非 OpenAI adaptor 路径也能记录思考等级
 	if info.ReasoningEffort == "" && request.Reasoning != nil && request.Reasoning.Effort != "" {
 		info.ReasoningEffort = request.Reasoning.Effort
+		info.ReasoningEffortOrigin = info.ReasoningEffort
 	}
 
 	err = helper.ModelMappedHelper(c, info, request)
@@ -89,6 +90,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return newAPIError
 	}
 	if newAPIError = xai.ValidateEndpointForModel(info); newAPIError != nil {
+		return newAPIError
+	}
+	if newAPIError = helper.ValidateCerebrasImageInput(c, info, request); newAPIError != nil {
 		return newAPIError
 	}
 
@@ -107,7 +111,13 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			// 渠道不支持原生 Responses 协议时, 渠道级自动降级为 Chat Completions 协议
+			fallbackUsage, fallbackErr := responsesViaChatCompletions(c, info, adaptor, request)
+			if fallbackErr != nil {
+				return fallbackErr
+			}
+			postResponsesUsage(c, info, fallbackUsage)
+			return nil
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 		jsonData, err := common.Marshal(convertedRequest)
@@ -184,12 +194,17 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return nil
 	}
 
+	postResponsesUsage(c, info, usageDto)
+	return nil
+}
+
+// postResponsesUsage 记录 /v1/responses 请求的消费(原生与 Chat 降级路径共用)
+func postResponsesUsage(c *gin.Context, info *relaycommon.RelayInfo, usageDto *dto.Usage) {
 	if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
 		service.PostAudioConsumeQuota(c, info, usageDto, "")
 	} else {
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
-	return nil
 }
 
 func supportsResponsesCompact(c *gin.Context, info *relaycommon.RelayInfo) bool {

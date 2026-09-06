@@ -49,6 +49,9 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	if newAPIError = xai.ValidateEndpointForModel(info); newAPIError != nil {
 		return newAPIError
 	}
+	if newAPIError = helper.ValidateCerebrasImageInput(c, info, request); newAPIError != nil {
+		return newAPIError
+	}
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {

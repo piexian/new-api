@@ -79,6 +79,9 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	}
 	if relayInfo.ReasoningEffort != "" {
 		other["reasoning_effort"] = relayInfo.ReasoningEffort
+		if relayInfo.ReasoningEffortOrigin != "" && relayInfo.ReasoningEffortOrigin != relayInfo.ReasoningEffort {
+			other["reasoning_effort_mapping"] = relayInfo.ReasoningEffortOrigin + " -> " + relayInfo.ReasoningEffort
+		}
 	}
 	if relayInfo.IsModelMapped {
 		other["is_model_mapped"] = true
