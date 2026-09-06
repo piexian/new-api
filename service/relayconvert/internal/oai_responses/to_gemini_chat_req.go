@@ -65,11 +65,14 @@ func OpenAIResponsesRequestToGeminiChat(c *gin.Context, req *dto.OpenAIResponses
 		return nil, err
 	}
 	if !overrideThinking {
-		sharedgemini.ApplyThinkingConfig(geminiRequest, info, dto.GeneralOpenAIRequest{
+		err := sharedgemini.ApplyThinkingConfig(geminiRequest, info, dto.GeneralOpenAIRequest{
 			Model:               req.Model,
 			MaxCompletionTokens: req.MaxOutputTokens,
 			ReasoningEffort:     ReasoningEffort(req),
 		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	safetySettings := make([]dto.GeminiChatSafetySettings, 0, len(sharedgemini.SafetySettingCategories))
@@ -265,11 +268,18 @@ func responsesFunctionOutputItemToGeminiPart(item map[string]any, callNames map[
 	if name == "" {
 		name = callNames[callID]
 	}
+	functionResp := &dto.GeminiFunctionResponse{
+		Name:     name,
+		Response: GeminiResponseMap(item["output"]),
+	}
+	// Gemini 3.x 要求 functionResponse 携带上游下发的 id;伪造的兜底 id 不回传
+	if callID != "" && !dto.IsFallbackToolCallID(callID) {
+		if idJSON, err := common.Marshal(callID); err == nil {
+			functionResp.ID = idJSON
+		}
+	}
 	return dto.GeminiPart{
-		FunctionResponse: &dto.GeminiFunctionResponse{
-			Name:     name,
-			Response: GeminiResponseMap(item["output"]),
-		},
+		FunctionResponse: functionResp,
 	}
 }
 

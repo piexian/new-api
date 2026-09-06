@@ -254,6 +254,25 @@ type GeminiFunctionResponse struct {
 	ID           json.RawMessage        `json:"id,omitempty"`
 }
 
+// 上游未返回 functionCall.id 时,OpenAI 兼容响应会用该前缀伪造 tool_call_id。
+// 伪造 id 不对应任何上游 FunctionCall,回传时应避免写入 functionResponse.id,
+// 否则 Gemini 3.x 的严格匹配会把整轮函数调用判为失配。
+const fallbackToolCallIDPrefix = "call_"
+
+func NewFallbackToolCallID() string {
+	return fallbackToolCallIDPrefix + common.GetUUID()
+}
+
+func IsFallbackToolCallID(id string) bool {
+	rest := strings.TrimPrefix(id, fallbackToolCallIDPrefix)
+	if rest == id || len(rest) != 32 {
+		return false
+	}
+	return strings.IndexFunc(rest, func(r rune) bool {
+		return (r < '0' || r > '9') && (r < 'a' || r > 'f')
+	}) == -1
+}
+
 type GeminiPartExecutableCode struct {
 	Language string `json:"language,omitempty"`
 	Code     string `json:"code,omitempty"`

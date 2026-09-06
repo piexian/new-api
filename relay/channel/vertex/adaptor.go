@@ -57,8 +57,10 @@ type Adaptor struct {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	// Vertex AI does not support functionResponse.id; keep it stripped here for consistency.
-	if model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled {
+	// Vertex AI 的 2.x 系列不支持 functionResponse.id,按设置剥离;
+	// 3.x 起上游要求 functionResponse 携带上游下发的 id,必须保留。
+	if model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled &&
+		!model_setting.IsGemini3Model(info.UpstreamModelName) {
 		removeFunctionResponseID(request)
 	}
 	geminiAdaptor := gemini.Adaptor{}

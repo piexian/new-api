@@ -1,6 +1,8 @@
 package model_setting
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -30,8 +32,11 @@ var defaultGeminiSettings = GeminiSettings{
 		"gemini-2.0-flash-exp-image-generation",
 		"gemini-2.0-flash-exp",
 		"gemini-3-pro-image-preview",
+		"gemini-3-pro-image",
 		"gemini-2.5-flash-image",
 		"gemini-3.1-flash-image-preview",
+		"gemini-3.1-flash-image",
+		"gemini-3.1-flash-lite-image",
 	},
 	ThinkingAdapterEnabled:                false,
 	ThinkingAdapterBudgetTokensPercentage: 0.6,
@@ -75,4 +80,10 @@ func IsGeminiModelSupportImagine(model string) bool {
 		}
 	}
 	return false
+}
+
+// IsGemini3Model Gemini 3.x 系列模型。3.x 起上游要求 functionResponse 携带
+// 上游下发的 id,思考配置使用 thinkingLevel 字符串而非数值 thinkingBudget。
+func IsGemini3Model(model string) bool {
+	return strings.HasPrefix(model, "gemini-3")
 }

@@ -1,12 +1,12 @@
 package geminichat
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/service/geminithought"
 )
 
 func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTokens int) *dto.Usage {
@@ -289,7 +289,11 @@ func geminiResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 	}
 	callID := item.FunctionCall.ID
 	if callID == "" {
-		callID = fmt.Sprintf("call_%s", common.GetUUID())
+		callID = dto.NewFallbackToolCallID()
+	}
+	// OpenAI 格式无法承载 thoughtSignature,暂存到 tool_call_id 下供下一轮取回
+	if len(item.ThoughtSignature) > 0 {
+		geminithought.Save(callID, item.ThoughtSignature)
 	}
 	return &dto.ToolCallResponse{
 		ID:   callID,

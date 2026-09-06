@@ -21,6 +21,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/geminithought"
 	"github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
@@ -158,21 +159,61 @@ func clampThinkingBudgetByEffort(modelName string, effort string) int {
 	return clampThinkingBudget(modelName, maxBudget)
 }
 
-func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo, oaiRequest ...dto.GeneralOpenAIRequest) {
-	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
+// Gemini 3.x 不支持数值 thinkingBudget,按 2.5 系列预算量级近似映射为 thinkingLevel;
+// 3.8 Flash 起不支持 MINIMAL 档(上游校验报错),钳到该模型最低可用档
+func gemini3ThinkingLevelFromBudget(modelName string, budget int) string {
+	level := "high"
+	switch {
+	case budget <= 1024:
+		level = "minimal"
+	case budget <= 4096:
+		level = "low"
+	case budget <= 12288:
+		level = "medium"
+	}
+	return normalizeGeminiThinkingLevel(modelName, level)
+}
+
+// -max/-xhigh/none 等外来档位归一化为 Gemini 合法的 thinkingLevel 枚举
+func normalizeGeminiThinkingLevel(modelName string, level string) string {
+	switch level {
+	case "max", "xhigh":
+		return "high"
+	case "none":
+		level = "minimal"
+	}
+	if level == "minimal" && strings.HasPrefix(modelName, "gemini-3.8") {
+		return "low"
+	}
+	return level
+}
+
+func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo, oaiRequest ...dto.GeneralOpenAIRequest) error {
+	if !model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
+		return nil
+	}
+	{
 		modelName := info.UpstreamModelName
 		isNew25Pro := strings.HasPrefix(modelName, "gemini-2.5-pro") &&
 			!strings.HasPrefix(modelName, "gemini-2.5-pro-preview-05-06") &&
 			!strings.HasPrefix(modelName, "gemini-2.5-pro-preview-03-25")
+		isGemini3 := model_setting.IsGemini3Model(modelName)
 
 		if strings.Contains(modelName, "-thinking-") {
 			parts := strings.SplitN(modelName, "-thinking-", 2)
 			if len(parts) == 2 && parts[1] != "" {
 				if budgetTokens, err := strconv.Atoi(parts[1]); err == nil {
 					clampedBudget := clampThinkingBudget(modelName, budgetTokens)
-					geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
-						ThinkingBudget:  common.GetPointer(clampedBudget),
-						IncludeThoughts: true,
+					if isGemini3 {
+						geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
+							IncludeThoughts: true,
+							ThinkingLevel:   gemini3ThinkingLevelFromBudget(modelName, clampedBudget),
+						}
+					} else {
+						geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
+							ThinkingBudget:  common.GetPointer(clampedBudget),
+							IncludeThoughts: true,
+						}
 					}
 				}
 			}
@@ -193,6 +234,17 @@ func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.Rel
 				geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
 					IncludeThoughts: true,
 				}
+			} else if isGemini3 {
+				// 3.x 无数值预算,按同比例映射为档位;拿不到 max_tokens 时取 medium(3.x 默认档)
+				level := "medium"
+				if geminiRequest.GenerationConfig.MaxOutputTokens != nil && *geminiRequest.GenerationConfig.MaxOutputTokens > 0 {
+					budgetTokens := model_setting.GetGeminiSettings().ThinkingAdapterBudgetTokensPercentage * float64(*geminiRequest.GenerationConfig.MaxOutputTokens)
+					level = gemini3ThinkingLevelFromBudget(modelName, int(budgetTokens))
+				}
+				geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
+					IncludeThoughts: true,
+					ThinkingLevel:   level,
+				}
 			} else {
 				geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
 					IncludeThoughts: true,
@@ -209,12 +261,24 @@ func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.Rel
 				}
 			}
 		} else if strings.HasSuffix(modelName, "-nothinking") {
-			if !isNew25Pro {
+			if isGemini3 {
+				// 3.x 无法关闭思考,拒绝语义冲突的 -nothinking 后缀
+				return fmt.Errorf("model %s cannot disable thinking, do not use the -nothinking suffix", modelName)
+			} else if !isNew25Pro {
 				geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
 					ThinkingBudget: common.GetPointer(0),
 				}
 			}
 		} else if _, level, ok := reasoning.TrimEffortSuffix(info.UpstreamModelName); ok && level != "" {
+			level = normalizeGeminiThinkingLevel(modelName, level)
+			geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
+				IncludeThoughts: true,
+				ThinkingLevel:   level,
+			}
+			info.ReasoningEffort = level
+		} else if isGemini3 && len(oaiRequest) > 0 && oaiRequest[0].ReasoningEffort != "" {
+			// 3.x 下 OpenAI 的 reasoning_effort 与 thinkingLevel 枚举一一对应,直接映射
+			level := normalizeGeminiThinkingLevel(modelName, oaiRequest[0].ReasoningEffort)
 			geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
 				IncludeThoughts: true,
 				ThinkingLevel:   level,
@@ -222,6 +286,7 @@ func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.Rel
 			info.ReasoningEffort = level
 		}
 	}
+	return nil
 }
 
 // Setting safety to the lowest possible values since Gemini is already powerless enough
@@ -391,7 +456,9 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 	}
 
 	if !adaptorWithExtraBody {
-		ThinkingAdaptor(&geminiRequest, info, textRequest)
+		if err := ThinkingAdaptor(&geminiRequest, info, textRequest); err != nil {
+			return nil, err
+		}
 	}
 
 	safetySettings := make([]dto.GeminiChatSafetySettings, 0, len(SafetySettingList))
@@ -521,6 +588,10 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 				Name:     name,
 				Response: contentMap,
 			}
+			// Gemini 3.x 要求 functionResponse 携带上游下发的 id;伪造的兜底 id 不回传
+			if message.ToolCallId != "" && !dto.IsFallbackToolCallID(message.ToolCallId) {
+				functionResp.ID = json.RawMessage(strconv.Quote(message.ToolCallId))
+			}
 
 			*parts = append(*parts, dto.GeminiPart{
 				FunctionResponse: functionResp,
@@ -550,9 +621,14 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 						Arguments:    args,
 					},
 				}
-				if shouldAttachThoughtSignature && !signatureAttached && hasFunctionCallContent(toolCall.FunctionCall) && len(toolCall.ThoughtSignature) == 0 {
-					toolCall.ThoughtSignature = json.RawMessage(strconv.Quote(thoughtSignatureBypassValue))
-					signatureAttached = true
+				if shouldAttachThoughtSignature && hasFunctionCallContent(toolCall.FunctionCall) && len(toolCall.ThoughtSignature) == 0 {
+					// 真实签名按调用逐个取回;bypass 兜底保持每消息一次,避免无据伪造多份
+					if sig := geminithought.Get(call.ID); len(sig) > 0 {
+						toolCall.ThoughtSignature = sig
+					} else if !signatureAttached {
+						toolCall.ThoughtSignature = json.RawMessage(strconv.Quote(thoughtSignatureBypassValue))
+						signatureAttached = true
+					}
 				}
 				parts = append(parts, toolCall)
 				tool_call_ids[call.ID] = call.Function.Name
@@ -1039,8 +1115,16 @@ func getResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 	if err != nil {
 		return nil
 	}
+	callID := item.FunctionCall.ID
+	if callID == "" {
+		callID = dto.NewFallbackToolCallID()
+	}
+	// OpenAI 格式无法承载 thoughtSignature,暂存到 tool_call_id 下供下一轮取回
+	if len(item.ThoughtSignature) > 0 {
+		geminithought.Save(callID, item.ThoughtSignature)
+	}
 	return &dto.ToolCallResponse{
-		ID:   fmt.Sprintf("call_%s", common.GetUUID()),
+		ID:   callID,
 		Type: "function",
 		Function: dto.FunctionResponse{
 			Arguments: string(argsBytes),

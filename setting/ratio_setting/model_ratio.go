@@ -201,6 +201,11 @@ var defaultModelRatio = map[string]float64{
 	"gemini-3.1-flash-lite":                     0.125, // $0.25/M input
 	"gemini-3.1-pro":                            1.0,   // $2.00/M input (≤200K)
 	"gemini-3.5-flash":                          0.75,  // $1.50/M input
+	"gemini-3.5-flash-lite":                     0.125, // $0.25/M input,待与官方定价页核对
+	"gemini-3.7-flash":                          0.75,  // $1.50/M input,待与官方定价页核对
+	"gemini-3.6-flash":                          0.375, // $0.75/M in,$3.75/M out(2026 促销价,2027-01-01 起翻倍)
+	"gemini-3.8-flash":                          0.375, // $0.75/M in,$3.75/M out(2026 促销价,2027-01-01 起翻倍)
+	"gemini-3.8-flash-cyber":                    0.375, // 同 3.8 Flash 计费,门禁准入
 	"text-embedding-004":                        0.001,
 	"chatglm_turbo":                             0.3572,     // ￥0.005 / 1k tokens
 	"chatglm_pro":                               0.7143,     // ￥0.01 / 1k tokens
@@ -811,6 +816,8 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				return 60, false
 			}
 			return 6, false
+		} else if strings.HasPrefix(name, "gemini-3.8") || strings.HasPrefix(name, "gemini-3.6") {
+			return 5, false // $0.75/M in,$3.75/M out
 		}
 		return 4, false
 	}

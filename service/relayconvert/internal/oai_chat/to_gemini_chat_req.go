@@ -56,7 +56,9 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 	}
 
 	if !adaptorWithExtraBody {
-		sharedgemini.ApplyThinkingConfig(&geminiRequest, info, textRequest)
+		if err := sharedgemini.ApplyThinkingConfig(&geminiRequest, info, textRequest); err != nil {
+			return nil, err
+		}
 	}
 
 	safetySettings := make([]dto.GeminiChatSafetySettings, 0, len(sharedgemini.SafetySettingCategories))
@@ -172,8 +174,9 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 				Name:     name,
 				Response: contentMap,
 			}
-			// 透传 tool_call_id(interactions 桥接链路用作 call_id;generateContent 上游忽略该字段)
-			if message.ToolCallId != "" {
+			// 透传 tool_call_id(interactions 桥接链路用作 call_id;Gemini 3.x 要求
+			// functionResponse 携带上游 id)。伪造的兜底 id 不对应任何上游 FunctionCall,不回传
+			if message.ToolCallId != "" && !dto.IsFallbackToolCallID(message.ToolCallId) {
 				if idJSON, err := common.Marshal(message.ToolCallId); err == nil {
 					functionResp.ID = idJSON
 				}

@@ -28,8 +28,8 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 	return oaichat.OpenAIChatRequestToGeminiGenerateContent(c, textRequest, info)
 }
 
-func ApplyGeminiThinkingConfig(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo, oaiRequest ...dto.GeneralOpenAIRequest) {
-	sharedgemini.ApplyThinkingConfig(geminiRequest, info, oaiRequest...)
+func ApplyGeminiThinkingConfig(geminiRequest *dto.GeminiChatRequest, info *relaycommon.RelayInfo, oaiRequest ...dto.GeneralOpenAIRequest) error {
+	return sharedgemini.ApplyThinkingConfig(geminiRequest, info, oaiRequest...)
 }
 
 func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {
