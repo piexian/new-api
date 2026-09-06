@@ -65,6 +65,9 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeminiChatRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
+	// 丢弃无 data 字段的空 part(如客户端的 text:"" 经 omitempty 重序列化后变成 "{}"),
+	// 避免上游以 "required oneof field 'data'" 拒绝整个请求
+	request.RemoveEmptyParts()
 
 	// model mapped 模型映射
 	err = helper.ModelMappedHelper(c, info, request)

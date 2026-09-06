@@ -124,6 +124,50 @@ func (r *GeminiChatRequest) SetModelName(modelName string) {
 	// GeminiChatRequest does not have a model field, so this method does nothing.
 }
 
+// RemoveEmptyParts 清除没有任何 data 字段的空 part 及 parts 因此清空的 content。
+// 原生请求经绑定→重序列化后,空文本等零值字段会被 omitempty 抹成 "{}",
+// 上游 protobuf 校验以 "required oneof field 'data'" 拒绝;空 part 本身无内容,删除不改变语义。
+func (r *GeminiChatRequest) RemoveEmptyParts() {
+	if r == nil {
+		return
+	}
+	contents := make([]GeminiChatContent, 0, len(r.Contents))
+	for _, content := range r.Contents {
+		parts := make([]GeminiPart, 0, len(content.Parts))
+		for _, part := range content.Parts {
+			if !part.HasNoDataField() {
+				parts = append(parts, part)
+			}
+		}
+		if len(parts) > 0 {
+			content.Parts = parts
+			contents = append(contents, content)
+		}
+	}
+	r.Contents = contents
+	if r.SystemInstructions != nil {
+		parts := make([]GeminiPart, 0, len(r.SystemInstructions.Parts))
+		for _, part := range r.SystemInstructions.Parts {
+			if !part.HasNoDataField() {
+				parts = append(parts, part)
+			}
+		}
+		if len(parts) > 0 {
+			r.SystemInstructions.Parts = parts
+		} else {
+			r.SystemInstructions = nil
+		}
+	}
+	requests := make([]GeminiChatRequest, 0, len(r.Requests))
+	for _, sub := range r.Requests {
+		sub.RemoveEmptyParts()
+		if len(sub.Contents) > 0 {
+			requests = append(requests, sub)
+		}
+	}
+	r.Requests = requests
+}
+
 func (r *GeminiChatRequest) GetTools() []GeminiChatTool {
 	var tools []GeminiChatTool
 	if strings.HasPrefix(string(r.Tools), "[") {
@@ -301,6 +345,22 @@ type GeminiPart struct {
 	FileData            *GeminiFileData                `json:"fileData,omitempty"`
 	ExecutableCode      *GeminiPartExecutableCode      `json:"executableCode,omitempty"`
 	CodeExecutionResult *GeminiPartCodeExecutionResult `json:"codeExecutionResult,omitempty"`
+}
+
+// HasNoDataField 判断 part 是否没有初始化任何 data oneof 内容字段。
+// thoughtSignature/mediaResolution/videoMetadata/thought 不属于 data oneof,
+// 只携带这些字段的 part 上游仍会以 "required oneof field 'data'" 拒绝。
+func (p *GeminiPart) HasNoDataField() bool {
+	if p == nil {
+		return true
+	}
+	return p.Text == "" &&
+		p.InlineData == nil &&
+		p.FunctionCall == nil &&
+		p.FunctionResponse == nil &&
+		p.FileData == nil &&
+		p.ExecutableCode == nil &&
+		p.CodeExecutionResult == nil
 }
 
 // UnmarshalJSON custom unmarshaler for GeminiPart to support snake_case and camelCase for InlineData
