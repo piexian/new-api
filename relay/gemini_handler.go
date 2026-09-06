@@ -104,6 +104,14 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 	}
 
+	// 原生请求自带/渠道注入的 thinkingLevel 回填到日志(小写归一,前端按小写展示);
+	// suffix/effort 路径已设置的档位不覆盖
+	if info.ReasoningEffort == "" && request.GenerationConfig.ThinkingConfig != nil {
+		if level := request.GenerationConfig.ThinkingConfig.ThinkingLevel; level != "" {
+			info.ReasoningEffort = strings.ToLower(level)
+		}
+	}
+
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
