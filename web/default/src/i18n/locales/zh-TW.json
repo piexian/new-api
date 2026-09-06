@@ -2348,6 +2348,7 @@
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4": "gpt-4",
     "gpt-4, claude-3-opus, etc.": "gpt-4, claude-3-opus, 等",
+    "Groq": "Groq",
     "GPU count": "GPU 數量",
     "Granted at": "發放時間",
     "Greater than": "大於",

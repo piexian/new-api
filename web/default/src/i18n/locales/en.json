@@ -2348,6 +2348,7 @@
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4": "gpt-4",
     "gpt-4, claude-3-opus, etc.": "gpt-4, claude-3-opus, etc.",
+    "Groq": "Groq",
     "GPU count": "GPU count",
     "Granted at": "Granted at",
     "Greater than": "Greater than",

@@ -204,6 +204,7 @@ export interface LogOtherData {
   expr_b64?: string
   matched_tier?: string
   reasoning_effort?: string
+  reasoning_effort_mapping?: string
   image?: boolean
   image_ratio?: number
   image_output?: number

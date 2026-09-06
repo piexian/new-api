@@ -743,7 +743,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
               label={t('Reasoning Effort')}
               value={
                 <StatusBadge
-                  label={other.reasoning_effort}
+                  label={
+                    other.reasoning_effort_mapping ?? other.reasoning_effort
+                  }
                   variant={reasoningEffortVariant}
                   size='sm'
                   copyable={false}

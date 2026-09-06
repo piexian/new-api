@@ -2348,6 +2348,7 @@
     "gpt-3.5-turbo-0125": "gpt-3.5-turbo-0125",
     "gpt-4": "gpt-4",
     "gpt-4, claude-3-opus, etc.": "gpt-4, claude-3-opus, v.v.",
+    "Groq": "Groq",
     "GPU count": "Số lượng GPU",
     "Granted at": "Được cấp lúc",
     "Greater than": "Lớn hơn",

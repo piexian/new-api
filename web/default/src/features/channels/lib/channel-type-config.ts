@@ -121,9 +121,23 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     hints: {
       baseUrl: 'Default: https://api.cerebras.ai',
       key: 'Cerebras API Key',
-      models: 'gpt-oss-120b,zai-glm-4.7,gemma-4-31b',
+      models: 'gpt-oss-120b,qwen-3.8-27b,zai-glm-4.7,gemma-4-31b',
       other:
-        'OpenAI-compatible Chat Completions with Cerebras-specific parameters such as clear_thinking and prompt_cache_key',
+        'OpenAI-compatible Chat Completions with Cerebras-specific parameters such as clear_thinking, prompt_cache_key and reasoning_format',
+    },
+  },
+  74: {
+    id: 74,
+    name: CHANNEL_TYPES[74],
+    icon: 'Groq.Mono',
+    defaultBaseUrl: 'https://api.groq.com/openai',
+    hints: {
+      baseUrl: 'Default: https://api.groq.com/openai',
+      key: 'Groq API Key',
+      models:
+        'llama-3.3-70b-versatile,llama-3.1-8b-instant,openai/gpt-oss-120b,openai/gpt-oss-20b',
+      other:
+        'OpenAI-compatible Chat/Responses/Audio endpoints with Groq-specific parameters such as reasoning_format passed through',
     },
   },
   69: {

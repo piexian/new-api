@@ -31,6 +31,7 @@ import {
   CHANNEL_OPTIONS,
   CHANNEL_TYPE_AGNES_AI,
   CHANNEL_TYPE_CEREBRAS,
+  CHANNEL_TYPE_GROQ,
   CHANNEL_TYPE_GMICLOUD,
   CHANNEL_TYPE_OPENCODE,
   CHANNEL_TYPE_QWEN_TOKEN_PLAN,
@@ -2087,11 +2088,12 @@ const EditChannelModal = (props) => {
       delete settings.vertex_key_type;
     }
 
-    // OpenAI / Claude / Cerebras: 设置 service_tier 透传控制（显式保存布尔值）
+    // OpenAI / Claude / Cerebras / Groq: 设置 service_tier 透传控制（显式保存布尔值）
     if (
       localInputs.type === 1 ||
       localInputs.type === 14 ||
-      localInputs.type === CHANNEL_TYPE_CEREBRAS
+      localInputs.type === CHANNEL_TYPE_CEREBRAS ||
+      localInputs.type === CHANNEL_TYPE_GROQ
     ) {
       settings.allow_service_tier = localInputs.allow_service_tier === true;
       // 仅 OpenAI 渠道需要 store / safety_identifier / include_obfuscation
@@ -2867,7 +2869,8 @@ const EditChannelModal = (props) => {
                   </Row>
 
                   {(inputs.type === 1 ||
-                    inputs.type === CHANNEL_TYPE_CEREBRAS) && (
+                    inputs.type === CHANNEL_TYPE_CEREBRAS ||
+                    inputs.type === CHANNEL_TYPE_GROQ) && (
                     <>
                       <div className='mt-4 mb-2 text-sm font-medium text-gray-700'>
                         {t('字段透传控制')}

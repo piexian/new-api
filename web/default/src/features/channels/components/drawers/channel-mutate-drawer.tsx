@@ -5181,7 +5181,8 @@ export function ChannelMutateDrawer({
                         {(currentType === 1 ||
                           currentType === 14 ||
                           currentType === 57 ||
-                          currentType === 68) && (
+                          currentType === 68 ||
+                          currentType === 74) && (
                           <div
                             id={ADVANCED_SETTINGS_SECTION_IDS.fieldPassthrough}
                             className={sideDrawerSectionClassName(

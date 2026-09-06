@@ -588,7 +588,7 @@ export const useLogsData = () => {
         if (other?.reasoning_effort) {
           expandDataLocal.push({
             key: t('Reasoning Effort'),
-            value: other.reasoning_effort,
+            value: other.reasoning_effort_mapping || other.reasoning_effort,
           });
         }
         if (other?.billing_mode === 'tiered_expr' && other?.expr_b64) {

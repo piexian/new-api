@@ -65,6 +65,7 @@ import {
   Replicate,
   OpenCode,
   Cerebras,
+  Groq,
   XiaomiMiMo,
   ZenMux,
 } from '@lobehub/icons/es/icons';
@@ -445,6 +446,8 @@ export function getChannelIcon(channelType) {
       return getLobeHubIcon('GiteeAI.Color', iconSize);
     case 68: // Cerebras
       return <Cerebras.Color size={iconSize} />;
+    case 74: // Groq
+      return <Groq size={iconSize} />;
     case 69: // Qwen Token Plan
       return (
         <img
