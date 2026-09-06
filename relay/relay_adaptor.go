@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	geminiinteractions "github.com/QuantumNous/new-api/relay/channel/gemini_interactions"
 	"github.com/QuantumNous/new-api/relay/channel/gmicloud"
+	"github.com/QuantumNous/new-api/relay/channel/groq"
 	"github.com/QuantumNous/new-api/relay/channel/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/jina"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
@@ -164,6 +165,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &gmicloud.Adaptor{}
 	case constant.APITypeCLIProxyAPI:
 		return &cliproxyapi.Adaptor{}
+	case constant.APITypeGroq:
+		return &groq.Adaptor{}
 	}
 	return nil
 }

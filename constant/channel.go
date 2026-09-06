@@ -71,6 +71,7 @@ const (
 	ChannelTypeGMICloud           = 71
 	ChannelTypeGeminiInteractions = 72
 	ChannelTypeCLIProxyAPI        = 73
+	ChannelTypeGroq               = 74
 	ChannelTypeDummy              // this one is only for count, do not add any channel after this
 
 )
@@ -149,7 +150,8 @@ var ChannelBaseURLs = []string{
 	"https://console.mistral.ai",                     //70
 	"https://api.gmi-serving.com",                    //71
 	"https://generativelanguage.googleapis.com",      //72
-	"", //73
+	"",                            //73
+	"https://api.groq.com/openai", //74
 }
 
 var ChannelTypeNames = map[int]string{
@@ -223,6 +225,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeGMICloud:           "GMI Cloud",
 	ChannelTypeGeminiInteractions: "Gemini Interactions",
 	ChannelTypeCLIProxyAPI:        "CLIProxyAPI",
+	ChannelTypeGroq:               "Groq",
 }
 
 func GetChannelTypeName(channelType int) string {
