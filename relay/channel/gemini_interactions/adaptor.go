@@ -135,7 +135,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
-	return nil, fmt.Errorf("gemini interactions channel does not support rerank")
+	return nil, fmt.Errorf("/v1/rerank is not supported on this channel")
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
@@ -144,11 +144,11 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	return nil, fmt.Errorf("gemini interactions channel does not support audio")
+	return nil, fmt.Errorf("audio endpoints are not supported on this channel")
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, fmt.Errorf("gemini interactions channel does not support image generation")
+	return nil, fmt.Errorf("image generation is not supported on this channel")
 }
 
 // isEmbeddingModelName Google 未把 embeddings 迁入 Interactions,该类模型仍走原生 embedContent 老路径

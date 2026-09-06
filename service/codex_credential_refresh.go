@@ -30,11 +30,11 @@ type CodexOAuthKey struct {
 
 func parseCodexOAuthKey(raw string) (*CodexOAuthKey, error) {
 	if strings.TrimSpace(raw) == "" {
-		return nil, errors.New("codex channel: empty oauth key")
+		return nil, errors.New("empty oauth key")
 	}
 	var key CodexOAuthKey
 	if err := common.Unmarshal([]byte(raw), &key); err != nil {
-		return nil, errors.New("codex channel: invalid oauth key json")
+		return nil, errors.New("invalid oauth key json")
 	}
 	return &key, nil
 }
@@ -48,7 +48,7 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 		return nil, nil, fmt.Errorf("channel not found")
 	}
 	if ch.Type != constant.ChannelTypeCodex {
-		return nil, nil, fmt.Errorf("channel type is not Codex")
+		return nil, nil, fmt.Errorf("channel type is not supported for credential refresh")
 	}
 
 	oauthKey, err := parseCodexOAuthKey(strings.TrimSpace(ch.Key))
@@ -56,7 +56,7 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 		return nil, nil, err
 	}
 	if strings.TrimSpace(oauthKey.RefreshToken) == "" {
-		return nil, nil, fmt.Errorf("codex channel: refresh_token is required to refresh credential")
+		return nil, nil, fmt.Errorf("refresh_token is required to refresh credential")
 	}
 
 	refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

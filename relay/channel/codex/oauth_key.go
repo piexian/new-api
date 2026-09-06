@@ -20,11 +20,11 @@ type OAuthKey struct {
 
 func ParseOAuthKey(raw string) (*OAuthKey, error) {
 	if raw == "" {
-		return nil, errors.New("codex channel: empty oauth key")
+		return nil, errors.New("empty oauth key")
 	}
 	var key OAuthKey
 	if err := common.Unmarshal([]byte(raw), &key); err != nil {
-		return nil, errors.New("codex channel: invalid oauth key json")
+		return nil, errors.New("invalid oauth key json")
 	}
 	return &key, nil
 }

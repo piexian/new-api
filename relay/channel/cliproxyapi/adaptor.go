@@ -29,7 +29,7 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	base := strings.TrimRight(info.ChannelBaseUrl, "/")
 	if base == "" {
-		return "", errors.New("cliproxyapi channel requires a base URL")
+		return "", errors.New("this channel requires a base URL")
 	}
 	requestPath := info.RequestURLPath
 	query := ""
@@ -106,15 +106,15 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
-	return nil, errors.New("cliproxyapi channel: /v1/rerank endpoint not supported")
+	return nil, errors.New("/v1/rerank is not supported on this channel")
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
-	return nil, errors.New("cliproxyapi channel: /v1/embeddings endpoint not supported")
+	return nil, errors.New("/v1/embeddings is not supported on this channel")
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	return nil, errors.New("cliproxyapi channel: audio endpoint not supported")
+	return nil, errors.New("audio endpoints are not supported on this channel")
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
