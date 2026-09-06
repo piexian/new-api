@@ -34,6 +34,7 @@ var cerebrasChatFields = map[string]struct{}{
 	"presence_penalty":      {},
 	"prompt_cache_key":      {},
 	"reasoning_effort":      {},
+	"reasoning_format":      {},
 	"response_format":       {},
 	"seed":                  {},
 	"service_tier":          {},
@@ -73,7 +74,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		return nil, errors.New("request is nil")
 	}
 	if info != nil && info.RelayMode != relaymode.RelayModeUnknown && info.RelayMode != relaymode.RelayModeChatCompletions {
-		return nil, errors.New("cerebras channel: only /v1/chat/completions is supported")
+		return nil, errors.New("only /v1/chat/completions is supported on this channel")
 	}
 
 	normalizeCerebrasRequest(info, request)
@@ -88,10 +89,14 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	mergeExtraBody(payload, request.ExtraBody)
 
 	payload["model"] = request.Model
+	normalizeReasoningFormat(payload, request.Model)
 	return filterCerebrasPayload(payload), nil
 }
 
 func normalizeCerebrasRequest(info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) {
+	flattenAssistantArrayContent(request.Messages)
+	normalizeAssistantReasoningField(request.Messages)
+
 	if request.MaxCompletionTokens == nil && request.MaxTokens != nil {
 		request.MaxCompletionTokens = request.MaxTokens
 	}
@@ -135,6 +140,62 @@ func trimCerebrasReasoningEffortSuffix(modelName string) (string, string, bool) 
 		}
 	}
 	return modelName, "", false
+}
+
+// flattenAssistantArrayContent 将 assistant 消息的纯文本数组 content 扁平化为字符串,
+// Cerebras Qwen 模板要求 assistant content 为纯字符串, 数组会 400
+func flattenAssistantArrayContent(messages []dto.Message) {
+	for i := range messages {
+		msg := &messages[i]
+		if msg.Role != "assistant" || msg.Content == nil || msg.IsStringContent() {
+			continue
+		}
+		parts, ok := msg.Content.([]dto.MediaContent)
+		if !ok {
+			parts = msg.ParseContent()
+		}
+		if len(parts) == 0 {
+			continue
+		}
+		var builder strings.Builder
+		allText := true
+		for _, part := range parts {
+			if part.Type != "text" {
+				allText = false
+				break
+			}
+			builder.WriteString(part.Text)
+		}
+		if allText {
+			msg.SetStringContent(builder.String())
+		}
+	}
+}
+
+// normalizeAssistantReasoningField 把历史 assistant 消息的 reasoning_content 迁到 reasoning,
+// Cerebras assistant schema 不认 reasoning_content, 传了直接 400
+func normalizeAssistantReasoningField(messages []dto.Message) {
+	for i := range messages {
+		msg := &messages[i]
+		if msg.Role != "assistant" || msg.ReasoningContent == nil {
+			continue
+		}
+		if msg.Reasoning == nil {
+			msg.Reasoning = msg.ReasoningContent
+		}
+		msg.ReasoningContent = nil
+	}
+}
+
+// normalizeReasoningFormat 剔除不支持 hidden reasoning format 模型上的该取值,
+// qwen 系列会直接 400, 删除后走上游默认的分离返回
+func normalizeReasoningFormat(payload map[string]any, model string) {
+	if !strings.HasPrefix(model, "qwen-") {
+		return
+	}
+	if format, ok := payload["reasoning_format"].(string); ok && format == "hidden" {
+		delete(payload, "reasoning_format")
+	}
 }
 
 func originalJSONFields(c *gin.Context) (map[string]json.RawMessage, bool) {
@@ -215,23 +276,23 @@ func filterCerebrasPayload(payload map[string]any) map[string]any {
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
-	return nil, errors.New("cerebras channel: /v1/rerank endpoint is not supported")
+	return nil, errors.New("/v1/rerank is not supported on this channel")
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
-	return nil, errors.New("cerebras channel: /v1/embeddings endpoint is not supported")
+	return nil, errors.New("/v1/embeddings is not supported on this channel")
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	return nil, errors.New("cerebras channel: audio endpoints are not supported")
+	return nil, errors.New("audio endpoints are not supported on this channel")
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, errors.New("cerebras channel: image endpoints are not supported")
+	return nil, errors.New("image endpoints are not supported on this channel")
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("cerebras channel: /v1/responses endpoint is not supported")
+	return nil, errors.New("/v1/responses is not supported on this channel")
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
