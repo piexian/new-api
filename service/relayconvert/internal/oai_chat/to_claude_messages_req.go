@@ -7,7 +7,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
-	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
 	sharedclaude "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/claude"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
@@ -28,28 +27,24 @@ type openRouterRequestReasoning struct {
 }
 
 func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
+	if textRequest.N != nil && *textRequest.N > 1 {
+		return nil, fmt.Errorf("Claude Messages cannot generate multiple response candidates")
+	}
 	claudeTools := make([]any, 0, len(textRequest.Tools))
 
 	for _, tool := range textRequest.Tools {
-		if params, ok := tool.Function.Parameters.(map[string]any); ok {
-			claudeTool := dto.Tool{
-				Name:        tool.Function.Name,
-				Description: tool.Function.Description,
-			}
-			claudeTool.InputSchema = make(map[string]interface{})
-			if params["type"] != nil {
-				claudeTool.InputSchema["type"] = params["type"].(string)
-			}
-			claudeTool.InputSchema["properties"] = params["properties"]
-			claudeTool.InputSchema["required"] = params["required"]
-			for key, value := range params {
-				if key == "type" || key == "properties" || key == "required" {
-					continue
-				}
-				claudeTool.InputSchema[key] = value
-			}
-			claudeTools = append(claudeTools, &claudeTool)
+		if tool.Type != "" && tool.Type != "function" {
+			return nil, fmt.Errorf("Claude conversion does not support OpenAI tool type %q", tool.Type)
 		}
+		params := map[string]any{"type": "object", "properties": map[string]any{}}
+		if tool.Function.Parameters != nil {
+			var err error
+			params, err = common.Any2Type[map[string]any](tool.Function.Parameters)
+			if err != nil {
+				return nil, err
+			}
+		}
+		claudeTools = append(claudeTools, &dto.Tool{Name: tool.Function.Name, Description: tool.Function.Description, InputSchema: params})
 	}
 
 	if textRequest.WebSearchOptions != nil {
@@ -176,6 +171,8 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 
 	if textRequest.ReasoningEffort != "" {
 		switch textRequest.ReasoningEffort {
+		case "none":
+			claudeRequest.Thinking = &dto.Thinking{Type: "disabled"}
 		case "low":
 			claudeRequest.Thinking = &dto.Thinking{
 				Type:         "enabled",
@@ -208,11 +205,20 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 			}
 		}
 	}
+	if len(textRequest.THINKING) > 0 {
+		var thinking dto.Thinking
+		if err := common.Unmarshal(textRequest.THINKING, &thinking); err != nil {
+			return nil, err
+		}
+		claudeRequest.Thinking = &thinking
+	}
 
 	if textRequest.Stop != nil {
 		switch stop := textRequest.Stop.(type) {
 		case string:
 			claudeRequest.StopSequences = []string{stop}
+		case []string:
+			claudeRequest.StopSequences = append([]string(nil), stop...)
 		case []interface{}:
 			stopSequences := make([]string, 0)
 			for _, item := range stop {
@@ -226,14 +232,14 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 	lastMessage := dto.Message{
 		Role: "tool",
 	}
-	for i, message := range textRequest.Messages {
+	for _, message := range textRequest.Messages {
 		if message.Role == "" {
-			textRequest.Messages[i].Role = "user"
+			message.Role = "user"
 		}
-		fmtMessage := dto.Message{
-			Role:    message.Role,
-			Content: message.Content,
+		if message.Role == "developer" {
+			message.Role = "system"
 		}
+		fmtMessage := message
 		if message.Role == "tool" {
 			fmtMessage.ToolCallId = message.ToolCallId
 		}
@@ -241,8 +247,8 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 			fmtMessage.ToolCalls = message.ToolCalls
 		}
 		if lastMessage.Role == message.Role && lastMessage.Role != "tool" {
-			if lastMessage.IsStringContent() && message.IsStringContent() {
-				fmtMessage.SetStringContent(strings.Trim(fmt.Sprintf("%s %s", lastMessage.StringContent(), message.StringContent()), "\""))
+			if lastMessage.IsStringContent() && message.IsStringContent() && lastMessage.ToolCalls == nil && message.ToolCalls == nil {
+				fmtMessage.SetStringContent(lastMessage.StringContent() + " " + message.StringContent())
 				formatMessages = formatMessages[:len(formatMessages)-1]
 			}
 		}
@@ -268,6 +274,9 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 				}
 			} else {
 				for _, ctx := range message.ParseContent() {
+					if ctx.Type != dto.ContentTypeText {
+						return nil, fmt.Errorf("Claude system instructions only support text")
+					}
 					if ctx.Type == "text" && ctx.Text != "" {
 						systemMessages = append(systemMessages, dto.ClaudeMediaMessage{
 							Type: "text",
@@ -299,6 +308,14 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 			Role: message.Role,
 		}
 		if message.Role == "tool" {
+			var toolContent any = message.Content
+			if !message.IsStringContent() {
+				parts, err := sharedclaude.ConvertOpenAIContent(c, message.ParseContent())
+				if err != nil {
+					return nil, err
+				}
+				toolContent = parts
+			}
 			if len(claudeMessages) > 0 && claudeMessages[len(claudeMessages)-1].Role == "user" {
 				lastClaudeMessage := claudeMessages[len(claudeMessages)-1]
 				if content, ok := lastClaudeMessage.Content.(string); ok {
@@ -312,7 +329,7 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 				lastClaudeMessage.Content = append(lastClaudeMessage.Content.([]dto.ClaudeMediaMessage), dto.ClaudeMediaMessage{
 					Type:      "tool_result",
 					ToolUseId: message.ToolCallId,
-					Content:   message.Content,
+					Content:   toolContent,
 				})
 				claudeMessages[len(claudeMessages)-1] = lastClaudeMessage
 				continue
@@ -323,7 +340,7 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 				{
 					Type:      "tool_result",
 					ToolUseId: message.ToolCallId,
-					Content:   message.Content,
+					Content:   toolContent,
 				},
 			}
 		} else if message.IsStringContent() && message.ToolCalls == nil {
@@ -333,50 +350,24 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 			}
 			claudeMessage.Content = text
 		} else {
-			claudeMediaMessages := make([]dto.ClaudeMediaMessage, 0)
-			for _, mediaMessage := range message.ParseContent() {
-				switch mediaMessage.Type {
-				case "text":
-					if mediaMessage.Text != "" {
-						claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
-							Type: "text",
-							Text: common.GetPointer[string](mediaMessage.Text),
-						})
-					}
-				default:
-					source := mediaMessage.ToFileSource()
-					if source == nil {
-						continue
-					}
-					base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting image for Claude")
-					if err != nil {
-						return nil, fmt.Errorf("get file data failed: %s", err.Error())
-					}
-					claudeMediaMessage := dto.ClaudeMediaMessage{
-						Source: &dto.ClaudeMessageSource{
-							Type: "base64",
-						},
-					}
-					if strings.HasPrefix(mimeType, "application/pdf") {
-						claudeMediaMessage.Type = "document"
-					} else {
-						claudeMediaMessage.Type = "image"
-					}
-
-					claudeMediaMessage.Source.MediaType = mimeType
-					claudeMediaMessage.Source.Data = base64Data
-					claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
-					continue
-				}
+			claudeMediaMessages, err := sharedclaude.ConvertOpenAIContent(c, message.ParseContent())
+			if err != nil {
+				return nil, err
 			}
 
 			if message.ToolCalls != nil {
 				for _, toolCall := range message.ParseToolCalls() {
+					if toolCall.Type != "" && toolCall.Type != "function" {
+						return nil, fmt.Errorf("Claude conversion cannot preserve tool call type %q", toolCall.Type)
+					}
 					inputObj := make(map[string]any)
 					if args := toolCall.Function.Arguments; args != "" {
 						if err := common.Unmarshal([]byte(args), &inputObj); err != nil {
-							common.SysLog("tool call function arguments is not a map[string]any: " + fmt.Sprintf("%v", toolCall.Function.Arguments))
+							return nil, fmt.Errorf("invalid JSON arguments for tool %q: %w", toolCall.Function.Name, err)
 						}
+					}
+					if inputObj == nil {
+						return nil, fmt.Errorf("Claude tool arguments must be a JSON object")
 					}
 					claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
 						Type:  "tool_use",
@@ -395,6 +386,9 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 		claudeRequest.System = systemMessages
 	}
 
+	if err := sharedclaude.ApplyOpenAIResponseFormat(textRequest.ResponseFormat, &claudeRequest); err != nil {
+		return nil, err
+	}
 	claudeRequest.Prompt = ""
 	claudeRequest.Messages = claudeMessages
 	return &claudeRequest, nil

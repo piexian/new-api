@@ -2,10 +2,12 @@ package gemini_interactions
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
 
 	"github.com/tidwall/gjson"
 )
@@ -18,6 +20,11 @@ func ResponsesToInteractions(req *dto.OpenAIResponsesRequest, modelName string, 
 	if req == nil {
 		return nil, nil
 	}
+	if req.Temperature != nil || req.TopP != nil {
+		return nil, fmt.Errorf("Interactions does not support temperature or top_p")
+	}
+	copyRequest := *req
+	req = &copyRequest
 	out := &dto.GeminiInteractionsRequest{
 		Model:  modelName,
 		Stream: &isStream,
@@ -26,6 +33,34 @@ func ResponsesToInteractions(req *dto.OpenAIResponsesRequest, modelName string, 
 	if len(req.Instructions) > 0 {
 		if v := gjson.ParseBytes(req.Instructions); v.Type == gjson.String && v.String() != "" {
 			out.SystemInstruction, _ = common.Marshal(v.String())
+		}
+	}
+	if input := gjson.ParseBytes(req.Input); input.IsArray() {
+		var retained []json.RawMessage
+		var instructions []string
+		if len(out.SystemInstruction) > 0 {
+			instructions = append(instructions, gjson.ParseBytes(out.SystemInstruction).String())
+		}
+		for _, item := range input.Array() {
+			role := item.Get("role").String()
+			if role != "system" && role != "developer" {
+				retained = append(retained, json.RawMessage(item.Raw))
+				continue
+			}
+			blocks, err := responsesContentToBlocks(item.Get("content"))
+			if err != nil {
+				return nil, err
+			}
+			for _, block := range blocks {
+				if block.Type != dto.GeminiInteractionContentText {
+					return nil, fmt.Errorf("Interactions system instructions only support text")
+				}
+				instructions = append(instructions, block.Text)
+			}
+		}
+		req.Input, _ = common.Marshal(retained)
+		if len(instructions) > 0 {
+			out.SystemInstruction, _ = common.Marshal(strings.Join(instructions, "\n"))
 		}
 	}
 	if tools := responsesToolsToInteractions(req.Tools); len(tools) > 0 {
@@ -40,14 +75,21 @@ func ResponsesToInteractions(req *dto.OpenAIResponsesRequest, modelName string, 
 
 	// 桥接:历史 function_call.call_id 命中已存 interaction 时走有状态续链
 	if lookup != nil {
-		if chained := responsesBridgeStatefulInput(req.Input, lookup); chained != nil {
+		chained, err := responsesBridgeStatefulInput(req.Input, lookup)
+		if err != nil {
+			return nil, err
+		}
+		if chained != nil {
 			out.PreviousInteractionID = chained.interactionID
 			out.Input, _ = common.Marshal(chained.steps)
 			return out, nil
 		}
 	}
 
-	steps := responsesInputToSteps(req.Input)
+	steps, err := responsesInputToSteps(req.Input)
+	if err != nil {
+		return nil, err
+	}
 	if len(steps) > 0 {
 		out.Input, _ = common.Marshal(steps)
 	} else {
@@ -59,25 +101,29 @@ func ResponsesToInteractions(req *dto.OpenAIResponsesRequest, modelName string, 
 }
 
 // responsesInputToSteps Responses input items -> steps 时间线(reasoning/web_search_call 等不可回放项跳过)
-func responsesInputToSteps(raw json.RawMessage) []dto.GeminiInteractionStep {
+func responsesInputToSteps(raw json.RawMessage) ([]dto.GeminiInteractionStep, error) {
 	root := gjson.ParseBytes(raw)
 	if root.Type == gjson.String {
 		return []dto.GeminiInteractionStep{
 			{Type: dto.GeminiInteractionStepUserInput, Content: []dto.GeminiInteractionContent{{Type: dto.GeminiInteractionContentText, Text: root.String()}}},
-		}
+		}, nil
 	}
 	if !root.IsArray() {
-		return nil
+		return nil, fmt.Errorf("Interactions conversion requires a string or array input")
 	}
 	var steps []dto.GeminiInteractionStep
 	for _, item := range root.Array() {
 		switch item.Get("type").String() {
-		case "message":
+		case "", "message":
 			stepType := dto.GeminiInteractionStepUserInput
 			if item.Get("role").String() == "assistant" {
 				stepType = dto.GeminiInteractionStepModelOutput
 			}
-			if content := responsesContentToBlocks(item.Get("content")); len(content) > 0 {
+			content, err := responsesContentToBlocks(item.Get("content"))
+			if err != nil {
+				return nil, err
+			}
+			if len(content) > 0 {
 				steps = append(steps, dto.GeminiInteractionStep{Type: stepType, Content: content})
 			}
 		case "function_call":
@@ -92,29 +138,28 @@ func responsesInputToSteps(raw json.RawMessage) []dto.GeminiInteractionStep {
 				Arguments: json.RawMessage(args),
 			})
 		case "function_call_output":
-			output := item.Get("output").String()
-			if output == "" {
-				output = "{}"
+			resultBlocks, err := responsesToolResultBlocks(item.Get("output"))
+			if err != nil {
+				return nil, err
 			}
-			resultBlocks, _ := common.Marshal([]dto.GeminiInteractionContent{
-				{Type: dto.GeminiInteractionContentText, Text: output},
-			})
 			steps = append(steps, dto.GeminiInteractionStep{
 				Type:   dto.GeminiInteractionStepFunctionResult,
 				CallID: item.Get("call_id").String(),
 				Result: resultBlocks,
 			})
+		default:
+			return nil, fmt.Errorf("Interactions conversion does not support Responses input item %q", item.Get("type").String())
 		}
 	}
-	return steps
+	return steps, nil
 }
 
 // responsesBridgeStatefulInput 定位最后一个桥接命中的 function_call,其后的
 // function_call_output 转为 function_result、后续用户 message 转为 user_input
-func responsesBridgeStatefulInput(raw json.RawMessage, lookup BridgeLookup) *bridgedInput {
+func responsesBridgeStatefulInput(raw json.RawMessage, lookup BridgeLookup) (*bridgedInput, error) {
 	root := gjson.ParseBytes(raw)
 	if !root.IsArray() {
-		return nil
+		return nil, nil
 	}
 	items := root.Array()
 	// call_id -> name,用于 function_result 的 name
@@ -137,7 +182,7 @@ func responsesBridgeStatefulInput(raw json.RawMessage, lookup BridgeLookup) *bri
 		break // 只看最后一个 function_call
 	}
 	if lastBridged == -1 {
-		return nil
+		return nil, nil
 	}
 
 	var steps []dto.GeminiInteractionStep
@@ -145,42 +190,43 @@ func responsesBridgeStatefulInput(raw json.RawMessage, lookup BridgeLookup) *bri
 	for _, item := range items[lastBridged+1:] {
 		switch item.Get("type").String() {
 		case "function_call_output":
-			output := item.Get("output").String()
-			if output == "" {
-				output = "{}"
-			}
 			callID := item.Get("call_id").String()
-			resultBlocks, _ := common.Marshal([]dto.GeminiInteractionContent{
-				{Type: dto.GeminiInteractionContentText, Text: output},
-			})
+			resultBlocks, err := responsesToolResultBlocks(item.Get("output"))
+			if err != nil {
+				return nil, err
+			}
 			steps = append(steps, dto.GeminiInteractionStep{
 				Type:   dto.GeminiInteractionStepFunctionResult,
 				CallID: callID,
 				Name:   callNames[callID],
 				Result: resultBlocks,
 			})
-		case "message":
+		case "", "message":
 			if item.Get("role").String() != "user" {
-				return nil // 复杂形态回退无状态
+				return nil, nil // 复杂形态回退无状态
 			}
-			pendingUser = append(pendingUser, responsesContentToBlocks(item.Get("content"))...)
+			content, err := responsesContentToBlocks(item.Get("content"))
+			if err != nil {
+				return nil, err
+			}
+			pendingUser = append(pendingUser, content...)
 		default:
-			return nil
+			return nil, nil
 		}
 	}
 	if len(steps) == 0 {
-		return nil
+		return nil, nil
 	}
 	if len(pendingUser) > 0 {
 		steps = append(steps, dto.GeminiInteractionStep{Type: dto.GeminiInteractionStepUserInput, Content: pendingUser})
 	}
-	return &bridgedInput{interactionID: interactionID, steps: steps}
+	return &bridgedInput{interactionID: interactionID, steps: steps}, nil
 }
 
 // responsesContentToBlocks message.content 数组 -> interactions content 块
-func responsesContentToBlocks(content gjson.Result) []dto.GeminiInteractionContent {
+func responsesContentToBlocks(content gjson.Result) ([]dto.GeminiInteractionContent, error) {
 	if content.Type == gjson.String {
-		return []dto.GeminiInteractionContent{{Type: dto.GeminiInteractionContentText, Text: content.String()}}
+		return []dto.GeminiInteractionContent{{Type: dto.GeminiInteractionContentText, Text: content.String()}}, nil
 	}
 	var out []dto.GeminiInteractionContent
 	for _, part := range content.Array() {
@@ -189,37 +235,75 @@ func responsesContentToBlocks(content gjson.Result) []dto.GeminiInteractionConte
 			if t := part.Get("text").String(); t != "" {
 				out = append(out, dto.GeminiInteractionContent{Type: dto.GeminiInteractionContentText, Text: t})
 			}
-		case "input_image":
-			uri := part.Get("image_url").String()
-			if u := part.Get("image_url.url"); u.Exists() {
-				uri = u.String()
+		case "input_image", "input_file", "input_audio", "input_video":
+			kind := part.Get("type").String()
+			var raw, mime string
+			switch kind {
+			case "input_image":
+				raw = part.Get("image_url").String()
+				if part.Get("image_url.url").Exists() {
+					raw = part.Get("image_url.url").String()
+				}
+				mime = part.Get("mime_type").String()
+			case "input_file":
+				raw = part.Get("file_url").String()
+				if raw == "" {
+					raw = part.Get("file_data").String()
+				}
+				mime = part.Get("mime_type").String()
+				if mime == "" {
+					mime = relaymedia.FileMimeType(&dto.MessageFile{FileName: part.Get("filename").String(), FileData: raw})
+				}
+			case "input_audio":
+				raw = part.Get("input_audio.data").String()
+				mime = "audio/" + part.Get("input_audio.format").String()
+			case "input_video":
+				raw = part.Get("video_url").String()
+				if part.Get("video_url.url").Exists() {
+					raw = part.Get("video_url.url").String()
+				}
+				mime = part.Get("mime_type").String()
 			}
-			if uri != "" {
-				out = append(out, dto.GeminiInteractionContent{
-					Type:     dto.GeminiInteractionContentImage,
-					URI:      uri,
-					MimeType: "image/png",
-				})
+			if raw == "" {
+				return nil, fmt.Errorf("Interactions conversion requires inline data or a URL for %s; provider file IDs cannot be transferred", kind)
 			}
-		case "input_file":
-			uri := part.Get("file_url").String()
-			data := ""
-			mime := part.Get("mime_type").String()
-			if uri == "" {
-				data = part.Get("file_data").String()
+			block := dto.GeminiInteractionContent{Type: strings.TrimPrefix(kind, "input_"), MimeType: mime}
+			if kind == "input_file" {
+				block.Type = dto.GeminiInteractionContentDocument
 			}
-			if uri == "" && data == "" {
-				continue
+			if strings.HasPrefix(raw, "data:") {
+				header, data, ok := strings.Cut(raw[len("data:"):], ",")
+				if !ok || !strings.HasSuffix(header, ";base64") {
+					return nil, fmt.Errorf("Interactions conversion requires a base64 data URI")
+				}
+				block.MimeType = strings.TrimSuffix(header, ";base64")
+				block.Data = data
+			} else if strings.HasPrefix(raw, "https://") || strings.HasPrefix(raw, "http://") {
+				block.URI = raw
+			} else {
+				block.Data = raw
 			}
-			out = append(out, dto.GeminiInteractionContent{
-				Type:     dto.GeminiInteractionContentDocument,
-				URI:      uri,
-				Data:     data,
-				MimeType: mime,
-			})
+			out = append(out, block)
+		default:
+			return nil, fmt.Errorf("Interactions conversion does not support Responses content type %q", part.Get("type").String())
 		}
 	}
-	return out
+	return out, nil
+}
+
+func responsesToolResultBlocks(output gjson.Result) (json.RawMessage, error) {
+	if output.IsArray() {
+		blocks, err := responsesContentToBlocks(output)
+		if err != nil {
+			return nil, err
+		}
+		return common.Marshal(blocks)
+	}
+	text := output.String()
+	if text == "" {
+		text = "{}"
+	}
+	return common.Marshal([]dto.GeminiInteractionContent{{Type: dto.GeminiInteractionContentText, Text: text}})
 }
 
 // responsesToolsToInteractions Responses tools -> interactions tools(web_search->google_search 语义对齐)

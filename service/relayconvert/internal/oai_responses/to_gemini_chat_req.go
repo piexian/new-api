@@ -43,7 +43,7 @@ func OpenAIResponsesRequestToGeminiChat(c *gin.Context, req *dto.OpenAIResponses
 			Temperature: req.Temperature,
 		},
 	}
-	if req.TopP != nil && *req.TopP > 0 {
+	if req.TopP != nil {
 		geminiRequest.GenerationConfig.TopP = common.GetPointer(*req.TopP)
 	}
 	if req.MaxOutputTokens != nil && *req.MaxOutputTokens > 0 {
@@ -140,8 +140,11 @@ func OpenAIResponsesRequestToGeminiChat(c *gin.Context, req *dto.OpenAIResponses
 				callNames[callID] = part.FunctionCall.FunctionName
 			}
 			appendGeminiContentPart(geminiRequest, "model", part)
-		case ResponsesInputTypeFunctionCallOutput:
-			part := responsesFunctionOutputItemToGeminiPart(item, callNames)
+		case ResponsesInputTypeFunctionCallOutput, ResponsesInputTypeCustomToolOutput:
+			part, err := responsesFunctionOutputItemToGeminiPart(c, item, callNames)
+			if err != nil {
+				return nil, err
+			}
 			appendGeminiContentPart(geminiRequest, "user", part)
 		default:
 			role := responsesGeminiRole(item)
@@ -226,7 +229,7 @@ func responsesContentPartToGeminiParts(c *gin.Context, part map[string]any) ([]d
 	case "input_image", "input_file", "input_audio", "input_video":
 		source := ContentPartToFileSource(part)
 		if source == nil {
-			return nil, nil
+			return nil, fmt.Errorf("Gemini conversion requires inline data or a URL for %s; provider file IDs cannot be transferred", partType)
 		}
 		base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting Responses input for Gemini")
 		if err != nil {
@@ -244,7 +247,7 @@ func responsesContentPartToGeminiParts(c *gin.Context, part map[string]any) ([]d
 			},
 		}, nil
 	default:
-		return nil, nil
+		return nil, fmt.Errorf("Gemini conversion does not support Responses content type %q", partType)
 	}
 }
 
@@ -262,7 +265,7 @@ func responsesFunctionCallItemToGeminiPart(item map[string]any) (dto.GeminiPart,
 	}, callID, nil
 }
 
-func responsesFunctionOutputItemToGeminiPart(item map[string]any, callNames map[string]string) dto.GeminiPart {
+func responsesFunctionOutputItemToGeminiPart(c *gin.Context, item map[string]any, callNames map[string]string) (dto.GeminiPart, error) {
 	callID := CallID(item)
 	name := strings.TrimSpace(common.Interface2String(item["name"]))
 	if name == "" {
@@ -272,6 +275,28 @@ func responsesFunctionOutputItemToGeminiPart(item map[string]any, callNames map[
 		Name:     name,
 		Response: GeminiResponseMap(item["output"]),
 	}
+	if _, ok := item["output"].([]any); ok {
+		parts, err := responsesInputContentToGeminiParts(c, item["output"])
+		if err != nil {
+			return dto.GeminiPart{}, err
+		}
+		var texts []string
+		var media []dto.GeminiPart
+		for _, part := range parts {
+			if part.Text != "" {
+				texts = append(texts, part.Text)
+			} else {
+				media = append(media, part)
+			}
+		}
+		functionResp.Response = map[string]interface{}{"content": strings.Join(texts, "\n")}
+		if len(media) > 0 {
+			functionResp.Parts, err = common.Marshal(media)
+			if err != nil {
+				return dto.GeminiPart{}, err
+			}
+		}
+	}
 	// Gemini 3.x 要求 functionResponse 携带上游下发的 id;伪造的兜底 id 不回传
 	if callID != "" && !dto.IsFallbackToolCallID(callID) {
 		if idJSON, err := common.Marshal(callID); err == nil {
@@ -280,7 +305,7 @@ func responsesFunctionOutputItemToGeminiPart(item map[string]any, callNames map[
 	}
 	return dto.GeminiPart{
 		FunctionResponse: functionResp,
-	}
+	}, nil
 }
 
 func appendGeminiContentPart(req *dto.GeminiChatRequest, role string, part dto.GeminiPart) {

@@ -22,14 +22,24 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 		},
 	}
 
-	if textRequest.TopP != nil && *textRequest.TopP > 0 {
+	if textRequest.TopP != nil {
 		geminiRequest.GenerationConfig.TopP = common.GetPointer(*textRequest.TopP)
 	}
 	if maxTokens := textRequest.GetMaxTokens(); maxTokens > 0 {
 		geminiRequest.GenerationConfig.MaxOutputTokens = common.GetPointer(maxTokens)
 	}
-	if textRequest.Seed != nil && *textRequest.Seed != 0 {
+	if textRequest.Seed != nil {
 		geminiRequest.GenerationConfig.Seed = common.GetPointer(int64(*textRequest.Seed))
+	}
+	if textRequest.TopK != nil {
+		geminiRequest.GenerationConfig.TopK = common.GetPointer(float64(*textRequest.TopK))
+	}
+	geminiRequest.GenerationConfig.CandidateCount = textRequest.N
+	if textRequest.PresencePenalty != nil {
+		geminiRequest.GenerationConfig.PresencePenalty = common.GetPointer(float32(*textRequest.PresencePenalty))
+	}
+	if textRequest.FrequencyPenalty != nil {
+		geminiRequest.GenerationConfig.FrequencyPenalty = common.GetPointer(float32(*textRequest.FrequencyPenalty))
 	}
 
 	upstreamModelName := textRequest.Model
@@ -45,7 +55,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 	}
 	if stopSequences := sharedgemini.ParseStopSequences(textRequest.Stop); len(stopSequences) > 0 {
 		if len(stopSequences) > 5 {
-			stopSequences = stopSequences[:5]
+			return nil, fmt.Errorf("Gemini conversion supports at most 5 stop sequences")
 		}
 		geminiRequest.GenerationConfig.StopSequences = stopSequences
 	}
@@ -57,6 +67,9 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 
 	if !adaptorWithExtraBody {
 		if err := sharedgemini.ApplyThinkingConfig(&geminiRequest, info, textRequest); err != nil {
+			return nil, err
+		}
+		if err := sharedgemini.ApplyExplicitThinkingBudget(&geminiRequest, textRequest, upstreamModelName); err != nil {
 			return nil, err
 		}
 	}
@@ -174,6 +187,28 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 				Name:     name,
 				Response: contentMap,
 			}
+			if !message.IsStringContent() {
+				converted, err := sharedgemini.OpenAIContentToParts(c, message.ParseContent())
+				if err != nil {
+					return nil, err
+				}
+				var texts []string
+				var media []dto.GeminiPart
+				for _, part := range converted {
+					if part.Text != "" {
+						texts = append(texts, part.Text)
+					} else {
+						media = append(media, part)
+					}
+				}
+				functionResp.Response = map[string]interface{}{"content": strings.Join(texts, "\n")}
+				if len(media) > 0 {
+					functionResp.Parts, err = common.Marshal(media)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
 			// 透传 tool_call_id(interactions 桥接链路用作 call_id;Gemini 3.x 要求
 			// functionResponse 携带上游 id)。伪造的兜底 id 不对应任何上游 FunctionCall,不回传
 			if message.ToolCallId != "" && !dto.IsFallbackToolCallID(message.ToolCallId) {
@@ -224,7 +259,6 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 					continue
 				}
 				text := part.Text
-				hasMarkdownImage := false
 				for {
 					startIdx := strings.Index(text, "![")
 					if startIdx == -1 {
@@ -241,7 +275,6 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 					}
 					closeIdx += bracketIdx + 2
 
-					hasMarkdownImage = true
 					if startIdx > 0 {
 						textBefore := text[:startIdx]
 						if textBefore != "" {
@@ -268,31 +301,15 @@ func OpenAIChatRequestToGeminiGenerateContent(c *gin.Context, textRequest dto.Ge
 					parts = append(parts, imgPart)
 					text = text[closeIdx+1:]
 				}
-				if !hasMarkdownImage {
-					parts = append(parts, dto.GeminiPart{
-						Text: part.Text,
-					})
+				if text != "" {
+					parts = append(parts, dto.GeminiPart{Text: text})
 				}
 			} else {
-				source := part.ToFileSource()
-				if source == nil {
-					continue
-				}
-				base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting image for Gemini")
+				converted, err := sharedgemini.OpenAIContentToParts(c, []dto.MediaContent{part})
 				if err != nil {
-					return nil, fmt.Errorf("get file data from '%s' failed: %w", source.GetIdentifier(), err)
+					return nil, err
 				}
-
-				if _, ok := sharedgemini.SupportedMimeTypes[strings.ToLower(mimeType)]; !ok {
-					return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", mimeType, source.GetIdentifier(), sharedgemini.SupportedMimeTypesList())
-				}
-
-				parts = append(parts, dto.GeminiPart{
-					InlineData: &dto.GeminiInlineData{
-						MimeType: mimeType,
-						Data:     base64Data,
-					},
-				})
+				parts = append(parts, converted...)
 			}
 		}
 

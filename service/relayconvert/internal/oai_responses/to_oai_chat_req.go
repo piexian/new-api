@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	sharedopenai "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/openai"
 )
 
 const (
@@ -150,13 +151,38 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 		if err := common.Unmarshal(req.Input, &items); err != nil {
 			return nil, fmt.Errorf("invalid input array: %w", err)
 		}
+		var attachments []dto.MediaContent
+		flushAttachments := func() {
+			if len(attachments) > 0 {
+				messages = append(messages, dto.Message{Role: "user", Content: attachments})
+				attachments = nil
+			}
+		}
 		for _, item := range items {
+			itemType := common.Interface2String(item["type"])
+			if itemType == responsesInputTypeFunctionCallOutput || itemType == responsesInputTypeCustomToolOutput {
+				if _, ok := item["output"].([]any); ok {
+					content, err := responsesInputContentToChatContent(item["output"])
+					if err != nil {
+						return nil, err
+					}
+					msg := dto.Message{Content: content}
+					callID := CallID(item)
+					text, media := sharedopenai.SplitToolContent(callID, msg.ParseContent())
+					messages = append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: text})
+					attachments = append(attachments, media...)
+					continue
+				}
+			} else {
+				flushAttachments()
+			}
 			nextMessages, err := responsesInputItemToChatMessages(item, messages)
 			if err != nil {
 				return nil, err
 			}
 			messages = nextMessages
 		}
+		flushAttachments()
 		return messages, nil
 	default:
 		return nil, fmt.Errorf("unsupported responses input type %q", common.GetJsonType(req.Input))
@@ -178,7 +204,7 @@ func responsesInputItemToChatMessages(item map[string]any, messages []dto.Messag
 			return nil, err
 		}
 		return appendToolCallToLastAssistant(messages, toolCall), nil
-	case responsesInputTypeFunctionCallOutput:
+	case responsesInputTypeFunctionCallOutput, responsesInputTypeCustomToolOutput:
 		callID := strings.TrimSpace(common.Interface2String(item["call_id"]))
 		content := responseToolOutputToChatContent(item["output"])
 		return append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content}), nil
@@ -290,7 +316,7 @@ func responsesFunctionCallItemToChatToolCall(item map[string]any) (dto.ToolCallR
 }
 
 func responsesCustomToolCallItemToChatToolCall(item map[string]any) (dto.ToolCallRequest, error) {
-	raw, err := common.Marshal(item)
+	raw, err := common.Marshal(dto.CustomToolCall{Name: strings.TrimSpace(common.Interface2String(item["name"])), Input: responsesArgumentsString(item["input"])})
 	if err != nil {
 		return dto.ToolCallRequest{}, err
 	}
@@ -298,10 +324,6 @@ func responsesCustomToolCallItemToChatToolCall(item map[string]any) (dto.ToolCal
 		ID:     responsesCallID(item),
 		Type:   dto.CustomType,
 		Custom: raw,
-		Function: dto.FunctionRequest{
-			Name:      strings.TrimSpace(common.Interface2String(item["name"])),
-			Arguments: responsesArgumentsString(item["input"]),
-		},
 	}, nil
 }
 
@@ -332,17 +354,25 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 	for _, tool := range tools {
 		toolType := strings.TrimSpace(common.Interface2String(tool["type"]))
 		if toolType == "function" {
+			var strict *bool
+			if value, ok := tool["strict"].(bool); ok {
+				strict = common.GetPointer(value)
+			}
 			out = append(out, dto.ToolCallRequest{
 				Type: "function",
 				Function: dto.FunctionRequest{
 					Name:        strings.TrimSpace(common.Interface2String(tool["name"])),
 					Description: common.Interface2String(tool["description"]),
 					Parameters:  tool["parameters"],
+					Strict:      strict,
 				},
 			})
 			continue
 		}
 
+		if toolType == "custom" {
+			delete(tool, "type")
+		}
 		rawTool, err := common.Marshal(tool)
 		if err != nil {
 			return nil, err

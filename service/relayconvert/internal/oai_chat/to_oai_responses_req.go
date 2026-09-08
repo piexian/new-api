@@ -80,6 +80,29 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 	if req.Model == "" {
 		return nil, errors.New("model is required")
 	}
+	if req.Stop != nil || req.Seed != nil || req.TopK != nil {
+		return nil, fmt.Errorf("Responses conversion cannot preserve stop, seed or top_k; these fields have no Responses equivalent")
+	}
+	if len(req.THINKING) > 0 {
+		var thinking dto.Thinking
+		if err := common.Unmarshal(req.THINKING, &thinking); err != nil {
+			return nil, err
+		}
+		if thinking.BudgetTokens != nil {
+			return nil, fmt.Errorf("Responses cannot preserve a numeric thinking token budget; use reasoning_effort")
+		}
+	}
+	if len(req.Reasoning) > 0 {
+		var reasoning struct {
+			MaxTokens *int `json:"max_tokens"`
+		}
+		if err := common.Unmarshal(req.Reasoning, &reasoning); err != nil {
+			return nil, err
+		}
+		if reasoning.MaxTokens != nil {
+			return nil, fmt.Errorf("Responses cannot preserve a numeric thinking token budget; use reasoning_effort")
+		}
+	}
 	if lo.FromPtrOr(req.N, 1) > 1 {
 		return nil, fmt.Errorf("n>1 is not supported in responses compatibility mode")
 	}
@@ -102,11 +125,11 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 			} else if msg.IsStringContent() {
 				output = msg.StringContent()
 			} else {
-				if b, err := common.Marshal(msg.Content); err == nil {
-					output = string(b)
-				} else {
-					output = fmt.Sprintf("%v", msg.Content)
+				parts, err := chatContentToResponses(msg.ParseContent(), "user")
+				if err != nil {
+					return nil, err
 				}
+				output = parts
 			}
 
 			if callID == "" {
@@ -152,34 +175,34 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 			continue
 		}
 
+		var toolItems []map[string]any
+		if role == "assistant" {
+			var err error
+			toolItems, err = chatToolCallsToResponses(msg.ParseToolCalls())
+			if err != nil {
+				return nil, err
+			}
+		}
 		item := map[string]any{
 			"role": role,
+		}
+		if msg.Refusal != nil {
+			content, err := chatContentToResponses(msg.ParseContent(), role)
+			if err != nil {
+				return nil, err
+			}
+			content = append(content, map[string]any{"type": "refusal", "refusal": *msg.Refusal})
+			item["content"] = content
+			inputItems = append(inputItems, item)
+			inputItems = append(inputItems, toolItems...)
+			continue
 		}
 
 		if msg.Content == nil {
 			item["content"] = ""
 			inputItems = append(inputItems, item)
 
-			if role == "assistant" {
-				for _, tc := range msg.ParseToolCalls() {
-					if strings.TrimSpace(tc.ID) == "" {
-						continue
-					}
-					if tc.Type != "" && tc.Type != "function" {
-						continue
-					}
-					name := strings.TrimSpace(tc.Function.Name)
-					if name == "" {
-						continue
-					}
-					inputItems = append(inputItems, map[string]any{
-						"type":      "function_call",
-						"call_id":   tc.ID,
-						"name":      name,
-						"arguments": tc.Function.Arguments,
-					})
-				}
-			}
+			inputItems = append(inputItems, toolItems...)
 			continue
 		}
 
@@ -187,91 +210,18 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 			item["content"] = msg.StringContent()
 			inputItems = append(inputItems, item)
 
-			if role == "assistant" {
-				for _, tc := range msg.ParseToolCalls() {
-					if strings.TrimSpace(tc.ID) == "" {
-						continue
-					}
-					if tc.Type != "" && tc.Type != "function" {
-						continue
-					}
-					name := strings.TrimSpace(tc.Function.Name)
-					if name == "" {
-						continue
-					}
-					inputItems = append(inputItems, map[string]any{
-						"type":      "function_call",
-						"call_id":   tc.ID,
-						"name":      name,
-						"arguments": tc.Function.Arguments,
-					})
-				}
-			}
+			inputItems = append(inputItems, toolItems...)
 			continue
 		}
 
-		parts := msg.ParseContent()
-		contentParts := make([]map[string]any, 0, len(parts))
-		for _, part := range parts {
-			switch part.Type {
-			case dto.ContentTypeText:
-				textType := "input_text"
-				if role == "assistant" {
-					textType = "output_text"
-				}
-				contentParts = append(contentParts, map[string]any{
-					"type": textType,
-					"text": part.Text,
-				})
-			case dto.ContentTypeImageURL:
-				contentParts = append(contentParts, map[string]any{
-					"type":      "input_image",
-					"image_url": normalizeChatImageURLToString(part.ImageUrl),
-				})
-			case dto.ContentTypeInputAudio:
-				contentParts = append(contentParts, map[string]any{
-					"type":        "input_audio",
-					"input_audio": part.InputAudio,
-				})
-			case dto.ContentTypeFile:
-				contentParts = append(contentParts, map[string]any{
-					"type": "input_file",
-					"file": part.File,
-				})
-			case dto.ContentTypeVideoUrl:
-				contentParts = append(contentParts, map[string]any{
-					"type":      "input_video",
-					"video_url": part.VideoUrl,
-				})
-			default:
-				contentParts = append(contentParts, map[string]any{
-					"type": part.Type,
-				})
-			}
+		contentParts, err := chatContentToResponses(msg.ParseContent(), role)
+		if err != nil {
+			return nil, err
 		}
 		item["content"] = contentParts
 		inputItems = append(inputItems, item)
 
-		if role == "assistant" {
-			for _, tc := range msg.ParseToolCalls() {
-				if strings.TrimSpace(tc.ID) == "" {
-					continue
-				}
-				if tc.Type != "" && tc.Type != "function" {
-					continue
-				}
-				name := strings.TrimSpace(tc.Function.Name)
-				if name == "" {
-					continue
-				}
-				inputItems = append(inputItems, map[string]any{
-					"type":      "function_call",
-					"call_id":   tc.ID,
-					"name":      name,
-					"arguments": tc.Function.Arguments,
-				})
-			}
-		}
+		inputItems = append(inputItems, toolItems...)
 	}
 
 	inputRaw, err := common.Marshal(inputItems)
@@ -291,12 +241,23 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		for _, tool := range req.Tools {
 			switch tool.Type {
 			case "function":
-				tools = append(tools, map[string]any{
+				functionTool := map[string]any{
 					"type":        "function",
 					"name":        tool.Function.Name,
 					"description": tool.Function.Description,
 					"parameters":  tool.Function.Parameters,
-				})
+				}
+				if tool.Function.Strict != nil {
+					functionTool["strict"] = *tool.Function.Strict
+				}
+				tools = append(tools, functionTool)
+			case "custom":
+				var custom map[string]any
+				if err := common.Unmarshal(tool.Custom, &custom); err != nil {
+					return nil, err
+				}
+				custom["type"] = "custom"
+				tools = append(tools, custom)
 			default:
 				// Best-effort: keep original tool shape for unknown types.
 				var m map[string]any

@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -218,6 +219,13 @@ func ContentPartToFileSource(part map[string]any) types.FileSource {
 		data, mimeType = responsesPartDataAndMime(part, "image_url", "url")
 	case "input_file":
 		data, mimeType = responsesPartDataAndMime(part, "file", "file_data", "file_url", "url")
+		if mimeType == "" {
+			filename := common.Interface2String(part["filename"])
+			if file, ok := part["file"].(map[string]any); ok && filename == "" {
+				filename = common.Interface2String(file["filename"])
+			}
+			mimeType = relaymedia.FileMimeType(&dto.MessageFile{FileName: filename, FileData: data})
+		}
 	case "input_audio":
 		data, mimeType = responsesPartDataAndMime(part, "input_audio", "data", "url")
 		if mimeType == "" {

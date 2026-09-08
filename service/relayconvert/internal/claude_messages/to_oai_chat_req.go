@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relaymeta "github.com/QuantumNous/new-api/service/relayconvert/internal/meta"
+	sharedopenai "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/openai"
 )
 
 const (
@@ -41,8 +42,63 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info *re
 	if claudeRequest.Stream != nil {
 		openAIRequest.Stream = common.GetPointer(*claudeRequest.Stream)
 	}
+	if claudeRequest.ToolChoice != nil {
+		choice, err := common.Any2Type[dto.ClaudeToolChoice](claudeRequest.ToolChoice)
+		if err != nil {
+			return nil, err
+		}
+		switch choice.Type {
+		case "auto", "none":
+			openAIRequest.ToolChoice = choice.Type
+		case "any":
+			openAIRequest.ToolChoice = "required"
+		case "tool":
+			openAIRequest.ToolChoice = map[string]any{"type": "function", "function": map[string]any{"name": choice.Name}}
+		default:
+			return nil, fmt.Errorf("OpenAI conversion does not support Claude tool choice %q", choice.Type)
+		}
+		if choice.Type != "none" {
+			openAIRequest.ParallelTooCalls = common.GetPointer(!choice.DisableParallelToolUse)
+		}
+	}
+	var outputConfig struct {
+		Format map[string]any `json:"format"`
+	}
+	if len(claudeRequest.OutputConfig) > 0 {
+		if err := common.Unmarshal(claudeRequest.OutputConfig, &outputConfig); err != nil {
+			return nil, err
+		}
+	}
+	if outputConfig.Format == nil && len(claudeRequest.OutputFormat) > 0 {
+		if err := common.Unmarshal(claudeRequest.OutputFormat, &outputConfig.Format); err != nil {
+			return nil, err
+		}
+	}
+	if outputConfig.Format != nil {
+		if outputConfig.Format["type"] != "json_schema" {
+			return nil, fmt.Errorf("unsupported Claude output format %v", outputConfig.Format["type"])
+		}
+		schema, err := common.Marshal(map[string]any{"name": "response", "schema": outputConfig.Format["schema"]})
+		if err != nil {
+			return nil, err
+		}
+		openAIRequest.ResponseFormat = &dto.ResponseFormat{Type: "json_schema", JsonSchema: schema}
+	}
 
 	isOpenRouter := relaymeta.RelayInfoChannelType(info) == constant.ChannelTypeOpenRouter
+	if !isOpenRouter && claudeRequest.Thinking != nil {
+		encoded, err := common.Marshal(claudeRequest.Thinking)
+		if err != nil {
+			return nil, err
+		}
+		openAIRequest.THINKING = encoded
+		if claudeRequest.Thinking.Type == "disabled" {
+			openAIRequest.ReasoningEffort = "none"
+		}
+		if effort := claudeRequest.GetEfforts(); effort != "" {
+			openAIRequest.ReasoningEffort = effort
+		}
+	}
 	if isOpenRouter {
 		if effort := claudeRequest.GetEfforts(); effort != "" {
 			effortBytes, _ := common.Marshal(effort)
@@ -135,7 +191,18 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info *re
 		}
 	}
 
+	var pendingToolMedia []dto.MediaContent
+	flushToolMedia := func() {
+		if len(pendingToolMedia) > 0 {
+			openAIMessages = append(openAIMessages, dto.Message{Role: "user", Content: pendingToolMedia})
+			pendingToolMedia = nil
+		}
+	}
 	for _, claudeMessage := range claudeRequest.Messages {
+		if claudeMessage.Role != "user" {
+			flushToolMedia()
+		}
+		hasToolResult := false
 		openAIMessage := dto.Message{
 			Role: claudeMessage.Role,
 		}
@@ -151,20 +218,16 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info *re
 
 			for _, mediaMsg := range content {
 				switch mediaMsg.Type {
-				case "text", "input_text":
-					message := dto.MediaContent{
-						Type:         "text",
-						Text:         mediaMsg.GetText(),
-						CacheControl: mediaMsg.CacheControl,
+				case "text", "input_text", "image", "document":
+					media, err := claudeMediaToOpenAI(mediaMsg)
+					if err != nil {
+						return nil, err
 					}
-					mediaMessages = append(mediaMessages, message)
-				case "image":
-					imageData := fmt.Sprintf("data:%s;base64,%s", mediaMsg.Source.MediaType, mediaMsg.Source.Data)
-					mediaMessage := dto.MediaContent{
-						Type:     "image_url",
-						ImageUrl: &dto.MessageImageUrl{Url: imageData},
+					mediaMessages = append(mediaMessages, media)
+				case "thinking":
+					if mediaMsg.Thinking != nil {
+						openAIMessage.ReasoningContent = common.GetPointer(openAIMessage.GetReasoningContent() + *mediaMsg.Thinking)
 					}
-					mediaMessages = append(mediaMessages, mediaMessage)
 				case "tool_use":
 					toolCall := dto.ToolCallRequest{
 						ID:   mediaMsg.Id,
@@ -176,6 +239,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info *re
 					}
 					toolCalls = append(toolCalls, toolCall)
 				case "tool_result":
+					hasToolResult = true
 					toolName := mediaMsg.Name
 					if toolName == "" {
 						toolName = claudeRequest.SearchToolNameByToolCallId(mediaMsg.ToolUseId)
@@ -188,9 +252,21 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info *re
 					if mediaMsg.IsStringContent() {
 						oaiToolMessage.SetStringContent(mediaMsg.GetStringContent())
 					} else {
-						mediaContents := mediaMsg.ParseMediaContent()
-						encodedJSON, _ := common.Marshal(mediaContents)
-						oaiToolMessage.SetStringContent(string(encodedJSON))
+						mediaContents, err := common.Any2Type[[]dto.ClaudeMediaMessage](mediaMsg.Content)
+						if err != nil {
+							return nil, err
+						}
+						var converted []dto.MediaContent
+						for _, part := range mediaContents {
+							media, err := claudeMediaToOpenAI(part)
+							if err != nil {
+								return nil, err
+							}
+							converted = append(converted, media)
+						}
+						text, attachments := sharedopenai.SplitToolContent(mediaMsg.ToolUseId, converted)
+						oaiToolMessage.SetStringContent(text)
+						mediaMessages = append(mediaMessages, attachments...)
 					}
 					openAIMessages = append(openAIMessages, oaiToolMessage)
 				}
@@ -199,15 +275,22 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info *re
 			if len(toolCalls) > 0 {
 				openAIMessage.SetToolCalls(toolCalls)
 			}
-			if len(mediaMessages) > 0 && len(toolCalls) == 0 {
+			if hasToolResult || (claudeMessage.Role == "user" && len(pendingToolMedia) > 0) {
+				pendingToolMedia = append(pendingToolMedia, mediaMessages...)
+			} else if len(mediaMessages) > 0 {
 				openAIMessage.SetMediaContent(mediaMessages)
 			}
+		}
+		if claudeMessage.Role == "user" && len(pendingToolMedia) > 0 && openAIMessage.IsStringContent() {
+			pendingToolMedia = append(pendingToolMedia, dto.MediaContent{Type: dto.ContentTypeText, Text: openAIMessage.StringContent()})
+			openAIMessage.SetNullContent()
 		}
 		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 {
 			openAIMessages = append(openAIMessages, openAIMessage)
 		}
 	}
 
+	flushToolMedia()
 	openAIRequest.Messages = openAIMessages
 	return &openAIRequest, nil
 }

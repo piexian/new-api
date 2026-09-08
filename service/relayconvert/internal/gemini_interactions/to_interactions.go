@@ -6,6 +6,7 @@ package gemini_interactions
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -29,18 +30,13 @@ func GeminiChatRequestToInteractionsWithBridge(req *dto.GeminiChatRequest, model
 	if req == nil {
 		return nil, nil
 	}
+	if req.GenerationConfig.Temperature != nil || req.GenerationConfig.TopP != nil || req.GenerationConfig.TopK != nil {
+		return nil, fmt.Errorf("Interactions does not support temperature, top_p or top_k")
+	}
 	out := &dto.GeminiInteractionsRequest{
 		Model:  modelName,
 		Stream: &isStream,
 		Store:  common.GetPointer(true),
-	}
-
-	if lookup != nil {
-		if chained := bridgeStatefulInput(req, lookup); chained != nil {
-			out.PreviousInteractionID = chained.interactionID
-			out.Input, _ = common.Marshal(chained.steps)
-			return out, nil
-		}
 	}
 
 	// system instruction: 拼接 text parts
@@ -67,12 +63,43 @@ func GeminiChatRequestToInteractionsWithBridge(req *dto.GeminiChatRequest, model
 	// safety_settings: generativelanguage 的 interactions 端点不接受该参数(仅 Enterprise Agent Platform 支持),丢弃
 
 	// generation config
-	if genCfg := convertGenerationConfig(&req.GenerationConfig); len(genCfg) > 0 {
+	genCfg := convertGenerationConfig(&req.GenerationConfig)
+	if req.ToolConfig != nil && req.ToolConfig.FunctionCallingConfig != nil {
+		choice := req.ToolConfig.FunctionCallingConfig
+		mode := strings.ToLower(string(choice.Mode))
+		if mode == "" {
+			mode = "auto"
+		}
+		switch mode {
+		case "auto", "any", "none", "validated":
+		default:
+			return nil, fmt.Errorf("Interactions does not support function calling mode %q", mode)
+		}
+		genCfg["tool_choice"] = mode
+		if len(choice.AllowedFunctionNames) > 0 {
+			genCfg["tool_choice"] = map[string]any{"allowed_tools": map[string]any{"mode": mode, "tools": choice.AllowedFunctionNames}}
+		}
+	}
+	if len(genCfg) > 0 {
 		out.GenerationConfig, _ = common.Marshal(genCfg)
 	}
 
 	// contents -> steps(确定性 call id,保证每轮回放一致)
-	steps := contentsToSteps(req.Contents)
+	if lookup != nil {
+		chained, err := bridgeStatefulInput(req, lookup)
+		if err != nil {
+			return nil, err
+		}
+		if chained != nil {
+			out.PreviousInteractionID = chained.interactionID
+			out.Input, _ = common.Marshal(chained.steps)
+			return out, nil
+		}
+	}
+	steps, err := contentsToSteps(req.Contents)
+	if err != nil {
+		return nil, err
+	}
 	if len(steps) > 0 {
 		out.Input, _ = common.Marshal(steps)
 	} else {
@@ -221,7 +248,7 @@ func thinkingLevelFromConfig(cfg *dto.GeminiThinkingConfig) string {
 }
 
 // contentsToSteps 历史转 steps 时间线;function call id 按函数名计数配对,保证每轮回放一致
-func contentsToSteps(contents []dto.GeminiChatContent) []dto.GeminiInteractionStep {
+func contentsToSteps(contents []dto.GeminiChatContent) ([]dto.GeminiInteractionStep, error) {
 	var steps []dto.GeminiInteractionStep
 	callCounter := map[string]int{}
 	respCounter := map[string]int{}
@@ -240,9 +267,10 @@ func contentsToSteps(contents []dto.GeminiChatContent) []dto.GeminiInteractionSt
 				})
 			case part.FunctionResponse != nil:
 				respCounter[part.FunctionResponse.Name]++
-				resultBlocks, _ := common.Marshal([]dto.GeminiInteractionContent{
-					{Type: dto.GeminiInteractionContentText, Text: marshalResponse(part.FunctionResponse.Response)},
-				})
+				resultBlocks, err := functionResponseToResult(part.FunctionResponse)
+				if err != nil {
+					return nil, err
+				}
 				steps = append(steps, dto.GeminiInteractionStep{
 					Type:   dto.GeminiInteractionStepFunctionResult,
 					CallID: deterministicCallID(part.FunctionResponse.Name, respCounter[part.FunctionResponse.Name]),
@@ -266,7 +294,7 @@ func contentsToSteps(contents []dto.GeminiChatContent) []dto.GeminiInteractionSt
 			})
 		}
 	}
-	return steps
+	return steps, nil
 }
 
 func deterministicCallID(name string, seq int) string {
@@ -363,7 +391,7 @@ type bridgedInput struct {
 // bridgeStatefulInput 扫描历史,定位最后一个带 id 且桥接命中的 functionCall part:
 // - 其后只允许 functionResponse(转 function_result,call_id 用原 id)与用户新输入(转 user_input)
 // - 若其间出现 model 输出等多轮复杂形态则放弃,回退无状态回放
-func bridgeStatefulInput(req *dto.GeminiChatRequest, lookup BridgeLookup) *bridgedInput {
+func bridgeStatefulInput(req *dto.GeminiChatRequest, lookup BridgeLookup) (*bridgedInput, error) {
 	var foundContentIdx = -1
 	var interactionID string
 	for ci := len(req.Contents) - 1; ci >= 0 && foundContentIdx == -1; ci-- {
@@ -384,7 +412,7 @@ func bridgeStatefulInput(req *dto.GeminiChatRequest, lookup BridgeLookup) *bridg
 		}
 	}
 	if foundContentIdx == -1 {
-		return nil
+		return nil, nil
 	}
 
 	var steps []dto.GeminiInteractionStep
@@ -397,11 +425,12 @@ func bridgeStatefulInput(req *dto.GeminiChatRequest, lookup BridgeLookup) *bridg
 			case part.FunctionResponse != nil:
 				callID := rawJSONString(part.FunctionResponse.ID)
 				if callID == "" {
-					return nil // 缺 call_id 无法续链
+					return nil, nil // 缺 call_id 无法续链
 				}
-				resultBlocks, _ := common.Marshal([]dto.GeminiInteractionContent{
-					{Type: dto.GeminiInteractionContentText, Text: marshalResponse(part.FunctionResponse.Response)},
-				})
+				resultBlocks, err := functionResponseToResult(part.FunctionResponse)
+				if err != nil {
+					return nil, err
+				}
 				steps = append(steps, dto.GeminiInteractionStep{
 					Type:   dto.GeminiInteractionStepFunctionResult,
 					CallID: callID,
@@ -416,12 +445,12 @@ func bridgeStatefulInput(req *dto.GeminiChatRequest, lookup BridgeLookup) *bridg
 				}
 			default:
 				// model 输出 / 新的 functionCall 等复杂形态:放弃桥接
-				return nil
+				return nil, nil
 			}
 		}
 	}
 	if len(steps) == 0 {
-		return nil // 桥接点后没有 function_result,无法续链
+		return nil, nil // 桥接点后没有 function_result,无法续链
 	}
 	if len(pendingUserText) > 0 {
 		steps = append(steps, dto.GeminiInteractionStep{
@@ -429,7 +458,24 @@ func bridgeStatefulInput(req *dto.GeminiChatRequest, lookup BridgeLookup) *bridg
 			Content: pendingUserText,
 		})
 	}
-	return &bridgedInput{interactionID: interactionID, steps: steps}
+	return &bridgedInput{interactionID: interactionID, steps: steps}, nil
+}
+
+func functionResponseToResult(response *dto.GeminiFunctionResponse) (json.RawMessage, error) {
+	blocks := []dto.GeminiInteractionContent{{Type: dto.GeminiInteractionContentText, Text: marshalResponse(response.Response)}}
+	if len(response.Parts) > 0 {
+		var parts []dto.GeminiPart
+		if err := common.Unmarshal(response.Parts, &parts); err != nil {
+			return nil, err
+		}
+		for _, part := range parts {
+			if part.InlineData == nil && part.FileData == nil {
+				return nil, fmt.Errorf("Interactions conversion does not support this Gemini function response part")
+			}
+		}
+		blocks = append(blocks, partsToContents(parts)...)
+	}
+	return common.Marshal(blocks)
 }
 
 // rawJSONString 从 RawMessage(JSON 字符串)解出 Go string
@@ -443,4 +489,3 @@ func rawJSONString(raw json.RawMessage) string {
 	}
 	return s
 }
-

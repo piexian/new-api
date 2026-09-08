@@ -311,6 +311,8 @@ type Message struct {
 	Tools            json.RawMessage `json:"tools,omitempty"`
 	ReasoningContent *string         `json:"reasoning_content,omitempty"`
 	Reasoning        *string         `json:"reasoning,omitempty"`
+	Refusal          *string         `json:"refusal,omitempty"`
+	Annotations      []any           `json:"annotations,omitempty"`
 	Audio            json.RawMessage `json:"audio,omitempty"`
 	ToolCalls        json.RawMessage `json:"tool_calls,omitempty"`
 	ToolCallId       string          `json:"tool_call_id,omitempty"`
@@ -500,26 +502,16 @@ func (m *Message) SetToolCalls(toolCalls any) {
 }
 
 func (m *Message) StringContent() string {
-	switch m.Content.(type) {
-	case string:
-		return m.Content.(string)
-	case []any:
-		var contentStr string
-		for _, contentItem := range m.Content.([]any) {
-			contentMap, ok := contentItem.(map[string]any)
-			if !ok {
-				continue
-			}
-			if contentMap["type"] == ContentTypeText {
-				if subStr, ok := contentMap["text"].(string); ok {
-					contentStr += subStr
-				}
-			}
-		}
-		return contentStr
+	if content, ok := m.Content.(string); ok {
+		return content
 	}
-
-	return ""
+	var text strings.Builder
+	for _, part := range m.ParseContent() {
+		if part.Type == ContentTypeText {
+			text.WriteString(part.Text)
+		}
+	}
+	return text.String()
 }
 
 func (m *Message) SetNullContent() {
@@ -548,6 +540,9 @@ func (m *Message) IsStringContent() bool {
 func (m *Message) ParseContent() []MediaContent {
 	if m.Content == nil {
 		return nil
+	}
+	if content, ok := m.Content.([]MediaContent); ok {
+		return content
 	}
 	if len(m.parsedContent) > 0 {
 		return m.parsedContent
@@ -638,37 +633,25 @@ func (m *Message) ParseContent() []MediaContent {
 			}
 		case ContentTypeFile:
 			if fileData, ok := contentItem["file"].(map[string]interface{}); ok {
-				fileId, ok3 := fileData["file_id"].(string)
-				if ok3 {
-					contentList = append(contentList, MediaContent{
-						Type: ContentTypeFile,
-						File: &MessageFile{
-							FileId: fileId,
-						},
-					})
-				} else {
-					fileName, ok1 := fileData["filename"].(string)
-					fileDataStr, ok2 := fileData["file_data"].(string)
-					if ok1 && ok2 {
-						contentList = append(contentList, MediaContent{
-							Type: ContentTypeFile,
-							File: &MessageFile{
-								FileName: fileName,
-								FileData: fileDataStr,
-							},
-						})
-					}
-				}
-			}
-		case ContentTypeVideoUrl:
-			if videoUrl, ok := contentItem["video_url"].(string); ok {
+				fileName, _ := fileData["filename"].(string)
+				fileDataStr, _ := fileData["file_data"].(string)
+				fileID, _ := fileData["file_id"].(string)
 				contentList = append(contentList, MediaContent{
-					Type: ContentTypeVideoUrl,
-					VideoUrl: &MessageVideoUrl{
-						Url: videoUrl,
-					},
+					Type: ContentTypeFile,
+					File: &MessageFile{FileName: fileName, FileData: fileDataStr, FileId: fileID},
 				})
 			}
+		case ContentTypeVideoUrl:
+			var url string
+			switch video := contentItem["video_url"].(type) {
+			case string:
+				url = video
+			case map[string]any:
+				url, _ = video["url"].(string)
+			}
+			contentList = append(contentList, MediaContent{Type: ContentTypeVideoUrl, VideoUrl: &MessageVideoUrl{Url: url}})
+		default:
+			contentList = append(contentList, MediaContent{Type: contentType})
 		}
 	}
 

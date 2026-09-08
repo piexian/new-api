@@ -86,6 +86,8 @@ type ChatCompletionsStreamResponseChoice struct {
 }
 
 type ChatCompletionsStreamResponseChoiceDelta struct {
+	Annotations      []any              `json:"annotations,omitempty"`
+	Refusal          *string            `json:"refusal,omitempty"`
 	Content          *string            `json:"content,omitempty"`
 	ReasoningContent *string            `json:"reasoning_content,omitempty"`
 	Reasoning        *string            `json:"reasoning,omitempty"`
@@ -126,6 +128,25 @@ type ToolCallResponse struct {
 	ID       string           `json:"id,omitempty"`
 	Type     any              `json:"type"`
 	Function FunctionResponse `json:"function"`
+	Custom   *CustomToolCall  `json:"custom,omitempty"`
+}
+
+type CustomToolCall struct {
+	Name  string `json:"name,omitempty"`
+	Input string `json:"input"`
+}
+
+func (c ToolCallResponse) MarshalJSON() ([]byte, error) {
+	if c.Custom != nil {
+		return common.Marshal(struct {
+			Index  *int            `json:"index,omitempty"`
+			ID     string          `json:"id,omitempty"`
+			Type   any             `json:"type"`
+			Custom *CustomToolCall `json:"custom"`
+		}{c.Index, c.ID, c.Type, c.Custom})
+	}
+	type alias ToolCallResponse
+	return common.Marshal(alias(c))
 }
 
 func (c *ToolCallResponse) SetIndex(i int) {
@@ -397,22 +418,29 @@ type IncompleteDetails struct {
 }
 
 type ResponsesOutput struct {
-	Type      string                   `json:"type"`
-	ID        string                   `json:"id"`
-	Status    string                   `json:"status"`
-	Role      string                   `json:"role"`
-	Content   []ResponsesOutputContent `json:"content"`
-	Quality   string                   `json:"quality"`
-	Size      string                   `json:"size"`
-	CallId    string                   `json:"call_id,omitempty"`
-	Name      string                   `json:"name,omitempty"`
-	Arguments json.RawMessage          `json:"arguments,omitempty"`
+	Result       string                          `json:"result,omitempty"`
+	OutputFormat string                          `json:"output_format,omitempty"`
+	Type         string                          `json:"type"`
+	ID           string                          `json:"id"`
+	Status       string                          `json:"status"`
+	Role         string                          `json:"role"`
+	Content      []ResponsesOutputContent        `json:"content"`
+	Quality      string                          `json:"quality"`
+	Size         string                          `json:"size"`
+	CallId       string                          `json:"call_id,omitempty"`
+	Name         string                          `json:"name,omitempty"`
+	Arguments    json.RawMessage                 `json:"arguments,omitempty"`
+	Input        *string                         `json:"input,omitempty"`
+	Summary      []ResponsesReasoningSummaryPart `json:"summary,omitempty"`
 }
 
 // ArgumentsString returns function call arguments in the string form expected by Chat Completions.
 func (r *ResponsesOutput) ArgumentsString() string {
 	if r == nil {
 		return ""
+	}
+	if r.Type == "custom_tool_call" && r.Input != nil {
+		return *r.Input
 	}
 	return ResponsesArgumentsString(r.Arguments)
 }
@@ -425,6 +453,7 @@ func ResponsesArgumentsString(arguments json.RawMessage) string {
 type ResponsesOutputContent struct {
 	Type        string        `json:"type"`
 	Text        string        `json:"text"`
+	Refusal     string        `json:"refusal,omitempty"`
 	Annotations []interface{} `json:"annotations"`
 }
 
@@ -451,10 +480,13 @@ const (
 
 // ResponsesStreamResponse 用于处理 /v1/responses 流式响应
 type ResponsesStreamResponse struct {
-	Type     string                   `json:"type"`
-	Response *OpenAIResponsesResponse `json:"response,omitempty"`
-	Delta    string                   `json:"delta,omitempty"`
-	Item     *ResponsesOutput         `json:"item,omitempty"`
+	Annotation      any                      `json:"annotation,omitempty"`
+	AnnotationIndex *int                     `json:"annotation_index,omitempty"`
+	Refusal         string                   `json:"refusal,omitempty"`
+	Type            string                   `json:"type"`
+	Response        *OpenAIResponsesResponse `json:"response,omitempty"`
+	Delta           string                   `json:"delta,omitempty"`
+	Item            *ResponsesOutput         `json:"item,omitempty"`
 	// - response.function_call_arguments.delta
 	// - response.function_call_arguments.done
 	OutputIndex  *int                           `json:"output_index,omitempty"`

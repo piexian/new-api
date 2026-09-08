@@ -21,7 +21,6 @@ func TestGeminiChatRequestToInteractionsBasic(t *testing.T) {
 		SystemInstructions: &dto.GeminiChatContent{Parts: []dto.GeminiPart{{Text: "be brief"}}},
 		GenerationConfig: dto.GeminiChatGenerationConfig{
 			MaxOutputTokens: &maxTokens,
-			Temperature:     common.GetPointer(0.7), // 应被丢弃(interactions 已弃用)
 			ThinkingConfig:  &dto.GeminiThinkingConfig{ThinkingBudget: &budget},
 		},
 	}

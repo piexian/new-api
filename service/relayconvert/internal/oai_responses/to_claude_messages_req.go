@@ -7,7 +7,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	relaymedia "github.com/QuantumNous/new-api/service/relayconvert/internal/media"
 	sharedclaude "github.com/QuantumNous/new-api/service/relayconvert/internal/shared/claude"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
@@ -62,6 +61,13 @@ func OpenAIResponsesRequestToClaudeMessages(c *gin.Context, req *dto.OpenAIRespo
 		claudeRequest.ToolChoice = sharedclaude.MapOpenAIToolChoice(toolChoice, ParallelToolCalls(req.ParallelToolCalls))
 	}
 	applyResponsesReasoningToClaude(req, claudeRequest)
+	responseFormat, err := RequestTextToChatResponseFormat(req.Text)
+	if err != nil {
+		return nil, err
+	}
+	if err := sharedclaude.ApplyOpenAIResponseFormat(responseFormat, claudeRequest); err != nil {
+		return nil, err
+	}
 
 	systemMessages := make([]dto.ClaudeMediaMessage, 0)
 	if RawJSONPresent(req.Instructions) {
@@ -89,7 +95,11 @@ func OpenAIResponsesRequestToClaudeMessages(c *gin.Context, req *dto.OpenAIRespo
 		case ResponsesInputTypeCustomToolCall:
 			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item, "input"))
 		case ResponsesInputTypeFunctionCallOutput, ResponsesInputTypeCustomToolOutput:
-			claudeRequest.Messages = appendClaudeToolResult(claudeRequest.Messages, responsesFunctionOutputItemToClaudeToolResult(item))
+			toolResult, err := responsesFunctionOutputItemToClaudeToolResult(c, item)
+			if err != nil {
+				return nil, err
+			}
+			claudeRequest.Messages = appendClaudeToolResult(claudeRequest.Messages, toolResult)
 		default:
 			role := responsesClaudeRole(item)
 			parts, err := responsesInputContentToClaudeMediaMessages(c, item["content"])
@@ -193,28 +203,18 @@ func responsesInputContentToClaudeMediaMessages(c *gin.Context, content any) ([]
 					Text: common.GetPointer(text),
 				})
 			}
-		case "input_image", "input_file", "input_audio", "input_video":
+		case "input_image", "input_file":
 			source := ContentPartToFileSource(contentPart)
 			if source == nil {
-				continue
+				return nil, fmt.Errorf("Claude Messages conversion requires inline data or a URL for %s; provider file IDs cannot be transferred", partType)
 			}
-			base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting Responses input for Claude")
+			claudePart, err := sharedclaude.ConvertFileSource(c, source)
 			if err != nil {
-				return nil, fmt.Errorf("get file data failed: %s", err.Error())
-			}
-			claudePart := dto.ClaudeMediaMessage{
-				Source: &dto.ClaudeMessageSource{
-					Type:      "base64",
-					MediaType: mimeType,
-					Data:      base64Data,
-				},
-			}
-			if strings.HasPrefix(mimeType, "application/pdf") {
-				claudePart.Type = "document"
-			} else {
-				claudePart.Type = "image"
+				return nil, err
 			}
 			parts = append(parts, claudePart)
+		default:
+			return nil, fmt.Errorf("Claude Messages conversion does not support Responses content type %q", partType)
 		}
 	}
 	return parts, nil
@@ -229,12 +229,17 @@ func responsesFunctionCallItemToClaudeToolUse(item map[string]any, inputKey stri
 	}
 }
 
-func responsesFunctionOutputItemToClaudeToolResult(item map[string]any) dto.ClaudeMediaMessage {
-	return dto.ClaudeMediaMessage{
-		Type:      "tool_result",
-		ToolUseId: CallID(item),
-		Content:   responsesToolOutputValue(item["output"]),
+func responsesFunctionOutputItemToClaudeToolResult(c *gin.Context, item map[string]any) (dto.ClaudeMediaMessage, error) {
+	content := responsesToolOutputValue(item["output"])
+	switch content.(type) {
+	case []any, []map[string]any:
+		parts, err := responsesInputContentToClaudeMediaMessages(c, content)
+		if err != nil {
+			return dto.ClaudeMediaMessage{}, err
+		}
+		content = parts
 	}
+	return dto.ClaudeMediaMessage{Type: "tool_result", ToolUseId: CallID(item), Content: content}, nil
 }
 
 func responsesToolOutputValue(value any) any {

@@ -232,7 +232,7 @@ func TestConvertRequestViaExecutesExplicitPath(t *testing.T) {
 	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.RequestConversionChain)
 }
 
-func TestConvertRequestResponsesToGeminiAppliesResponsesPreprocess(t *testing.T) {
+func TestConvertRequestResponsesToGeminiRejectsUnsupportedToolsWithoutDiscardingHistory(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayFormat:            types.RelayFormatOpenAIResponses,
 		RequestConversionChain: []types.RelayFormat{types.RelayFormatOpenAIResponses},
@@ -271,24 +271,10 @@ func TestConvertRequestResponsesToGeminiAppliesResponsesPreprocess(t *testing.T)
 
 	result, err := ConvertRequest(nil, info, types.RelayFormatGemini, req)
 
-	require.NoError(t, err)
-	geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
-	require.True(t, ok)
-	assert.Empty(t, geminiReq.GetTools())
-	require.Len(t, geminiReq.Contents, 1)
-	assert.Equal(t, "user", geminiReq.Contents[0].Role)
-	require.Len(t, geminiReq.Contents[0].Parts, 1)
-	assert.Equal(t, "next turn", geminiReq.Contents[0].Parts[0].Text)
-	assert.Equal(t, ConverterOpenAIResponsesToGemini, result.Converter)
-	assert.Equal(t, RequestConverterQualityFair, result.Quality)
-	assert.Equal(t, []RequestStep{
-		{
-			Converter: ConverterOpenAIResponsesToGemini,
-			From:      types.RelayFormatOpenAIResponses,
-			To:        types.RelayFormatGemini,
-		},
-	}, result.Steps)
-	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAIResponses, types.RelayFormatGemini}, info.RequestConversionChain)
+	require.ErrorContains(t, err, "cannot preserve Responses tool type")
+	require.Nil(t, result)
+	assert.Contains(t, string(req.Input), "patch body")
+	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAIResponses}, info.RequestConversionChain)
 }
 
 func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {

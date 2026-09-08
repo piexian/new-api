@@ -218,6 +218,51 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info *relaycommon
 	return nil
 }
 
+// Explicit budgets must survive intermediate Chat DTOs. A thinking level is
+// not an equivalent token cap, so callers must choose it explicitly for Gemini 3.
+func ApplyExplicitThinkingBudget(request *dto.GeminiChatRequest, source dto.GeneralOpenAIRequest, modelName string) error {
+	var budget *int
+	if source.ReasoningEffort == "none" {
+		budget = common.GetPointer(0)
+	}
+	if len(source.Reasoning) > 0 {
+		var value struct {
+			Enabled   *bool `json:"enabled"`
+			MaxTokens *int  `json:"max_tokens"`
+		}
+		if err := common.Unmarshal(source.Reasoning, &value); err != nil {
+			return err
+		}
+		budget = value.MaxTokens
+		if value.Enabled != nil && !*value.Enabled {
+			budget = common.GetPointer(0)
+		}
+	}
+	if len(source.THINKING) > 0 {
+		var value dto.Thinking
+		if err := common.Unmarshal(source.THINKING, &value); err != nil {
+			return err
+		}
+		switch value.Type {
+		case "enabled":
+			budget = value.BudgetTokens
+		case "disabled":
+			budget = common.GetPointer(0)
+		}
+	}
+	if budget == nil {
+		return nil
+	}
+	if strings.HasPrefix(modelName, "gemini-3") {
+		return fmt.Errorf("Gemini 3 uses thinking levels and cannot preserve a numeric thinking budget; use reasoning_effort")
+	}
+	if *budget == 0 && strings.HasPrefix(modelName, "gemini-2.5-pro") {
+		return fmt.Errorf("Gemini 2.5 Pro does not support disabling thinking")
+	}
+	request.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{ThinkingBudget: budget, IncludeThoughts: *budget != 0}
+	return nil
+}
+
 func ParseStopSequences(stop any) []string {
 	if stop == nil {
 		return nil
