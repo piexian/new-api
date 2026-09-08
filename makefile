@@ -1,6 +1,7 @@
 WEB_DIR = ./web/default
 WEB_CLASSIC_DIR = ./web/classic
 API_DIR = .
+RELEASE_VERSION := $(shell cat VERSION)
 DEV_WEB_DEFAULT_PORT ?= 5173
 DEV_WEB_CLASSIC_PORT ?= 5174
 DEV_COMPOSE_FILE = docker-compose.dev.yml
@@ -20,17 +21,17 @@ release: build-all-web build-api
 
 build-api:
 	@echo "Building backend binary..."
-	go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(shell cat VERSION)'" -o new-api main.go
+	go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(RELEASE_VERSION)'" -o new-api main.go
 
 build-web:
 	@echo "Building default web..."
 	@cd ./web && bun install --frozen-lockfile
-	@cd $(WEB_DIR) && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat ../../VERSION) bun run build
+	@cd $(WEB_DIR) && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(RELEASE_VERSION) bun run build
 
 build-web-classic:
 	@echo "Building classic web..."
 	@cd ./web && bun install --frozen-lockfile
-	@cd $(WEB_CLASSIC_DIR) && VITE_REACT_APP_VERSION=$(cat ../../VERSION) bun run build
+	@cd $(WEB_CLASSIC_DIR) && VITE_REACT_APP_VERSION=$(RELEASE_VERSION) bun run build
 
 build-all-web: build-web build-web-classic
 
