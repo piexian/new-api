@@ -131,6 +131,11 @@ async function main() {
         json.translation[key] = value
         applied++
       }
+      // Repair legacy entries placed outside the namespace consumed by i18next.
+      if (json[key] === value) {
+        delete json[key]
+        applied++
+      }
     }
 
     if (applied > 0) {
