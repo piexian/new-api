@@ -54,6 +54,7 @@ import { cn } from '@/lib/utils'
 
 import { CHAT_INTERFACE_OPTIONS } from '../../constants'
 import { ATTACHMENT_ACTIONS, getAttachmentActionNotice } from '../../lib'
+import { supportsCodeInterpreter } from '../../lib/streaming/native-request'
 import type { ParameterEnabled, PlaygroundConfig } from '../../types'
 import { PlaygroundParameterPanel } from './playground-parameter-panel'
 
@@ -83,6 +84,7 @@ export function PlaygroundInputTools({
   parameterEnabled,
 }: PlaygroundInputToolsProps) {
   const { t } = useTranslation()
+  const codeInterpreterSupported = supportsCodeInterpreter(config.chatInterface)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
 
   const handleFileAction = (action: string) => {
@@ -142,6 +144,7 @@ export function PlaygroundInputTools({
             render={
               <PromptInputButton
                 aria-label={t('Web Search')}
+                aria-pressed={config.webSearchEnabled}
                 className={cn(
                   'font-medium transition-colors',
                   config.webSearchEnabled
@@ -169,13 +172,16 @@ export function PlaygroundInputTools({
             render={
               <PromptInputButton
                 aria-label={t('Code Interpreter')}
+                aria-pressed={
+                  codeInterpreterSupported && config.codeInterpreterEnabled
+                }
                 className={cn(
                   'font-medium transition-colors',
-                  config.codeInterpreterEnabled
+                  config.codeInterpreterEnabled && codeInterpreterSupported
                     ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/15'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
                 )}
-                disabled={disabled}
+                disabled={disabled || !codeInterpreterSupported}
                 onClick={() =>
                   onConfigChange(
                     'codeInterpreterEnabled',
@@ -189,7 +195,13 @@ export function PlaygroundInputTools({
             }
           />
           <TooltipContent>
-            <p>{t('Code Interpreter')}</p>
+            <p>
+              {codeInterpreterSupported
+                ? t('Code Interpreter')
+                : t(
+                    'Select Responses, Anthropic, or Gemini to use code execution'
+                  )}
+            </p>
           </TooltipContent>
         </Tooltip>
 

@@ -19,28 +19,33 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import { API_ENDPOINTS } from './constants'
+import { normalizeNativeResponse } from './lib/streaming/native-response'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
   ModelOption,
   ModelsDevEntry,
   GroupOption,
+  ChatInterface,
 } from './types'
 
 /**
  * Send chat completion request (non-streaming)
  */
 export async function sendChatCompletion(
-  payload: ChatCompletionRequest,
+  payload: ChatCompletionRequest | Record<string, unknown>,
   signal?: AbortSignal,
-  endpoint?: string
+  endpoint?: string,
+  format: ChatInterface = 'openai'
 ): Promise<ChatCompletionResponse> {
   const url = endpoint ?? API_ENDPOINTS.CHAT_COMPLETIONS
   const res = await api.post(url, payload, {
     signal,
     skipErrorHandler: true,
   } as Record<string, unknown>)
-  return res.data
+  return format === 'openai'
+    ? res.data
+    : normalizeNativeResponse(res.data, format)
 }
 
 /**

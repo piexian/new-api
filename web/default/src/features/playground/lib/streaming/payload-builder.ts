@@ -20,7 +20,6 @@ import type {
   ChatCompletionRequest,
   Message,
   PlaygroundConfig,
-  PlaygroundTool,
   ParameterEnabled,
 } from '../../types'
 import { formatMessageForAPI, isValidMessage } from '../message/message-utils'
@@ -74,28 +73,8 @@ export function buildChatCompletionPayload(
     payload.reasoning_effort = config.reasoningEffort
   }
 
-  // 内置工具（独立开关）
-  const tools: PlaygroundTool[] = []
-  if (config.webSearchEnabled) {
-    tools.push({
-      type: 'function',
-      function: {
-        name: 'web_search',
-        description: 'Search the web for current information',
-      },
-    })
-  }
-  if (config.codeInterpreterEnabled) {
-    tools.push({
-      type: 'function',
-      function: {
-        name: 'code_interpreter',
-        description: 'Execute code and return results',
-      },
-    })
-  }
-  if (tools.length > 0) {
-    payload.tools = tools
+  if (config.webSearchEnabled && config.chatInterface === 'openai') {
+    payload.web_search_options = {}
   }
 
   return payload

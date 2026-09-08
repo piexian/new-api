@@ -71,7 +71,9 @@ func Path2RelayMode(path string) int {
 	relayMode := RelayModeUnknown
 	// Normalize /pg/ prefix to /v1/ for playground routes
 	normalizedPath := path
-	if strings.HasPrefix(path, "/pg/") {
+	if strings.HasPrefix(path, "/pg/v1beta/") {
+		normalizedPath = strings.TrimPrefix(path, "/pg")
+	} else if strings.HasPrefix(path, "/pg/") {
 		normalizedPath = "/v1/" + path[4:]
 	}
 	path = normalizedPath

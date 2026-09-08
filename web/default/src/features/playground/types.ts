@@ -113,6 +113,7 @@ export interface ChatCompletionRequest {
   seed?: number
   reasoning_effort?: 'low' | 'medium' | 'high' | 'max'
   tools?: PlaygroundTool[]
+  web_search_options?: Record<string, never>
 }
 
 export interface ChatCompletionChunk {

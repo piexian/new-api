@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { sendChatCompletion } from '../api'
-import { ERROR_MESSAGES, API_ENDPOINTS } from '../constants'
+import { ERROR_MESSAGES } from '../constants'
 import {
   applyStreamingChunk,
   buildChatCompletionPayload,
@@ -34,6 +34,7 @@ import {
   isAssistantMessageFinal,
   isAssistantMessagePending,
 } from '../lib'
+import { buildNativeRequest } from '../lib/streaming/native-request'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
 
@@ -229,20 +230,14 @@ export function useChatHandler({
         config,
         parameterEnabled
       )
-      const endpoint =
-        config.chatInterface === 'openai-response'
-          ? API_ENDPOINTS.RESPONSES
-          : config.chatInterface === 'anthropic'
-            ? API_ENDPOINTS.MESSAGES
-            : config.chatInterface === 'gemini'
-              ? `${API_ENDPOINTS.RESPONSES}?format=gemini`
-              : undefined
+      const request = buildNativeRequest(payload, config)
       sendStreamRequest(
-        payload,
+        request.payload,
         handleStreamUpdate,
         handleStreamComplete,
         handleStreamError,
-        endpoint
+        request.endpoint,
+        config.chatInterface
       )
     },
     [
@@ -271,18 +266,12 @@ export function useChatHandler({
 
       try {
         setIsRequesting(true)
-        const endpoint =
-          config.chatInterface === 'openai-response'
-            ? API_ENDPOINTS.RESPONSES
-            : config.chatInterface === 'anthropic'
-              ? API_ENDPOINTS.MESSAGES
-              : config.chatInterface === 'gemini'
-                ? `${API_ENDPOINTS.RESPONSES}?format=gemini`
-                : undefined
+        const request = buildNativeRequest(payload, config)
         const response = await sendChatCompletion(
-          payload,
+          request.payload,
           abortController.signal,
-          endpoint
+          request.endpoint,
+          config.chatInterface
         )
         if (abortController.signal.aborted) return
 

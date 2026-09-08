@@ -94,8 +94,7 @@ func Distribute() func(c *gin.Context) {
 					}
 					var selectGroup string
 					usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-					// check path is /pg/chat/completions
-					if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
+					if isPlaygroundChatPath(c.Request.URL.Path) {
 						playgroundRequest := &dto.PlayGroundRequest{}
 						err = common.UnmarshalBodyReusable(c, playgroundRequest)
 						if err != nil {
@@ -405,7 +404,7 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		} else {
 			shouldSelectChannel = false
 		}
-	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") || strings.HasPrefix(c.Request.URL.Path, "/pg/v1beta/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini
 		modelName := extractModelNameFromGeminiPath(c.Request.URL.Path)
@@ -470,13 +469,14 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		c.Set("relay_mode", relayMode)
 	}
-	if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
-		// playground chat completions
+	if isPlaygroundChatPath(c.Request.URL.Path) {
 		req, err := getModelFromRequest(c)
 		if err != nil {
 			return nil, false, err
 		}
-		modelRequest.Model = req.Model
+		if !strings.HasPrefix(c.Request.URL.Path, "/pg/v1beta/models/") {
+			modelRequest.Model = req.Model
+		}
 		modelRequest.Group = req.Group
 		common.SetContextKey(c, constant.ContextKeyTokenGroup, modelRequest.Group)
 	}
@@ -485,6 +485,10 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		modelRequest.Model = ratio_setting.WithCompactModelSuffix(modelRequest.Model)
 	}
 	return &modelRequest, shouldSelectChannel, nil
+}
+
+func isPlaygroundChatPath(path string) bool {
+	return path == "/pg/chat/completions" || path == "/pg/responses" || path == "/pg/responses/compact" || path == "/pg/messages" || strings.HasPrefix(path, "/pg/v1beta/models/")
 }
 
 func isXAINativeRoute(method string, path string) bool {

@@ -29,7 +29,11 @@ import {
   parseStreamErrorDetails,
   parseStreamMessageUpdates,
 } from '../lib'
-import type { ChatCompletionRequest } from '../types'
+import {
+  NATIVE_STREAM_EVENTS,
+  parseNativeStreamResponse,
+} from '../lib/streaming/native-response'
+import type { ChatCompletionRequest, ChatInterface } from '../types'
 
 /**
  * Hook for handling streaming chat completion requests
@@ -51,14 +55,15 @@ export function useStreamRequest() {
 
   const sendStreamRequest = useCallback(
     (
-      payload: ChatCompletionRequest,
+      payload: ChatCompletionRequest | Record<string, unknown>,
       onUpdate: (
         type: 'reasoning' | 'content' | 'tool_calls',
         chunk: string
       ) => void,
       onComplete: () => void,
       onError: (error: string, errorCode?: string) => void,
-      endpoint?: string
+      endpoint?: string,
+      format: ChatInterface = 'openai'
     ) => {
       sseSourceRef.current?.close()
 
@@ -80,7 +85,8 @@ export function useStreamRequest() {
         }
       }
 
-      source.addEventListener('message', (e: MessageEvent) => {
+      const handleMessage = (e: MessageEvent) => {
+        if (isStreamCompleteRef.current) return
         if (isStreamDoneMessage(e.data)) {
           isStreamCompleteRef.current = true
           closeActiveStream(source)
@@ -89,23 +95,41 @@ export function useStreamRequest() {
         }
 
         try {
+          if (format !== 'openai') {
+            const result = parseNativeStreamResponse(JSON.parse(e.data))
+            if (result.error) {
+              handleError(result.error)
+              return
+            }
+            for (const update of result.updates) {
+              onUpdate(update.type, update.chunk)
+            }
+            if (result.done) {
+              isStreamCompleteRef.current = true
+              closeActiveStream(source)
+              onComplete()
+            }
+            return
+          }
           const updates = parseStreamMessageUpdates(e.data)
 
           for (const update of updates) {
             onUpdate(update.type, update.chunk)
           }
-        } catch (error) {
-          // eslint-disable-next-line no-console
-          console.error('Failed to parse SSE message:', error)
+        } catch {
           handleError(ERROR_MESSAGES.PARSE_ERROR)
         }
-      })
+      }
+      source.addEventListener('message', handleMessage)
+      if (format !== 'openai') {
+        for (const event of NATIVE_STREAM_EVENTS) {
+          source.addEventListener(event, handleMessage)
+        }
+      }
 
       source.addEventListener('error', (e: Event & { data?: string }) => {
         // Only handle errors if stream didn't complete normally
         if (!isStreamClosedReadyState(source.readyState)) {
-          // eslint-disable-next-line no-console
-          console.error('SSE Error:', e)
           const { errorCode, errorMessage } = parseStreamErrorDetails(e.data)
           handleError(errorMessage, errorCode)
         }
@@ -124,9 +148,7 @@ export function useStreamRequest() {
 
       try {
         source.stream()
-      } catch (error: unknown) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to start SSE stream:', error)
+      } catch {
         onError(ERROR_MESSAGES.STREAM_START_ERROR)
         closeActiveStream(source)
       }

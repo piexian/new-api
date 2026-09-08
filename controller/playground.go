@@ -17,6 +17,8 @@ import (
 func playgroundRelayFormat(c *gin.Context) types.RelayFormat {
 	path := c.Request.URL.Path
 	switch {
+	case strings.HasPrefix(path, "/pg/v1beta/models/"):
+		return types.RelayFormatGemini
 	case strings.Contains(path, "/chat/completions"):
 		return types.RelayFormatOpenAI
 	case strings.Contains(path, "/responses"):
