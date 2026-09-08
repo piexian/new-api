@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -81,14 +82,12 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 			if callId == "" {
 				callId = strings.TrimSpace(out.ID)
 			}
-			toolCalls = append(toolCalls, dto.ToolCallResponse{
-				ID:   callId,
-				Type: "function",
-				Function: dto.FunctionResponse{
-					Name:      name,
-					Arguments: out.ArgumentsString(),
-				},
-			})
+			toolCall := dto.ToolCallResponse{ID: callId, Type: "function", Function: dto.FunctionResponse{Name: name, Arguments: out.ArgumentsString()}}
+			if out.Type == responsesOutputTypeCustomToolCall {
+				toolCall.Type = "custom"
+				toolCall.Custom = &dto.CustomToolCall{Name: name, Input: out.ArgumentsString()}
+			}
+			toolCalls = append(toolCalls, toolCall)
 		}
 	}
 
@@ -100,8 +99,21 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 	}
 
 	msg := dto.Message{
-		Role:    "assistant",
-		Content: text,
+		Role:        "assistant",
+		Content:     text,
+		Annotations: chatAnnotationsFromResponses(resp),
+	}
+	var refusal strings.Builder
+	for _, item := range resp.Output {
+		for _, part := range item.Content {
+			if part.Type == "refusal" {
+				refusal.WriteString(part.Refusal)
+			}
+		}
+	}
+	if refusal.Len() > 0 {
+		value := refusal.String()
+		msg.Refusal = &value
 	}
 	if reasoning != "" {
 		msg.ReasoningContent = &reasoning
@@ -168,6 +180,10 @@ func UsageFromResponsesUsage(src *dto.Usage) *dto.Usage {
 }
 
 func ExtractOutputTextFromResponses(resp *dto.OpenAIResponsesResponse) string {
+	return extractResponseText(resp, true)
+}
+
+func extractResponseText(resp *dto.OpenAIResponsesResponse, images bool) string {
 	if resp == nil || len(resp.Output) == 0 {
 		return ""
 	}
@@ -176,6 +192,10 @@ func ExtractOutputTextFromResponses(resp *dto.OpenAIResponsesResponse) string {
 
 	// Prefer assistant message outputs.
 	for _, out := range resp.Output {
+		if images && out.Type == "image_generation_call" {
+			sb.WriteString(responseImageMarkdown(&out))
+			continue
+		}
 		if out.Type != "message" {
 			continue
 		}
@@ -188,17 +208,61 @@ func ExtractOutputTextFromResponses(resp *dto.OpenAIResponsesResponse) string {
 			}
 		}
 	}
-	if sb.Len() > 0 {
-		return sb.String()
+	return sb.String()
+}
+
+func responseImageMarkdown(out *dto.ResponsesOutput) string {
+	if out == nil || out.Result == "" {
+		return ""
 	}
-	for _, out := range resp.Output {
-		for _, c := range out.Content {
-			if c.Text != "" {
-				sb.WriteString(c.Text)
+	format := out.OutputFormat
+	if format == "" {
+		format = "png"
+	}
+	if format == "jpg" {
+		format = "jpeg"
+	}
+	return "![image](data:image/" + format + ";base64," + out.Result + ")"
+}
+
+func chatAnnotationsFromResponses(response *dto.OpenAIResponsesResponse) []any {
+	var annotations []any
+	offset := 0
+	for _, out := range response.Output {
+		if out.Type == "image_generation_call" {
+			offset += utf8.RuneCountInString(responseImageMarkdown(&out))
+			continue
+		}
+		if out.Type != "message" || (out.Role != "" && out.Role != "assistant") {
+			continue
+		}
+		for _, part := range out.Content {
+			for _, value := range part.Annotations {
+				annotation, ok := value.(map[string]any)
+				if ok && annotation["type"] == "url_citation" {
+					citation := make(map[string]any, len(annotation))
+					for key, value := range annotation {
+						if key == "type" {
+							continue
+						}
+						if key == "start_index" || key == "end_index" {
+							if index, ok := value.(float64); ok {
+								value = index + float64(offset)
+							}
+						}
+						citation[key] = value
+					}
+					annotations = append(annotations, map[string]any{"type": "url_citation", "url_citation": citation})
+				} else {
+					annotations = append(annotations, value)
+				}
+			}
+			if part.Type == "output_text" {
+				offset += utf8.RuneCountInString(part.Text)
 			}
 		}
 	}
-	return sb.String()
+	return annotations
 }
 
 func ExtractReasoningTextFromResponses(resp *dto.OpenAIResponsesResponse) string {
@@ -209,6 +273,12 @@ func ExtractReasoningTextFromResponses(resp *dto.OpenAIResponsesResponse) string
 	var sb strings.Builder
 	for _, out := range resp.Output {
 		if out.Type != responsesOutputTypeReasoning {
+			continue
+		}
+		if len(out.Summary) > 0 {
+			for _, part := range out.Summary {
+				sb.WriteString(part.Text)
+			}
 			continue
 		}
 		for _, c := range out.Content {

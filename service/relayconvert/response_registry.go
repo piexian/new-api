@@ -910,7 +910,8 @@ func convertOAIChatStreamResponseToGeminiChat(_ *gin.Context, info *relaycommon.
 	if err != nil {
 		return nil, nil, err
 	}
-	return StreamResponseOpenAI2Gemini(chatResponse, info), canonicalUsageFromResponse(chatResponse), nil
+	converted, err := StreamResponseOpenAI2Gemini(chatResponse, info)
+	return converted, canonicalUsageFromResponse(chatResponse), err
 }
 
 func convertClaudeMessagesResponseToOAIChat(_ *gin.Context, _ *relaycommon.RelayInfo, response any) (any, *dto.Usage, error) {

@@ -34,10 +34,16 @@ type ChatToResponsesStreamState struct {
 	toolsByIndex      map[int]*chatToResponsesStreamTool
 	outputOrder       []chatToResponsesOutputRef
 	text              strings.Builder
+	refusal           strings.Builder
+	refusalStarted    bool
+	refusalDone       bool
+	refusalIndex      int
+	annotations       []any
 	reasoning         strings.Builder
 }
 
 type chatToResponsesStreamTool struct {
+	Custom      bool
 	ChatIndex   int
 	OutputIndex int
 	ID          string
@@ -95,6 +101,19 @@ func ChatCompletionsStreamChunkToResponsesEvents(chunk *dto.ChatCompletionsStrea
 		}
 		if choice.Delta.GetContentString() != "" {
 			events = append(events, state.appendTextDelta(choice.Delta.GetContentString())...)
+		}
+		if len(choice.Delta.Annotations) > 0 {
+			if !state.textStarted {
+				events = append(events, state.appendTextDelta("")...)
+			}
+			for _, annotation := range responsesAnnotationsFromChat(choice.Delta.Annotations) {
+				index := len(state.annotations)
+				state.annotations = append(state.annotations, annotation)
+				events = append(events, responsesStreamEvent("response.output_text.annotation.added", dto.ResponsesStreamResponse{Type: "response.output_text.annotation.added", OutputIndex: intPtr(state.textOutputIndex), ContentIndex: intPtr(0), ItemID: state.messageID(), AnnotationIndex: &index, Annotation: annotation}))
+			}
+		}
+		if choice.Delta.Refusal != nil {
+			events = append(events, state.appendRefusalDelta(*choice.Delta.Refusal)...)
 		}
 		for _, toolCall := range choice.Delta.ToolCalls {
 			toolEvents, err := state.appendToolCallDelta(toolCall)
@@ -191,19 +210,35 @@ func (s *ChatToResponsesStreamState) appendReasoningDelta(delta string) []ChatTo
 	return events
 }
 
+func (s *ChatToResponsesStreamState) appendRefusalDelta(delta string) []ChatToResponsesStreamEvent {
+	var events []ChatToResponsesStreamEvent
+	if !s.refusalStarted {
+		s.refusalStarted = true
+		s.refusalIndex = s.nextIndex("refusal", -1)
+		events = append(events, responsesStreamEvent(responsesEventOutputItemAdded, dto.ResponsesStreamResponse{Type: responsesEventOutputItemAdded, OutputIndex: intPtr(s.refusalIndex), Item: s.refusalOutput("in_progress")}))
+	}
+	s.refusal.WriteString(delta)
+	return append(events, responsesStreamEvent("response.refusal.delta", dto.ResponsesStreamResponse{Type: "response.refusal.delta", OutputIndex: intPtr(s.refusalIndex), ContentIndex: intPtr(0), ItemID: s.ID + "_refusal_0", Delta: delta}))
+}
+
 func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallResponse) ([]ChatToResponsesStreamEvent, error) {
 	chatIndex := 0
 	if toolCall.Index != nil {
 		chatIndex = *toolCall.Index
 	}
 	tool := s.toolsByIndex[chatIndex]
+	name, input := toolCall.Function.Name, toolCall.Function.Arguments
+	if toolCall.Custom != nil {
+		name, input = toolCall.Custom.Name, toolCall.Custom.Input
+	}
 	events := make([]ChatToResponsesStreamEvent, 0, 2)
 	if tool == nil {
 		tool = &chatToResponsesStreamTool{
+			Custom:      toolCall.Custom != nil,
 			ChatIndex:   chatIndex,
 			OutputIndex: s.nextIndex("tool", chatIndex),
 			ID:          strings.TrimSpace(toolCall.ID),
-			Name:        strings.TrimSpace(toolCall.Function.Name),
+			Name:        strings.TrimSpace(name),
 		}
 		if tool.ID == "" {
 			tool.ID = fmt.Sprintf("%s_call_%d", s.ID, chatIndex)
@@ -213,29 +248,26 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 			Type:        responsesEventOutputItemAdded,
 			OutputIndex: intPtr(tool.OutputIndex),
 			ItemID:      tool.ID,
-			Item: &dto.ResponsesOutput{
-				Type:      responsesOutputTypeFunctionCall,
-				ID:        tool.ID,
-				Status:    "in_progress",
-				CallId:    tool.ID,
-				Name:      tool.Name,
-				Arguments: []byte(`""`),
-			},
+			Item:        s.toolOutput(tool, "in_progress"),
 		}))
 	}
 	if strings.TrimSpace(toolCall.ID) != "" {
 		tool.ID = strings.TrimSpace(toolCall.ID)
 	}
-	if strings.TrimSpace(toolCall.Function.Name) != "" {
-		tool.Name = strings.TrimSpace(toolCall.Function.Name)
+	if strings.TrimSpace(name) != "" {
+		tool.Name = strings.TrimSpace(name)
 	}
-	if toolCall.Function.Arguments != "" {
-		tool.Arguments.WriteString(toolCall.Function.Arguments)
-		events = append(events, responsesStreamEvent(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
-			Type:        responsesEventFunctionArgsDelta,
+	if input != "" {
+		tool.Arguments.WriteString(input)
+		eventType := responsesEventFunctionArgsDelta
+		if tool.Custom {
+			eventType = "response.custom_tool_call_input.delta"
+		}
+		events = append(events, responsesStreamEvent(eventType, dto.ResponsesStreamResponse{
+			Type:        eventType,
 			OutputIndex: intPtr(tool.OutputIndex),
 			ItemID:      tool.ID,
-			Delta:       toolCall.Function.Arguments,
+			Delta:       input,
 		}))
 	}
 	return events, nil
@@ -244,6 +276,11 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEvent {
 	events := make([]ChatToResponsesStreamEvent, 0)
 	status := s.outputStatus()
+	if s.refusalStarted && !s.refusalDone {
+		s.refusalDone = true
+		events = append(events, responsesStreamEvent("response.refusal.done", dto.ResponsesStreamResponse{Type: "response.refusal.done", OutputIndex: intPtr(s.refusalIndex), ContentIndex: intPtr(0), ItemID: s.ID + "_refusal_0", Refusal: s.refusal.String()}))
+		events = append(events, responsesStreamEvent(responsesEventOutputItemDone, dto.ResponsesStreamResponse{Type: responsesEventOutputItemDone, OutputIndex: intPtr(s.refusalIndex), Item: s.refusalOutput(status)}))
+	}
 	if s.textStarted && !s.textDone {
 		s.textDone = true
 		events = append(events, responsesStreamEvent("response.output_text.done", dto.ResponsesStreamResponse{
@@ -281,8 +318,12 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 			continue
 		}
 		tool.Done = true
-		events = append(events, responsesStreamEvent(responsesEventFunctionArgsDone, dto.ResponsesStreamResponse{
-			Type:        responsesEventFunctionArgsDone,
+		eventType := responsesEventFunctionArgsDone
+		if tool.Custom {
+			eventType = "response.custom_tool_call_input.done"
+		}
+		events = append(events, responsesStreamEvent(eventType, dto.ResponsesStreamResponse{
+			Type:        eventType,
 			OutputIndex: intPtr(tool.OutputIndex),
 			ItemID:      tool.ID,
 		}))
@@ -311,6 +352,8 @@ func (s *ChatToResponsesStreamState) finalResponse() *dto.OpenAIResponsesRespons
 			output = append(output, *s.messageOutput(status))
 		case "reasoning":
 			output = append(output, *s.reasoningOutput(status))
+		case "refusal":
+			output = append(output, *s.refusalOutput(status))
 		case "tool":
 			if tool := s.toolsByIndex[ref.ToolIndex]; tool != nil {
 				output = append(output, *s.toolOutput(tool, status))
@@ -385,7 +428,7 @@ func (s *ChatToResponsesStreamState) messageOutput(status string) *dto.Responses
 			{
 				Type:        "output_text",
 				Text:        s.text.String(),
-				Annotations: []interface{}{},
+				Annotations: s.annotations,
 			},
 		},
 	}
@@ -396,7 +439,7 @@ func (s *ChatToResponsesStreamState) reasoningOutput(status string) *dto.Respons
 		Type:   responsesOutputTypeReasoning,
 		ID:     s.reasoningID(),
 		Status: status,
-		Content: []dto.ResponsesOutputContent{
+		Summary: []dto.ResponsesReasoningSummaryPart{
 			{
 				Type: "summary_text",
 				Text: s.reasoning.String(),
@@ -406,6 +449,10 @@ func (s *ChatToResponsesStreamState) reasoningOutput(status string) *dto.Respons
 }
 
 func (s *ChatToResponsesStreamState) toolOutput(tool *chatToResponsesStreamTool, status string) *dto.ResponsesOutput {
+	if tool.Custom {
+		input := tool.Arguments.String()
+		return &dto.ResponsesOutput{Type: "custom_tool_call", ID: tool.ID, CallId: tool.ID, Status: status, Name: tool.Name, Input: &input}
+	}
 	return &dto.ResponsesOutput{
 		Type:      responsesOutputTypeFunctionCall,
 		ID:        tool.ID,
@@ -414,4 +461,8 @@ func (s *ChatToResponsesStreamState) toolOutput(tool *chatToResponsesStreamTool,
 		Name:      tool.Name,
 		Arguments: chatArgumentsRawMessage(tool.Arguments.String()),
 	}
+}
+
+func (s *ChatToResponsesStreamState) refusalOutput(status string) *dto.ResponsesOutput {
+	return &dto.ResponsesOutput{Type: responsesOutputTypeMessage, ID: s.ID + "_refusal_0", Role: "assistant", Status: status, Content: []dto.ResponsesOutputContent{{Type: "refusal", Refusal: s.refusal.String()}}}
 }

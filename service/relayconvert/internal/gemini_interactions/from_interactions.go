@@ -22,6 +22,12 @@ func InteractionToGeminiChatResponse(interaction *dto.GeminiInteraction, fallbac
 		Content: dto.GeminiChatContent{Role: "model"},
 		Index:   0,
 	}
+	completedCalls := make(map[string]bool)
+	for _, step := range interaction.Steps {
+		if step.Type == dto.GeminiInteractionStepFunctionResult && step.CallID != "" {
+			completedCalls[step.CallID] = true
+		}
+	}
 	for i := range interaction.Steps {
 		step := &interaction.Steps[i]
 		switch step.Type {
@@ -38,6 +44,9 @@ func InteractionToGeminiChatResponse(interaction *dto.GeminiInteraction, fallbac
 				}
 			}
 		case dto.GeminiInteractionStepFunctionCall:
+			if completedCalls[step.ID] {
+				continue
+			}
 			candidate.Content.Parts = append(candidate.Content.Parts, dto.GeminiPart{
 				FunctionCall: &dto.FunctionCall{
 					FunctionName: step.Name,

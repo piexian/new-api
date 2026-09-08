@@ -35,6 +35,7 @@ const (
 )
 
 type ClaudeConvertInfo struct {
+	PendingContent   []dto.ClaudeMediaMessage
 	LastMessagesType string
 	Index            int
 	Usage            *dto.Usage
@@ -195,6 +196,7 @@ type RelayInfo struct {
 	ThinkingContentInfo
 	TokenCountMeta
 	*ClaudeConvertInfo
+	GeminiToolCalls map[int]map[int]*dto.ToolCallResponse
 	*RerankerInfo
 	*ResponsesUsageInfo
 	*ChannelMeta

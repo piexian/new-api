@@ -67,7 +67,7 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 				{
 					Type:        "output_text",
 					Text:        text,
-					Annotations: []interface{}{},
+					Annotations: responsesAnnotationsFromChat(choice.Message.Annotations),
 				},
 			},
 		})
@@ -77,13 +77,16 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 			Type:   responsesOutputTypeReasoning,
 			ID:     fmt.Sprintf("%s_reasoning_0", id),
 			Status: responseOutputStatus(out),
-			Content: []dto.ResponsesOutputContent{
+			Summary: []dto.ResponsesReasoningSummaryPart{
 				{
 					Type: "summary_text",
 					Text: reasoning,
 				},
 			},
 		})
+	}
+	if choice.Message.Refusal != nil {
+		out.Output = append(out.Output, dto.ResponsesOutput{Type: responsesOutputTypeMessage, ID: id + "_refusal_0", Role: "assistant", Status: responseOutputStatus(out), Content: []dto.ResponsesOutputContent{{Type: "refusal", Refusal: *choice.Message.Refusal}}})
 	}
 
 	for i, toolCall := range choice.Message.ParseToolCalls() {
@@ -184,13 +187,14 @@ func chatToolCallToResponsesOutput(toolCall dto.ToolCallRequest, responseID stri
 			Arguments: chatArgumentsRawMessage(toolCall.Function.Arguments),
 		}, nil
 	}
-	return dto.ResponsesOutput{
-		Type:      toolCall.Type,
-		ID:        callID,
-		Status:    status,
-		CallId:    callID,
-		Arguments: toolCall.Custom,
-	}, nil
+	if toolCall.Type == "custom" {
+		var custom dto.CustomToolCall
+		if err := common.Unmarshal(toolCall.Custom, &custom); err != nil {
+			return dto.ResponsesOutput{}, err
+		}
+		return dto.ResponsesOutput{Type: "custom_tool_call", ID: callID, CallId: callID, Status: status, Name: custom.Name, Input: &custom.Input}, nil
+	}
+	return dto.ResponsesOutput{}, fmt.Errorf("Responses conversion does not support Chat tool type %q", toolCall.Type)
 }
 
 func chatArgumentsRawMessage(arguments string) []byte {

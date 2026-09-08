@@ -59,7 +59,8 @@ func TestStreamResponseConverterFacades(t *testing.T) {
 	claudeResponses := StreamResponseOpenAI2Claude(streamResp, info)
 	require.NotEmpty(t, claudeResponses)
 
-	geminiResp := StreamResponseOpenAI2Gemini(streamResp, &relaycommon.RelayInfo{})
+	geminiResp, err := StreamResponseOpenAI2Gemini(streamResp, &relaycommon.RelayInfo{})
+	require.NoError(t, err)
 	require.NotNil(t, geminiResp)
 	require.Len(t, geminiResp.Candidates, 1)
 }

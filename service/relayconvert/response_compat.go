@@ -64,7 +64,7 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info *relayco
 	return oaichat.ResponseOpenAI2Gemini(openAIResponse, info)
 }
 
-func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo) *dto.GeminiChatResponse {
+func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo) (*dto.GeminiChatResponse, error) {
 	return oaichat.StreamResponseOpenAI2Gemini(openAIResponse, info)
 }
 

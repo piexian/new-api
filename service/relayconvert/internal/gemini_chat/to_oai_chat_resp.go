@@ -83,8 +83,8 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 		Created: created,
 		Choices: make([]dto.OpenAITextResponseChoice, 0, len(response.Candidates)),
 	}
-	isToolCall := false
 	for _, candidate := range response.Candidates {
+		isToolCall := false
 		choice := dto.OpenAITextResponseChoice{
 			Index: int(candidate.Index),
 			Message: dto.Message{
@@ -101,9 +101,7 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 					inlineGrow += len(part.InlineData.MimeType) + len(part.InlineData.Data) + 32
 				}
 			}
-			if inlineGrow > 0 {
-				content.Grow(inlineGrow)
-			}
+			content.Grow(inlineGrow)
 			appended := 0
 			writeSep := func() {
 				if appended > 0 {
@@ -113,29 +111,16 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 			}
 			var toolCalls []dto.ToolCallResponse
 			for _, part := range candidate.Content.Parts {
-				if part.InlineData != nil {
-					if strings.HasPrefix(part.InlineData.MimeType, "image") {
-						writeSep()
-						content.WriteString("![image](data:")
-						content.WriteString(part.InlineData.MimeType)
-						content.WriteString(";base64,")
-						content.WriteString(part.InlineData.Data)
-						content.WriteByte(')')
-					} else {
-						writeSep()
-						content.WriteString("[media](data:")
-						content.WriteString(part.InlineData.MimeType)
-						content.WriteString(";base64,")
-						content.WriteString(part.InlineData.Data)
-						content.WriteByte(')')
-					}
+				if part.InlineData != nil || part.FileData != nil {
+					writeSep()
+					content.WriteString(geminiMediaLink(part))
 				} else if part.FunctionCall != nil {
 					choice.FinishReason = constant.FinishReasonToolCalls
 					if call := geminiResponseToolCall(&part); call != nil {
 						toolCalls = append(toolCalls, *call)
 					}
 				} else if part.Thought {
-					choice.Message.ReasoningContent = &part.Text
+					choice.Message.ReasoningContent = common.GetPointer(choice.Message.GetReasoningContent() + part.Text)
 				} else {
 					if part.ExecutableCode != nil {
 						writeSep()
@@ -212,7 +197,7 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 			appended++
 		}
 		isTools := false
-		isThought := false
+		var thinking strings.Builder
 		if candidate.FinishReason != nil {
 			switch *candidate.FinishReason {
 			case "STOP":
@@ -226,15 +211,9 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 			}
 		}
 		for _, part := range candidate.Content.Parts {
-			if part.InlineData != nil {
-				if strings.HasPrefix(part.InlineData.MimeType, "image") {
-					writeSep()
-					content.WriteString("![image](data:")
-					content.WriteString(part.InlineData.MimeType)
-					content.WriteString(";base64,")
-					content.WriteString(part.InlineData.Data)
-					content.WriteByte(')')
-				}
+			if part.InlineData != nil || part.FileData != nil {
+				writeSep()
+				content.WriteString(geminiMediaLink(part))
 			} else if part.FunctionCall != nil {
 				isTools = true
 				if call := geminiResponseToolCall(&part); call != nil {
@@ -242,9 +221,7 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 					choice.Delta.ToolCalls = append(choice.Delta.ToolCalls, *call)
 				}
 			} else if part.Thought {
-				isThought = true
-				writeSep()
-				content.WriteString(part.Text)
+				thinking.WriteString(part.Text)
 			} else {
 				if part.ExecutableCode != nil {
 					writeSep()
@@ -264,11 +241,10 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 				}
 			}
 		}
-		if isThought {
-			choice.Delta.SetReasoningContent(content.String())
-		} else {
-			choice.Delta.SetContentString(content.String())
+		if thinking.Len() > 0 {
+			choice.Delta.SetReasoningContent(thinking.String())
 		}
+		choice.Delta.SetContentString(content.String())
 		if isTools {
 			choice.FinishReason = &constant.FinishReasonToolCalls
 		}
@@ -303,4 +279,19 @@ func geminiResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 			Name:      item.FunctionCall.FunctionName,
 		},
 	}
+}
+
+func geminiMediaLink(part dto.GeminiPart) string {
+	var source, mimeType string
+	if part.InlineData != nil {
+		mimeType = part.InlineData.MimeType
+		source = "data:" + mimeType + ";base64," + part.InlineData.Data
+	}
+	if part.FileData != nil {
+		mimeType, source = part.FileData.MimeType, part.FileData.FileUri
+	}
+	if strings.HasPrefix(mimeType, "image/") {
+		return "![image](" + source + ")"
+	}
+	return "[media](" + source + ")"
 }

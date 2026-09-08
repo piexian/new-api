@@ -21,6 +21,9 @@ type ResponsesToChatStreamState struct {
 	sentStart                  bool
 	finalized                  bool
 	hasSentText                bool
+	hasSentRefusal             bool
+	hasSentAnnotations         bool
+	imageOutputs               map[string]bool
 	sawToolCall                bool
 	hasSentReasoning           bool
 	needsReasoningSummaryBreak bool
@@ -35,6 +38,7 @@ type ResponsesToChatStreamState struct {
 }
 
 type responsesStreamTool struct {
+	Type       string
 	Key        string
 	CallID     string
 	ItemID     string
@@ -86,7 +90,12 @@ func ResponsesStreamEventToChatChunks(event *dto.ResponsesStreamResponse, state 
 		return nil, nil
 	case responsesEventOutputTextDelta:
 		return state.textDelta(event.Delta), nil
+	case "response.refusal.delta":
+		return state.refusalDelta(event.Delta), nil
 	case responsesEventOutputItemAdded, responsesEventOutputItemDone:
+		if event.Item != nil && event.Item.Type == "image_generation_call" {
+			return state.imageOutput(event.Item), nil
+		}
 		if event.Item == nil || !isResponsesToolOutputType(event.Item.Type) {
 			return nil, nil
 		}
@@ -161,35 +170,72 @@ func (s *ResponsesToChatStreamState) textDelta(delta string) []dto.ChatCompletio
 }
 
 func (s *ResponsesToChatStreamState) terminalOutputChunks(response *dto.OpenAIResponsesResponse) []dto.ChatCompletionsStreamResponse {
-	if s == nil || response == nil || len(response.Output) == 0 {
+	if s == nil || response == nil {
 		return nil
 	}
-
 	var chunks []dto.ChatCompletionsStreamResponse
+	if !s.hasSentReasoning {
+		chunks = append(chunks, s.reasoningDelta(ExtractReasoningTextFromResponses(response))...)
+	}
+	if !s.hasSentText {
+		chunks = append(chunks, s.textDelta(extractResponseText(response, false))...)
+	}
+	if !s.hasSentRefusal {
+		var text strings.Builder
+		for _, out := range response.Output {
+			for _, part := range out.Content {
+				if part.Type == "refusal" {
+					text.WriteString(part.Refusal)
+				}
+			}
+		}
+		chunks = append(chunks, s.refusalDelta(text.String())...)
+	}
 	for i := range response.Output {
 		out := &response.Output[i]
-		switch {
-		case out.Type == responsesOutputTypeMessage && !s.hasSentText:
-			var text strings.Builder
-			for _, c := range out.Content {
-				if c.Type == "output_text" && c.Text != "" {
-					text.WriteString(c.Text)
-				}
-			}
-			chunks = append(chunks, s.textDelta(text.String())...)
-		case out.Type == responsesOutputTypeReasoning && !s.hasSentReasoning:
-			var reasoning strings.Builder
-			for _, c := range out.Content {
-				if c.Text != "" {
-					reasoning.WriteString(c.Text)
-				}
-			}
-			chunks = append(chunks, s.reasoningDelta(reasoning.String())...)
-		case isResponsesToolOutputType(out.Type):
+		if isResponsesToolOutputType(out.Type) {
 			chunks = append(chunks, s.toolItem(&dto.ResponsesStreamResponse{Item: out})...)
+		}
+		if out.Type == "image_generation_call" {
+			chunks = append(chunks, s.imageOutput(out)...)
+		}
+	}
+	if !s.hasSentAnnotations {
+		if annotations := chatAnnotationsFromResponses(response); len(annotations) > 0 {
+			chunks = append(chunks, s.ensureStart()...)
+			chunks = append(chunks, s.makeChunk(dto.ChatCompletionsStreamResponseChoiceDelta{Annotations: annotations}, nil))
+			s.hasSentAnnotations = true
 		}
 	}
 	return chunks
+}
+
+func (s *ResponsesToChatStreamState) imageOutput(out *dto.ResponsesOutput) []dto.ChatCompletionsStreamResponse {
+	if out.Result == "" {
+		return nil
+	}
+	key := out.ID
+	if key == "" {
+		key = common.GenerateHMAC(out.Result)
+	}
+	if s.imageOutputs[key] {
+		return nil
+	}
+	if s.imageOutputs == nil {
+		s.imageOutputs = make(map[string]bool)
+	}
+	s.imageOutputs[key] = true
+	text := responseImageMarkdown(out)
+	return append(s.ensureStart(), s.makeChunk(dto.ChatCompletionsStreamResponseChoiceDelta{Content: &text}, nil))
+}
+
+func (s *ResponsesToChatStreamState) refusalDelta(value string) []dto.ChatCompletionsStreamResponse {
+	if value == "" {
+		return nil
+	}
+	s.hasSentRefusal = true
+	s.usageText.WriteString(value)
+	return append(s.ensureStart(), s.makeChunk(dto.ChatCompletionsStreamResponseChoiceDelta{Refusal: &value}, nil))
 }
 
 func (s *ResponsesToChatStreamState) reasoningDelta(delta string) []dto.ChatCompletionsStreamResponse {
@@ -299,6 +345,7 @@ func (s *ResponsesToChatStreamState) ensureToolForEvent(event *dto.ResponsesStre
 	if name := strings.TrimSpace(event.Item.Name); name != "" {
 		tool.Name = name
 	}
+	tool.Type = event.Item.Type
 	return tool
 }
 
@@ -405,6 +452,10 @@ func (s *ResponsesToChatStreamState) toolDelta(tool *responsesStreamTool, explic
 	}
 	if responseTool.Function.Name != "" {
 		s.usageText.WriteString(responseTool.Function.Name)
+	}
+	if tool.Type == responsesOutputTypeCustomToolCall {
+		responseTool.Type = "custom"
+		responseTool.Custom = &dto.CustomToolCall{Name: responseTool.Function.Name, Input: argsDelta}
 	}
 
 	chunks = append(chunks, s.makeChunk(dto.ChatCompletionsStreamResponseChoiceDelta{
@@ -518,6 +569,19 @@ func (s *ResponsesToChatStreamState) makeChunk(delta dto.ChatCompletionsStreamRe
 func (s *ResponsesToChatStreamState) keyForEvent(event *dto.ResponsesStreamResponse) string {
 	if event == nil {
 		return ""
+	}
+	if event.OutputIndex != nil {
+		if key := s.outputIndexToKey[*event.OutputIndex]; key != "" {
+			return key
+		}
+	}
+	if key := s.itemIDToKey[responseStreamEventItemID(event)]; key != "" {
+		return key
+	}
+	if event.Item != nil {
+		if key := s.callIDToKey[strings.TrimSpace(event.Item.CallId)]; key != "" {
+			return key
+		}
 	}
 	if event.OutputIndex != nil {
 		return fmt.Sprintf("output:%d", *event.OutputIndex)
