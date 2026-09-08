@@ -17,10 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useCallback, useRef, useState } from 'react';
+import React, {
+  useContext,
+  useEffect,
+  useCallback,
+  useRef,
+  useState,
+} from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Layout, Toast, Modal } from '@douyinfe/semi-ui';
+import { Layout, Toast, Modal, Button, SideSheet } from '@douyinfe/semi-ui';
+import { Settings, Code } from 'lucide-react';
+import './playground.css';
 
 // Context
 import { UserContext } from '../../context/User';
@@ -61,7 +69,6 @@ import {
   OptimizedMessageActions,
 } from '../../components/playground/OptimizedComponents';
 import ChatArea from '../../components/playground/ChatArea';
-import FloatingButtons from '../../components/playground/FloatingButtons';
 import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 import PlaygroundImage from '../../components/playground/PlaygroundImage';
 import PlaygroundVideo from '../../components/playground/PlaygroundVideo';
@@ -273,7 +280,11 @@ const Playground = () => {
 
         setMessage((prevMessage) => {
           const newMessages = [...prevMessage, userMessage, loadingMessage];
-          sendRequest(customPayload, customPayload.stream !== false, chatEndpoint);
+          sendRequest(
+            customPayload,
+            customPayload.stream !== false,
+            chatEndpoint,
+          );
           setTimeout(() => saveMessagesImmediately(newMessages), 0);
           return newMessages;
         });
@@ -472,77 +483,99 @@ const Playground = () => {
     imageEnabled: inputs.imageEnabled || false,
   };
 
+  const settingsPanel = (
+    <OptimizedSettingsPanel
+      inputs={inputs}
+      parameterEnabled={parameterEnabled}
+      models={models}
+      groups={groups}
+      styleState={styleState}
+      showSettings={showSettings}
+      showDebugPanel={showDebugPanel}
+      customRequestMode={customRequestMode}
+      customRequestBody={customRequestBody}
+      onInputChange={handleInputChange}
+      onParameterToggle={handleParameterToggle}
+      onCloseSettings={() => setShowSettings(false)}
+      onConfigImport={handleConfigImport}
+      onConfigReset={handleConfigReset}
+      onCustomRequestModeChange={setCustomRequestMode}
+      onCustomRequestBodyChange={setCustomRequestBody}
+      previewPayload={previewPayload}
+      messages={message}
+    />
+  );
+
   return (
     <PlaygroundProvider value={playgroundContextValue}>
-        {/* 模式切换 Tab */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderBottom: '1px solid var(--semi-color-border)', padding: '8px 0', marginTop: 60 }}>
-          {PLAYGROUND_MODES.map((m) => (
-            <button
-              key={m.mode}
-              style={{
-                padding: '6px 16px',
-                fontSize: 14,
-                borderRadius: 6,
-                border: 'none',
-                cursor: 'pointer',
-                background: mode === m.mode ? 'var(--semi-color-primary)' : 'transparent',
-                color: mode === m.mode ? 'var(--semi-color-white)' : 'var(--semi-color-text-2)',
-                transition: 'background 0.2s, color 0.2s',
-              }}
-              onClick={() => setMode(m.mode)}
-            >
-              {t(m.labelKey)}
-            </button>
-          ))}
-        </div>
-      <div className='h-full'>
-        <Layout className='h-full bg-transparent flex flex-col md:flex-row'>
-          {mode === 'chat' && (showSettings || !isMobile) && (
-            <Layout.Sider
-              className={`
-              bg-transparent border-r-0 flex-shrink-0 overflow-auto mt-[60px]
-              ${
-                isMobile
-                  ? 'fixed top-0 left-0 right-0 bottom-0 z-[1000] w-full h-auto bg-white shadow-lg'
-                  : 'relative z-[1] w-80 h-[calc(100vh-66px)]'
-              }
-            `}
-              width={isMobile ? '100%' : 320}
-            >
-              <OptimizedSettingsPanel
-                inputs={inputs}
-                parameterEnabled={parameterEnabled}
-                models={models}
-                groups={groups}
-                styleState={styleState}
-                showSettings={showSettings}
-                showDebugPanel={showDebugPanel}
-                customRequestMode={customRequestMode}
-                customRequestBody={customRequestBody}
-                onInputChange={handleInputChange}
-                onParameterToggle={handleParameterToggle}
-                onCloseSettings={() => setShowSettings(false)}
-                onConfigImport={handleConfigImport}
-                onConfigReset={handleConfigReset}
-                onCustomRequestModeChange={setCustomRequestMode}
-                onCustomRequestBodyChange={setCustomRequestBody}
-                previewPayload={previewPayload}
-                messages={message}
+      <div className='classic-playground'>
+        <div className='classic-playground-toolbar'>
+          <div className='classic-playground-modes'>
+            {PLAYGROUND_MODES.map((item) => (
+              <Button
+                key={item.mode}
+                theme={mode === item.mode ? 'solid' : 'borderless'}
+                type={mode === item.mode ? 'primary' : 'tertiary'}
+                aria-pressed={mode === item.mode}
+                onClick={() => setMode(item.mode)}
+              >
+                {t(item.labelKey)}
+              </Button>
+            ))}
+          </div>
+          {mode === 'chat' && isMobile && (
+            <div className='classic-playground-actions'>
+              <Button
+                theme='light'
+                icon={<Settings size={16} />}
+                aria-label={t('模型配置')}
+                onClick={() => setShowSettings(true)}
               />
+              <Button
+                theme='light'
+                icon={<Code size={16} />}
+                aria-label={t('调试信息')}
+                onClick={() => setShowDebugPanel(true)}
+              />
+            </div>
+          )}
+        </div>
+
+        <Layout className='classic-playground-workspace'>
+          {mode === 'chat' && !isMobile && (
+            <Layout.Sider className='classic-playground-settings' width={304}>
+              {settingsPanel}
             </Layout.Sider>
           )}
-
-          <Layout.Content className='relative flex-1 overflow-hidden'>
-            {mode !== 'chat' ? (
-              <div className='flex-1 overflow-y-auto p-4'>
+          <Layout.Content className='classic-playground-main'>
+            {mode === 'chat' ? (
+              <ChatArea
+                chatRef={chatRef}
+                message={message}
+                inputs={inputs}
+                styleState={styleState}
+                showDebugPanel={showDebugPanel}
+                roleInfo={roleInfo}
+                onMessageSend={onMessageSend}
+                onMessageCopy={messageActions.handleMessageCopy}
+                onMessageReset={messageActions.handleMessageReset}
+                onMessageDelete={messageActions.handleMessageDelete}
+                onStopGenerator={onStopGenerator}
+                onClearMessages={handleClearMessages}
+                onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
+                renderCustomChatContent={renderCustomChatContent}
+                renderChatBoxAction={renderChatBoxAction}
+              />
+            ) : (
+              <div className='classic-playground-media'>
                 {mode === 'image' && (
                   <PlaygroundImage
                     models={models}
                     groups={groups}
                     selectedModel={inputs.model}
                     selectedGroup={inputs.group}
-                    onModelChange={(v) => handleInputChange('model', v)}
-                    onGroupChange={(v) => handleInputChange('group', v)}
+                    onModelChange={(value) => handleInputChange('model', value)}
+                    onGroupChange={(value) => handleInputChange('group', value)}
                   />
                 )}
                 {mode === 'video' && (
@@ -551,8 +584,8 @@ const Playground = () => {
                     groups={groups}
                     selectedModel={inputs.model}
                     selectedGroup={inputs.group}
-                    onModelChange={(v) => handleInputChange('model', v)}
-                    onGroupChange={(v) => handleInputChange('group', v)}
+                    onModelChange={(value) => handleInputChange('model', value)}
+                    onGroupChange={(value) => handleInputChange('group', value)}
                   />
                 )}
                 {mode === 'audio' && (
@@ -561,74 +594,46 @@ const Playground = () => {
                     groups={groups}
                     selectedModel={inputs.model}
                     selectedGroup={inputs.group}
-                    onModelChange={(v) => handleInputChange('model', v)}
-                    onGroupChange={(v) => handleInputChange('group', v)}
+                    onModelChange={(value) => handleInputChange('model', value)}
+                    onGroupChange={(value) => handleInputChange('group', value)}
                   />
                 )}
               </div>
-            ) : (
-            <div className='overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-66px)] mt-[60px]'>
-              <div className='flex-1 flex flex-col'>
-                <ChatArea
-                  chatRef={chatRef}
-                  message={message}
-                  inputs={inputs}
-                  styleState={styleState}
-                  showDebugPanel={showDebugPanel}
-                  roleInfo={roleInfo}
-                  onMessageSend={onMessageSend}
-                  onMessageCopy={messageActions.handleMessageCopy}
-                  onMessageReset={messageActions.handleMessageReset}
-                  onMessageDelete={messageActions.handleMessageDelete}
-                  onStopGenerator={onStopGenerator}
-                  onClearMessages={handleClearMessages}
-                  onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-                  renderCustomChatContent={renderCustomChatContent}
-                  renderChatBoxAction={renderChatBoxAction}
-                />
-              </div>
-
-              {/* 调试面板 - 桌面端 */}
-              {showDebugPanel && !isMobile && (
-                <div className='w-96 flex-shrink-0 h-full'>
-                  <OptimizedDebugPanel
-                    debugData={debugData}
-                    activeDebugTab={activeDebugTab}
-                    onActiveDebugTabChange={setActiveDebugTab}
-                    styleState={styleState}
-                    customRequestMode={customRequestMode}
-                  />
-                </div>
-              )}
-            </div>
             )}
-
-            {/* 调试面板 - 移动端覆盖层 */}
-            {showDebugPanel && isMobile && (
-              <div className='fixed top-0 left-0 right-0 bottom-0 z-[1000] bg-white overflow-auto shadow-lg'>
-                <OptimizedDebugPanel
-                  debugData={debugData}
-                  activeDebugTab={activeDebugTab}
-                  onActiveDebugTabChange={setActiveDebugTab}
-                  styleState={styleState}
-                  showDebugPanel={showDebugPanel}
-                  onCloseDebugPanel={() => setShowDebugPanel(false)}
-                  customRequestMode={customRequestMode}
-                />
-              </div>
-            )}
-
-            {/* 浮动按钮 */}
-            <FloatingButtons
-              styleState={styleState}
-              showSettings={showSettings}
-              showDebugPanel={showDebugPanel}
-              onToggleSettings={() => setShowSettings(!showSettings)}
-              onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-            />
           </Layout.Content>
         </Layout>
       </div>
+
+      <SideSheet
+        visible={mode === 'chat' && isMobile && showSettings}
+        closeOnEsc
+        aria-label={t('模型配置')}
+        onCancel={() => setShowSettings(false)}
+        width='100%'
+        headerStyle={{ display: 'none' }}
+        bodyStyle={{ padding: 0 }}
+      >
+        {settingsPanel}
+      </SideSheet>
+      <SideSheet
+        visible={mode === 'chat' && showDebugPanel}
+        closeOnEsc
+        aria-label={t('调试信息')}
+        onCancel={() => setShowDebugPanel(false)}
+        width={isMobile ? '100%' : 480}
+        headerStyle={{ display: 'none' }}
+        bodyStyle={{ padding: 0 }}
+      >
+        <OptimizedDebugPanel
+          debugData={debugData}
+          activeDebugTab={activeDebugTab}
+          onActiveDebugTabChange={setActiveDebugTab}
+          styleState={{ isMobile: true }}
+          showDebugPanel={showDebugPanel}
+          onCloseDebugPanel={() => setShowDebugPanel(false)}
+          customRequestMode={customRequestMode}
+        />
+      </SideSheet>
     </PlaygroundProvider>
   );
 };

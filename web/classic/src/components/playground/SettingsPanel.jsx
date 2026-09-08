@@ -20,7 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Card, Select, Typography, Button, Switch } from '@douyinfe/semi-ui';
 import { Sparkles, Users, ToggleLeft, X, Settings } from 'lucide-react';
-import { CHAT_INTERFACE_OPTIONS, REASONING_EFFORT_OPTIONS } from '../../constants/playground.constants';
+import {
+  CHAT_INTERFACE_OPTIONS,
+  REASONING_EFFORT_OPTIONS,
+} from '../../constants/playground.constants';
 import { useTranslation } from 'react-i18next';
 import { renderGroupOption, selectFilter } from '../../helpers';
 import ParameterControl from './ParameterControl';
@@ -59,17 +62,17 @@ const SettingsPanel = ({
 
   return (
     <Card
-      className='h-full flex flex-col'
+      className='classic-playground-settings-panel h-full flex flex-col'
       bordered={false}
       bodyStyle={{
-        padding: styleState.isMobile ? '16px' : '24px',
+        padding: '20px',
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
       }}
     >
       {/* 标题区域 - 与调试面板保持一致 */}
-      <div className='flex items-center justify-between mb-6 flex-shrink-0'>
+      <div className='flex items-center justify-between mb-5 flex-shrink-0'>
         <div className='flex items-center'>
           <div className='w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center mr-3'>
             <Settings size={20} className='text-white' />
@@ -82,6 +85,7 @@ const SettingsPanel = ({
         {styleState.isMobile && onCloseSettings && (
           <Button
             icon={<X size={16} />}
+            aria-label={t('关闭')}
             onClick={onCloseSettings}
             theme='borderless'
             type='tertiary'
@@ -104,16 +108,7 @@ const SettingsPanel = ({
         </div>
       )}
 
-      <div className='space-y-6 overflow-y-auto flex-1 pr-2 model-settings-scroll'>
-        {/* 自定义请求体编辑器 */}
-        <CustomRequestEditor
-          customRequestMode={customRequestMode}
-          customRequestBody={customRequestBody}
-          onCustomRequestModeChange={onCustomRequestModeChange}
-          onCustomRequestBodyChange={onCustomRequestBodyChange}
-          defaultPayload={previewPayload}
-        />
-
+      <div className='classic-playground-settings-body overflow-y-auto flex-1 min-h-0 model-settings-scroll'>
         {/* Chat 接口选择 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center gap-2 mb-2'>
@@ -125,41 +120,13 @@ const SettingsPanel = ({
             value={inputs.chatInterface}
             onChange={(v) => onInputChange('chatInterface', v)}
             style={{ width: '100%' }}
-            optionList={CHAT_INTERFACE_OPTIONS.map((opt) => ({ value: opt.value, label: opt.labelKey }))}
+            optionList={CHAT_INTERFACE_OPTIONS.map((opt) => ({
+              value: opt.value,
+              label: t(opt.labelKey),
+            }))}
+            disabled={customRequestMode}
           />
         </div>
-
-        {/* 思考等级 */}
-        <div className={customRequestMode ? 'opacity-50' : ''}>
-          <div className='flex items-center gap-2 mb-2'>
-            <Typography.Text strong className='text-sm'>
-              {t('思考等级')}
-            </Typography.Text>
-          </div>
-          <Select
-            value={inputs.reasoningEffort}
-            onChange={(v) => onInputChange('reasoningEffort', v)}
-            style={{ width: '100%' }}
-            optionList={REASONING_EFFORT_OPTIONS.map((opt) => ({ value: opt.value, label: opt.labelKey }))}
-          />
-        </div>
-
-        {/* 内置工具 */}
-        <div className={customRequestMode ? 'opacity-50' : ''}>
-          <div className='flex items-center justify-between'>
-            <Typography.Text strong className='text-sm'>
-              {t('内置工具')}
-            </Typography.Text>
-            <Switch
-              checked={inputs.toolsEnabled}
-              onChange={(v) => onInputChange('toolsEnabled', v)}
-            />
-          </div>
-          <Typography.Text type='tertiary' size='small'>
-            {t('启用后模型可使用 Web 搜索和代码执行工具')}
-          </Typography.Text>
-        </div>
-
 
         {/* 分组选择 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
@@ -224,6 +191,42 @@ const SettingsPanel = ({
           />
         </div>
 
+        {/* 思考等级 */}
+        <div className={customRequestMode ? 'opacity-50' : ''}>
+          <div className='flex items-center gap-2 mb-2'>
+            <Typography.Text strong className='text-sm'>
+              {t('思考等级')}
+            </Typography.Text>
+          </div>
+          <Select
+            value={inputs.reasoningEffort}
+            onChange={(v) => onInputChange('reasoningEffort', v)}
+            style={{ width: '100%' }}
+            optionList={REASONING_EFFORT_OPTIONS.map((opt) => ({
+              value: opt.value,
+              label: t(opt.labelKey),
+            }))}
+            disabled={customRequestMode}
+          />
+        </div>
+
+        {/* 内置工具 */}
+        <div className={customRequestMode ? 'opacity-50' : ''}>
+          <div className='flex items-center justify-between'>
+            <Typography.Text strong className='text-sm'>
+              {t('内置工具')}
+            </Typography.Text>
+            <Switch
+              checked={inputs.toolsEnabled}
+              disabled={customRequestMode}
+              onChange={(v) => onInputChange('toolsEnabled', v)}
+            />
+          </div>
+          <Typography.Text type='tertiary' size='small'>
+            {t('启用后模型可使用 Web 搜索和代码执行工具')}
+          </Typography.Text>
+        </div>
+
         {/* 图片URL输入 */}
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <ImageUrlInput
@@ -233,17 +236,6 @@ const SettingsPanel = ({
             onImageEnabledChange={(enabled) =>
               onInputChange('imageEnabled', enabled)
             }
-            disabled={customRequestMode}
-          />
-        </div>
-
-        {/* 参数控制组件 */}
-        <div className={customRequestMode ? 'opacity-50' : ''}>
-          <ParameterControl
-            inputs={inputs}
-            parameterEnabled={parameterEnabled}
-            onInputChange={onInputChange}
-            onParameterToggle={onParameterToggle}
             disabled={customRequestMode}
           />
         </div>
@@ -272,6 +264,23 @@ const SettingsPanel = ({
             />
           </div>
         </div>
+        <details open={customRequestMode || undefined}>
+          <summary>{t('高级设置')}</summary>
+          <ParameterControl
+            inputs={inputs}
+            parameterEnabled={parameterEnabled}
+            onInputChange={onInputChange}
+            onParameterToggle={onParameterToggle}
+            disabled={customRequestMode}
+          />
+          <CustomRequestEditor
+            customRequestMode={customRequestMode}
+            customRequestBody={customRequestBody}
+            onCustomRequestModeChange={onCustomRequestModeChange}
+            onCustomRequestBodyChange={onCustomRequestBodyChange}
+            defaultPayload={previewPayload}
+          />
+        </details>
       </div>
 
       {/* 桌面端的配置管理放在底部 */}

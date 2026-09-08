@@ -120,6 +120,7 @@ const DebugPanel = ({
         {styleState.isMobile && onCloseDebugPanel && (
           <Button
             icon={<X size={16} />}
+            aria-label={t('关闭')}
             onClick={onCloseDebugPanel}
             theme='borderless'
             type='tertiary'

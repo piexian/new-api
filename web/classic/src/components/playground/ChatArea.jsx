@@ -48,11 +48,11 @@ const ChatArea = ({
 
   return (
     <Card
-      className='h-full'
+      className='classic-playground-chat h-full'
       bordered={false}
       bodyStyle={{
         padding: 0,
-        height: 'calc(100vh - 66px)',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -60,19 +60,29 @@ const ChatArea = ({
     >
       {/* 聊天头部 */}
       {styleState.isMobile ? (
-        <div className='pt-4'></div>
+        <div className='px-4 pt-3 pb-1'>
+          <Typography.Text
+            type='tertiary'
+            className='classic-playground-model-name text-xs'
+          >
+            {inputs.model || t('选择模型开始对话')}
+          </Typography.Text>
+        </div>
       ) : (
-        <div className='px-6 py-4 bg-gradient-to-r from-purple-500 to-blue-500 rounded-t-2xl'>
+        <div className='classic-playground-chat-header'>
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-3'>
               <div className='w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center'>
                 <MessageSquare size={20} className='text-white' />
               </div>
               <div>
-                <Typography.Title heading={5} className='!text-white mb-0'>
+                <Typography.Title heading={5} className='mb-0'>
                   {t('AI 对话')}
                 </Typography.Title>
-                <Typography.Text className='!text-white/80 text-sm hidden sm:inline'>
+                <Typography.Text
+                  type='tertiary'
+                  className='classic-playground-model-name text-sm'
+                >
                   {inputs.model || t('选择模型开始对话')}
                 </Typography.Text>
               </div>
@@ -84,7 +94,7 @@ const ChatArea = ({
                 theme='borderless'
                 type='primary'
                 size='small'
-                className='!rounded-lg !text-white/80 hover:!text-white hover:!bg-white/10'
+                className='!rounded-lg'
               >
                 {showDebugPanel ? t('隐藏调试') : t('显示调试')}
               </Button>
@@ -94,7 +104,7 @@ const ChatArea = ({
       )}
 
       {/* 聊天内容区域 */}
-      <div className='flex-1 overflow-hidden'>
+      <div className='flex-1 min-h-0 overflow-hidden'>
         <Chat
           ref={chatRef}
           chatBoxRenderConfig={{

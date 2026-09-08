@@ -135,16 +135,16 @@ const CustomInputRender = (props) => {
   });
 
   return (
-    <div className='p-2 sm:p-4' ref={containerRef}>
+    <div className='classic-playground-composer' ref={containerRef}>
       <div
-        className='flex items-center gap-2 sm:gap-3 p-2 bg-gray-50 rounded-xl sm:rounded-2xl shadow-sm hover:shadow-md transition-shadow'
+        className='classic-playground-composer-box flex items-end gap-2 sm:gap-3'
         style={{ border: '1px solid var(--semi-color-border)' }}
         onClick={onClick}
         title={t('支持 Ctrl+V 粘贴图片')}
       >
         {/* 清空对话按钮 - 左边 */}
         {styledClearNode}
-        <div className='flex-1'>{inputNode}</div>
+        <div className='flex-1 min-w-0'>{inputNode}</div>
         {/* 发送按钮 - 右边 */}
         {styledSendNode}
       </div>
