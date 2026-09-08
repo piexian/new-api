@@ -1144,7 +1144,11 @@ func ReleaseExpiredPlanQuotaCooldowns(now int64, batchSize int) (int, int, int, 
 				continue
 			}
 			if err := DB.Transaction(func(tx *gorm.DB) error {
-				if err := tx.Omit("key").Save(channel).Error; err != nil {
+				// The scan loads only recovery metadata. Saving the whole struct would
+				// overwrite the channel's routing and provider configuration with zeros.
+				if err := tx.Model(channel).
+					Select("status", "other_info", "channel_info").
+					Updates(channel).Error; err != nil {
 					return err
 				}
 				if abilityChanged {
