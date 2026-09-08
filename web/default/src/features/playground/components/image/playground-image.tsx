@@ -29,6 +29,8 @@ import type {
 } from '../../types'
 
 interface PlaygroundImageProps {
+  imageInterface: ImageInterface
+  setImageInterface: (value: ImageInterface) => void
   models: ModelOption[]
   groups: GroupOption[]
   selectedModel: string
@@ -38,6 +40,8 @@ interface PlaygroundImageProps {
 }
 
 export function PlaygroundImage({
+  imageInterface,
+  setImageInterface,
   models,
   groups,
   selectedModel,
@@ -46,8 +50,6 @@ export function PlaygroundImage({
   onGroupChange,
 }: PlaygroundImageProps) {
   const { t } = useTranslation()
-  const [imageInterface, setImageInterface] =
-    useState<ImageInterface>('generations')
   const [prompt, setPrompt] = useState('')
   const [size, setSize] = useState<string>('1024x1024')
   const [quality, setQuality] = useState<string>('standard')
@@ -235,20 +237,17 @@ export function PlaygroundImage({
       {results && (
         <div className='grid grid-cols-2 gap-4 sm:grid-cols-3'>
           {results.data.map((img, i) => (
-            <div key={i} className='overflow-hidden rounded-lg border'>
-              {img.url ? (
+            <div
+              key={img.url ?? img.b64_json ?? img.revised_prompt}
+              className='overflow-hidden rounded-lg border'
+            >
+              {(img.url || img.b64_json) && (
                 <img
-                  src={img.url}
+                  src={img.url || `data:image/png;base64,${img.b64_json}`}
                   alt={img.revised_prompt || `Image ${i + 1}`}
                   className='size-full object-cover'
                 />
-              ) : img.b64_json ? (
-                <img
-                  src={`data:image/png;base64,${img.b64_json}`}
-                  alt={`Image ${i + 1}`}
-                  className='size-full object-cover'
-                />
-              ) : null}
+              )}
               {img.revised_prompt && (
                 <p className='text-muted-foreground truncate p-2 text-xs'>
                   {img.revised_prompt}

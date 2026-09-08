@@ -35,7 +35,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -45,16 +45,20 @@ import {
   getModelFallback,
   getOptionLoadErrorMessage,
   shouldClearModelForGroup,
-  filterChatCapableModels,
 } from '../lib'
+import { filterModelsForMode } from '../lib/options/model-capabilities'
 import type {
   GroupOption,
   ModelOption,
   PlaygroundConfig,
   ModelsDevEntry,
+  PlaygroundMode,
 } from '../types'
 
 type UsePlaygroundOptionsParams = {
+  nativeChatEndpoint?: string
+  mode: PlaygroundMode
+  mediaEndpoint: string
   currentGroup: string
   currentModel: string
   setGroups: (groups: GroupOption[]) => void
@@ -66,6 +70,9 @@ type UsePlaygroundOptionsParams = {
 }
 
 export function usePlaygroundOptions({
+  nativeChatEndpoint,
+  mode,
+  mediaEndpoint,
   currentGroup,
   currentModel,
   setGroups,
@@ -94,10 +101,17 @@ export function usePlaygroundOptions({
 
   const catalog = catalogData as Record<string, ModelsDevEntry> | undefined
 
-  // 过滤后的模型列表（排除 embed/rerank 等非对话模型）
-  const filteredModels = modelsData
-    ? filterChatCapableModels(modelsData, catalog)
-    : []
+  const filteredModels = useMemo(
+    () =>
+      filterModelsForMode(
+        modelsData ?? [],
+        mode,
+        mediaEndpoint,
+        catalog,
+        nativeChatEndpoint
+      ),
+    [modelsData, mode, mediaEndpoint, catalog, nativeChatEndpoint]
+  )
 
   const {
     data: groupsData,
@@ -131,9 +145,8 @@ export function usePlaygroundOptions({
   }, [isGroupsError, groupsError, t])
 
   useEffect(() => {
-    if (!filteredModels.length && !isLoadingModels) return
-
     setModels(filteredModels)
+    if (!modelsData) return
     const fallback = getModelFallback(filteredModels, currentModel)
 
     if (fallback) {
@@ -144,7 +157,7 @@ export function usePlaygroundOptions({
     if (shouldClearModelForGroup(filteredModels, currentModel)) {
       updateConfig('model', '')
     }
-  }, [filteredModels, currentModel, setModels, updateConfig, isLoadingModels])
+  }, [filteredModels, modelsData, currentModel, setModels, updateConfig])
 
   useEffect(() => {
     if (!groupsData) return

@@ -2,6 +2,7 @@ import {
   CHAT_CAPABLE_ENDPOINTS,
   type ModelOption,
   type ModelsDevEntry,
+  type PlaygroundMode,
 } from '../../types'
 
 /**
@@ -47,7 +48,6 @@ export function filterChatCapableModels(
   models: ModelOption[],
   catalog?: Record<string, ModelsDevEntry>
 ): ModelOption[] {
-  if (!catalog) return models // catalog 未加载时不过滤
   return models.filter((m) => isChatCapableModel(m, catalog))
 }
 
@@ -89,7 +89,6 @@ export function filterImageCapableModels(
   models: ModelOption[],
   catalog?: Record<string, ModelsDevEntry>
 ): ModelOption[] {
-  if (!catalog) return models
   return models.filter((m) => isImageCapableModel(m, catalog))
 }
 
@@ -120,7 +119,6 @@ export function filterVideoCapableModels(
   models: ModelOption[],
   catalog?: Record<string, ModelsDevEntry>
 ): ModelOption[] {
-  if (!catalog) return models
   return models.filter((m) => isVideoCapableModel(m, catalog))
 }
 
@@ -153,8 +151,36 @@ export function filterAudioCapableModels(
   models: ModelOption[],
   catalog?: Record<string, ModelsDevEntry>
 ): ModelOption[] {
-  if (!catalog) return models
   return models.filter((m) => isAudioCapableModel(m, catalog))
+}
+
+export function filterModelsForMode(
+  models: ModelOption[],
+  mode: PlaygroundMode,
+  mediaEndpoint: string,
+  catalog?: Record<string, ModelsDevEntry>,
+  nativeChatEndpoint?: string
+): ModelOption[] {
+  if (mode === 'chat') {
+    const chatModels = filterChatCapableModels(models, catalog)
+    if (!nativeChatEndpoint) return chatModels
+    return chatModels.filter(
+      (model) =>
+        !model.supportedEndpointTypes?.length ||
+        model.supportedEndpointTypes.includes(nativeChatEndpoint)
+    )
+  }
+  const supportsMode = {
+    image: isImageCapableModel,
+    video: isVideoCapableModel,
+    audio: isAudioCapableModel,
+  }[mode]
+  return models.filter((model) => {
+    if (model.supportedEndpointTypes?.length) {
+      return model.supportedEndpointTypes.includes(mediaEndpoint)
+    }
+    return supportsMode(model, catalog)
+  })
 }
 
 /**

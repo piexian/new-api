@@ -21,6 +21,8 @@ import type { AudioInterface, GroupOption, ModelOption } from '../../types'
 const AUDIO_FORMATS = ['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm'] as const
 
 interface PlaygroundAudioProps {
+  audioInterface: AudioInterface
+  setAudioInterface: (value: AudioInterface) => void
   models: ModelOption[]
   groups: GroupOption[]
   selectedModel: string
@@ -30,6 +32,8 @@ interface PlaygroundAudioProps {
 }
 
 export function PlaygroundAudio({
+  audioInterface,
+  setAudioInterface,
   models,
   groups,
   selectedModel,
@@ -38,7 +42,6 @@ export function PlaygroundAudio({
   onGroupChange,
 }: PlaygroundAudioProps) {
   const { t } = useTranslation()
-  const [audioInterface, setAudioInterface] = useState<AudioInterface>('speech')
   const [text, setText] = useState('')
   const [voice, setVoice] = useState('alloy')
   const [format, setFormat] = useState('mp3')

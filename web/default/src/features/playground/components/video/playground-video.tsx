@@ -26,6 +26,8 @@ import type {
 const VIDEO_SIZE_OPTIONS = ['640x480', '1280x720', '1920x1080'] as const
 
 interface PlaygroundVideoProps {
+  videoInterface: VideoInterface
+  setVideoInterface: (value: VideoInterface) => void
   models: ModelOption[]
   groups: GroupOption[]
   selectedModel: string
@@ -35,6 +37,8 @@ interface PlaygroundVideoProps {
 }
 
 export function PlaygroundVideo({
+  videoInterface,
+  setVideoInterface,
   models,
   groups,
   selectedModel,
@@ -43,8 +47,6 @@ export function PlaygroundVideo({
   onGroupChange,
 }: PlaygroundVideoProps) {
   const { t } = useTranslation()
-  const [videoInterface, setVideoInterface] =
-    useState<VideoInterface>('generations')
   const [prompt, setPrompt] = useState('')
   const [size, setSize] = useState<string>('1280x720')
   const [duration, setDuration] = useState(5)
@@ -86,12 +88,11 @@ export function PlaygroundVideo({
     setIsLoading(true)
     setResult(null)
     try {
-      const endpoint =
-        videoInterface === 'generations'
-          ? API_ENDPOINTS.VIDEO_GENERATIONS
-          : videoInterface === 'edits'
-            ? API_ENDPOINTS.VIDEO_EDITS
-            : API_ENDPOINTS.VIDEO_EXTENSIONS
+      const endpoint = {
+        generations: API_ENDPOINTS.VIDEO_GENERATIONS,
+        edits: API_ENDPOINTS.VIDEO_EDITS,
+        extensions: API_ENDPOINTS.VIDEO_EXTENSIONS,
+      }[videoInterface]
 
       const body: Record<string, unknown> = {
         model: selectedModel,

@@ -16,10 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 
-import { getModelsDevCatalog } from './api'
 import { PlaygroundAudio } from './components/audio/playground-audio'
 import { PlaygroundChat } from './components/chat/playground-chat'
 import { PlaygroundImage } from './components/image/playground-image'
@@ -32,15 +30,34 @@ import {
   usePlaygroundOptions,
   usePlaygroundState,
 } from './hooks'
-import {
-  filterAudioCapableModels,
-  filterImageCapableModels,
-  filterVideoCapableModels,
-} from './lib/options/model-capabilities'
-import type { PlaygroundMode } from './types'
+import type {
+  PlaygroundMode,
+  ImageInterface,
+  VideoInterface,
+  AudioInterface,
+} from './types'
 
 export function Playground() {
   const [mode, setMode] = useState<PlaygroundMode>('chat')
+  const [imageInterface, setImageInterface] =
+    useState<ImageInterface>('generations')
+  const [videoInterface, setVideoInterface] =
+    useState<VideoInterface>('generations')
+  const [audioInterface, setAudioInterface] = useState<AudioInterface>('speech')
+  const mediaEndpoint = {
+    chat: '',
+    image: { generations: 'image-generation', edits: 'image-edit' }[
+      imageInterface
+    ],
+    video: {
+      generations: 'openai-video',
+      edits: 'video-edit',
+      extensions: 'video-extension',
+    }[videoInterface],
+    audio: { speech: 'audio-speech', transcriptions: 'audio-transcription' }[
+      audioInterface
+    ],
+  }[mode]
 
   const {
     config,
@@ -83,17 +100,18 @@ export function Playground() {
   }
 
   const { isLoadingModels } = usePlaygroundOptions({
+    nativeChatEndpoint:
+      config.webSearchEnabled ||
+      (config.codeInterpreterEnabled && config.chatInterface !== 'openai')
+        ? config.chatInterface
+        : undefined,
+    mode,
+    mediaEndpoint,
     currentGroup: config.group,
     currentModel: config.model,
     setGroups,
     setModels,
     updateConfig,
-  })
-
-  const { data: modelsDevCatalog } = useQuery({
-    queryKey: ['playground', 'models-dev-catalog'],
-    queryFn: getModelsDevCatalog,
-    staleTime: 24 * 60 * 60 * 1000,
   })
 
   return (
@@ -103,7 +121,7 @@ export function Playground() {
         <PlaygroundModeTabs mode={mode} onModeChange={setMode} />
       </div>
 
-      {mode === 'chat' ? (
+      {mode === 'chat' && (
         <>
           {/* Full-width scroll container: scrolling works even over side whitespace */}
           <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
@@ -145,10 +163,13 @@ export function Playground() {
             />
           </div>
         </>
-      ) : mode === 'image' ? (
+      )}
+      {mode === 'image' && (
         <div className='flex-1 overflow-y-auto'>
           <PlaygroundImage
-            models={filterImageCapableModels(models, modelsDevCatalog)}
+            models={models}
+            imageInterface={imageInterface}
+            setImageInterface={setImageInterface}
             groups={groups}
             selectedModel={config.model}
             selectedGroup={config.group}
@@ -156,10 +177,13 @@ export function Playground() {
             onGroupChange={(value) => updateConfig('group', value)}
           />
         </div>
-      ) : mode === 'video' ? (
+      )}
+      {mode === 'video' && (
         <div className='flex-1 overflow-y-auto'>
           <PlaygroundVideo
-            models={filterVideoCapableModels(models, modelsDevCatalog)}
+            models={models}
+            videoInterface={videoInterface}
+            setVideoInterface={setVideoInterface}
             groups={groups}
             selectedModel={config.model}
             selectedGroup={config.group}
@@ -167,10 +191,13 @@ export function Playground() {
             onGroupChange={(value) => updateConfig('group', value)}
           />
         </div>
-      ) : (
+      )}
+      {mode === 'audio' && (
         <div className='flex-1 overflow-y-auto'>
           <PlaygroundAudio
-            models={filterAudioCapableModels(models, modelsDevCatalog)}
+            models={models}
+            audioInterface={audioInterface}
+            setAudioInterface={setAudioInterface}
             groups={groups}
             selectedModel={config.model}
             selectedGroup={config.group}
