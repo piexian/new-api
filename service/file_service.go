@@ -31,15 +31,9 @@ func getContextCacheKey(url string) string {
 }
 
 // getBase64ContextCacheKey 生成 base64 context 缓存的 key
-// 使用 length + MIME + 前 128 字符作为输入，避免对整个 base64 数据做 hash
+// Hash the complete payload: equal-sized files can share headers and prefixes.
 func getBase64ContextCacheKey(data string, mimeType string) string {
-	keyMaterial := fmt.Sprintf("%d:%s:", len(data), mimeType)
-	if len(data) > 128 {
-		keyMaterial += data[:128]
-	} else {
-		keyMaterial += data
-	}
-	return fmt.Sprintf("b64_cache_%s", common.GenerateHMAC(keyMaterial))
+	return fmt.Sprintf("b64_cache_%s", common.GenerateHMAC(mimeType+":"+data))
 }
 
 // LoadFileSource 加载文件源数据
