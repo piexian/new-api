@@ -128,7 +128,10 @@ echo "── 检查前端 default 主题..."
 if [ -d "web/default" ]; then
   cd web/default
   if [ -f "scripts/sync-i18n.mjs" ]; then
-    bun run i18n:sync > /dev/null 2>&1 || true
+    if ! bun run i18n:sync > /dev/null 2>&1; then
+      echo -e "${RED}✗ default 主题 i18n 同步失败${NC}"
+      ERRORS=$((ERRORS + 1))
+    fi
     MISSING=$(cat src/i18n/locales/_reports/zh.untranslated.json 2>/dev/null | grep -c ':' || true)
     MISSING=${MISSING:-0}
     if [ "$MISSING" -gt 0 ] 2>/dev/null; then
@@ -194,4 +197,7 @@ if [ $ERRORS -eq 0 ] && [ $WARNINGS -eq 0 ]; then
   echo -e "${GREEN}✓ 所有检查通过${NC}"
 fi
 
-exit $ERRORS
+if [ "$ERRORS" -gt 0 ] || [ "$WARNINGS" -gt 0 ]; then
+  exit 1
+fi
+exit 0
