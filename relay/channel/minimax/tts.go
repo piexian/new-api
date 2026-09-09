@@ -179,6 +179,7 @@ func handleTTSResponse(c *gin.Context, resp *http.Response, info *relaycommon.Re
 			fmt.Errorf("minimax TTS error: %d - %s", minimaxResp.BaseResp.StatusCode, minimaxResp.BaseResp.StatusMsg),
 			types.ErrorCodeBadResponse,
 			http.StatusBadRequest,
+			types.ErrOptionWithUpstreamError(),
 		)
 	}
 

@@ -218,6 +218,7 @@ func miniMaxMusicOutput(c *gin.Context, info *relaycommon.RelayInfo, audioURL st
 			fmt.Errorf("gmicloud: music download HTTP %d", resp.StatusCode),
 			types.ErrorCodeBadResponse,
 			http.StatusBadGateway,
+			types.ErrOptionWithUpstreamError(),
 		)
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, maxMediaDownloadBytes+1))

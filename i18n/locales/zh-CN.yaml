@@ -1,4 +1,9 @@
 # Chinese (Simplified) translations
+relay.upstream_returned: "上游返回：{{.Message}}"
+relay.upstream_timeout: "上游返回：Cloudflare 源站通信超时（HTTP {{.Status}}）"
+relay.upstream_html: "上游返回 HTML（HTTP {{.Status}}）"
+relay.upstream_cf_challenge: "上游返回 HTML（Cloudflare 人机验证拦截）（HTTP {{.Status}}）"
+relay.upstream_challenge: "上游返回 HTML（人机验证拦截）（HTTP {{.Status}}）"
 # 中文（简体）翻译文件
 
 # Common messages

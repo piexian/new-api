@@ -5,22 +5,26 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/gin-gonic/gin"
 )
 
 type OpenAIError struct {
-	Message  string          `json:"message"`
-	Type     string          `json:"type"`
-	Param    string          `json:"param"`
-	Code     any             `json:"code"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
+	NewAPIError bool            `json:"new_api_error,omitempty"`
+	Message     string          `json:"message"`
+	Type        string          `json:"type"`
+	Param       string          `json:"param"`
+	Code        any             `json:"code"`
+	Metadata    json.RawMessage `json:"metadata,omitempty"`
 }
 
 type ClaudeError struct {
-	Type    string `json:"type,omitempty"`
-	Message string `json:"message,omitempty"`
+	NewAPIError bool   `json:"new_api_error,omitempty"`
+	Type        string `json:"type,omitempty"`
+	Message     string `json:"message,omitempty"`
 }
 
 type ErrorType string
@@ -72,6 +76,7 @@ const (
 	// response error
 	ErrorCodeReadResponseBodyFailed ErrorCode = "read_response_body_failed"
 	ErrorCodeBadResponseStatusCode  ErrorCode = "bad_response_status_code"
+	ErrorCodeUpstreamTimeout        ErrorCode = "upstream_timeout"
 	ErrorCodeBadResponse            ErrorCode = "bad_response"
 	ErrorCodeBadResponseBody        ErrorCode = "bad_response_body"
 	ErrorCodeEmptyResponse          ErrorCode = "empty_response"
@@ -89,6 +94,7 @@ const (
 )
 
 type NewAPIError struct {
+	localError     bool
 	Err            error
 	RelayError     any
 	skipRetry      bool
@@ -120,6 +126,11 @@ func (e *NewAPIError) GetErrorType() ErrorType {
 		return ""
 	}
 	return e.errorType
+}
+
+// IsLocalError describes origin independently of the downstream error format.
+func (e *NewAPIError) IsLocalError() bool {
+	return e != nil && e.localError
 }
 
 func (e *NewAPIError) Error() string {
@@ -209,6 +220,7 @@ func (e *NewAPIError) ToOpenAIError() OpenAIError {
 	if result.Message == "" {
 		result.Message = string(e.errorType)
 	}
+	result.NewAPIError = e.localError
 	return result
 }
 
@@ -238,10 +250,69 @@ func (e *NewAPIError) ToClaudeError() ClaudeError {
 	if result.Message == "" {
 		result.Message = string(e.errorType)
 	}
+	result.NewAPIError = e.localError
 	return result
 }
 
 type NewAPIErrorOptions func(*NewAPIError)
+
+// FormatUpstreamErrorMessage labels the source only at the client boundary.
+// Internal classification and billing continue to use the original message.
+func FormatUpstreamErrorMessage(message string, contexts ...*gin.Context) string {
+	if len(contexts) > 0 && common.TranslateMessage != nil {
+		c := contexts[0]
+		for _, rule := range upstreamMessageTemplates {
+			if matches := rule.pattern.FindStringSubmatch(message); matches != nil {
+				return common.TranslateMessage(c, rule.key, map[string]any{"Status": matches[1]}) + matches[2]
+			}
+		}
+		message = strings.TrimPrefix(message, "上游返回：")
+		return common.TranslateMessage(c, "relay.upstream_returned", map[string]any{"Message": message})
+	}
+	if strings.HasPrefix(message, "上游返回") {
+		return message
+	}
+	return "上游返回：" + message
+}
+
+var upstreamMessageTemplates = []struct {
+	pattern *regexp.Regexp
+	key     string
+}{
+	{regexp.MustCompile(`(?s)^上游返回：Cloudflare 源站通信超时（HTTP (524)）(.*)$`), "relay.upstream_timeout"},
+	{regexp.MustCompile(`(?s)^上游返回 HTML（Cloudflare 人机验证拦截）（HTTP (\d+)）(.*)$`), "relay.upstream_cf_challenge"},
+	{regexp.MustCompile(`(?s)^上游返回 HTML（人机验证拦截）（HTTP (\d+)）(.*)$`), "relay.upstream_challenge"},
+	{regexp.MustCompile(`(?s)^上游返回 HTML（HTTP (\d+)）(.*)$`), "relay.upstream_html"},
+}
+
+func (e *NewAPIError) ToClientOpenAIError(contexts ...*gin.Context) OpenAIError {
+	result := e.ToOpenAIError()
+	if !e.IsLocalError() {
+		result.Message = FormatUpstreamErrorMessage(result.Message, contexts...)
+	}
+	return result
+}
+
+func (e *NewAPIError) ToClientClaudeError(contexts ...*gin.Context) ClaudeError {
+	result := e.ToClaudeError()
+	if !e.IsLocalError() {
+		result.Message = FormatUpstreamErrorMessage(result.Message, contexts...)
+	}
+	return result
+}
+
+func ErrOptionWithLocalError() NewAPIErrorOptions {
+	return func(e *NewAPIError) { e.localError = true }
+}
+
+// ErrOptionWithUpstreamError preserves origin when an upstream rejection needs wrapping.
+func ErrOptionWithUpstreamError() NewAPIErrorOptions {
+	return func(e *NewAPIError) { e.localError = false }
+}
+
+func ErrOptionWithOriginFrom(source *NewAPIError) NewAPIErrorOptions {
+	return func(e *NewAPIError) { e.localError = source.IsLocalError() }
+}
 
 func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPIError {
 	var newErr *NewAPIError
@@ -255,6 +326,7 @@ func NewError(err error, errorCode ErrorCode, ops ...NewAPIErrorOptions) *NewAPI
 	e := &NewAPIError{
 		Err:        err,
 		RelayError: nil,
+		localError: true,
 		errorType:  ErrorTypeNewAPIError,
 		StatusCode: http.StatusInternalServerError,
 		errorCode:  errorCode,
@@ -287,7 +359,7 @@ func NewOpenAIError(err error, errorCode ErrorCode, statusCode int, ops ...NewAP
 		Type:    string(errorCode),
 		Code:    errorCode,
 	}
-	return WithOpenAIError(openaiError, statusCode, ops...)
+	return WithOpenAIError(openaiError, statusCode, append([]NewAPIErrorOptions{ErrOptionWithLocalError()}, ops...)...)
 }
 
 func InitOpenAIError(errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
@@ -300,7 +372,8 @@ func InitOpenAIError(errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOpti
 
 func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
 	e := &NewAPIError{
-		Err: err,
+		localError: true,
+		Err:        err,
 		RelayError: OpenAIError{
 			Message: err.Error(),
 			Type:    string(errorCode),
@@ -308,6 +381,10 @@ func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int, ops 
 		errorType:  ErrorTypeNewAPIError,
 		StatusCode: statusCode,
 		errorCode:  errorCode,
+	}
+	var wrapped *NewAPIError
+	if errors.As(err, &wrapped) {
+		e.localError = wrapped.localError
 	}
 	for _, op := range ops {
 		op(e)

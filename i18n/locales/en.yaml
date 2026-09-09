@@ -1,4 +1,9 @@
 # English translations
+relay.upstream_returned: "Upstream returned: {{.Message}}"
+relay.upstream_timeout: "Upstream returned: Cloudflare origin communication timed out (HTTP {{.Status}})"
+relay.upstream_html: "Upstream returned HTML (HTTP {{.Status}})"
+relay.upstream_cf_challenge: "Upstream returned HTML (Cloudflare human verification challenge) (HTTP {{.Status}})"
+relay.upstream_challenge: "Upstream returned HTML (human verification challenge) (HTTP {{.Status}})"
 
 # Common messages
 common.invalid_params: "Invalid parameters"

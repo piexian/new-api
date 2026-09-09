@@ -9,7 +9,7 @@ type TaskError struct {
 	Message    string `json:"message"`
 	Data       any    `json:"data"`
 	StatusCode int    `json:"-"`
-	LocalError bool   `json:"-"`
+	LocalError bool   `json:"new_api_error,omitempty"`
 	Error      error  `json:"-"`
 }
 

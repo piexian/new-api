@@ -202,11 +202,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		if errMsg == "" {
 			errMsg = "replicate adaptor: prediction error"
 		}
-		return nil, types.NewError(errors.New(errMsg), types.ErrorCodeBadResponse)
+		return nil, types.NewError(errors.New(errMsg), types.ErrorCodeBadResponse, types.ErrOptionWithUpstreamError())
 	}
 
 	if prediction.Status != "" && !strings.EqualFold(prediction.Status, "succeeded") {
-		return nil, types.NewError(fmt.Errorf("replicate adaptor: prediction status %q", prediction.Status), types.ErrorCodeBadResponse)
+		return nil, types.NewError(fmt.Errorf("replicate adaptor: prediction status %q", prediction.Status), types.ErrorCodeBadResponse, types.ErrOptionWithUpstreamError())
 	}
 
 	var urls []string
@@ -237,7 +237,7 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	if len(urls) == 0 {
-		return nil, types.NewError(errors.New("replicate adaptor: empty prediction output"), types.ErrorCodeBadResponseBody)
+		return nil, types.NewError(errors.New("replicate adaptor: empty prediction output"), types.ErrorCodeBadResponseBody, types.ErrOptionWithUpstreamError())
 	}
 
 	var imageReq *dto.ImageRequest

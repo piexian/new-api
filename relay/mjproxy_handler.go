@@ -102,6 +102,7 @@ func RelayMidjourneyNotify(c *gin.Context) *dto.MidjourneyResponse {
 	err := common.UnmarshalBodyReusable(c, &midjRequest)
 	if err != nil {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: "bind_request_body_failed",
 			Properties:  nil,
@@ -111,6 +112,7 @@ func RelayMidjourneyNotify(c *gin.Context) *dto.MidjourneyResponse {
 	midjourneyTask := model.GetByOnlyMJId(midjRequest.MjId)
 	if midjourneyTask == nil {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: "midjourney_task_not_found",
 			Properties:  nil,
@@ -132,6 +134,7 @@ func RelayMidjourneyNotify(c *gin.Context) *dto.MidjourneyResponse {
 	err = midjourneyTask.Update()
 	if err != nil {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: "update_midjourney_task_failed",
 		}
@@ -206,6 +209,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 	priceData, err := helper.ModelPriceHelperPerCall(c, info)
 	if err != nil {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: err.Error(),
 		}
@@ -214,6 +218,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 	userQuota, err := model.GetUserQuota(info.UserId, false)
 	if err != nil {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: err.Error(),
 		}
@@ -221,6 +226,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 
 	if userQuota-priceData.Quota < 0 {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: "quota_not_enough",
 		}
@@ -335,6 +341,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 		originTask := model.GetByMJId(userId, taskId)
 		if originTask == nil {
 			return &dto.MidjourneyResponse{
+				NewAPIError: true,
 				Code:        4,
 				Description: "task_no_found",
 			}
@@ -343,6 +350,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 		respBody, err = json.Marshal(midjourneyTask)
 		if err != nil {
 			return &dto.MidjourneyResponse{
+				NewAPIError: true,
 				Code:        4,
 				Description: "unmarshal_response_body_failed",
 			}
@@ -354,6 +362,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 		err = c.BindJSON(&condition)
 		if err != nil {
 			return &dto.MidjourneyResponse{
+				NewAPIError: true,
 				Code:        4,
 				Description: "do_request_failed",
 			}
@@ -372,6 +381,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 		respBody, err = json.Marshal(tasks)
 		if err != nil {
 			return &dto.MidjourneyResponse{
+				NewAPIError: true,
 				Code:        4,
 				Description: "unmarshal_response_body_failed",
 			}
@@ -383,6 +393,7 @@ func RelayMidjourneyTask(c *gin.Context, relayMode int) *dto.MidjourneyResponse 
 	_, err = io.Copy(c.Writer, bytes.NewBuffer(respBody))
 	if err != nil {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: "copy_response_body_failed",
 		}
@@ -513,6 +524,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	priceData, err := helper.ModelPriceHelperPerCall(c, relayInfo)
 	if err != nil {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: err.Error(),
 		}
@@ -521,6 +533,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
 	if err != nil {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: err.Error(),
 		}
@@ -528,6 +541,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 
 	if consumeQuota && userQuota-priceData.Quota < 0 {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: "quota_not_enough",
 		}
@@ -635,6 +649,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	err = midjourneyTask.Insert()
 	if err != nil {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: "insert_midjourney_task_failed",
 		}
@@ -656,6 +671,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	_, err = io.Copy(c.Writer, bodyReader)
 	if err != nil {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: "copy_response_body_failed",
 		}
@@ -663,6 +679,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 	err = bodyReader.Close()
 	if err != nil {
 		return &dto.MidjourneyResponse{
+			NewAPIError: true,
 			Code:        4,
 			Description: "close_response_body_failed",
 		}

@@ -113,6 +113,36 @@ var logTranslationRulesEN = []logTranslationRule{
 
 var internalLogTranslationRules = []internalLogTranslationRule{
 	{
+		zhPattern: regexp.MustCompile(`^上游返回：Cloudflare 源站通信超时（HTTP 524）(.*)$`),
+		enPattern: regexp.MustCompile(`^Upstream returned: Cloudflare origin communication timed out \(HTTP 524\)(.*)$`),
+		zhFormat:  "上游返回：Cloudflare 源站通信超时（HTTP 524）%s",
+		enFormat:  "Upstream returned: Cloudflare origin communication timed out (HTTP 524)%s",
+	},
+	{
+		zhPattern: regexp.MustCompile(`^上游返回 HTML（Cloudflare 人机验证拦截）（HTTP (\d+)）(.*)$`),
+		enPattern: regexp.MustCompile(`^Upstream returned HTML \(Cloudflare human verification challenge\) \(HTTP (\d+)\)(.*)$`),
+		zhFormat:  "上游返回 HTML（Cloudflare 人机验证拦截）（HTTP %s）%s",
+		enFormat:  "Upstream returned HTML (Cloudflare human verification challenge) (HTTP %s)%s",
+	},
+	{
+		zhPattern: regexp.MustCompile(`^上游返回 HTML（人机验证拦截）（HTTP (\d+)）(.*)$`),
+		enPattern: regexp.MustCompile(`^Upstream returned HTML \(human verification challenge\) \(HTTP (\d+)\)(.*)$`),
+		zhFormat:  "上游返回 HTML（人机验证拦截）（HTTP %s）%s",
+		enFormat:  "Upstream returned HTML (human verification challenge) (HTTP %s)%s",
+	},
+	{
+		zhPattern: regexp.MustCompile(`^上游返回 HTML（HTTP (\d+)）(.*)$`),
+		enPattern: regexp.MustCompile(`^Upstream returned HTML \(HTTP (\d+)\)(.*)$`),
+		zhFormat:  "上游返回 HTML（HTTP %s）%s",
+		enFormat:  "Upstream returned HTML (HTTP %s)%s",
+	},
+	{
+		zhPattern: regexp.MustCompile(`(?s)^上游返回：(.*)$`),
+		enPattern: regexp.MustCompile(`(?s)^Upstream returned: (.*)$`),
+		zhFormat:  "上游返回：%s",
+		enFormat:  "Upstream returned: %s",
+	},
+	{
 		zhPattern: regexp.MustCompile(`^token重算：tokens=(\d+), modelRatio=([0-9.]+), groupRatio=([0-9.]+), otherMultiplier=([0-9.]+)$`),
 		enPattern: regexp.MustCompile(`^Token recalculation: tokens=(\d+), modelRatio=([0-9.]+), groupRatio=([0-9.]+), otherMultiplier=([0-9.]+)$`),
 		zhFormat:  "token重算：tokens=%s, modelRatio=%s, groupRatio=%s, otherMultiplier=%s",
@@ -401,9 +431,10 @@ func LocalizeLogs(logs []*Log, language string) {
 				Action string                 `json:"action"`
 				Params map[string]interface{} `json:"params"`
 			} `json:"op"`
-			ErrorType  string `json:"error_type"`
-			ErrorCode  string `json:"error_code"`
-			StatusCode int    `json:"status_code"`
+			ErrorType   string `json:"error_type"`
+			ErrorCode   string `json:"error_code"`
+			StatusCode  int    `json:"status_code"`
+			NewAPIError *bool  `json:"new_api_error"`
 		}
 		if log.Other != "" {
 			_ = common.UnmarshalJsonStr(log.Other, &other)
@@ -416,7 +447,11 @@ func LocalizeLogs(logs []*Log, language string) {
 				contentLocalized = true
 			}
 		}
-		if !contentLocalized && log.Type == LogTypeError && other.ErrorType == string(types.ErrorTypeNewAPIError) {
+		localError := other.ErrorType == string(types.ErrorTypeNewAPIError)
+		if other.NewAPIError != nil {
+			localError = *other.NewAPIError
+		}
+		if !contentLocalized && log.Type == LogTypeError && localError {
 			if content, ok := renderNewAPIErrorLogContent(log.Content, other.ErrorCode, other.StatusCode, language); ok {
 				log.Content = content
 				contentLocalized = true

@@ -144,6 +144,7 @@ var newAPIErrorSummaries = map[string]localizedLogText{
 }
 
 var statusCodePrefixPattern = regexp.MustCompile(`^status_code=(\d+),?\s*`)
+var statusCodeSuffixPattern = regexp.MustCompile(` \(status_code=(\d+)\)$`)
 
 func localizedText(text localizedLogText, language string) string {
 	if NormalizeLogLanguage(language) == LogLanguageEN {
@@ -182,6 +183,12 @@ func renderNewAPIErrorLogContent(content string, errorCode string, statusCode in
 	}
 	summary := localizedText(summaryText, language)
 	detail := strings.TrimSpace(content)
+	if matches := statusCodeSuffixPattern.FindStringSubmatch(detail); len(matches) > 0 {
+		detail = statusCodeSuffixPattern.ReplaceAllString(detail, "")
+		if statusCode == 0 {
+			statusCode, _ = strconv.Atoi(matches[1])
+		}
+	}
 	if matches := statusCodePrefixPattern.FindStringSubmatch(detail); len(matches) > 0 {
 		detail = strings.TrimSpace(statusCodePrefixPattern.ReplaceAllString(detail, ""))
 		if statusCode == 0 {

@@ -235,7 +235,7 @@ func OpenaiHandlerWithBodyTransformer(c *gin.Context, info *relaycommon.RelayInf
 			responseBody = enterpriseResponse.Data
 		} else {
 			logger.LogError(c, fmt.Sprintf("openrouter enterprise response success=false, data: %s", enterpriseResponse.Data))
-			return nil, types.NewOpenAIError(fmt.Errorf("openrouter response success=false"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			return nil, types.NewOpenAIError(fmt.Errorf("openrouter response success=false"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError, types.ErrOptionWithUpstreamError())
 		}
 	}
 

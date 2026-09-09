@@ -1,5 +1,13 @@
 package i18n
 
+const (
+	MsgUpstreamReturned    = "relay.upstream_returned"
+	MsgUpstreamTimeout     = "relay.upstream_timeout"
+	MsgUpstreamHTML        = "relay.upstream_html"
+	MsgUpstreamCFChallenge = "relay.upstream_cf_challenge"
+	MsgUpstreamChallenge   = "relay.upstream_challenge"
+)
+
 // Message keys for i18n translations
 // Use these constants instead of hardcoded strings
 

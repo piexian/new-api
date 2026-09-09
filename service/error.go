@@ -20,6 +20,7 @@ import (
 
 func MidjourneyErrorWrapper(code int, desc string) *dto.MidjourneyResponse {
 	return &dto.MidjourneyResponse{
+		NewAPIError: true,
 		Code:        code,
 		Description: desc,
 	}
@@ -85,6 +86,10 @@ func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.Claude
 }
 
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
+	if resp.StatusCode == 524 {
+		CloseResponseBodyGracefully(resp)
+		return upstreamHTMLAPIError(upstreamHTMLMessage(resp.Header, "", resp.StatusCode), resp.StatusCode)
+	}
 	newApiErr = types.InitOpenAIError(types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
 
 	responseBody, err := io.ReadAll(resp.Body)
@@ -92,7 +97,16 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		return
 	}
 	CloseResponseBodyGracefully(resp)
+	if message := upstreamHTMLMessage(resp.Header, string(responseBody), resp.StatusCode); message != "" {
+		return upstreamHTMLAPIError(message, resp.StatusCode)
+	}
 	defer func() {
+		// JSON envelopes can carry an escaped HTML page as the error message.
+		// Replace the entire error so neither metadata nor showBodyWhenFail leaks it.
+		if message := upstreamHTMLMessage(nil, newApiErr.Error(), resp.StatusCode); message != "" {
+			newApiErr = upstreamHTMLAPIError(message, resp.StatusCode)
+			return
+		}
 		attachRelayErrorMetadata(newApiErr, responseBody)
 	}()
 	var errResponse dto.GeneralErrorResponse
@@ -127,7 +141,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 			return
 		}
 	}
-	newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode)
+	newApiErr = types.NewOpenAIError(errors.New(errResponse.ToMessage()), types.ErrorCodeBadResponseStatusCode, resp.StatusCode, types.ErrOptionWithUpstreamError())
 	if showBodyWhenFail {
 		newApiErr.Err = buildErrWithBody(newApiErr.Error())
 	}
@@ -219,6 +233,13 @@ func TaskErrorWrapperLocal(err error, code string, statusCode int) *dto.TaskErro
 
 func TaskErrorWrapper(err error, code string, statusCode int) *dto.TaskError {
 	text := err.Error()
+	if statusCode == 524 {
+		code = string(types.ErrorCodeUpstreamTimeout)
+	}
+	if message := upstreamHTMLMessage(nil, text, statusCode); message != "" {
+		text = message
+		err = errors.New(message)
+	}
 	lowerText := strings.ToLower(text)
 	if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
 		common.SysLog(fmt.Sprintf("error: %s", text))
@@ -231,6 +252,10 @@ func TaskErrorWrapper(err error, code string, statusCode int) *dto.TaskError {
 		Message:    text,
 		StatusCode: statusCode,
 		Error:      err,
+	}
+	var apiErr *types.NewAPIError
+	if errors.As(err, &apiErr) {
+		taskError.LocalError = apiErr.IsLocalError()
 	}
 
 	return taskError
@@ -247,6 +272,7 @@ func TaskErrorFromAPIError(apiErr *types.NewAPIError) *dto.TaskError {
 		message = apiErr.Error()
 	}
 	return &dto.TaskError{
+		LocalError: apiErr.IsLocalError(),
 		Code:       string(apiErr.GetErrorCode()),
 		Message:    message,
 		StatusCode: apiErr.StatusCode,
@@ -286,6 +312,9 @@ func TaskErrorToAPIError(taskErr *dto.TaskError) *types.NewAPIError {
 		Message: message,
 		Type:    code,
 		Code:    code,
+	}
+	if taskErr.LocalError {
+		return types.WithOpenAIError(oai, statusCode, types.ErrOptionWithLocalError())
 	}
 	if IsViolationFeeCode(types.ErrorCode(code)) {
 		return types.WithOpenAIError(oai, statusCode, types.ErrOptionWithSkipRetry())

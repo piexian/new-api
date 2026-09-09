@@ -208,6 +208,7 @@ func pollGMIResult(c *gin.Context, info *relaycommon.RelayInfo, requestID, initi
 				fmt.Errorf("gmicloud: task %s", status),
 				types.ErrorCodeBadResponse,
 				http.StatusBadGateway,
+				types.ErrOptionWithUpstreamError(),
 			)
 		}
 		select {
@@ -240,6 +241,7 @@ func pollGMIResult(c *gin.Context, info *relaycommon.RelayInfo, requestID, initi
 			fmt.Errorf("gmicloud: task timed out with status %s after %s", result.Status, maxWait),
 			types.ErrorCodeDoRequestFailed,
 			http.StatusGatewayTimeout,
+			types.ErrOptionWithUpstreamError(),
 		)
 	}
 	return result, nil
@@ -278,6 +280,7 @@ func fetchGMIStatus(c *gin.Context, info *relaycommon.RelayInfo, requestID strin
 			fmt.Errorf("gmicloud: status HTTP %d: %s", resp.StatusCode, truncate(body, 500)),
 			types.ErrorCodeBadResponse,
 			http.StatusBadGateway,
+			types.ErrOptionWithUpstreamError(),
 		)
 	}
 
@@ -295,9 +298,9 @@ func fetchGMIStatus(c *gin.Context, info *relaycommon.RelayInfo, requestID strin
 func gmiUpstreamHTTPError(stage string, statusCode int, body []byte) *types.NewAPIError {
 	message := fmt.Errorf("gmicloud: %s HTTP %d: %s", stage, statusCode, truncate(body, 500))
 	if statusCode >= http.StatusBadRequest && statusCode < http.StatusInternalServerError && statusCode != http.StatusTooManyRequests {
-		return types.NewErrorWithStatusCode(message, types.ErrorCodeBadResponse, statusCode, types.ErrOptionWithSkipRetry())
+		return types.NewErrorWithStatusCode(message, types.ErrorCodeBadResponse, statusCode, types.ErrOptionWithSkipRetry(), types.ErrOptionWithUpstreamError())
 	}
-	return types.NewErrorWithStatusCode(message, types.ErrorCodeBadResponse, http.StatusBadGateway)
+	return types.NewErrorWithStatusCode(message, types.ErrorCodeBadResponse, http.StatusBadGateway, types.ErrOptionWithUpstreamError())
 }
 
 func extractAudioURL(outcome *gmiOutcome) string {
@@ -340,6 +343,7 @@ func downloadAndStreamAudio(c *gin.Context, info *relaycommon.RelayInfo, audioUR
 			fmt.Errorf("gmicloud: audio download HTTP %d", resp.StatusCode),
 			types.ErrorCodeBadResponse,
 			http.StatusBadGateway,
+			types.ErrOptionWithUpstreamError(),
 		)
 	}
 

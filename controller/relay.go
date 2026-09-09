@@ -92,7 +92,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		var err error
 		ws, err = upgrader.Upgrade(c.Writer, c.Request, nil)
 		if err != nil {
-			helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry()).ToOpenAIError())
+			helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry()).ToClientOpenAIError(c))
 			return
 		}
 		defer ws.Close()
@@ -104,15 +104,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime, types.RelayFormatXAIRealtime:
-				helper.WssError(c, ws, newAPIError.ToOpenAIError())
+				helper.WssError(c, ws, newAPIError.ToClientOpenAIError(c))
 			case types.RelayFormatClaude:
 				c.JSON(newAPIError.StatusCode, gin.H{
 					"type":  "error",
-					"error": newAPIError.ToClaudeError(),
+					"error": newAPIError.ToClientClaudeError(c),
 				})
 			default:
 				c.JSON(newAPIError.StatusCode, gin.H{
-					"error": newAPIError.ToOpenAIError(),
+					"error": newAPIError.ToClientOpenAIError(c),
 				})
 			}
 		}
@@ -440,6 +440,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			other["request_path"] = c.Request.URL.Path
 		}
 		other["error_type"] = err.GetErrorType()
+		other["new_api_error"] = err.IsLocalError()
 		other["error_code"] = err.GetErrorCode()
 		other["status_code"] = err.StatusCode
 		other["channel_id"] = channelId
@@ -459,7 +460,14 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 			startTime = time.Now()
 		}
 		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
+		message := err.MaskSensitiveError()
+		if !err.IsLocalError() {
+			message = types.FormatUpstreamErrorMessage(message)
+		}
+		if err.StatusCode != 0 {
+			message = fmt.Sprintf("%s (status_code=%d)", message, err.StatusCode)
+		}
+		model.RecordErrorLog(c, userId, channelId, modelName, tokenName, message, tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
 	}
 
 }
@@ -469,9 +477,10 @@ func RelayMidjourney(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"description": fmt.Sprintf("failed to generate relay info: %s", err.Error()),
-			"type":        "upstream_error",
-			"code":        4,
+			"description":   fmt.Sprintf("failed to generate relay info: %s", err.Error()),
+			"new_api_error": true,
+			"type":          "upstream_error",
+			"code":          4,
 		})
 		return
 	}
@@ -497,11 +506,17 @@ func RelayMidjourney(c *gin.Context) {
 			mjErr.Result = "当前分组负载已饱和，请稍后再试，或升级账户以提升服务质量。"
 			statusCode = http.StatusTooManyRequests
 		}
-		c.JSON(statusCode, gin.H{
+		response := gin.H{
 			"description": fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result),
 			"type":        "upstream_error",
 			"code":        mjErr.Code,
-		})
+		}
+		if mjErr.NewAPIError {
+			response["new_api_error"] = true
+		} else {
+			response["description"] = types.FormatUpstreamErrorMessage(response["description"].(string), c)
+		}
+		c.JSON(statusCode, response)
 		channelId := c.GetInt("channel_id")
 		logger.LogError(c, fmt.Sprintf("relay error (channel #%d, status code %d): %s", channelId, statusCode, fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)))
 		mjErrInfo := relayInfo
@@ -519,10 +534,11 @@ func RelayMidjourney(c *gin.Context) {
 
 func RelayNotImplemented(c *gin.Context) {
 	err := types.OpenAIError{
-		Message: "API not implemented",
-		Type:    "new_api_error",
-		Param:   "",
-		Code:    "api_not_implemented",
+		NewAPIError: true,
+		Message:     "API not implemented",
+		Type:        "new_api_error",
+		Param:       "",
+		Code:        "api_not_implemented",
 	}
 	c.JSON(http.StatusNotImplemented, gin.H{
 		"error": err,
@@ -531,10 +547,11 @@ func RelayNotImplemented(c *gin.Context) {
 
 func RelayNotFound(c *gin.Context) {
 	err := types.OpenAIError{
-		Message: "The requested resource was not found",
-		Type:    "invalid_request_error",
-		Param:   "",
-		Code:    "",
+		NewAPIError: true,
+		Message:     "The requested resource was not found",
+		Type:        "invalid_request_error",
+		Param:       "",
+		Code:        "",
 	}
 	c.JSON(http.StatusNotFound, gin.H{
 		"error": err,
@@ -545,6 +562,7 @@ func RelayTaskFetch(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &dto.TaskError{
+			LocalError: true,
 			Code:       "gen_relay_info_failed",
 			Message:    err.Error(),
 			StatusCode: http.StatusInternalServerError,
@@ -560,6 +578,7 @@ func RelayTask(c *gin.Context) {
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &dto.TaskError{
+			LocalError: true,
 			Code:       "gen_relay_info_failed",
 			Message:    err.Error(),
 			StatusCode: http.StatusInternalServerError,
@@ -714,10 +733,14 @@ func RelayTask(c *gin.Context) {
 
 // respondTaskError 统一输出 Task 错误响应（含 429 限流提示改写）
 func respondTaskError(c *gin.Context, taskErr *dto.TaskError) {
-	if taskErr.StatusCode == http.StatusTooManyRequests {
-		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
+	response := *taskErr
+	if response.StatusCode == http.StatusTooManyRequests && !response.LocalError {
+		response.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
-	c.JSON(taskErr.StatusCode, taskErr)
+	if !response.LocalError {
+		response.Message = types.FormatUpstreamErrorMessage(response.Message, c)
+	}
+	c.JSON(response.StatusCode, response)
 }
 
 func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *dto.TaskError, retryTimes int) bool {

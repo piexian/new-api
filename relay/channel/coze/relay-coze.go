@@ -61,7 +61,7 @@ func cozeChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if cozeResponse.Code != 0 {
-		return nil, types.NewError(errors.New(cozeResponse.Msg), types.ErrorCodeBadResponseBody)
+		return nil, types.NewError(errors.New(cozeResponse.Msg), types.ErrorCodeBadResponseBody, types.ErrOptionWithUpstreamError())
 	}
 	// 从上下文获取 usage
 	var usage dto.Usage

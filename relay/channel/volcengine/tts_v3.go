@@ -246,6 +246,7 @@ func handleTTSV3NdjsonResponse(c *gin.Context, resp *http.Response, info *relayc
 			fmt.Errorf("openspeech v3 HTTP %d: %s", resp.StatusCode, truncateForErr(string(body), 800)),
 			types.ErrorCodeBadResponseStatusCode,
 			http.StatusBadGateway,
+			types.ErrOptionWithUpstreamError(),
 		)
 	}
 
@@ -296,6 +297,7 @@ func handleTTSV3NdjsonResponse(c *gin.Context, resp *http.Response, info *relayc
 				fmt.Errorf("openspeech v3 error code=%d line=%s", code, truncateForErr(line, 400)),
 				types.ErrorCodeBadResponse,
 				http.StatusBadGateway,
+				types.ErrOptionWithUpstreamError(),
 			)
 		}
 	}

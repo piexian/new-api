@@ -175,7 +175,7 @@ func (state *boraResponseState) handleEvent(eventName string, event boraStreamEv
 	var output boraEventOutput
 	eventType := boraEventType(eventName, event)
 	if isBoraErrorEvent(eventType) {
-		return output, fmt.Errorf("upstream error event: %s", boraErrorMessage(event))
+		return output, types.NewOpenAIError(fmt.Errorf("upstream error event: %s", boraErrorMessage(event)), types.ErrorCodeBadResponseBody, http.StatusBadGateway, types.ErrOptionWithUpstreamError())
 	}
 
 	switch eventType {

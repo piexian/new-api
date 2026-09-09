@@ -299,7 +299,7 @@ func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *rela
 
 	if aliTaskResponse.Message != "" {
 		logger.LogError(c, "ali_async_task_failed: "+aliTaskResponse.Message)
-		return types.NewError(errors.New(aliTaskResponse.Message), types.ErrorCodeBadResponse), nil
+		return types.NewError(errors.New(aliTaskResponse.Message), types.ErrorCodeBadResponse, types.ErrOptionWithUpstreamError()), nil
 	}
 
 	var (

@@ -27,6 +27,7 @@ type MidjourneyRequest struct {
 }
 
 type MidjourneyResponse struct {
+	NewAPIError bool        `json:"new_api_error,omitempty"`
 	Code        int         `json:"code"`
 	Description string      `json:"description"`
 	Properties  interface{} `json:"properties"`

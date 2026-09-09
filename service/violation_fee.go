@@ -122,7 +122,7 @@ func WrapAsViolationFeeGrokCSAM(err *types.NewAPIError) *types.NewAPIError {
 	oai := err.ToOpenAIError()
 	oai.Type = string(types.ErrorCodeViolationFeeGrokCSAM)
 	oai.Code = string(types.ErrorCodeViolationFeeGrokCSAM)
-	return types.WithOpenAIError(oai, err.StatusCode, types.ErrOptionWithSkipRetry(), types.ErrOptionWithMetadata(err.Metadata))
+	return types.WithOpenAIError(oai, err.StatusCode, types.ErrOptionWithSkipRetry(), types.ErrOptionWithMetadata(err.Metadata), types.ErrOptionWithOriginFrom(err))
 }
 
 func WrapAsViolationFeeGrokModeration(err *types.NewAPIError) *types.NewAPIError {
@@ -132,7 +132,7 @@ func WrapAsViolationFeeGrokModeration(err *types.NewAPIError) *types.NewAPIError
 	oai := err.ToOpenAIError()
 	oai.Type = string(types.ErrorCodeViolationFeeGrokModeration)
 	oai.Code = string(types.ErrorCodeViolationFeeGrokModeration)
-	return types.WithOpenAIError(oai, err.StatusCode, types.ErrOptionWithSkipRetry(), types.ErrOptionWithMetadata(err.Metadata))
+	return types.WithOpenAIError(oai, err.StatusCode, types.ErrOptionWithSkipRetry(), types.ErrOptionWithMetadata(err.Metadata), types.ErrOptionWithOriginFrom(err))
 }
 
 func NormalizeViolationFeeErrorForRelay(relayInfo *relaycommon.RelayInfo, err *types.NewAPIError) *types.NewAPIError {
@@ -164,7 +164,7 @@ func NormalizeViolationFeeError(err *types.NewAPIError) *types.NewAPIError {
 
 	if IsViolationFeeCode(err.GetErrorCode()) {
 		oai := err.ToOpenAIError()
-		return types.WithOpenAIError(oai, err.StatusCode, types.ErrOptionWithSkipRetry(), types.ErrOptionWithMetadata(err.Metadata))
+		return types.WithOpenAIError(oai, err.StatusCode, types.ErrOptionWithSkipRetry(), types.ErrOptionWithMetadata(err.Metadata), types.ErrOptionWithOriginFrom(err))
 	}
 
 	return err
