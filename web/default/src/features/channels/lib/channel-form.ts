@@ -799,8 +799,9 @@ function buildQwenConsolePatch(
       string
     >
   > = {}
-  if (formData.qwen_console_token?.trim())
+  if (formData.qwen_console_token?.trim()) {
     patch.qwen_console_token = formData.qwen_console_token.trim()
+  }
   const ak = formData.qwen_access_key_id?.trim()
   const sk = formData.qwen_access_key_secret?.trim()
   if (ak && sk) {

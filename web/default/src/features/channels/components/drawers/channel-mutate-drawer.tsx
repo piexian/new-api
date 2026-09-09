@@ -728,6 +728,16 @@ export function ChannelMutateDrawer({
     switchMethod: switchVerificationMethod,
   } = useSecureVerification()
 
+  // Check if this is a multi-key channel
+  const isMultiKeyChannel =
+    isEditing && channelData?.data?.channel_info?.is_multi_key === true
+
+  // Form setup
+  const form = useForm<ChannelFormValues>({
+    resolver: zodResolver(channelFormSchema),
+    defaultValues: CHANNEL_FORM_DEFAULT_VALUES,
+  })
+
   useEffect(() => {
     if (!open) {
       setChannelKey(null)
@@ -739,17 +749,7 @@ export function ChannelMutateDrawer({
     } else if (channelId) {
       setChannelKey(null)
     }
-  }, [open, channelId])
-
-  // Check if this is a multi-key channel
-  const isMultiKeyChannel =
-    isEditing && channelData?.data?.channel_info?.is_multi_key === true
-
-  // Form setup
-  const form = useForm<ChannelFormValues>({
-    resolver: zodResolver(channelFormSchema),
-    defaultValues: CHANNEL_FORM_DEFAULT_VALUES,
-  })
+  }, [open, channelId, form])
   const qwenConsoleToken = form.watch('qwen_console_token') || ''
   const qwenAccessKeyID = form.watch('qwen_access_key_id') || ''
   const qwenAccessKeySecret = form.watch('qwen_access_key_secret') || ''
