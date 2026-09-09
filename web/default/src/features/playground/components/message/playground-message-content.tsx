@@ -125,9 +125,9 @@ export function PlaygroundMessageContent({
             {t('Tool Calls')}
           </div>
           <div className='space-y-2'>
-            {message.toolCalls.map((tc, i) => (
+            {message.toolCalls.map((tc) => (
               <div
-                key={`${tc.id}-${i}`}
+                key={tc.id}
                 className='border-border/50 bg-background/50 rounded border p-2 text-xs'
               >
                 <div className='text-primary font-mono font-semibold'>

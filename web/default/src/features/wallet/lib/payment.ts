@@ -33,7 +33,7 @@ import type { PresetAmount, TopupInfo } from '../types'
  */
 function isSafariBrowser(): boolean {
   return (
-    navigator.userAgent.indexOf('Safari') > -1 &&
+    navigator.userAgent.includes('Safari') &&
     navigator.userAgent.indexOf('Chrome') < 1
   )
 }

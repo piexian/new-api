@@ -154,6 +154,8 @@ function ChatRouteComponent() {
   }
 
   return (
+    // Administrator-configured chat apps require their own storage and authentication.
+    // eslint-disable-next-line react/iframe-missing-sandbox
     <iframe
       src={iframeSrc}
       key={iframeSrc}

@@ -61,6 +61,8 @@ export function TagInput({
       e.preventDefault()
       addTag(inputValue)
     } else if (e.key === 'Backspace' && !inputValue && value.length > 0) {
+      // The nonempty check above guarantees the final tag exists.
+      // eslint-disable-next-line unicorn/prefer-at
       removeTag(value[value.length - 1])
     }
   }

@@ -131,8 +131,11 @@ declare module '@tanstack/react-router' {
 }
 
 // Render the app
-const rootElement = document.getElementById('root')!
-// Set document.title and favicon from cached status, then refresh from network
+const rootElement = document.querySelector('#root')
+if (!rootElement) {
+  throw new Error('Missing application root element')
+  // Set document.title and favicon from cached status, then refresh from network
+}
 ;(function initSystemBranding() {
   try {
     if (typeof window === 'undefined' || typeof document === 'undefined') return

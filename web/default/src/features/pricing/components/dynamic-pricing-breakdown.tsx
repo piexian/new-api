@@ -268,6 +268,7 @@ export function DynamicPricingBreakdown({
                 tier.label === matchedTierLabel
               return (
                 <div
+                  // eslint-disable-next-line react/no-array-index-key -- Read-only expression branches may repeat labels and retain expression order.
                   key={`tier-mobile-${i}`}
                   className={cn(
                     'rounded-md border p-2',
@@ -427,6 +428,7 @@ export function DynamicPricingBreakdown({
           <ul className='space-y-1.5'>
             {ruleGroups.map((group, gi) => (
               <li
+                // eslint-disable-next-line react/no-array-index-key -- Read-only expression branches may repeat labels and retain expression order.
                 key={`group-${gi}`}
                 className='bg-muted/50 flex items-center justify-between gap-3 rounded-md px-3 py-2'
               >

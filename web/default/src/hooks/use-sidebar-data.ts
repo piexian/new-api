@@ -41,7 +41,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { type SidebarData } from '@/components/layout/types'
+import type { SidebarData } from '@/components/layout/types'
 import { useIsAdmin } from '@/hooks/use-admin'
 import { ROLE } from '@/lib/roles'
 

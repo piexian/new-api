@@ -328,6 +328,7 @@ export const ADVANCED_CUSTOM_TEMPLATE_OPTIONS: AdvancedCustomTemplateOption[] =
 export function cloneAdvancedCustomConfig(
   config: AdvancedCustomConfig
 ): AdvancedCustomConfig {
+  // eslint-disable-next-line unicorn/prefer-structured-clone -- Match the persisted JSON config, including omitted undefined fields.
   return JSON.parse(JSON.stringify(config)) as AdvancedCustomConfig
 }
 

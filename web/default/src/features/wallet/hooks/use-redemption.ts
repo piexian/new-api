@@ -78,7 +78,7 @@ export function useRedemption() {
 
         toast.error(response.message || i18next.t('Redemption failed'))
         return false
-      } catch (_error) {
+      } catch {
         toast.error(i18next.t('Redemption failed'))
         return false
       } finally {

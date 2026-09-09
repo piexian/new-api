@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Separator } from '@/components/ui/separator'
 
-import { getGatewayFeatures } from '../constants'
+import { GATEWAY_FEATURES } from '../constants'
 
 interface GatewayCardProps {
   logo: string
@@ -32,7 +32,6 @@ interface GatewayCardProps {
  */
 export function GatewayCard({ logo, systemName }: GatewayCardProps) {
   const { t } = useTranslation()
-  const features = getGatewayFeatures(t)
 
   return (
     <div className='glass-3 group border-border/50 dark:border-border/20 relative overflow-hidden rounded-4xl border p-10 shadow-2xl transition-all duration-500 sm:p-12 dark:shadow-[0_25px_80px_-15px_rgba(0,0,0,0.4)]'>
@@ -57,14 +56,14 @@ export function GatewayCard({ logo, systemName }: GatewayCardProps) {
 
         {/* Features Grid */}
         <div className='grid grid-cols-2 gap-3'>
-          {features.map((feature, i) => (
+          {GATEWAY_FEATURES.map((feature) => (
             <div
-              key={i}
+              key={feature}
               className='glass-morphism group/item border-border/40 dark:border-border/20 relative overflow-hidden rounded-xl border px-4 py-3.5 text-center shadow-sm transition-all duration-300 hover:scale-[1.02] hover:border-amber-500/40 hover:shadow-md'
             >
               <div className='absolute inset-0 bg-gradient-to-br from-amber-500/0 to-amber-500/0 transition-all duration-300 group-hover/item:from-amber-500/10' />
               <span className='text-foreground/90 group-hover/item:text-foreground relative text-sm font-medium'>
-                {feature}
+                {t(feature)}
               </span>
             </div>
           ))}

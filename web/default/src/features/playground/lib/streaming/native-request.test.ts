@@ -30,6 +30,7 @@ test('native tool switches emit independent protocol fields without client funct
           DEFAULT_PARAMETER_ENABLED
         )
         const { payload, endpoint } = buildNativeRequest(chat, config)
+        // eslint-disable-next-line unicorn/prefer-structured-clone -- This test verifies the serialized HTTP payload, not an object clone.
         const wire = JSON.parse(JSON.stringify(payload))
         assert.equal(wire.group, 'test-group')
         assert.equal(JSON.stringify(wire).includes('"function"'), false)

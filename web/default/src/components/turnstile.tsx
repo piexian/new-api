@@ -45,8 +45,8 @@ function loadTurnstileScript(): Promise<void> {
   if (scriptLoadPromise) return scriptLoadPromise
   scriptLoadPromise = new Promise<void>((resolve, reject) => {
     const id = 'cf-turnstile'
-    const existingScript = document.getElementById(
-      id
+    const existingScript = document.querySelector(
+      `#${id}`
     ) as HTMLScriptElement | null
     if (existingScript) {
       existingScript.addEventListener('load', () => resolve(), { once: true })
@@ -63,8 +63,12 @@ function loadTurnstileScript(): Promise<void> {
       'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
     s.async = true
     s.defer = true
-    s.onload = () => resolve()
-    s.onerror = () => reject(new Error('Failed to load Turnstile script'))
+    s.addEventListener('load', () => resolve(), { once: true })
+    s.addEventListener(
+      'error',
+      () => reject(new Error('Failed to load Turnstile script')),
+      { once: true }
+    )
     document.head.appendChild(s)
   })
   return scriptLoadPromise
@@ -111,12 +115,11 @@ export function Turnstile({
             'error-callback': handleExpired,
             'expired-callback': handleExpired,
           })
-        } catch (e) {
-          console.warn('Turnstile render error:', e)
+        } catch {
+          onExpireRef.current?.()
         }
       })
-      .catch((error) => {
-        console.warn('Turnstile script load error:', error)
+      .catch(() => {
         onExpireRef.current?.()
       })
 

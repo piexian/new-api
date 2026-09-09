@@ -22,8 +22,9 @@ async function walkDir(dir) {
         ['node_modules', '.git', 'locales', '_reports', '_extras'].includes(
           entry.name
         )
-      )
+      ) {
         continue
+      }
       files.push(...(await walkDir(fullPath)))
     } else if (/\.(tsx?|jsx?)$/.test(entry.name)) {
       files.push(fullPath)
@@ -60,6 +61,6 @@ if (missingKeys.size === 0) {
     a.localeCompare(b)
   )) {
     console.log(`  "${key}"`)
-    for (const f of [...new Set(files)]) console.log(`    -> ${f}`)
+    for (const f of new Set(files)) console.log(`    -> ${f}`)
   }
 }

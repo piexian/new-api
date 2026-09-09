@@ -124,13 +124,18 @@ export function RateLimitDialog({
     onOpenChange(false)
   }
 
-  const title = isConcurrency
-    ? isEditMode
-      ? t('Edit group concurrency limit')
-      : t('Add group concurrency limit')
-    : isEditMode
-      ? t('Edit group rate limit')
-      : t('Add group rate limit')
+  const title = (() => {
+    if (isConcurrency) {
+      if (isEditMode) {
+        return t('Edit group concurrency limit')
+      }
+      return t('Add group concurrency limit')
+    }
+    if (isEditMode) {
+      return t('Edit group rate limit')
+    }
+    return t('Add group rate limit')
+  })()
 
   const description = isConcurrency
     ? t('Limit concurrent in-flight requests per account for a specific group.')
@@ -205,7 +210,7 @@ export function RateLimitDialog({
                         step={1}
                         {...field}
                         onChange={(e) =>
-                          field.onChange(parseInt(e.target.value) || 0)
+                          field.onChange(Number.parseInt(e.target.value) || 0)
                         }
                       />
                       <span className='text-muted-foreground text-sm'>
@@ -241,7 +246,7 @@ export function RateLimitDialog({
                           step={1}
                           {...field}
                           onChange={(e) =>
-                            field.onChange(parseInt(e.target.value) || 0)
+                            field.onChange(Number.parseInt(e.target.value) || 0)
                           }
                         />
                         <span className='text-muted-foreground text-sm'>
@@ -272,7 +277,7 @@ export function RateLimitDialog({
                           step={1}
                           {...field}
                           onChange={(e) =>
-                            field.onChange(parseInt(e.target.value) || 1)
+                            field.onChange(Number.parseInt(e.target.value) || 1)
                           }
                         />
                         <span className='text-muted-foreground text-sm'>

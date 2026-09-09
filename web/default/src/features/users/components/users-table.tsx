@@ -215,13 +215,15 @@ export function UsersTable() {
           },
         ],
       }}
-      getRowClassName={(row, { isMobile }) =>
-        isDisabledUserRow(row.original)
-          ? isMobile
-            ? DISABLED_ROW_MOBILE
-            : DISABLED_ROW_DESKTOP
-          : undefined
-      }
+      getRowClassName={(row, { isMobile }) => {
+        if (isDisabledUserRow(row.original)) {
+          if (isMobile) {
+            return DISABLED_ROW_MOBILE
+          }
+          return DISABLED_ROW_DESKTOP
+        }
+        return undefined
+      }}
       bulkActions={<DataTableBulkActions table={table} />}
     />
   )

@@ -189,11 +189,15 @@ export const ModelPricingEditorPanel = forwardRef<
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
       setPricingMode(
-        editData.billingMode === 'tiered_expr'
-          ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
+        (() => {
+          if (editData.billingMode === 'tiered_expr') {
+            return 'tiered_expr'
+          }
+          if (editData.price) {
+            return 'per-request'
+          }
+          return 'per-token'
+        })()
       )
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')

@@ -117,11 +117,15 @@ export function StarfieldBackground() {
       const dark = isDarkMode()
       ctx.clearRect(0, 0, w, h)
       for (const s of stars) {
-        const tw = reduce
-          ? 1
-          : dark
-            ? 0.55 + 0.45 * Math.sin(t * s.sp + s.tw)
-            : 0.9 + 0.1 * Math.sin(t * s.sp + s.tw)
+        const tw = (() => {
+          if (reduce) {
+            return 1
+          }
+          if (dark) {
+            return 0.55 + 0.45 * Math.sin(t * s.sp + s.tw)
+          }
+          return 0.9 + 0.1 * Math.sin(t * s.sp + s.tw)
+        })()
         const alpha = s.a * tw
         ctx.beginPath()
         ctx.fillStyle = dark

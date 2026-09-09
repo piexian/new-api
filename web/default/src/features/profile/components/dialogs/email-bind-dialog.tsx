@@ -99,7 +99,7 @@ export function EmailBindDialog({
       } else {
         toast.error(response.message || t('Failed to send verification code'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to send verification code'))
     } finally {
       resetTurnstile()
@@ -129,7 +129,7 @@ export function EmailBindDialog({
       } else {
         toast.error(response.message || t('Failed to bind email'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to bind email'))
     } finally {
       setLoading(false)
@@ -215,11 +215,15 @@ export function EmailBindDialog({
               onClick={handleSendCode}
               disabled={sendingCode || isActive || !email}
             >
-              {isActive
-                ? `${secondsLeft}s`
-                : sendingCode
-                  ? t('Sending...')
-                  : t('Send')}
+              {(() => {
+                if (isActive) {
+                  return `${secondsLeft}s`
+                }
+                if (sendingCode) {
+                  return t('Sending...')
+                }
+                return t('Send')
+              })()}
             </Button>
           </div>
         </div>

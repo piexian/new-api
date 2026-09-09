@@ -179,13 +179,17 @@ export function ResetPasswordConfirm({
               newPassword ? false : loading || isActive || !isValidResetLink
             }
           >
-            {newPassword
-              ? t('auth.resetPasswordConfirm.backToLogin')
-              : isActive
-                ? t('auth.resetPasswordConfirm.retry', {
-                    seconds: secondsLeft,
-                  })
-                : t('auth.resetPasswordConfirm.confirm')}
+            {(() => {
+              if (newPassword) {
+                return t('auth.resetPasswordConfirm.backToLogin')
+              }
+              if (isActive) {
+                return t('auth.resetPasswordConfirm.retry', {
+                  seconds: secondsLeft,
+                })
+              }
+              return t('auth.resetPasswordConfirm.confirm')
+            })()}
           </Button>
 
           {!newPassword && (

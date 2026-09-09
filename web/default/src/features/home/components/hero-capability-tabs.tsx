@@ -461,7 +461,7 @@ export function HeroCapabilityTabs() {
                   className={cn(
                     'rounded-md border px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase',
                     i === 0
-                      ? accent.badge + ' border-transparent'
+                      ? `${accent.badge} border-transparent`
                       : 'text-foreground/50 border-border/60'
                   )}
                 >

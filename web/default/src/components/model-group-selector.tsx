@@ -585,8 +585,8 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   disabled = false,
 }) => {
   // 防御性默认值，避免空数组/undefined 导致崩溃
-  const modelList = models ?? []
-  const groupList = groups ?? []
+  const modelList = useMemo(() => models ?? [], [models])
+  const groupList = useMemo(() => groups ?? [], [groups])
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -597,16 +597,16 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
 
   const currentModel = useMemo(
     () => modelList.find((model) => model.value === selectedModel),
-    [models, selectedModel]
+    [modelList, selectedModel]
   )
   const currentGroup = useMemo(
     () => groupList.find((group) => group.value === selectedGroup),
-    [groups, selectedGroup]
+    [groupList, selectedGroup]
   )
   const filteredModels = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     if (!query) {
-      return models
+      return modelList
     }
 
     return modelList.filter((model) => {
@@ -621,7 +621,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
 
       return searchableText.includes(query)
     })
-  }, [models, searchQuery])
+  }, [modelList, searchQuery])
 
   const handleModelChange = useCallback(
     (value: string) => {

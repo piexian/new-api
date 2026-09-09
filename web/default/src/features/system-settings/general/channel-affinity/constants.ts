@@ -160,5 +160,6 @@ export function makeUniqueName(
 }
 
 export function cloneTemplate<T>(template: T): T {
+  // eslint-disable-next-line unicorn/prefer-structured-clone -- Templates are copied using the persisted JSON representation.
   return JSON.parse(JSON.stringify(template))
 }

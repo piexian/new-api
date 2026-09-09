@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -65,7 +65,15 @@ function getColumnVisibilityStorageKey(
 }
 
 function deserializeLogTypeFilter(value: unknown): unknown[] {
-  const values = Array.isArray(value) ? value : value ? [value] : []
+  const values = (() => {
+    if (Array.isArray(value)) {
+      return value
+    }
+    if (value) {
+      return [value]
+    }
+    return []
+  })()
   return values.filter((item) => String(item) !== LOG_TYPE_ALL_VALUE)
 }
 
@@ -203,15 +211,15 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
           logCategory={logCategory}
         />
       }
-      toolbar={
-        isCommon ? (
-          <CommonLogsFilterBar table={table} />
-        ) : isEmail ? (
-          <EmailLogsFilterBar table={table} />
-        ) : (
-          <TaskLogsFilterBar table={table} logCategory={logCategory} />
-        )
-      }
+      toolbar={(() => {
+        if (isCommon) {
+          return <CommonLogsFilterBar table={table} />
+        }
+        if (isEmail) {
+          return <EmailLogsFilterBar table={table} />
+        }
+        return <TaskLogsFilterBar table={table} logCategory={logCategory} />
+      })()}
       renderRow={(row) => {
         const logType = (row.original as Record<string, unknown>).type as
           | number

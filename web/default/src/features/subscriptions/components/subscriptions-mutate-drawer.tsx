@@ -716,7 +716,9 @@ export function SubscriptionsMutateDrawer({
                           step='0.01'
                           min={0}
                           onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
+                            field.onChange(
+                              Number.parseFloat(e.target.value) || 0
+                            )
                           }
                         />
                       </FormControl>
@@ -741,7 +743,9 @@ export function SubscriptionsMutateDrawer({
                           step='0.01'
                           min={0}
                           onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
+                            field.onChange(
+                              Number.parseFloat(e.target.value) || 0
+                            )
                           }
                         />
                       </FormControl>
@@ -766,7 +770,9 @@ export function SubscriptionsMutateDrawer({
                           step='0.01'
                           min={0}
                           onChange={(e) =>
-                            field.onChange(parseFloat(e.target.value) || 0)
+                            field.onChange(
+                              Number.parseFloat(e.target.value) || 0
+                            )
                           }
                         />
                       </FormControl>

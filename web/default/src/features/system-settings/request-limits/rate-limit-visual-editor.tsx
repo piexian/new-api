@@ -152,17 +152,19 @@ export function RateLimitVisualEditor({
       <StaticDataTable
         data={filteredRateLimits}
         getRowKey={(limit) => limit.groupName}
-        emptyContent={
-          searchText
-            ? t('No groups match your search')
-            : isConcurrency
-              ? t(
-                  'No group concurrency limits configured. Click "Add group" to get started.'
-                )
-              : t(
-                  'No group-based rate limits configured. Click "Add group" to get started.'
-                )
-        }
+        emptyContent={(() => {
+          if (searchText) {
+            return t('No groups match your search')
+          }
+          if (isConcurrency) {
+            return t(
+              'No group concurrency limits configured. Click "Add group" to get started.'
+            )
+          }
+          return t(
+            'No group-based rate limits configured. Click "Add group" to get started.'
+          )
+        })()}
         columns={[
           {
             id: 'group',
