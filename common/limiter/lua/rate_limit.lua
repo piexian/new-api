@@ -41,4 +41,8 @@ end
 redis.call('HMSET', key, 'tokens', tokens, 'last_time', last_time)
 --redis.call('EXPIRE', key, math.ceil(capacity / rate) + 60) -- 适当延长过期时间
 
-return allowed and 1 or 0
+local retry_after = 0
+if not allowed and rate > 0 then
+    retry_after = math.ceil((requested - tokens) / rate)
+end
+return {allowed and 1 or 0, retry_after}

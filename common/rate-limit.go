@@ -12,16 +12,14 @@ type InMemoryRateLimiter struct {
 }
 
 func (l *InMemoryRateLimiter) Init(expirationDuration time.Duration) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
 	if l.store == nil {
-		l.mutex.Lock()
-		if l.store == nil {
-			l.store = make(map[string]*[]int64)
-			l.expirationDuration = expirationDuration
-			if expirationDuration > 0 {
-				go l.clearExpiredItems()
-			}
+		l.store = make(map[string]*[]int64)
+		l.expirationDuration = expirationDuration
+		if expirationDuration > 0 {
+			go l.clearExpiredItems()
 		}
-		l.mutex.Unlock()
 	}
 }
 
@@ -43,28 +41,60 @@ func (l *InMemoryRateLimiter) clearExpiredItems() {
 
 // Request parameter duration's unit is seconds
 func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration int64) bool {
+	allowed, _ := l.RequestWithRetry(key, maxRequestNum, duration)
+	return allowed
+}
+
+func (l *InMemoryRateLimiter) RequestWithRetry(key string, maxRequestNum int, duration int64) (bool, int64) {
+	return l.requestWithRetry(key, maxRequestNum, duration, true)
+}
+
+// CheckWithRetry checks completed-request limits without counting failed attempts.
+func (l *InMemoryRateLimiter) CheckWithRetry(key string, maxRequestNum int, duration int64) (bool, int64) {
+	return l.requestWithRetry(key, maxRequestNum, duration, false)
+}
+
+// RecordCompletion keeps the newest completions even when requests admitted
+// earlier finish after the success limit has already been reached.
+func (l *InMemoryRateLimiter) RecordCompletion(key string, maxRequestNum int) {
+	if maxRequestNum <= 0 {
+		return
+	}
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	queue := l.store[key]
+	if queue == nil {
+		queue = &[]int64{}
+		l.store[key] = queue
+	}
+	*queue = append(*queue, time.Now().Unix())
+	if len(*queue) > maxRequestNum {
+		*queue = (*queue)[len(*queue)-maxRequestNum:]
+	}
+}
+
+func (l *InMemoryRateLimiter) requestWithRetry(key string, maxRequestNum int, duration int64, record bool) (bool, int64) {
+	if maxRequestNum <= 0 {
+		return true, 0
+	}
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	// [old <-- new]
-	queue, ok := l.store[key]
+	queue := l.store[key]
 	now := time.Now().Unix()
-	if ok {
-		if len(*queue) < maxRequestNum {
-			*queue = append(*queue, now)
-			return true
-		} else {
-			if now-(*queue)[0] >= duration {
-				*queue = (*queue)[1:]
-				*queue = append(*queue, now)
-				return true
-			} else {
-				return false
-			}
-		}
-	} else {
-		s := make([]int64, 0, maxRequestNum)
-		l.store[key] = &s
-		*(l.store[key]) = append(*(l.store[key]), now)
+	if queue == nil {
+		queue = &[]int64{}
+		l.store[key] = queue
 	}
-	return true
+	for len(*queue) > 0 && now-(*queue)[0] >= duration {
+		*queue = (*queue)[1:]
+	}
+	if len(*queue) >= maxRequestNum {
+		// Also handles a configured limit being lowered while requests are live.
+		return false, (*queue)[len(*queue)-maxRequestNum] + duration - now
+	}
+	if record {
+		*queue = append(*queue, now)
+	}
+	return true, 0
 }

@@ -305,7 +305,7 @@ func SetRelayRouter(router *gin.Engine) {
 	relaySunoRouter := router.Group("/suno")
 	relaySunoRouter.Use(middleware.RouteTag("relay"))
 	relaySunoRouter.Use(middleware.SystemPerformanceCheck())
-	relaySunoRouter.Use(middleware.TokenAuth(), middleware.Distribute(), middleware.GroupConcurrencyLimit())
+	relaySunoRouter.Use(middleware.TokenAuth(), middleware.TokenRateLimit(), middleware.Distribute(), middleware.GroupConcurrencyLimit())
 	{
 		relaySunoRouter.POST("/submit/:action", controller.RelayTask)
 		relaySunoRouter.POST("/fetch", controller.RelayTaskFetch)
@@ -348,7 +348,7 @@ func SetRelayRouter(router *gin.Engine) {
 
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {
 	relayMjRouter.GET("/image/:id", relay.RelayMidjourneyImage)
-	relayMjRouter.Use(middleware.TokenAuth(), middleware.Distribute(), middleware.GroupConcurrencyLimit())
+	relayMjRouter.Use(middleware.TokenAuth(), middleware.TokenRateLimit(), middleware.Distribute(), middleware.GroupConcurrencyLimit())
 	{
 		relayMjRouter.POST("/submit/action", controller.RelayMidjourney)
 		relayMjRouter.POST("/submit/shorten", controller.RelayMidjourney)

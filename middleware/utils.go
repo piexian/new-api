@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"fmt"
+	"net/http"
+	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -36,4 +38,9 @@ func abortWithMidjourneyMessage(c *gin.Context, statusCode int, code int, descri
 	})
 	c.Abort()
 	logger.LogError(c.Request.Context(), description)
+}
+
+func abortWithRateLimit(c *gin.Context, retryAfter int64, message string) {
+	c.Header("Retry-After", strconv.FormatInt(max(1, retryAfter), 10))
+	abortWithOpenAiMessage(c, http.StatusTooManyRequests, message)
 }

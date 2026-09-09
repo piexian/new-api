@@ -47,12 +47,13 @@ func tokenRateLimitRedis(c *gin.Context, tokenId string, rateLimit, ipRateLimit 
 	tb := limiter.New(ctx, common.RDB)
 
 	if rateLimit > 0 {
-		allowed, err := tb.Allow(
+		allowed, retryAfter, err := tb.AllowWithRetry(
 			ctx,
-			fmt.Sprintf("rateLimit:token:%s", tokenId),
-			limiter.WithCapacity(int64(rateLimit)),
+			// A new namespace avoids interpreting old per-second balances as RPM units.
+			fmt.Sprintf("rateLimit:token:rpm:%s", tokenId),
+			limiter.WithCapacity(int64(rateLimit)*tokenRateLimitWindowSeconds),
 			limiter.WithRate(int64(rateLimit)),
-			limiter.WithRequested(1),
+			limiter.WithRequested(tokenRateLimitWindowSeconds),
 		)
 		if err != nil {
 			fmt.Println("检查令牌请求数限制失败:", err.Error())
@@ -60,18 +61,18 @@ func tokenRateLimitRedis(c *gin.Context, tokenId string, rateLimit, ipRateLimit 
 			return
 		}
 		if !allowed {
-			abortWithOpenAiMessage(c, http.StatusTooManyRequests, fmt.Sprintf("该令牌已达到请求数限制：每分钟最多请求%d次", rateLimit))
+			abortWithRateLimit(c, retryAfter, fmt.Sprintf("该令牌已达到请求数限制：每分钟最多请求%d次", rateLimit))
 			return
 		}
 	}
 
 	if ipRateLimit > 0 {
-		allowed, err := tb.Allow(
+		allowed, retryAfter, err := tb.AllowWithRetry(
 			ctx,
-			fmt.Sprintf("rateLimit:token:%s:ip:%s", tokenId, c.ClientIP()),
-			limiter.WithCapacity(int64(ipRateLimit)),
+			fmt.Sprintf("rateLimit:token:rpm:%s:ip:%s", tokenId, c.ClientIP()),
+			limiter.WithCapacity(int64(ipRateLimit)*tokenRateLimitWindowSeconds),
 			limiter.WithRate(int64(ipRateLimit)),
-			limiter.WithRequested(1),
+			limiter.WithRequested(tokenRateLimitWindowSeconds),
 		)
 		if err != nil {
 			fmt.Println("检查令牌IP请求数限制失败:", err.Error())
@@ -79,7 +80,7 @@ func tokenRateLimitRedis(c *gin.Context, tokenId string, rateLimit, ipRateLimit 
 			return
 		}
 		if !allowed {
-			abortWithOpenAiMessage(c, http.StatusTooManyRequests, fmt.Sprintf("当前IP已达到该令牌的请求数限制：每分钟最多请求%d次", ipRateLimit))
+			abortWithRateLimit(c, retryAfter, fmt.Sprintf("当前IP已达到该令牌的请求数限制：每分钟最多请求%d次", ipRateLimit))
 			return
 		}
 	}
@@ -89,15 +90,13 @@ func tokenRateLimitRedis(c *gin.Context, tokenId string, rateLimit, ipRateLimit 
 func tokenRateLimitMemory(c *gin.Context, tokenId string, rateLimit, ipRateLimit int) {
 	inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
 
-	if rateLimit > 0 &&
-		!inMemoryRateLimiter.Request("token:"+tokenId, rateLimit, tokenRateLimitWindowSeconds) {
-		abortWithOpenAiMessage(c, http.StatusTooManyRequests, fmt.Sprintf("该令牌已达到请求数限制：每分钟最多请求%d次", rateLimit))
+	if allowed, retryAfter := inMemoryRateLimiter.RequestWithRetry("token:"+tokenId, rateLimit, tokenRateLimitWindowSeconds); !allowed {
+		abortWithRateLimit(c, retryAfter, fmt.Sprintf("该令牌已达到请求数限制：每分钟最多请求%d次", rateLimit))
 		return
 	}
 
-	if ipRateLimit > 0 &&
-		!inMemoryRateLimiter.Request("token:"+tokenId+":ip:"+c.ClientIP(), ipRateLimit, tokenRateLimitWindowSeconds) {
-		abortWithOpenAiMessage(c, http.StatusTooManyRequests, fmt.Sprintf("当前IP已达到该令牌的请求数限制：每分钟最多请求%d次", ipRateLimit))
+	if allowed, retryAfter := inMemoryRateLimiter.RequestWithRetry("token:"+tokenId+":ip:"+c.ClientIP(), ipRateLimit, tokenRateLimitWindowSeconds); !allowed {
+		abortWithRateLimit(c, retryAfter, fmt.Sprintf("当前IP已达到该令牌的请求数限制：每分钟最多请求%d次", ipRateLimit))
 		return
 	}
 }

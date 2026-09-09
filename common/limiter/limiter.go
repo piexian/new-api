@@ -22,6 +22,13 @@ func New(_ context.Context, r *redis.Client) *RedisLimiter {
 }
 
 func (rl *RedisLimiter) Allow(ctx context.Context, key string, opts ...Option) (bool, error) {
+	allowed, _, err := rl.AllowWithRetry(ctx, key, opts...)
+	return allowed, err
+}
+
+// AllowWithRetry returns the seconds until this bucket can serve another request.
+// The decision and wait time are calculated atomically from the same bucket state.
+func (rl *RedisLimiter) AllowWithRetry(ctx context.Context, key string, opts ...Option) (bool, int64, error) {
 	// 默认配置
 	config := &Config{
 		Capacity:  10,
@@ -42,12 +49,12 @@ func (rl *RedisLimiter) Allow(ctx context.Context, key string, opts ...Option) (
 		config.Requested,
 		config.Rate,
 		config.Capacity,
-	).Int()
+	).Int64Slice()
 
 	if err != nil {
-		return false, fmt.Errorf("rate limit failed: %w", err)
+		return false, 0, fmt.Errorf("rate limit failed: %w", err)
 	}
-	return result == 1, nil
+	return result[0] == 1, result[1], nil
 }
 
 // Config 配置选项模式

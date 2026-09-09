@@ -3,7 +3,9 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -53,6 +55,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		// See: https://stackoverflow.com/questions/50970900/why-is-time-since-returning-negative-durations-on-windows
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
 			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
+			c.Header("Retry-After", strconv.FormatInt(max(1, int64(math.Ceil(float64(duration)-nowTime.Sub(oldTime).Seconds()))), 10))
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
@@ -66,7 +69,8 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 
 func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark string) {
 	key := mark + c.ClientIP()
-	if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
+	if allowed, retryAfter := inMemoryRateLimiter.RequestWithRetry(key, maxRequestNum, duration); !allowed {
+		c.Header("Retry-After", strconv.FormatInt(max(1, retryAfter), 10))
 		c.Status(http.StatusTooManyRequests)
 		c.Abort()
 		return
@@ -142,7 +146,8 @@ func userRateLimitFactory(maxRequestNum int, duration int64, mark string) func(c
 			return
 		}
 		key := fmt.Sprintf("%s:user:%d", mark, userId)
-		if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
+		if allowed, retryAfter := inMemoryRateLimiter.RequestWithRetry(key, maxRequestNum, duration); !allowed {
+			c.Header("Retry-After", strconv.FormatInt(max(1, retryAfter), 10))
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
@@ -184,6 +189,7 @@ func userRedisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, key
 		}
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
 			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
+			c.Header("Retry-After", strconv.FormatInt(max(1, int64(math.Ceil(float64(duration)-nowTime.Sub(oldTime).Seconds()))), 10))
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
