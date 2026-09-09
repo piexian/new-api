@@ -33,6 +33,7 @@ export {
   CHANNEL_TYPE_GROQ,
   CHANNEL_OPTIONS,
   MODEL_FETCHABLE_CHANNEL_TYPES,
+  canFetchChannelModels,
   MODEL_TABLE_PAGE_SIZE,
 } from './channel.constants';
 export { userConstants } from './user.constants';

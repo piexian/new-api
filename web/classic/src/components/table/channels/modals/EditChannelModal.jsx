@@ -35,7 +35,7 @@ import {
   CHANNEL_TYPE_GMICLOUD,
   CHANNEL_TYPE_OPENCODE,
   CHANNEL_TYPE_QWEN_TOKEN_PLAN,
-  MODEL_FETCHABLE_CHANNEL_TYPES,
+  canFetchChannelModels,
 } from '../../../../constants';
 import {
   SideSheet,
@@ -1339,7 +1339,7 @@ const EditChannelModal = (props) => {
     const mappingKey = String(pairKey ?? '').trim();
     if (!mappingKey) return;
 
-    if (!MODEL_FETCHABLE_CHANNEL_TYPES.has(inputs.type)) {
+    if (!canFetchChannelModels(inputs.type, inputs.base_url)) {
       return;
     }
 
@@ -2549,7 +2549,7 @@ const EditChannelModal = (props) => {
             const advancedSettingsContent = (
               <div className='space-y-4'>
                 {/* Upstream Model Management Section */}
-                {MODEL_FETCHABLE_CHANNEL_TYPES.has(inputs.type) && (
+                {canFetchChannelModels(inputs.type, inputs.base_url) && (
                   <div className='pb-3 border-b border-gray-100'>
                     <Text className='text-sm font-medium text-gray-500 mb-3 block'>
                       {t('上游模型管理')}
@@ -4496,7 +4496,10 @@ const EditChannelModal = (props) => {
                             >
                               {t('填入相关模型')}
                             </Button>
-                            {MODEL_FETCHABLE_CHANNEL_TYPES.has(inputs.type) && (
+                            {canFetchChannelModels(
+                              inputs.type,
+                              inputs.base_url,
+                            ) && (
                               <Button
                                 size='small'
                                 type='tertiary'
@@ -4652,7 +4655,9 @@ const EditChannelModal = (props) => {
                         editorType='keyValue'
                         formApi={formApiRef.current}
                         renderStringValueSuffix={({ pairKey, value }) => {
-                          if (!MODEL_FETCHABLE_CHANNEL_TYPES.has(inputs.type)) {
+                          if (
+                            !canFetchChannelModels(inputs.type, inputs.base_url)
+                          ) {
                             return null;
                           }
                           const disabled = !String(pairKey ?? '').trim();

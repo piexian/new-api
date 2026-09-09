@@ -144,7 +144,7 @@ import {
   ERROR_MESSAGES,
   FIELD_DESCRIPTIONS,
   FIELD_PLACEHOLDERS,
-  MODEL_FETCHABLE_TYPES,
+  canFetchChannelModels,
 } from '../../constants'
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
@@ -1156,7 +1156,7 @@ export function ChannelMutateDrawer({
       configured: fieldPassthroughConfigured,
     })
   }
-  if (MODEL_FETCHABLE_TYPES.has(currentType)) {
+  if (canFetchChannelModels(currentType, form.watch('base_url'))) {
     advancedNavChildren.push({
       id: ADVANCED_SETTINGS_SECTION_IDS.upstreamModelDetection,
       title: t('Upstream Model Detection Settings'),
@@ -1515,7 +1515,7 @@ export function ChannelMutateDrawer({
   const handleFetchModels = useCallback(async () => {
     const type = form.getValues('type')
 
-    if (!MODEL_FETCHABLE_TYPES.has(type)) {
+    if (!canFetchChannelModels(type, form.getValues('base_url'))) {
       toast.error(t('This channel type does not support fetching models'))
       return
     }
@@ -4084,7 +4084,10 @@ export function ChannelMutateDrawer({
                                   />
                                   {t('Fill All Models')}
                                 </Button>
-                                {MODEL_FETCHABLE_TYPES.has(currentType) && (
+                                {canFetchChannelModels(
+                                  currentType,
+                                  form.watch('base_url')
+                                ) && (
                                   <>
                                     <Button
                                       type='button'
@@ -5424,7 +5427,10 @@ export function ChannelMutateDrawer({
                           </div>
                         )}
 
-                        {MODEL_FETCHABLE_TYPES.has(currentType) && (
+                        {canFetchChannelModels(
+                          currentType,
+                          form.watch('base_url')
+                        ) && (
                           <div
                             id={
                               ADVANCED_SETTINGS_SECTION_IDS.upstreamModelDetection

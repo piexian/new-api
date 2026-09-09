@@ -21,7 +21,7 @@ import { z } from 'zod'
 import {
   CHANNEL_STATUS,
   ERROR_MESSAGES,
-  MODEL_FETCHABLE_TYPES,
+  canFetchChannelModels,
 } from '../constants'
 import type { Channel } from '../types'
 import {
@@ -735,7 +735,7 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     formData.disable_task_polling_sleep === true
 
   // Upstream model update settings (for model-fetchable channel types)
-  if (MODEL_FETCHABLE_TYPES.has(formData.type)) {
+  if (canFetchChannelModels(formData.type, formData.base_url)) {
     settingsObj.upstream_model_update_check_enabled =
       formData.upstream_model_update_check_enabled === true
     settingsObj.upstream_model_update_auto_sync_enabled =

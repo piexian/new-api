@@ -297,6 +297,7 @@ export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
   42,
   48,
   43,
+  45,
   58,
   59,
   62,
@@ -313,3 +314,14 @@ export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;
+
+export function canFetchChannelModels(type, baseURL) {
+  if (!MODEL_FETCHABLE_CHANNEL_TYPES.has(type)) return false;
+  if (type !== 45) return true;
+  const base = (baseURL || '').trim().replace(/\/+$/, '');
+  return !(
+    base === 'doubao-coding-plan' ||
+    base === 'doubao-agent-plan' ||
+    /\/api\/(coding|plan)(\/|$)/.test(base)
+  );
+}

@@ -46,7 +46,7 @@ import {
   CHANNEL_TYPE_MOONSHOT,
   CHANNEL_TYPE_QWEN_TOKEN_PLAN,
   CHANNEL_TYPE_ZHIPU_V4,
-  MODEL_FETCHABLE_CHANNEL_TYPES,
+  canFetchChannelModels,
 } from '../../../constants';
 import { parseUpstreamUpdateMeta } from '../../../hooks/channels/upstreamUpdateUtils';
 import {
@@ -371,7 +371,7 @@ const getUpstreamUpdateMeta = (record) => {
   const supported =
     !!record &&
     record.children === undefined &&
-    MODEL_FETCHABLE_CHANNEL_TYPES.has(record.type);
+    canFetchChannelModels(record.type, record.base_url);
   if (!record || record.children !== undefined) {
     return {
       supported: false,

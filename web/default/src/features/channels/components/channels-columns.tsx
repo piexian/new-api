@@ -77,7 +77,7 @@ import { getCodexUsage } from '../api'
 import {
   CHANNEL_STATUS,
   CHANNEL_STATUS_CONFIG,
-  MODEL_FETCHABLE_TYPES,
+  canFetchChannelModels,
 } from '../constants'
 import {
   formatRelativeTime,
@@ -196,7 +196,7 @@ function parseIonetMeta(otherInfo: string | null | undefined): null | {
  */
 function UpstreamUpdateTags({ channel }: { channel: Channel }) {
   const { upstream, setCurrentRow } = useChannels()
-  if (!MODEL_FETCHABLE_TYPES.has(channel.type)) {
+  if (!canFetchChannelModels(channel.type, channel.base_url)) {
     return null
   }
 

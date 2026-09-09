@@ -403,9 +403,20 @@ export const FIELD_DESCRIPTIONS = {
 
 // 注意：与 web/classic/src/constants/channel.constants.js 的 MODEL_FETCHABLE_CHANNEL_TYPES 为两份手工同步清单，新增渠道类型时需同时更新。
 export const MODEL_FETCHABLE_TYPES = new Set([
-  1, 4, 14, 17, 20, 23, 24, 25, 26, 27, 31, 34, 35, 40, 42, 43, 47, 48, 58, 59,
-  62, 63, 64, 65, 66, 68, 69, 71, 72, 73,
+  1, 4, 14, 17, 20, 23, 24, 25, 26, 27, 31, 34, 35, 40, 42, 43, 45, 47, 48, 58,
+  59, 62, 63, 64, 65, 66, 68, 69, 71, 72, 73,
 ])
+
+export function canFetchChannelModels(type: number, baseURL?: string | null) {
+  if (!MODEL_FETCHABLE_TYPES.has(type)) return false
+  if (type !== 45) return true
+  const base = (baseURL || '').trim().replace(/\/+$/, '')
+  return !(
+    base === 'doubao-coding-plan' ||
+    base === 'doubao-agent-plan' ||
+    /\/api\/(coding|plan)(\/|$)/.test(base)
+  )
+}
 
 export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   15: 'Format: APIKey|SecretKey',
