@@ -37,6 +37,8 @@ import {
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
+import { RateLimitsDisplay } from './api-keys-cells'
+
 export type ApiKeyGroupOption = {
   value: string
   label: string
@@ -99,6 +101,23 @@ function GroupRatioBadge({ ratio }: { ratio: ApiKeyGroupOption['ratio'] }) {
   )
 }
 
+function GroupRateLimits(props: { option?: ApiKeyGroupOption }) {
+  if (
+    props.option?.rpm === undefined &&
+    props.option?.concurrency === undefined
+  ) {
+    return null
+  }
+
+  return (
+    <RateLimitsDisplay
+      rpm={props.option?.rpm}
+      concurrency={props.option?.concurrency}
+      layout='inline'
+    />
+  )
+}
+
 export function ApiKeyGroupCombobox({
   options,
   value,
@@ -109,7 +128,9 @@ export function ApiKeyGroupCombobox({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
-  const selectedOption = options.find((option) => option.value === value)
+  const selectedOption =
+    options.find((option) => option.value === value) ||
+    (!value ? options.find((option) => option.isUserGroup) : undefined)
 
   const filteredOptions = useMemo(() => {
     const search = searchValue.trim().toLowerCase()
@@ -156,6 +177,7 @@ export function ApiKeyGroupCombobox({
                 {selectedOption.desc}
               </span>
             )}
+            <GroupRateLimits option={selectedOption} />
           </span>
           <span className='hidden sm:block'>
             <GroupRatioBadge ratio={selectedOption?.ratio} />
@@ -200,6 +222,7 @@ export function ApiKeyGroupCombobox({
                         {option.desc}
                       </span>
                     )}
+                    <GroupRateLimits option={option} />
                   </span>
                   <GroupRatioBadge ratio={option.ratio} />
                 </CommandItem>

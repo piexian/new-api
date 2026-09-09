@@ -396,13 +396,30 @@ const EditTokenModal = (props) => {
                         label={t('令牌分组')}
                         placeholder={t('令牌分组，默认为用户的分组')}
                         optionList={groups}
-                        renderOptionItem={renderGroupOption}
-                        extraText={(() => {
-                          const info = values.group
-                            ? groups.find((g) => g.value === values.group)
-                            : groups.find((g) => g.isUserGroup);
-                          return renderGroupLimits(info, t);
-                        })()}
+                        renderOptionItem={(option) =>
+                          renderGroupOption({
+                            ...option,
+                            fullLabel: (
+                              <span className='flex min-w-0 flex-col gap-1'>
+                                <span>{option.desc || option.label}</span>
+                                {renderGroupLimits(option, t)}
+                              </span>
+                            ),
+                          })
+                        }
+                        renderSelectedItem={(option) => {
+                          if (!option?.value) return null;
+                          const selected = groups.find(
+                            (group) => group.value === option.value,
+                          );
+                          if (!selected) return option.label || option.value;
+                          return (
+                            <span className='flex min-w-0 flex-col gap-0.5 py-1'>
+                              <span className='truncate'>{selected.label}</span>
+                              {renderGroupLimits(selected, t)}
+                            </span>
+                          );
+                        }}
                         onChange={(value) => {
                           formApiRef.current?.setValue('group', value || '');
                           if (value !== 'auto') {
@@ -423,7 +440,11 @@ const EditTokenModal = (props) => {
                           );
                         }}
                         showClear
-                        style={{ width: '100%' }}
+                        style={{
+                          width: '100%',
+                          height: 'auto',
+                          minHeight: values.group ? 56 : 32,
+                        }}
                       />
                     ) : (
                       <Form.Select

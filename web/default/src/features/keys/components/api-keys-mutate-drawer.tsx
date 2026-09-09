@@ -81,7 +81,6 @@ import {
   ApiKeyGroupCombobox,
   type ApiKeyGroupOption,
 } from './api-key-group-combobox'
-import { RateLimitsDisplay } from './api-keys-cells'
 import { useApiKeys } from './api-keys-provider'
 
 type ApiKeyMutateDrawerProps = {
@@ -252,10 +251,6 @@ export function ApiKeysMutateDrawer({
     ? t('Enter quota in tokens')
     : t('Enter quota in {{currency}}', { currency: currencyLabel })
   const selectedGroup = form.watch('group')
-  // 令牌未指定分组时按用户自身分组展示限速
-  const selectedInfo = selectedGroup
-    ? groupsRaw[selectedGroup]
-    : Object.values(groupsRaw).find((info) => info.is_user_group)
   const unlimitedQuota = form.watch('unlimited_quota')
 
   return (
@@ -322,15 +317,6 @@ export function ApiKeysMutateDrawer({
                         placeholder={t('Select a group')}
                       />
                     </FormControl>
-                    {selectedInfo && (
-                      <FormDescription>
-                        <RateLimitsDisplay
-                          rpm={selectedInfo.rpm}
-                          concurrency={selectedInfo.concurrency}
-                          layout='inline'
-                        />
-                      </FormDescription>
-                    )}
                     <FormMessage />
                   </FormItem>
                 )}
