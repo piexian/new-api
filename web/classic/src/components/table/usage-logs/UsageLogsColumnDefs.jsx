@@ -913,17 +913,13 @@ export const getLogsColumns = ({
             (isAdminUser && record.type === 1)) &&
           text;
         return showUA ? (
-          <Tooltip content={text}>
-            <Typography.Text
-              ellipsis={{ showTooltip: true }}
-              style={{ width: 180, fontFamily: 'monospace', fontSize: '12px' }}
-              onClick={(event) => {
-                copyText(event, text);
-              }}
-            >
-              {text}
-            </Typography.Text>
-          </Tooltip>
+          <Typography.Text
+            ellipsis={{ showTooltip: true }}
+            copyable={{ content: text }}
+            style={{ width: 180, fontFamily: 'monospace', fontSize: '12px' }}
+          >
+            {text}
+          </Typography.Text>
         ) : (
           <></>
         );
