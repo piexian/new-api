@@ -150,7 +150,8 @@ func TestUserAuthClearsLegacyGitHubSessionWithoutEmail(t *testing.T) {
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	require.False(t, response.Success)
-	require.Equal(t, "Account anomaly detected. Sign in again with OAuth to repair it automatically.", response.Message)
+	// The request does not select a language, so it uses the default Chinese locale.
+	require.Equal(t, "账号异常，请以 OAuth 登录重新登录自动修复", response.Message)
 }
 
 func TestUserAuthAllowsGitHubSessionWithEmail(t *testing.T) {
