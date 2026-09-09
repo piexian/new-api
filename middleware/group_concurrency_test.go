@@ -128,6 +128,8 @@ func TestGroupConcurrencyLimitMiddleware(t *testing.T) {
 	w = httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil))
 	require.Equal(t, http.StatusTooManyRequests, w.Code)
+	require.Equal(t, "1", w.Header().Get("Retry-After"))
+	require.Contains(t, w.Body.String(), `"new_api_error":true`)
 	release()
 
 	// 释放后恢复放行

@@ -363,6 +363,9 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 	if newAPIError != nil {
 		return nil, newAPIError
 	}
+	if concurrencyErr := middleware.EnsureGroupConcurrency(c); concurrencyErr != nil {
+		return nil, concurrencyErr
+	}
 	return channel, nil
 }
 
@@ -623,7 +626,7 @@ func RelayTask(c *gin.Context) {
 			channel, channelErr = getChannel(c, relayInfo, retryParam)
 			if channelErr != nil {
 				logger.LogError(c, channelErr.Error())
-				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", http.StatusInternalServerError)
+				taskErr = service.TaskErrorFromAPIError(channelErr)
 				break
 			}
 		}
