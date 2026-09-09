@@ -36,7 +36,7 @@ import {
 } from '@/i18n/languages'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { updateUserLanguage, updateUserLogLanguage } from '../api'
+import { updateUserLanguage } from '../api'
 import { parseUserSettings } from '../lib'
 import type { UserProfile } from '../types'
 
@@ -45,25 +45,10 @@ type LanguagePreferencesCardProps = {
   onProfileUpdate: () => void
 }
 
-const LOG_LANGUAGE_OPTIONS = [
-  { value: 'follow', labelKey: 'Follow admin default' },
-  { value: 'zh', label: '简体中文' },
-  { value: 'en', label: 'English' },
-] as const
-
-function normalizeLogLanguage(value?: string | null) {
-  if (!value) return 'follow'
-  const normalized = value.trim().replaceAll('_', '-').toLowerCase()
-  if (normalized.startsWith('zh')) return 'zh'
-  if (normalized.startsWith('en')) return 'en'
-  return 'follow'
-}
-
 export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
   const { t, i18n } = useTranslation()
   const { auth } = useAuthStore()
   const [saving, setSaving] = useState(false)
-  const [savingLogLanguage, setSavingLogLanguage] = useState(false)
 
   const savedSettings = useMemo(
     () => parseUserSettings(props.profile?.setting),
@@ -73,21 +58,12 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
   const savedLanguage = useMemo(() => {
     return normalizeInterfaceLanguage(savedSettings.language || i18n.language)
   }, [savedSettings.language, i18n.language])
-  const savedLogLanguage = useMemo(
-    () => normalizeLogLanguage(savedSettings.log_language),
-    [savedSettings.log_language]
-  )
 
   const [currentLanguage, setCurrentLanguage] = useState(savedLanguage)
-  const [currentLogLanguage, setCurrentLogLanguage] = useState(savedLogLanguage)
 
   useEffect(() => {
     setCurrentLanguage(savedLanguage)
   }, [savedLanguage])
-
-  useEffect(() => {
-    setCurrentLogLanguage(savedLogLanguage)
-  }, [savedLogLanguage])
 
   const updateAuthSetting = (nextSetting: Record<string, unknown>) => {
     if (!auth.user) return
@@ -133,33 +109,6 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
     }
   }
 
-  const handleLogLanguageChange = async (language: string | null) => {
-    if (!language) return
-    const nextLogLanguage = normalizeLogLanguage(language)
-    if (nextLogLanguage === currentLogLanguage) return
-
-    const previousLogLanguage = currentLogLanguage
-    setCurrentLogLanguage(nextLogLanguage)
-    setSavingLogLanguage(true)
-
-    try {
-      const value = nextLogLanguage === 'follow' ? '' : nextLogLanguage
-      const response = await updateUserLogLanguage(value)
-      if (!response.success) {
-        throw new Error(response.message || t('Failed to update settings'))
-      }
-
-      updateAuthSetting({ log_language: value })
-      props.onProfileUpdate()
-      toast.success(t('Log language preference saved'))
-    } catch {
-      setCurrentLogLanguage(previousLogLanguage)
-      toast.error(t('Failed to update settings'))
-    } finally {
-      setSavingLogLanguage(false)
-    }
-  }
-
   return (
     <TitledCard
       title={t('Language Preferences')}
@@ -201,43 +150,6 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
             </SelectContent>
           </Select>
           {saving && (
-            <Loader2 className='text-muted-foreground size-4 animate-spin' />
-          )}
-        </div>
-      </div>
-      <div className='mt-4 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4'>
-        <div className='space-y-1'>
-          <div className='text-sm font-medium'>{t('Log Display Language')}</div>
-          <p className='text-muted-foreground line-clamp-2 text-xs sm:text-sm'>
-            {t(
-              'Controls how New API log content is displayed. Leave it on default to follow the administrator preference.'
-            )}
-          </p>
-        </div>
-        <div className='flex items-center gap-2 sm:min-w-48'>
-          <Select
-            items={LOG_LANGUAGE_OPTIONS.map((option) => ({
-              value: option.value,
-              label: 'label' in option ? option.label : t(option.labelKey),
-            }))}
-            value={currentLogLanguage}
-            onValueChange={handleLogLanguageChange}
-            disabled={savingLogLanguage}
-          >
-            <SelectTrigger className='w-full sm:w-48'>
-              <SelectValue placeholder={t('Select language')} />
-            </SelectTrigger>
-            <SelectContent alignItemWithTrigger={false}>
-              <SelectGroup>
-                {LOG_LANGUAGE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {'label' in option ? option.label : t(option.labelKey)}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          {savingLogLanguage && (
             <Loader2 className='text-muted-foreground size-4 animate-spin' />
           )}
         </div>

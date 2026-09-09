@@ -6457,7 +6457,15 @@
     "Chat API interface": "對話 API 介面",
     "Code Interpreter": "Code Interpreter",
     "Tool Calls": "工具調用",
-    "Select Responses, Anthropic, or Gemini to use code execution": "選擇 Responses、Anthropic 或 Gemini 介面以使用程式碼執行"
+    "Select Responses, Anthropic, or Gemini to use code execution": "選擇 Responses、Anthropic 或 Gemini 介面以使用程式碼執行",
+    "Enable notifications": "啟用通知",
+    "Turn off to stop all automatic notifications. Verification and password reset emails are unaffected.": "關閉後停止所有自動通知，不影響驗證碼和密碼重設郵件。",
+    "Notification categories": "通知類型",
+    "Balance and subscription quota alerts": "餘額與訂閱額度預警",
+    "Top-up confirmations (email)": "儲值入帳通知（郵件）",
+    "Subscription activation and expiry (email)": "訂閱開通與到期通知（郵件）",
+    "Account status notifications": "帳號狀態通知",
+    "Channel and system notifications": "渠道與系統通知"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

@@ -192,12 +192,12 @@ func TestUpdateUserSettingInvalidatesRootLogLanguageFallback(t *testing.T) {
 		Role:     common.RoleRootUser,
 		Status:   common.UserStatusEnabled,
 	}
-	root.SetSetting(dto.UserSetting{Language: "zh", LogLanguage: "en"})
+	root.SetSetting(dto.UserSetting{Language: "en", LogLanguage: "zh"})
 	require.NoError(t, DB.Create(&root).Error)
 	require.Equal(t, LogLanguageEN, GetRootLogLanguageFallback())
 
 	setting := root.GetSetting()
-	setting.LogLanguage = "zh"
+	setting.Language = "zh"
 	require.NoError(t, UpdateUserSetting(root.Id, setting))
 	require.Equal(t, LogLanguageZH, GetRootLogLanguageFallback())
 }

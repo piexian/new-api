@@ -92,6 +92,8 @@ const PersonalSetting = () => {
     setPasskeyRequiredVerificationMethod,
   ] = useState(null);
   const [notificationSettings, setNotificationSettings] = useState({
+    notificationsEnabled: true,
+    notificationCategories: {},
     warningType: 'email',
     warningThreshold: 100000,
     webhookUrl: '',
@@ -201,6 +203,8 @@ const PersonalSetting = () => {
     if (userState?.user?.setting) {
       const settings = JSON.parse(userState.user.setting);
       setNotificationSettings({
+        notificationsEnabled: settings.notifications_enabled !== false,
+        notificationCategories: settings.notification_categories || {},
         warningType: settings.notify_type || 'email',
         warningThreshold: settings.quota_warning_threshold || 500000,
         webhookUrl: settings.webhook_url || '',
@@ -566,6 +570,8 @@ const PersonalSetting = () => {
   const saveNotificationSettings = async () => {
     try {
       const payload = {
+        notifications_enabled: notificationSettings.notificationsEnabled,
+        notification_categories: notificationSettings.notificationCategories,
         notify_type: notificationSettings.warningType,
         quota_warning_threshold: parseFloat(
           notificationSettings.warningThreshold,

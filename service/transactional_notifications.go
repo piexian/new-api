@@ -30,6 +30,9 @@ func queueTransactionalEmail(userId int, event string, variables map[string]stri
 			return
 		}
 		setting := user.GetSetting()
+		if !setting.AllowsNotification(notificationEventCategory(event)) {
+			return
+		}
 		receiver := strings.TrimSpace(setting.NotificationEmail)
 		if receiver == "" {
 			receiver = strings.TrimSpace(user.Email)

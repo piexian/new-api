@@ -546,6 +546,32 @@ func TestGetSelfHidesRecordIpLogSettingWhenForced(t *testing.T) {
 	}
 }
 
+func TestNotificationPreferencesCanDisableUnconfiguredDelivery(t *testing.T) {
+	db := setupUserSelfControllerTestDB(t)
+	user := seedSelfUser(t, db, "notification-preferences", "")
+	for _, payload := range []map[string]any{
+		{"notifications_enabled": false, "notify_type": dto.NotifyTypeWebhook, "notification_categories": map[string]bool{"quota": false, "topup": true}},
+		{"notify_type": dto.NotifyTypeWebhook},
+	} {
+		ctx, recorder := newSelfJSONContext(t, http.MethodPut, "/api/user/setting", payload, user.Id, user.Role)
+		UpdateUserSetting(ctx)
+		if response := decodeSelfResponse(t, recorder); !response.Success {
+			t.Fatal(response.Message)
+		}
+		var updated model.User
+		if err := db.First(&updated, user.Id).Error; err != nil {
+			t.Fatal(err)
+		}
+		setting := updated.GetSetting()
+		if setting.NotificationsEnabled == nil || *setting.NotificationsEnabled {
+			t.Fatal("master switch was not preserved")
+		}
+		if enabled, exists := setting.NotificationCategories["quota"]; !exists || enabled {
+			t.Fatal("explicit false category was not preserved")
+		}
+	}
+}
+
 func TestUpdateUserSettingForcesRecordIpLog(t *testing.T) {
 	db := setupUserSelfControllerTestDB(t)
 	common.ForceRecordIpLogEnabled = true

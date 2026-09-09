@@ -6457,7 +6457,15 @@
     "Chat API interface": "对话 API 接口",
     "Code Interpreter": "代码解释器",
     "Tool Calls": "工具调用",
-    "Select Responses, Anthropic, or Gemini to use code execution": "选择 Responses、Anthropic 或 Gemini 接口以使用代码执行"
+    "Select Responses, Anthropic, or Gemini to use code execution": "选择 Responses、Anthropic 或 Gemini 接口以使用代码执行",
+    "Enable notifications": "启用通知",
+    "Turn off to stop all automatic notifications. Verification and password reset emails are unaffected.": "关闭后停止所有自动通知，不影响验证码和密码重置邮件。",
+    "Notification categories": "通知类型",
+    "Balance and subscription quota alerts": "余额与订阅额度预警",
+    "Top-up confirmations (email)": "充值到账通知（邮件）",
+    "Subscription activation and expiry (email)": "订阅开通与到期通知（邮件）",
+    "Account status notifications": "账号状态通知",
+    "Channel and system notifications": "渠道与系统通知"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

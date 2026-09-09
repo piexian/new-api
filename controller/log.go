@@ -16,7 +16,7 @@ func resolveRequestLogLanguage(c *gin.Context) string {
 	userSetting := ""
 	if userId > 0 {
 		if settingMap, err := model.GetUserSetting(userId, false); err == nil {
-			userSetting = settingMap.LogLanguage
+			userSetting = settingMap.Language
 		}
 	}
 

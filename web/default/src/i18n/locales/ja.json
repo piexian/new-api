@@ -6457,7 +6457,15 @@
     "Chat API interface": "チャット API インターフェース",
     "Code Interpreter": "Code Interpreter",
     "Tool Calls": "ツール呼び出し",
-    "Select Responses, Anthropic, or Gemini to use code execution": "コード実行には Responses、Anthropic、Gemini のいずれかを選択してください"
+    "Select Responses, Anthropic, or Gemini to use code execution": "コード実行には Responses、Anthropic、Gemini のいずれかを選択してください",
+    "Enable notifications": "通知を有効にする",
+    "Turn off to stop all automatic notifications. Verification and password reset emails are unaffected.": "オフにするとすべての自動通知を停止します。認証とパスワード再設定のメールには影響しません。",
+    "Notification categories": "通知の種類",
+    "Balance and subscription quota alerts": "残高・サブスクリプション利用枠の警告",
+    "Top-up confirmations (email)": "チャージ完了通知（メール）",
+    "Subscription activation and expiry (email)": "サブスクリプション開始・期限切れ通知（メール）",
+    "Account status notifications": "アカウント状態の通知",
+    "Channel and system notifications": "チャネルとシステムの通知"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

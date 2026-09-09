@@ -6457,7 +6457,15 @@
     "Chat API interface": "Chat API interface",
     "Code Interpreter": "Code Interpreter",
     "Tool Calls": "Tool Calls",
-    "Select Responses, Anthropic, or Gemini to use code execution": "Select Responses, Anthropic, or Gemini to use code execution"
+    "Select Responses, Anthropic, or Gemini to use code execution": "Select Responses, Anthropic, or Gemini to use code execution",
+    "Enable notifications": "Enable notifications",
+    "Turn off to stop all automatic notifications. Verification and password reset emails are unaffected.": "Turn off to stop all automatic notifications. Verification and password reset emails are unaffected.",
+    "Notification categories": "Notification categories",
+    "Balance and subscription quota alerts": "Balance and subscription quota alerts",
+    "Top-up confirmations (email)": "Top-up confirmations (email)",
+    "Subscription activation and expiry (email)": "Subscription activation and expiry (email)",
+    "Account status notifications": "Account status notifications",
+    "Channel and system notifications": "Channel and system notifications"
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

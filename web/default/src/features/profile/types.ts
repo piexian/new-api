@@ -108,6 +108,8 @@ export type NotifyType = 'email' | 'webhook' | 'bark' | 'gotify'
  * Parsed user settings
  */
 export interface UserSettings {
+  notifications_enabled?: boolean
+  notification_categories?: Record<string, boolean>
   /** Notification type */
   notify_type?: NotifyType
   /** Quota warning threshold */
@@ -152,6 +154,8 @@ export interface UpdateUserRequest {
  * User settings update request
  */
 export interface UpdateUserSettingsRequest {
+  notifications_enabled?: boolean
+  notification_categories?: Record<string, boolean>
   notify_type?: string
   quota_warning_threshold?: number
   webhook_url?: string

@@ -6457,7 +6457,15 @@
     "Chat API interface": "Интерфейс API чата",
     "Code Interpreter": "Code Interpreter",
     "Tool Calls": "Вызовы инструментов",
-    "Select Responses, Anthropic, or Gemini to use code execution": "Для выполнения кода выберите Responses, Anthropic или Gemini"
+    "Select Responses, Anthropic, or Gemini to use code execution": "Для выполнения кода выберите Responses, Anthropic или Gemini",
+    "Enable notifications": "Включить уведомления",
+    "Turn off to stop all automatic notifications. Verification and password reset emails are unaffected.": "Отключите, чтобы остановить все автоматические уведомления. Письма для подтверждения и сброса пароля продолжат поступать.",
+    "Notification categories": "Типы уведомлений",
+    "Balance and subscription quota alerts": "Предупреждения о балансе и квоте подписки",
+    "Top-up confirmations (email)": "Подтверждения пополнения (e-mail)",
+    "Subscription activation and expiry (email)": "Активация и истечение подписки (e-mail)",
+    "Account status notifications": "Уведомления о состоянии аккаунта",
+    "Channel and system notifications": "Уведомления каналов и системы"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

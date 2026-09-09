@@ -1753,19 +1753,21 @@ func TopUp(c *gin.Context) {
 }
 
 type UpdateUserSettingRequest struct {
-	QuotaWarningType                 string  `json:"notify_type"`
-	QuotaWarningThreshold            float64 `json:"quota_warning_threshold"`
-	WebhookUrl                       string  `json:"webhook_url,omitempty"`
-	WebhookSecret                    string  `json:"webhook_secret,omitempty"`
-	NotificationEmail                string  `json:"notification_email,omitempty"`
-	BarkUrl                          string  `json:"bark_url,omitempty"`
-	GotifyUrl                        string  `json:"gotify_url,omitempty"`
-	GotifyToken                      string  `json:"gotify_token,omitempty"`
-	GotifyPriority                   int     `json:"gotify_priority,omitempty"`
-	UpstreamModelUpdateNotifyEnabled *bool   `json:"upstream_model_update_notify_enabled,omitempty"`
-	AcceptUnsetModelRatioModel       bool    `json:"accept_unset_model_ratio_model"`
-	RecordIpLog                      bool    `json:"record_ip_log"`
-	LogLanguage                      *string `json:"log_language,omitempty"`
+	NotificationsEnabled             *bool           `json:"notifications_enabled,omitempty"`
+	NotificationCategories           map[string]bool `json:"notification_categories,omitempty"`
+	QuotaWarningType                 string          `json:"notify_type"`
+	QuotaWarningThreshold            float64         `json:"quota_warning_threshold"`
+	WebhookUrl                       string          `json:"webhook_url,omitempty"`
+	WebhookSecret                    string          `json:"webhook_secret,omitempty"`
+	NotificationEmail                string          `json:"notification_email,omitempty"`
+	BarkUrl                          string          `json:"bark_url,omitempty"`
+	GotifyUrl                        string          `json:"gotify_url,omitempty"`
+	GotifyToken                      string          `json:"gotify_token,omitempty"`
+	GotifyPriority                   int             `json:"gotify_priority,omitempty"`
+	UpstreamModelUpdateNotifyEnabled *bool           `json:"upstream_model_update_notify_enabled,omitempty"`
+	AcceptUnsetModelRatioModel       bool            `json:"accept_unset_model_ratio_model"`
+	RecordIpLog                      bool            `json:"record_ip_log"`
+	LogLanguage                      *string         `json:"log_language,omitempty"`
 }
 
 func UpdateUserSetting(c *gin.Context) {
@@ -1775,80 +1777,6 @@ func UpdateUserSetting(c *gin.Context) {
 		return
 	}
 
-	// 验证预警类型
-	if req.QuotaWarningType != dto.NotifyTypeEmail && req.QuotaWarningType != dto.NotifyTypeWebhook && req.QuotaWarningType != dto.NotifyTypeBark && req.QuotaWarningType != dto.NotifyTypeGotify {
-		common.ApiErrorI18n(c, i18n.MsgSettingInvalidType)
-		return
-	}
-
-	// 验证预警阈值
-	if req.QuotaWarningThreshold <= 0 {
-		common.ApiErrorI18n(c, i18n.MsgQuotaThresholdGtZero)
-		return
-	}
-
-	// 如果是webhook类型,验证webhook地址
-	if req.QuotaWarningType == dto.NotifyTypeWebhook {
-		if req.WebhookUrl == "" {
-			common.ApiErrorI18n(c, i18n.MsgSettingWebhookEmpty)
-			return
-		}
-		// 验证URL格式
-		if _, err := url.ParseRequestURI(req.WebhookUrl); err != nil {
-			common.ApiErrorI18n(c, i18n.MsgSettingWebhookInvalid)
-			return
-		}
-	}
-
-	// 如果是邮件类型，验证邮箱地址
-	if req.QuotaWarningType == dto.NotifyTypeEmail && req.NotificationEmail != "" {
-		// 验证邮箱格式
-		if !strings.Contains(req.NotificationEmail, "@") {
-			common.ApiErrorI18n(c, i18n.MsgSettingEmailInvalid)
-			return
-		}
-	}
-
-	// 如果是Bark类型，验证Bark URL
-	if req.QuotaWarningType == dto.NotifyTypeBark {
-		if req.BarkUrl == "" {
-			common.ApiErrorI18n(c, i18n.MsgSettingBarkUrlEmpty)
-			return
-		}
-		// 验证URL格式
-		if _, err := url.ParseRequestURI(req.BarkUrl); err != nil {
-			common.ApiErrorI18n(c, i18n.MsgSettingBarkUrlInvalid)
-			return
-		}
-		// 检查是否是HTTP或HTTPS
-		if !strings.HasPrefix(req.BarkUrl, "https://") && !strings.HasPrefix(req.BarkUrl, "http://") {
-			common.ApiErrorI18n(c, i18n.MsgSettingUrlMustHttp)
-			return
-		}
-	}
-
-	// 如果是Gotify类型，验证Gotify URL和Token
-	if req.QuotaWarningType == dto.NotifyTypeGotify {
-		if req.GotifyUrl == "" {
-			common.ApiErrorI18n(c, i18n.MsgSettingGotifyUrlEmpty)
-			return
-		}
-		if req.GotifyToken == "" {
-			common.ApiErrorI18n(c, i18n.MsgSettingGotifyTokenEmpty)
-			return
-		}
-		// 验证URL格式
-		if _, err := url.ParseRequestURI(req.GotifyUrl); err != nil {
-			common.ApiErrorI18n(c, i18n.MsgSettingGotifyUrlInvalid)
-			return
-		}
-		// 检查是否是HTTP或HTTPS
-		if !strings.HasPrefix(req.GotifyUrl, "https://") && !strings.HasPrefix(req.GotifyUrl, "http://") {
-			common.ApiErrorI18n(c, i18n.MsgSettingUrlMustHttp)
-			return
-		}
-	}
-
 	userId := c.GetInt("id")
 	user, err := model.GetUserById(userId, true)
 	if err != nil {
@@ -1856,6 +1784,97 @@ func UpdateUserSetting(c *gin.Context) {
 		return
 	}
 	existingSettings := user.GetSetting()
+	if req.NotificationsEnabled != nil {
+		existingSettings.NotificationsEnabled = req.NotificationsEnabled
+	}
+	if req.NotificationCategories != nil {
+		for category := range req.NotificationCategories {
+			switch category {
+			case "quota", "topup", "subscription", "security", "system":
+			default:
+				common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+				return
+			}
+		}
+		existingSettings.NotificationCategories = req.NotificationCategories
+	}
+
+	if existingSettings.NotificationsEnabled == nil || *existingSettings.NotificationsEnabled {
+		// 验证预警类型
+		if req.QuotaWarningType != dto.NotifyTypeEmail && req.QuotaWarningType != dto.NotifyTypeWebhook && req.QuotaWarningType != dto.NotifyTypeBark && req.QuotaWarningType != dto.NotifyTypeGotify {
+			common.ApiErrorI18n(c, i18n.MsgSettingInvalidType)
+			return
+		}
+
+		// 验证预警阈值
+		if existingSettings.AllowsNotification("quota") && req.QuotaWarningThreshold <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgQuotaThresholdGtZero)
+			return
+		}
+
+		// 如果是webhook类型,验证webhook地址
+		if req.QuotaWarningType == dto.NotifyTypeWebhook {
+			if req.WebhookUrl == "" {
+				common.ApiErrorI18n(c, i18n.MsgSettingWebhookEmpty)
+				return
+			}
+			// 验证URL格式
+			if _, err := url.ParseRequestURI(req.WebhookUrl); err != nil {
+				common.ApiErrorI18n(c, i18n.MsgSettingWebhookInvalid)
+				return
+			}
+		}
+
+		// 如果是邮件类型，验证邮箱地址
+		if req.QuotaWarningType == dto.NotifyTypeEmail && req.NotificationEmail != "" {
+			// 验证邮箱格式
+			if !strings.Contains(req.NotificationEmail, "@") {
+				common.ApiErrorI18n(c, i18n.MsgSettingEmailInvalid)
+				return
+			}
+		}
+
+		// 如果是Bark类型，验证Bark URL
+		if req.QuotaWarningType == dto.NotifyTypeBark {
+			if req.BarkUrl == "" {
+				common.ApiErrorI18n(c, i18n.MsgSettingBarkUrlEmpty)
+				return
+			}
+			// 验证URL格式
+			if _, err := url.ParseRequestURI(req.BarkUrl); err != nil {
+				common.ApiErrorI18n(c, i18n.MsgSettingBarkUrlInvalid)
+				return
+			}
+			// 检查是否是HTTP或HTTPS
+			if !strings.HasPrefix(req.BarkUrl, "https://") && !strings.HasPrefix(req.BarkUrl, "http://") {
+				common.ApiErrorI18n(c, i18n.MsgSettingUrlMustHttp)
+				return
+			}
+		}
+
+		// 如果是Gotify类型，验证Gotify URL和Token
+		if req.QuotaWarningType == dto.NotifyTypeGotify {
+			if req.GotifyUrl == "" {
+				common.ApiErrorI18n(c, i18n.MsgSettingGotifyUrlEmpty)
+				return
+			}
+			if req.GotifyToken == "" {
+				common.ApiErrorI18n(c, i18n.MsgSettingGotifyTokenEmpty)
+				return
+			}
+			// 验证URL格式
+			if _, err := url.ParseRequestURI(req.GotifyUrl); err != nil {
+				common.ApiErrorI18n(c, i18n.MsgSettingGotifyUrlInvalid)
+				return
+			}
+			// 检查是否是HTTP或HTTPS
+			if !strings.HasPrefix(req.GotifyUrl, "https://") && !strings.HasPrefix(req.GotifyUrl, "http://") {
+				common.ApiErrorI18n(c, i18n.MsgSettingUrlMustHttp)
+				return
+			}
+		}
+
+	}
 	upstreamModelUpdateNotifyEnabled := existingSettings.UpstreamModelUpdateNotifyEnabled
 	if user.Role >= common.RoleAdminUser && req.UpstreamModelUpdateNotifyEnabled != nil {
 		upstreamModelUpdateNotifyEnabled = *req.UpstreamModelUpdateNotifyEnabled
@@ -1863,6 +1882,8 @@ func UpdateUserSetting(c *gin.Context) {
 
 	// 构建设置
 	settings := dto.UserSetting{
+		NotificationsEnabled:             existingSettings.NotificationsEnabled,
+		NotificationCategories:           existingSettings.NotificationCategories,
 		NotifyType:                       req.QuotaWarningType,
 		QuotaWarningThreshold:            req.QuotaWarningThreshold,
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,

@@ -352,6 +352,10 @@ const NotificationSettings = ({
 
   // 表单提交
   const handleSubmit = () => {
+    if (notificationSettings.notificationsEnabled === false) {
+      saveNotificationSettings();
+      return;
+    }
     if (formApiRef.current) {
       formApiRef.current
         .validate()
@@ -437,332 +441,418 @@ const NotificationSettings = ({
               itemKey='notification'
             >
               <div className='py-4'>
-                <Form.RadioGroup
-                  field='warningType'
-                  label={t('通知方式')}
-                  initValue={notificationSettings.warningType}
-                  onChange={(value) => handleFormChange('warningType', value)}
-                  rules={[{ required: true, message: t('请选择通知方式') }]}
-                >
-                  <Radio value='email'>{t('邮件通知')}</Radio>
-                  <Radio value='webhook'>{t('Webhook通知')}</Radio>
-                  <Radio value='bark'>{t('Bark通知')}</Radio>
-                  <Radio value='gotify'>{t('Gotify通知')}</Radio>
-                </Form.RadioGroup>
-
-                <Form.AutoComplete
-                  field='warningThreshold'
-                  label={
-                    <span>
-                      {t('额度预警阈值')}{' '}
-                      {renderQuotaWithPrompt(
-                        notificationSettings.warningThreshold,
+                <div className='flex items-center justify-between gap-4 mb-4'>
+                  <div>
+                    <Typography.Text>{t('启用通知')}</Typography.Text>
+                    <div className='text-xs text-gray-500 mt-1'>
+                      {t(
+                        '关闭后停止所有自动通知，不影响验证码和密码重置邮件。',
                       )}
-                    </span>
-                  }
-                  placeholder={t('请输入预警额度')}
-                  data={[
-                    { value: 100000, label: '0.2$' },
-                    { value: 500000, label: '1$' },
-                    { value: 1000000, label: '2$' },
-                    { value: 5000000, label: '10$' },
-                  ]}
-                  onChange={(val) => handleFormChange('warningThreshold', val)}
-                  prefix={<IconBell />}
-                  extraText={t(
-                    '当钱包或订阅剩余额度低于此数值时，系统将通过选择的方式发送通知',
-                  )}
-                  style={{ width: '100%', maxWidth: '300px' }}
-                  rules={[
-                    { required: true, message: t('请输入预警阈值') },
-                    {
-                      validator: (rule, value) => {
-                        const numValue = Number(value);
-                        if (isNaN(numValue) || numValue <= 0) {
-                          return Promise.reject(t('预警阈值必须为正数'));
-                        }
-                        return Promise.resolve();
-                      },
-                    },
-                  ]}
-                />
-
-                {isAdminOrRoot && (
-                  <Form.Switch
-                    field='upstreamModelUpdateNotifyEnabled'
-                    label={t('接收上游模型更新通知')}
-                    checkedText={t('开')}
-                    uncheckedText={t('关')}
+                    </div>
+                  </div>
+                  <Switch
+                    aria-label={t('启用通知')}
+                    checked={
+                      notificationSettings.notificationsEnabled !== false
+                    }
                     onChange={(value) =>
-                      handleFormChange(
-                        'upstreamModelUpdateNotifyEnabled',
+                      handleNotificationSettingChange(
+                        'notificationsEnabled',
                         value,
                       )
                     }
-                    extraText={t(
-                      '仅管理员可用。开启后，当系统定时检测全部渠道发现上游模型变更或检测异常时，将按你选择的通知方式发送汇总通知；渠道或模型过多时会自动省略部分明细。',
-                    )}
                   />
-                )}
+                </div>
+                <fieldset
+                  disabled={notificationSettings.notificationsEnabled === false}
+                  className='border-0 p-0 m-0 disabled:opacity-50'
+                >
+                  <legend className='mb-3'>{t('通知类型')}</legend>
+                  {[
+                    { key: 'quota', label: t('余额与订阅额度预警') },
+                    { key: 'topup', label: t('充值到账通知（邮件）') },
+                    {
+                      key: 'subscription',
+                      label: t('订阅开通与到期通知（邮件）'),
+                    },
+                    { key: 'security', label: t('账号状态通知') },
+                    ...(isAdminOrRoot
+                      ? [{ key: 'system', label: t('渠道与系统通知') }]
+                      : []),
+                  ].map(({ key, label }) => (
+                    <div
+                      key={key}
+                      className='flex items-center justify-between gap-4 mb-3'
+                    >
+                      <Typography.Text>{label}</Typography.Text>
+                      <Switch
+                        aria-label={label}
+                        disabled={
+                          notificationSettings.notificationsEnabled === false
+                        }
+                        checked={
+                          notificationSettings.notificationCategories?.[key] !==
+                          false
+                        }
+                        onChange={(checked) =>
+                          handleNotificationSettingChange(
+                            'notificationCategories',
+                            {
+                              ...notificationSettings.notificationCategories,
+                              [key]: checked,
+                            },
+                          )
+                        }
+                      />
+                    </div>
+                  ))}
+                  <Form.RadioGroup
+                    field='warningType'
+                    label={t('通知方式')}
+                    initValue={notificationSettings.warningType}
+                    onChange={(value) => handleFormChange('warningType', value)}
+                    rules={[{ required: true, message: t('请选择通知方式') }]}
+                  >
+                    <Radio value='email'>{t('邮件通知')}</Radio>
+                    <Radio value='webhook'>{t('Webhook通知')}</Radio>
+                    <Radio value='bark'>{t('Bark通知')}</Radio>
+                    <Radio value='gotify'>{t('Gotify通知')}</Radio>
+                  </Form.RadioGroup>
 
-                {/* 邮件通知设置 */}
-                {notificationSettings.warningType === 'email' && (
-                  <Form.Input
-                    field='notificationEmail'
-                    label={t('通知邮箱')}
-                    placeholder={t('留空则使用账号绑定的邮箱')}
-                    onChange={(val) =>
-                      handleFormChange('notificationEmail', val)
+                  <Form.AutoComplete
+                    field='warningThreshold'
+                    disabled={
+                      notificationSettings.notificationCategories?.quota ===
+                      false
                     }
-                    prefix={<IconMail />}
+                    label={
+                      <span>
+                        {t('额度预警阈值')}{' '}
+                        {renderQuotaWithPrompt(
+                          notificationSettings.warningThreshold,
+                        )}
+                      </span>
+                    }
+                    placeholder={t('请输入预警额度')}
+                    data={[
+                      { value: 100000, label: '0.2$' },
+                      { value: 500000, label: '1$' },
+                      { value: 1000000, label: '2$' },
+                      { value: 5000000, label: '10$' },
+                    ]}
+                    onChange={(val) =>
+                      handleFormChange('warningThreshold', val)
+                    }
+                    prefix={<IconBell />}
                     extraText={t(
-                      '设置用于接收额度预警的邮箱地址，不填则使用账号绑定的邮箱',
+                      '当钱包或订阅剩余额度低于此数值时，系统将通过选择的方式发送通知',
                     )}
-                    showClear
+                    style={{ width: '100%', maxWidth: '300px' }}
+                    rules={
+                      notificationSettings.notificationCategories?.quota ===
+                      false
+                        ? []
+                        : [
+                            { required: true, message: t('请输入预警阈值') },
+                            {
+                              validator: (rule, value) => {
+                                const numValue = Number(value);
+                                if (isNaN(numValue) || numValue <= 0) {
+                                  return Promise.reject(
+                                    t('预警阈值必须为正数'),
+                                  );
+                                }
+                                return Promise.resolve();
+                              },
+                            },
+                          ]
+                    }
                   />
-                )}
 
-                {/* Webhook通知设置 */}
-                {notificationSettings.warningType === 'webhook' && (
-                  <>
-                    <Form.Input
-                      field='webhookUrl'
-                      label={t('Webhook地址')}
-                      placeholder={t(
-                        '请输入Webhook地址，例如: https://example.com/webhook',
-                      )}
-                      onChange={(val) => handleFormChange('webhookUrl', val)}
-                      prefix={<IconLink />}
-                      extraText={t(
-                        '只支持HTTPS，系统将以POST方式发送通知，请确保地址可以接收POST请求',
-                      )}
-                      showClear
-                      rules={[
-                        {
-                          required:
-                            notificationSettings.warningType === 'webhook',
-                          message: t('请输入Webhook地址'),
-                        },
-                        {
-                          pattern: /^https:\/\/.+/,
-                          message: t('Webhook地址必须以https://开头'),
-                        },
-                      ]}
-                    />
-
-                    <Form.Input
-                      field='webhookSecret'
-                      label={t('接口凭证')}
-                      placeholder={t('请输入密钥')}
-                      onChange={(val) => handleFormChange('webhookSecret', val)}
-                      prefix={<IconKey />}
-                      extraText={t(
-                        '密钥将以Bearer方式添加到请求头中，用于验证webhook请求的合法性',
-                      )}
-                      showClear
-                    />
-
-                    <Form.Slot label={t('Webhook请求结构说明')}>
-                      <div>
-                        <div style={{ height: '200px', marginBottom: '12px' }}>
-                          <CodeViewer
-                            content={{
-                              type: 'quota_exceed',
-                              title: '额度预警通知',
-                              content:
-                                '您的额度即将用尽，当前剩余额度为 {{value}}',
-                              values: ['$0.99'],
-                              timestamp: 1739950503,
-                            }}
-                            title='webhook'
-                            language='json'
-                          />
-                        </div>
-                        <div className='text-xs text-gray-500 leading-relaxed'>
-                          <div>
-                            <strong>type:</strong>{' '}
-                            {t('通知类型 (quota_exceed: 额度预警)')}{' '}
-                          </div>
-                          <div>
-                            <strong>title:</strong> {t('通知标题')}
-                          </div>
-                          <div>
-                            <strong>content:</strong>{' '}
-                            {t('通知内容，支持 {{value}} 变量占位符')}
-                          </div>
-                          <div>
-                            <strong>values:</strong>{' '}
-                            {t('按顺序替换content中的变量占位符')}
-                          </div>
-                          <div>
-                            <strong>timestamp:</strong> {t('Unix时间戳')}
-                          </div>
-                        </div>
-                      </div>
-                    </Form.Slot>
-                  </>
-                )}
-
-                {/* Bark推送设置 */}
-                {notificationSettings.warningType === 'bark' && (
-                  <>
-                    <Form.Input
-                      field='barkUrl'
-                      label={t('Bark推送URL')}
-                      placeholder={t(
-                        '请输入Bark推送URL，例如: https://api.day.app/yourkey/{{title}}/{{content}}',
-                      )}
-                      onChange={(val) => handleFormChange('barkUrl', val)}
-                      prefix={<IconLink />}
-                      extraText={t(
-                        '支持HTTP和HTTPS，模板变量: {{title}} (通知标题), {{content}} (通知内容)',
-                      )}
-                      showClear
-                      rules={[
-                        {
-                          required: notificationSettings.warningType === 'bark',
-                          message: t('请输入Bark推送URL'),
-                        },
-                        {
-                          pattern: /^https?:\/\/.+/,
-                          message: t('Bark推送URL必须以http://或https://开头'),
-                        },
-                      ]}
-                    />
-
-                    <div className='mt-3 p-4 bg-gray-50/50 rounded-xl'>
-                      <div className='text-sm text-gray-700 mb-3'>
-                        <strong>{t('模板示例')}</strong>
-                      </div>
-                      <div className='text-xs text-gray-600 font-mono bg-white p-3 rounded-lg shadow-sm mb-4'>
-                        https://api.day.app/yourkey/{'{{title}}'}/
-                        {'{{content}}'}?sound=alarm&group=quota
-                      </div>
-                      <div className='text-xs text-gray-500 space-y-2'>
-                        <div>
-                          • <strong>{'title'}:</strong> {t('通知标题')}
-                        </div>
-                        <div>
-                          • <strong>{'content'}:</strong> {t('通知内容')}
-                        </div>
-                        <div className='mt-3 pt-3 border-t border-gray-200'>
-                          <span className='text-gray-400'>
-                            {t('更多参数请参考')}
-                          </span>{' '}
-                          <a
-                            href='https://github.com/Finb/Bark'
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='text-blue-500 hover:text-blue-600 font-medium'
-                          >
-                            Bark {t('官方文档')}
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* Gotify推送设置 */}
-                {notificationSettings.warningType === 'gotify' && (
-                  <>
-                    <Form.Input
-                      field='gotifyUrl'
-                      label={t('Gotify服务器地址')}
-                      placeholder={t(
-                        '请输入Gotify服务器地址，例如: https://gotify.example.com',
-                      )}
-                      onChange={(val) => handleFormChange('gotifyUrl', val)}
-                      prefix={<IconLink />}
-                      extraText={t(
-                        '支持HTTP和HTTPS，填写Gotify服务器的完整URL地址',
-                      )}
-                      showClear
-                      rules={[
-                        {
-                          required:
-                            notificationSettings.warningType === 'gotify',
-                          message: t('请输入Gotify服务器地址'),
-                        },
-                        {
-                          pattern: /^https?:\/\/.+/,
-                          message: t(
-                            'Gotify服务器地址必须以http://或https://开头',
-                          ),
-                        },
-                      ]}
-                    />
-
-                    <Form.Input
-                      field='gotifyToken'
-                      label={t('Gotify应用令牌')}
-                      placeholder={t('请输入Gotify应用令牌')}
-                      onChange={(val) => handleFormChange('gotifyToken', val)}
-                      prefix={<IconKey />}
-                      extraText={t(
-                        '在Gotify服务器创建应用后获得的令牌，用于发送通知',
-                      )}
-                      showClear
-                      rules={[
-                        {
-                          required:
-                            notificationSettings.warningType === 'gotify',
-                          message: t('请输入Gotify应用令牌'),
-                        },
-                      ]}
-                    />
-
-                    <Form.AutoComplete
-                      field='gotifyPriority'
-                      label={t('消息优先级')}
-                      placeholder={t('请选择消息优先级')}
-                      data={[
-                        { value: 0, label: t('0 - 最低') },
-                        { value: 2, label: t('2 - 低') },
-                        { value: 5, label: t('5 - 正常（默认）') },
-                        { value: 8, label: t('8 - 高') },
-                        { value: 10, label: t('10 - 最高') },
-                      ]}
-                      onChange={(val) =>
-                        handleFormChange('gotifyPriority', val)
+                  {isAdminOrRoot && (
+                    <Form.Switch
+                      field='upstreamModelUpdateNotifyEnabled'
+                      label={t('接收上游模型更新通知')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleFormChange(
+                          'upstreamModelUpdateNotifyEnabled',
+                          value,
+                        )
                       }
-                      prefix={<IconBell />}
-                      extraText={t('消息优先级，范围0-10，默认为5')}
-                      style={{ width: '100%', maxWidth: '300px' }}
+                      extraText={t(
+                        '仅管理员可用。开启后，当系统定时检测全部渠道发现上游模型变更或检测异常时，将按你选择的通知方式发送汇总通知；渠道或模型过多时会自动省略部分明细。',
+                      )}
                     />
+                  )}
 
-                    <div className='mt-3 p-4 bg-gray-50/50 rounded-xl'>
-                      <div className='text-sm text-gray-700 mb-3'>
-                        <strong>{t('配置说明')}</strong>
-                      </div>
-                      <div className='text-xs text-gray-500 space-y-2'>
+                  {/* 邮件通知设置 */}
+                  {notificationSettings.warningType === 'email' && (
+                    <Form.Input
+                      field='notificationEmail'
+                      label={t('通知邮箱')}
+                      placeholder={t('留空则使用账号绑定的邮箱')}
+                      onChange={(val) =>
+                        handleFormChange('notificationEmail', val)
+                      }
+                      prefix={<IconMail />}
+                      extraText={t(
+                        '设置用于接收额度预警的邮箱地址，不填则使用账号绑定的邮箱',
+                      )}
+                      showClear
+                    />
+                  )}
+
+                  {/* Webhook通知设置 */}
+                  {notificationSettings.warningType === 'webhook' && (
+                    <>
+                      <Form.Input
+                        field='webhookUrl'
+                        label={t('Webhook地址')}
+                        placeholder={t(
+                          '请输入Webhook地址，例如: https://example.com/webhook',
+                        )}
+                        onChange={(val) => handleFormChange('webhookUrl', val)}
+                        prefix={<IconLink />}
+                        extraText={t(
+                          '只支持HTTPS，系统将以POST方式发送通知，请确保地址可以接收POST请求',
+                        )}
+                        showClear
+                        rules={[
+                          {
+                            required:
+                              notificationSettings.warningType === 'webhook',
+                            message: t('请输入Webhook地址'),
+                          },
+                          {
+                            pattern: /^https:\/\/.+/,
+                            message: t('Webhook地址必须以https://开头'),
+                          },
+                        ]}
+                      />
+
+                      <Form.Input
+                        field='webhookSecret'
+                        label={t('接口凭证')}
+                        placeholder={t('请输入密钥')}
+                        onChange={(val) =>
+                          handleFormChange('webhookSecret', val)
+                        }
+                        prefix={<IconKey />}
+                        extraText={t(
+                          '密钥将以Bearer方式添加到请求头中，用于验证webhook请求的合法性',
+                        )}
+                        showClear
+                      />
+
+                      <Form.Slot label={t('Webhook请求结构说明')}>
                         <div>
-                          1. {t('在Gotify服务器的应用管理中创建新应用')}
-                        </div>
-                        <div>
-                          2.{' '}
-                          {t(
-                            '复制应用的令牌（Token）并填写到上方的应用令牌字段',
-                          )}
-                        </div>
-                        <div>3. {t('填写Gotify服务器的完整URL地址')}</div>
-                        <div className='mt-3 pt-3 border-t border-gray-200'>
-                          <span className='text-gray-400'>
-                            {t('更多信息请参考')}
-                          </span>{' '}
-                          <a
-                            href='https://gotify.net/'
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='text-blue-500 hover:text-blue-600 font-medium'
+                          <div
+                            style={{ height: '200px', marginBottom: '12px' }}
                           >
-                            Gotify {t('官方文档')}
-                          </a>
+                            <CodeViewer
+                              content={{
+                                type: 'quota_exceed',
+                                title: '额度预警通知',
+                                content:
+                                  '您的额度即将用尽，当前剩余额度为 {{value}}',
+                                values: ['$0.99'],
+                                timestamp: 1739950503,
+                              }}
+                              title='webhook'
+                              language='json'
+                            />
+                          </div>
+                          <div className='text-xs text-gray-500 leading-relaxed'>
+                            <div>
+                              <strong>type:</strong>{' '}
+                              {t('通知类型 (quota_exceed: 额度预警)')}{' '}
+                            </div>
+                            <div>
+                              <strong>title:</strong> {t('通知标题')}
+                            </div>
+                            <div>
+                              <strong>content:</strong>{' '}
+                              {t('通知内容，支持 {{value}} 变量占位符')}
+                            </div>
+                            <div>
+                              <strong>values:</strong>{' '}
+                              {t('按顺序替换content中的变量占位符')}
+                            </div>
+                            <div>
+                              <strong>timestamp:</strong> {t('Unix时间戳')}
+                            </div>
+                          </div>
+                        </div>
+                      </Form.Slot>
+                    </>
+                  )}
+
+                  {/* Bark推送设置 */}
+                  {notificationSettings.warningType === 'bark' && (
+                    <>
+                      <Form.Input
+                        field='barkUrl'
+                        label={t('Bark推送URL')}
+                        placeholder={t(
+                          '请输入Bark推送URL，例如: https://api.day.app/yourkey/{{title}}/{{content}}',
+                        )}
+                        onChange={(val) => handleFormChange('barkUrl', val)}
+                        prefix={<IconLink />}
+                        extraText={t(
+                          '支持HTTP和HTTPS，模板变量: {{title}} (通知标题), {{content}} (通知内容)',
+                        )}
+                        showClear
+                        rules={[
+                          {
+                            required:
+                              notificationSettings.warningType === 'bark',
+                            message: t('请输入Bark推送URL'),
+                          },
+                          {
+                            pattern: /^https?:\/\/.+/,
+                            message: t(
+                              'Bark推送URL必须以http://或https://开头',
+                            ),
+                          },
+                        ]}
+                      />
+
+                      <div className='mt-3 p-4 bg-gray-50/50 rounded-xl'>
+                        <div className='text-sm text-gray-700 mb-3'>
+                          <strong>{t('模板示例')}</strong>
+                        </div>
+                        <div className='text-xs text-gray-600 font-mono bg-white p-3 rounded-lg shadow-sm mb-4'>
+                          https://api.day.app/yourkey/{'{{title}}'}/
+                          {'{{content}}'}?sound=alarm&group=quota
+                        </div>
+                        <div className='text-xs text-gray-500 space-y-2'>
+                          <div>
+                            • <strong>{'title'}:</strong> {t('通知标题')}
+                          </div>
+                          <div>
+                            • <strong>{'content'}:</strong> {t('通知内容')}
+                          </div>
+                          <div className='mt-3 pt-3 border-t border-gray-200'>
+                            <span className='text-gray-400'>
+                              {t('更多参数请参考')}
+                            </span>{' '}
+                            <a
+                              href='https://github.com/Finb/Bark'
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='text-blue-500 hover:text-blue-600 font-medium'
+                            >
+                              Bark {t('官方文档')}
+                            </a>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </>
-                )}
+                    </>
+                  )}
+
+                  {/* Gotify推送设置 */}
+                  {notificationSettings.warningType === 'gotify' && (
+                    <>
+                      <Form.Input
+                        field='gotifyUrl'
+                        label={t('Gotify服务器地址')}
+                        placeholder={t(
+                          '请输入Gotify服务器地址，例如: https://gotify.example.com',
+                        )}
+                        onChange={(val) => handleFormChange('gotifyUrl', val)}
+                        prefix={<IconLink />}
+                        extraText={t(
+                          '支持HTTP和HTTPS，填写Gotify服务器的完整URL地址',
+                        )}
+                        showClear
+                        rules={[
+                          {
+                            required:
+                              notificationSettings.warningType === 'gotify',
+                            message: t('请输入Gotify服务器地址'),
+                          },
+                          {
+                            pattern: /^https?:\/\/.+/,
+                            message: t(
+                              'Gotify服务器地址必须以http://或https://开头',
+                            ),
+                          },
+                        ]}
+                      />
+
+                      <Form.Input
+                        field='gotifyToken'
+                        label={t('Gotify应用令牌')}
+                        placeholder={t('请输入Gotify应用令牌')}
+                        onChange={(val) => handleFormChange('gotifyToken', val)}
+                        prefix={<IconKey />}
+                        extraText={t(
+                          '在Gotify服务器创建应用后获得的令牌，用于发送通知',
+                        )}
+                        showClear
+                        rules={[
+                          {
+                            required:
+                              notificationSettings.warningType === 'gotify',
+                            message: t('请输入Gotify应用令牌'),
+                          },
+                        ]}
+                      />
+
+                      <Form.AutoComplete
+                        field='gotifyPriority'
+                        label={t('消息优先级')}
+                        placeholder={t('请选择消息优先级')}
+                        data={[
+                          { value: 0, label: t('0 - 最低') },
+                          { value: 2, label: t('2 - 低') },
+                          { value: 5, label: t('5 - 正常（默认）') },
+                          { value: 8, label: t('8 - 高') },
+                          { value: 10, label: t('10 - 最高') },
+                        ]}
+                        onChange={(val) =>
+                          handleFormChange('gotifyPriority', val)
+                        }
+                        prefix={<IconBell />}
+                        extraText={t('消息优先级，范围0-10，默认为5')}
+                        style={{ width: '100%', maxWidth: '300px' }}
+                      />
+
+                      <div className='mt-3 p-4 bg-gray-50/50 rounded-xl'>
+                        <div className='text-sm text-gray-700 mb-3'>
+                          <strong>{t('配置说明')}</strong>
+                        </div>
+                        <div className='text-xs text-gray-500 space-y-2'>
+                          <div>
+                            1. {t('在Gotify服务器的应用管理中创建新应用')}
+                          </div>
+                          <div>
+                            2.{' '}
+                            {t(
+                              '复制应用的令牌（Token）并填写到上方的应用令牌字段',
+                            )}
+                          </div>
+                          <div>3. {t('填写Gotify服务器的完整URL地址')}</div>
+                          <div className='mt-3 pt-3 border-t border-gray-200'>
+                            <span className='text-gray-400'>
+                              {t('更多信息请参考')}
+                            </span>{' '}
+                            <a
+                              href='https://gotify.net/'
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='text-blue-500 hover:text-blue-600 font-medium'
+                            >
+                              Gotify {t('官方文档')}
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </fieldset>
               </div>
             </TabPane>
 

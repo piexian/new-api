@@ -36,8 +36,8 @@ func InvalidateRootLogLanguageCache() {
 	cachedRootLogLanguageAt = time.Time{}
 }
 
-// GetRootLogLanguageFallback returns the root admin's log language preference
-// (falling back to the admin's interface language). Cached with a 60s TTL to
+// GetRootLogLanguageFallback returns the root admin's interface language.
+// Cached with a 60s TTL to
 // avoid a DB round-trip on every log listing request.
 func GetRootLogLanguageFallback() string {
 	rootLogLanguageMu.Lock()
@@ -48,10 +48,7 @@ func GetRootLogLanguageFallback() string {
 	fallback := ""
 	if rootUser := GetRootUser(); rootUser != nil && rootUser.Id > 0 {
 		setting := rootUser.GetSetting()
-		fallback = setting.LogLanguage
-		if fallback == "" {
-			fallback = setting.Language
-		}
+		fallback = setting.Language
 	}
 	cachedRootLogLanguage = fallback
 	cachedRootLogLanguageAt = time.Now()

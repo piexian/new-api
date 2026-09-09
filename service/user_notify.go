@@ -48,7 +48,7 @@ func NotifyUpstreamModelUpdateWatchers(subject string, content string, templateV
 	sentCount := 0
 	for _, user := range users {
 		userSetting := user.GetSetting()
-		if !userSetting.UpstreamModelUpdateNotifyEnabled {
+		if !userSetting.UpstreamModelUpdateNotifyEnabled || !userSetting.AllowsNotification("upstream") {
 			continue
 		}
 		emailNotification := notification.WithEmailTemplate(
@@ -66,6 +66,9 @@ func NotifyUpstreamModelUpdateWatchers(subject string, content string, templateV
 }
 
 func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data dto.Notify) error {
+	if !userSetting.AllowsNotification(notificationCategory(data)) {
+		return nil
+	}
 	notifyType := userSetting.NotifyType
 	if notifyType == "" {
 		notifyType = dto.NotifyTypeEmail

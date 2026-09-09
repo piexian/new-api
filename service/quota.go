@@ -527,7 +527,7 @@ func shouldReleaseQuotaNotificationLock(err error) bool {
 
 func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) {
 	gopool.Go(func() {
-		if relayInfo == nil || !IsBalanceLowNotificationEnabled() {
+		if relayInfo == nil || !IsBalanceLowNotificationEnabled() || !relayInfo.UserSetting.AllowsNotification("quota") {
 			return
 		}
 		userSetting := relayInfo.UserSetting
@@ -595,7 +595,7 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 
 func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 	gopool.Go(func() {
-		if relayInfo == nil || !IsBalanceLowNotificationEnabled() {
+		if relayInfo == nil || !IsBalanceLowNotificationEnabled() || !relayInfo.UserSetting.AllowsNotification("quota") {
 			return
 		}
 		if relayInfo.SubscriptionId == 0 || relayInfo.SubscriptionAmountTotal <= 0 {

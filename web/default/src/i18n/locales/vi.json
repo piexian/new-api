@@ -6457,7 +6457,15 @@
     "Chat API interface": "Giao diện API trò chuyện",
     "Code Interpreter": "Code Interpreter",
     "Tool Calls": "Lệnh công cụ",
-    "Select Responses, Anthropic, or Gemini to use code execution": "Chọn Responses, Anthropic hoặc Gemini để thực thi mã"
+    "Select Responses, Anthropic, or Gemini to use code execution": "Chọn Responses, Anthropic hoặc Gemini để thực thi mã",
+    "Enable notifications": "Bật thông báo",
+    "Turn off to stop all automatic notifications. Verification and password reset emails are unaffected.": "Tắt để ngừng mọi thông báo tự động. Email xác minh và đặt lại mật khẩu không bị ảnh hưởng.",
+    "Notification categories": "Loại thông báo",
+    "Balance and subscription quota alerts": "Cảnh báo số dư và hạn mức gói đăng ký",
+    "Top-up confirmations (email)": "Xác nhận nạp tiền (email)",
+    "Subscription activation and expiry (email)": "Kích hoạt và hết hạn gói đăng ký (email)",
+    "Account status notifications": "Thông báo trạng thái tài khoản",
+    "Channel and system notifications": "Thông báo kênh và hệ thống"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",
