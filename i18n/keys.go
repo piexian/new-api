@@ -420,6 +420,7 @@ const (
 	MsgChannelCodingPlanOnly          = "channel.coding_plan_only"
 	MsgChannelQwenSingleKeyOnly       = "channel.qwen_single_key_only"
 	MsgChannelQwenSingleCredOnly      = "channel.qwen_single_cred_only"
+	MsgChannelMultiKeyOneWay          = "channel.multi_key_one_way"
 	MsgChannelQwenConsoleCredMissing  = "channel.qwen_console_cred_missing"
 	MsgChannelQwenConsoleTokenFailed  = "channel.qwen_console_token_failed"
 	MsgChannelQwenConsoleTokenExpired = "channel.qwen_console_token_expired"

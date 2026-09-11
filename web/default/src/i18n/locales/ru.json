@@ -6465,7 +6465,11 @@
     "Top-up confirmations (email)": "Подтверждения пополнения (e-mail)",
     "Subscription activation and expiry (email)": "Активация и истечение подписки (e-mail)",
     "Account status notifications": "Уведомления о состоянии аккаунта",
-    "Channel and system notifications": "Уведомления каналов и системы"
+    "Channel and system notifications": "Уведомления каналов и системы",
+    "Convert to multi-key channel": "Преобразовать в канал с несколькими ключами",
+    "Converted to multi-key channel": "Канал переведён в режим нескольких ключей",
+    "Conversion failed": "Не удалось выполнить преобразование",
+    "Convert channel \"{{name}}\" to multi-key mode? Its current credential and settings will be preserved. This cannot be reversed.": "Перевести канал «{{name}}» в режим нескольких ключей? Текущие учётные данные и настройки сохранятся. Это действие необратимо."
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Row } from '@tanstack/react-table'
 import {
   MoreHorizontal,
@@ -37,6 +37,7 @@ import {
 } from 'lucide-react'
 import { useContext, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
@@ -58,8 +59,10 @@ import {
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
+import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { convertChannelToMultiKey } from '../api'
 import { canFetchChannelModels } from '../constants'
 import {
   channelsQueryKeys,
@@ -90,6 +93,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((s) => s.auth.user)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [convertConfirmOpen, setConvertConfirmOpen] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
 
@@ -105,6 +109,24 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     isZhipuCodingPlanChannel(channel) ||
     isKimiCodingPlanChannel(channel) ||
     isQwenTokenPlanChannel(channel)
+
+  const convertMutation = useMutation({
+    mutationFn: async () => {
+      const response = await convertChannelToMultiKey(channel.id)
+      if (!response.success) {
+        throw new Error(response.message || t('Conversion failed'))
+      }
+    },
+    onSuccess: () => {
+      toast.success(t('Converted to multi-key channel'))
+      setConvertConfirmOpen(false)
+      queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.detail(channel.id),
+      })
+    },
+    onError: handleServerError,
+  })
 
   const handleEdit = () => {
     setCurrentRow(channel)
@@ -380,6 +402,17 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           )}
 
           {/* Manage Keys (only for multi-key channels) */}
+          {!isMultiKey && (
+            <DropdownMenuItem
+              disabled={!canEditSensitive}
+              onClick={() => setConvertConfirmOpen(true)}
+            >
+              {t('Convert to multi-key channel')}
+              <DropdownMenuShortcut>
+                <Key size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
           {isMultiKey && (
             <DropdownMenuItem onClick={handleManageKeys}>
               {t('Manage Keys')}
@@ -408,6 +441,21 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <ConfirmDialog
+        open={convertConfirmOpen}
+        onOpenChange={(open) => {
+          if (!convertMutation.isPending) setConvertConfirmOpen(open)
+        }}
+        title={t('Convert to multi-key channel')}
+        desc={t(
+          'Convert channel "{{name}}" to multi-key mode? Its current credential and settings will be preserved. This cannot be reversed.',
+          { name: channel.name }
+        )}
+        confirmText={t('Convert to multi-key channel')}
+        isLoading={convertMutation.isPending}
+        disabled={!canEditSensitive}
+        handleConfirm={() => convertMutation.mutate()}
+      />
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}

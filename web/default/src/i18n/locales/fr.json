@@ -6465,7 +6465,11 @@
     "Top-up confirmations (email)": "Confirmations de recharge (e-mail)",
     "Subscription activation and expiry (email)": "Activation et expiration d’abonnement (e-mail)",
     "Account status notifications": "Notifications sur l’état du compte",
-    "Channel and system notifications": "Notifications des canaux et du système"
+    "Channel and system notifications": "Notifications des canaux et du système",
+    "Convert to multi-key channel": "Convertir en canal multiclés",
+    "Converted to multi-key channel": "Canal converti en mode multiclés",
+    "Conversion failed": "Échec de la conversion",
+    "Convert channel \"{{name}}\" to multi-key mode? Its current credential and settings will be preserved. This cannot be reversed.": "Convertir le canal « {{name}} » en mode multiclés ? Ses identifiants et paramètres actuels seront conservés. Cette action est irréversible."
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

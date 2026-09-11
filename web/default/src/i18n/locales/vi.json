@@ -6465,7 +6465,11 @@
     "Top-up confirmations (email)": "Xác nhận nạp tiền (email)",
     "Subscription activation and expiry (email)": "Kích hoạt và hết hạn gói đăng ký (email)",
     "Account status notifications": "Thông báo trạng thái tài khoản",
-    "Channel and system notifications": "Thông báo kênh và hệ thống"
+    "Channel and system notifications": "Thông báo kênh và hệ thống",
+    "Convert to multi-key channel": "Chuyển sang kênh nhiều khóa",
+    "Converted to multi-key channel": "Đã chuyển sang kênh nhiều khóa",
+    "Conversion failed": "Chuyển đổi thất bại",
+    "Convert channel \"{{name}}\" to multi-key mode? Its current credential and settings will be preserved. This cannot be reversed.": "Chuyển kênh “{{name}}” sang chế độ nhiều khóa? Thông tin xác thực và cấu hình hiện tại sẽ được giữ nguyên. Không thể hoàn tác thao tác này."
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

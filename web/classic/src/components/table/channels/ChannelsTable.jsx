@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo } from 'react';
+import React, { useContext, useMemo } from 'react';
 import { Empty } from '@douyinfe/semi-ui';
 import CardTable from '../../common/ui/CardTable';
 import {
@@ -25,8 +25,14 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getChannelsColumns } from './ChannelsColumnDefs';
+import { UserContext } from '../../../context/User';
 
 const ChannelsTable = (channelsData) => {
+  const [userState] = useContext(UserContext);
+  const canConvertMultiKey =
+    userState.user?.role === 100 ||
+    userState.user?.permissions?.admin_permissions?.channel?.sensitive_write ===
+      true;
   const {
     channels,
     loading,
@@ -72,6 +78,7 @@ const ChannelsTable = (channelsData) => {
   // Get all columns
   const allColumns = useMemo(() => {
     return getChannelsColumns({
+      canConvertMultiKey,
       t,
       COLUMN_KEYS,
       updateChannelBalance,
@@ -100,6 +107,7 @@ const ChannelsTable = (channelsData) => {
       detectChannelUpstreamUpdates,
     });
   }, [
+    canConvertMultiKey,
     t,
     COLUMN_KEYS,
     updateChannelBalance,

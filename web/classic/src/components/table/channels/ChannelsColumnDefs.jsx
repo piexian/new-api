@@ -38,6 +38,7 @@ import {
   showSuccess,
   showError,
   showInfo,
+  API,
 } from '../../../helpers';
 import {
   CHANNEL_OPTIONS,
@@ -397,6 +398,7 @@ const getUpstreamUpdateMeta = (record) => {
 };
 
 export const getChannelsColumns = ({
+  canConvertMultiKey = false,
   t,
   COLUMN_KEYS,
   updateChannelBalance,
@@ -911,6 +913,41 @@ export const getChannelsColumns = ({
               },
             },
           ];
+
+          if (!record.channel_info?.is_multi_key) {
+            moreMenuItems.push({
+              node: 'item',
+              name: t('转换为多密钥渠道'),
+              disabled: !canConvertMultiKey,
+              onClick: () => {
+                if (!canConvertMultiKey) return;
+                Modal.confirm({
+                  title: t('转换为多密钥渠道'),
+                  content: t(
+                    '将渠道“{{name}}”转换为多密钥模式？现有凭据和配置将被保留，转换后无法恢复为单密钥模式。',
+                    { name: record.name },
+                  ),
+                  okText: t('转换为多密钥渠道'),
+                  onOk: async () => {
+                    try {
+                      const { data } = await API.post(
+                        `/api/channel/${record.id}/convert_multi_key`,
+                        {},
+                      );
+                      if (!data.success) {
+                        throw new Error(data.message || t('转换失败'));
+                      }
+                      showSuccess(t('已转换为多密钥渠道'));
+                      await refresh();
+                    } catch (error) {
+                      showError(error.message || t('转换失败'));
+                      throw error;
+                    }
+                  },
+                });
+              },
+            });
+          }
 
           if (upstreamUpdateMeta.supported) {
             moreMenuItems.push({

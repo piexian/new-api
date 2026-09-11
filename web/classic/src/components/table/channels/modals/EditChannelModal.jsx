@@ -1780,7 +1780,7 @@ const EditChannelModal = (props) => {
     localInputs.param_override = inputs.param_override;
 
     if (localInputs.type === 57) {
-      if (batch) {
+      if (!isEdit && batch) {
         showInfo(t('Codex 渠道不支持批量创建'));
         return;
       }
@@ -1821,7 +1821,7 @@ const EditChannelModal = (props) => {
     }
 
     if (localInputs.type === CHANNEL_TYPE_QWEN_TOKEN_PLAN) {
-      if (batch || multiToSingle) {
+      if (!isEdit && (batch || multiToSingle)) {
         showInfo(t('Qwen Token Plan 渠道不支持批量或多密钥创建'));
         return;
       }

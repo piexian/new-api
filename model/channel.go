@@ -355,14 +355,89 @@ func (channel *Channel) GetKeys() []string {
 		if err := common.Unmarshal([]byte(trimmed), &arr); err == nil {
 			res := make([]string, len(arr))
 			for i, v := range arr {
-				res[i] = string(v)
+				if err := common.Unmarshal(v, &res[i]); err != nil {
+					res[i] = string(v)
+				}
 			}
 			return res
 		}
 	}
+	// A formatted JSON credential is still one key, even if it spans lines.
+	if strings.HasPrefix(trimmed, "{") && json.Valid([]byte(trimmed)) {
+		return []string{channel.Key}
+	}
 	// Otherwise, fall back to splitting by newline
 	keys := strings.Split(strings.Trim(channel.Key, "\n"), "\n")
 	return keys
+}
+
+// SetKeys preserves each credential's contents, including embedded newlines.
+func (channel *Channel) SetKeys(keys []string) error {
+	if keys == nil {
+		keys = []string{}
+	}
+	data, err := common.Marshal(keys)
+	if err != nil {
+		return err
+	}
+	channel.Key = string(data)
+	channel.Keys = nil
+	return nil
+}
+
+// ConvertChannelToMultiKey retains the existing credential as one pool entry.
+// Repeated requests are harmless and never reset an existing pool's state.
+func ConvertChannelToMultiKey(id int) (*Channel, error) {
+	lock := GetChannelPollingLock(id)
+	lock.Lock()
+	defer lock.Unlock()
+	var channel Channel
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockForUpdate(tx).First(&channel, id).Error; err != nil {
+			return err
+		}
+		if channel.ChannelInfo.IsMultiKey {
+			return nil
+		}
+		keys := []string{}
+		if channel.Key != "" {
+			keys = append(keys, channel.Key)
+		}
+		if err := channel.SetKeys(keys); err != nil {
+			return err
+		}
+		channel.ChannelInfo = ChannelInfo{
+			IsMultiKey: true, MultiKeySize: len(keys), MultiKeyMode: constant.MultiKeyModeRandom,
+		}
+		return tx.Model(&channel).Updates(map[string]any{
+			"key": channel.Key, "channel_info": channel.ChannelInfo,
+		}).Error
+	})
+	return &channel, err
+}
+
+// UpdateSingleChannelKey refuses to overwrite a pool if a credential refresh or
+// OAuth flow started before the channel was converted to multi-key mode.
+func UpdateSingleChannelKey(id int, key string) (bool, error) {
+	lock := GetChannelPollingLock(id)
+	lock.Lock()
+	defer lock.Unlock()
+	updated := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var channel Channel
+		if err := lockForUpdate(tx).First(&channel, id).Error; err != nil {
+			return err
+		}
+		if channel.ChannelInfo.IsMultiKey {
+			return nil
+		}
+		if err := tx.Model(&channel).Update("key", key).Error; err != nil {
+			return err
+		}
+		updated = true
+		return nil
+	})
+	return updated, err
 }
 
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
@@ -743,23 +818,7 @@ func (channel *Channel) Update() error {
 				keyStr = existing.Key
 			}
 		}
-		// Parse the key list (supports newline separation or JSON array)
-		keys := []string{}
-		if keyStr != "" {
-			trimmed := strings.TrimSpace(keyStr)
-			if strings.HasPrefix(trimmed, "[") {
-				var arr []json.RawMessage
-				if err := common.Unmarshal([]byte(trimmed), &arr); err == nil {
-					keys = make([]string, len(arr))
-					for i, v := range arr {
-						keys[i] = string(v)
-					}
-				}
-			}
-			if len(keys) == 0 { // fallback to newline split
-				keys = strings.Split(strings.Trim(keyStr, "\n"), "\n")
-			}
-		}
+		keys := (&Channel{Key: keyStr}).GetKeys()
 		channel.ChannelInfo.MultiKeySize = len(keys)
 		// Clean up status data that exceeds the new key count to prevent index out of range
 		if channel.ChannelInfo.MultiKeyStatusList != nil {
@@ -792,7 +851,12 @@ func (channel *Channel) Update() error {
 		}
 	}
 	var err error
-	err = DB.Model(channel).Updates(channel).Error
+	query := DB.Model(channel)
+	// A stale single-key edit must not undo a completed one-way conversion.
+	if !channel.ChannelInfo.IsMultiKey {
+		query = query.Omit("channel_info")
+	}
+	err = query.Updates(channel).Error
 	if err != nil {
 		return err
 	}

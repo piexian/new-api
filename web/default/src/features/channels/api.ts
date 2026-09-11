@@ -179,6 +179,17 @@ export async function updateChannelStatus(
   return res.data
 }
 
+export async function convertChannelToMultiKey(
+  id: number
+): Promise<{ success: boolean; message?: string }> {
+  const res = await api.post(
+    `/api/channel/${id}/convert_multi_key`,
+    {},
+    channelActionConfig()
+  )
+  return res.data
+}
+
 /**
  * Batch update channel enabled/disabled status.
  */

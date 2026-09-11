@@ -50,6 +50,9 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 	if ch.Type != constant.ChannelTypeCodex {
 		return nil, nil, fmt.Errorf("channel type is not supported for credential refresh")
 	}
+	if ch.ChannelInfo.IsMultiKey {
+		return nil, nil, errors.New("credential refresh does not support multi-key channels")
+	}
 
 	oauthKey, err := parseCodexOAuthKey(strings.TrimSpace(ch.Key))
 	if err != nil {
@@ -91,8 +94,12 @@ func RefreshCodexChannelCredential(ctx context.Context, channelID int, opts Code
 		return nil, nil, err
 	}
 
-	if err := model.DB.Model(&model.Channel{}).Where("id = ?", ch.Id).Update("key", string(encoded)).Error; err != nil {
+	updated, err := model.UpdateSingleChannelKey(ch.Id, string(encoded))
+	if err != nil {
 		return nil, nil, err
+	}
+	if !updated {
+		return nil, nil, errors.New("credential refresh does not support multi-key channels")
 	}
 
 	if opts.ResetCaches {

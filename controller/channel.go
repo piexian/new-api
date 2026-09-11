@@ -520,6 +520,17 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel.Type == constant.ChannelTypeCodex {
 		trimmedKey := strings.TrimSpace(channel.Key)
 		if isAdd || trimmedKey != "" {
+			if channel.ChannelInfo.IsMultiKey {
+				for _, key := range channel.GetKeys() {
+					entry := *channel
+					entry.Key = key
+					entry.ChannelInfo.IsMultiKey = false
+					if err := validateChannel(&entry, isAdd); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
 			if !strings.HasPrefix(trimmedKey, "{") {
 				return fmt.Errorf("Codex key must be a valid JSON object")
 			}
@@ -538,7 +549,12 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 
 	if channel.Type == constant.ChannelTypeQwenTokenPlan {
 		if channel.ChannelInfo.IsMultiKey {
-			return fmt.Errorf("Qwen Token Plan only supports a single bound credential")
+			for _, key := range channel.GetKeys() {
+				if _, err := qwentokenplan.ExtractAPIKey(key); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
 		trimmedKey := strings.TrimSpace(channel.Key)
 		if isAdd || trimmedKey != "" {
@@ -1019,14 +1035,6 @@ func UpdateChannel(c *gin.Context) {
 	}
 	clearChannelReadOnlyFields(&channel, requestData)
 
-	// 使用统一的校验函数
-	if err := validateChannel(&channel.Channel, false); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
-	}
 	// Preserve existing ChannelInfo to ensure multi-key channels keep correct state even if the client does not send ChannelInfo in the request.
 	originChannel, err := model.GetChannelById(channel.Id, true)
 	if err != nil {
@@ -1037,15 +1045,14 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 
-	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
-	channel.ChannelInfo = originChannel.ChannelInfo
-	if channel.Type == constant.ChannelTypeQwenTokenPlan && channel.ChannelInfo.IsMultiKey {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": i18n.T(c, i18n.MsgChannelQwenSingleCredOnly),
-		})
-		return
+	if info, ok := requestData["channel_info"].(map[string]any); ok && originChannel.ChannelInfo.IsMultiKey {
+		if multi, supplied := info["is_multi_key"].(bool); supplied && !multi {
+			common.ApiErrorI18n(c, i18n.MsgChannelMultiKeyOneWay)
+			return
+		}
 	}
+	// Restore the actual mode before validating structured credentials.
+	channel.ChannelInfo = originChannel.ChannelInfo
 
 	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
@@ -1054,16 +1061,24 @@ func UpdateChannel(c *gin.Context) {
 	}
 
 	if channel.Type == constant.ChannelTypeQwenTokenPlan {
-		mergedKey, err := qwentokenplan.MergeChannelKey(originChannel.Key, channel.Key,
-			channel.QwenConsoleToken, channel.QwenAccessKeyID, channel.QwenAccessKeySecret)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": err.Error(),
-			})
-			return
+		if !channel.ChannelInfo.IsMultiKey || channel.Key != "" || channel.QwenConsoleToken != nil || channel.QwenAccessKeyID != nil || channel.QwenAccessKeySecret != nil {
+			originalKey := originChannel.Key
+			if channel.ChannelInfo.IsMultiKey {
+				// A new pool entry is bound independently; never merge the entire pool.
+				originalKey = ""
+			}
+			mergedKey, err := qwentokenplan.MergeChannelKey(originalKey, channel.Key,
+				channel.QwenConsoleToken, channel.QwenAccessKeyID, channel.QwenAccessKeySecret)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			channel.Key = mergedKey
 		}
-		channel.Key = mergedKey
+	}
+	if err := validateChannel(&channel.Channel, false); err != nil {
+		common.ApiError(c, err)
+		return
 	}
 
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
@@ -1077,51 +1092,8 @@ func UpdateChannel(c *gin.Context) {
 		case "append":
 			// 追加模式：将新密钥添加到现有密钥列表
 			if originChannel.Key != "" {
-				var newKeys []string
-				var existingKeys []string
-
-				// 解析现有密钥
-				if strings.HasPrefix(strings.TrimSpace(originChannel.Key), "[") {
-					// JSON数组格式
-					var arr []json.RawMessage
-					if err := json.Unmarshal([]byte(strings.TrimSpace(originChannel.Key)), &arr); err == nil {
-						existingKeys = make([]string, len(arr))
-						for i, v := range arr {
-							existingKeys[i] = string(v)
-						}
-					}
-				} else {
-					// 换行分隔格式
-					existingKeys = strings.Split(strings.Trim(originChannel.Key, "\n"), "\n")
-				}
-
-				// 处理 Vertex AI 的特殊情况
-				if channel.Type == constant.ChannelTypeVertexAi && channel.GetOtherSettings().VertexKeyType != dto.VertexKeyTypeAPIKey {
-					// 尝试解析新密钥为JSON数组
-					if strings.HasPrefix(strings.TrimSpace(channel.Key), "[") {
-						array, err := getVertexArrayKeys(channel.Key)
-						if err != nil {
-							c.JSON(http.StatusOK, gin.H{
-								"success": false,
-								"message": "追加密钥解析失败: " + err.Error(),
-							})
-							return
-						}
-						newKeys = array
-					} else {
-						// 单个JSON密钥
-						newKeys = []string{channel.Key}
-					}
-				} else {
-					// 普通渠道的处理
-					inputKeys := strings.Split(channel.Key, "\n")
-					for _, key := range inputKeys {
-						key = strings.TrimSpace(key)
-						if key != "" {
-							newKeys = append(newKeys, key)
-						}
-					}
-				}
+				existingKeys := originChannel.GetKeys()
+				newKeys := channel.GetKeys()
 
 				seen := make(map[string]struct{}, len(existingKeys)+len(newKeys))
 				for _, key := range existingKeys {
@@ -1145,7 +1117,10 @@ func UpdateChannel(c *gin.Context) {
 				}
 
 				allKeys := append(existingKeys, dedupedNewKeys...)
-				channel.Key = strings.Join(allKeys, "\n")
+				if err := channel.SetKeys(allKeys); err != nil {
+					common.ApiError(c, err)
+					return
+				}
 			}
 		case "replace":
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
@@ -2096,7 +2071,10 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		// Update channel with remaining keys
-		channel.Key = strings.Join(remainingKeys, "\n")
+		if err := channel.SetKeys(remainingKeys); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		channel.ChannelInfo.MultiKeySize = len(remainingKeys)
 		channel.ChannelInfo.MultiKeyStatusList = newStatusList
 		channel.ChannelInfo.MultiKeyDisabledTime = newDisabledTime
@@ -2171,7 +2149,10 @@ func ManageMultiKeys(c *gin.Context) {
 		}
 
 		// Update channel with remaining keys
-		channel.Key = strings.Join(remainingKeys, "\n")
+		if err := channel.SetKeys(remainingKeys); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		channel.ChannelInfo.MultiKeySize = len(remainingKeys)
 		channel.ChannelInfo.MultiKeyStatusList = newStatusList
 		channel.ChannelInfo.MultiKeyDisabledTime = newDisabledTime

@@ -87,6 +87,10 @@ func startCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelTypeNotMatched)})
 			return
 		}
+		if channel.ChannelInfo.IsMultiKey {
+			common.ApiErrorI18n(c, i18n.MsgChannelMultiKeyUnsupported)
+			return
+		}
 	}
 
 	flow, err := service.CreateCodexOAuthAuthorizationFlow()
@@ -160,6 +164,10 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelTypeNotMatched)})
 			return
 		}
+		if channel.ChannelInfo.IsMultiKey {
+			common.ApiErrorI18n(c, i18n.MsgChannelMultiKeyUnsupported)
+			return
+		}
 		channelProxy = channel.GetSetting().Proxy
 	}
 
@@ -213,8 +221,13 @@ func completeCodexOAuthWithChannelID(c *gin.Context, channelID int) {
 	_ = session.Save()
 
 	if channelID > 0 {
-		if err := model.DB.Model(&model.Channel{}).Where("id = ?", channelID).Update("key", string(encoded)).Error; err != nil {
+		updated, err := model.UpdateSingleChannelKey(channelID, string(encoded))
+		if err != nil {
 			common.ApiError(c, err)
+			return
+		}
+		if !updated {
+			common.ApiErrorI18n(c, i18n.MsgChannelMultiKeyUnsupported)
 			return
 		}
 		model.InitChannelCache()

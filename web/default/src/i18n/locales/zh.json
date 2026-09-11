@@ -6465,7 +6465,11 @@
     "Top-up confirmations (email)": "充值到账通知（邮件）",
     "Subscription activation and expiry (email)": "订阅开通与到期通知（邮件）",
     "Account status notifications": "账号状态通知",
-    "Channel and system notifications": "渠道与系统通知"
+    "Channel and system notifications": "渠道与系统通知",
+    "Convert to multi-key channel": "转换为多密钥渠道",
+    "Converted to multi-key channel": "已转换为多密钥渠道",
+    "Conversion failed": "转换失败",
+    "Convert channel \"{{name}}\" to multi-key mode? Its current credential and settings will be preserved. This cannot be reversed.": "将渠道“{{name}}”转换为多密钥模式？现有凭据和配置将被保留，转换后无法恢复为单密钥模式。"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",
