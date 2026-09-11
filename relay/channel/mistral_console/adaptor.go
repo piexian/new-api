@@ -73,7 +73,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return baseURL + conversationsURL, nil
 }
 
-func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
+func (a *Adaptor) SetupRequestHeader(_ *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	if info == nil {
 		return errors.New("relay info is nil")
 	}
@@ -81,11 +81,12 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	if err != nil {
 		return err
 	}
-	channel.SetupApiRequestHeader(info, c, req)
+	clear(*req)
 	req.Set("Accept", "text/event-stream")
 	req.Set("Content-Type", "application/json")
 	req.Set("Cookie", cookie)
-	req.Del("Authorization")
+	// An explicitly empty User-Agent suppresses net/http's default value.
+	req.Set("User-Agent", "")
 	return nil
 }
 
@@ -141,7 +142,23 @@ func (a *Adaptor) ConvertOpenAIRequest(_ *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	return channel.DoApiRequest(a, c, info, requestBody)
+	requestURL, err := a.GetRequestURL(info)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(c.Request.Method, requestURL, requestBody)
+	if err != nil {
+		return nil, err
+	}
+	if info.UpstreamRequestBodySize > 0 && req.ContentLength <= 0 {
+		req.ContentLength = info.UpstreamRequestBodySize
+	}
+	if err := a.SetupRequestHeader(c, &req.Header, info); err != nil {
+		return nil, err
+	}
+	// DoApiRequest applies channel/runtime header overrides after adapter headers.
+	// This browser-session endpoint must not forward those credentials or headers.
+	return channel.DoRequest(c, req, info)
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
@@ -204,7 +221,21 @@ func validateCookieHeaderValue(value string) (string, error) {
 	if strings.HasPrefix(strings.ToLower(cookie), "cookie:") {
 		return "", errors.New("enter only the Cookie header value, without the Cookie: prefix")
 	}
-	return cookie, nil
+	// Keep existing full Cookie configurations working alongside bare session values.
+	if strings.HasPrefix(cookie, "ory_session_") || strings.Contains(cookie, ";") {
+		return cookie, nil
+	}
+	if len(cookie) >= 2 && cookie[0] == '"' && cookie[len(cookie)-1] == '"' {
+		cookie = cookie[1 : len(cookie)-1]
+	}
+	if cookie == "" {
+		return "", errors.New("upstream session value is empty")
+	}
+	session := &http.Cookie{Name: boraSessionCookieName, Value: cookie, Quoted: true}
+	if err := session.Valid(); err != nil {
+		return "", errors.New("upstream session value contains invalid cookie characters")
+	}
+	return session.String(), nil
 }
 
 func invalidRequestError(message string) error {

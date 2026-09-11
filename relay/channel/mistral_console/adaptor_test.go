@@ -2,12 +2,16 @@ package mistralconsole
 
 import (
 	"errors"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -248,7 +252,12 @@ func TestSetupRequestHeaderUsesCookieOnly(t *testing.T) {
 	ctx, _ := gin.CreateTestContext(nil)
 	ctx.Request, _ = http.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	info := testRelayInfo(false)
-	headers := http.Header{"Authorization": []string{"Bearer stale"}}
+	headers := http.Header{
+		"Authorization": {"Bearer stale"},
+		"User-Agent":    {"browser"},
+		"X-Api-Key":     {"unrelated-key"},
+		"Origin":        {"https://unrelated.example"},
+	}
 
 	err := (&Adaptor{}).SetupRequestHeader(ctx, &headers, info)
 	require.NoError(t, err)
@@ -256,6 +265,12 @@ func TestSetupRequestHeaderUsesCookieOnly(t *testing.T) {
 	require.Equal(t, "text/event-stream", headers.Get("Accept"))
 	require.Equal(t, "application/json", headers.Get("Content-Type"))
 	require.Empty(t, headers.Get("Authorization"))
+	require.Equal(t, http.Header{
+		"Accept":       {"text/event-stream"},
+		"Content-Type": {"application/json"},
+		"Cookie":       {info.ApiKey},
+		"User-Agent":   {""},
+	}, headers)
 	require.NotContains(t, info.ToString(), info.ApiKey)
 }
 
@@ -264,12 +279,82 @@ func TestSetupRequestHeaderRejectsInvalidCookie(t *testing.T) {
 	ctx, _ := gin.CreateTestContext(nil)
 	ctx.Request, _ = http.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
-	for _, cookie := range []string{"", "Cookie: session=value", "session=value\r\nX-Test: bad"} {
+	for _, cookie := range []string{"", "Cookie: session=value", "session=value\r\nX-Test: bad", `""`, `"unclosed`, "session\x00value"} {
 		info := testRelayInfo(false)
 		info.ApiKey = cookie
 		err := (&Adaptor{}).SetupRequestHeader(ctx, &http.Header{}, info)
 		require.Error(t, err)
 	}
+}
+
+func TestSessionCookieInputFormats(t *testing.T) {
+	for _, test := range []struct {
+		name, input, want string
+	}{
+		{"bare", "c2Vzc2lvbg==", boraSessionCookieName + `="c2Vzc2lvbg=="`},
+		{"quoted", `"c2Vzc2lvbg=="`, boraSessionCookieName + `="c2Vzc2lvbg=="`},
+		{"whitespace", "  c2Vzc2lvbg==  ", boraSessionCookieName + `="c2Vzc2lvbg=="`},
+		{"named session", `ory_session_test="session"`, `ory_session_test="session"`},
+		{"full cookie", `csrf=test; ory_session_test="session"`, `csrf=test; ory_session_test="session"`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			info := testRelayInfo(false)
+			info.ApiKey = test.input
+			adaptor := &Adaptor{}
+			_, err := adaptor.ConvertOpenAIRequest(nil, info, &dto.GeneralOpenAIRequest{
+				Messages: []dto.Message{{Role: "user", Content: "Hi"}},
+			})
+			require.NoError(t, err)
+			headers := make(http.Header)
+			require.NoError(t, adaptor.SetupRequestHeader(nil, &headers, info))
+			require.Equal(t, test.want, headers.Get("Cookie"))
+		})
+	}
+}
+
+func TestDoRequestDoesNotForwardClientOrOverrideHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service.InitHttpClient()
+	t.Cleanup(service.GetHttpClient().CloseIdleConnections)
+	const body = `{"model":"mistral-medium-latest"}`
+	seen := make(chan *http.Request, 1)
+	seenBody := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		data, _ := io.ReadAll(r.Body)
+		seen <- r.Clone(r.Context())
+		seenBody <- string(data)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	info := testRelayInfo(false)
+	info.ApiKey = "c2Vzc2lvbg=="
+	info.ChannelBaseUrl = server.URL
+	info.UpstreamRequestBodySize = int64(len(body))
+	info.HeadersOverride = map[string]interface{}{"Authorization": "Bearer {api_key}", "User-Agent": "browser"}
+	info.UseRuntimeHeadersOverride = true
+	info.RuntimeHeadersOverride = map[string]interface{}{"Cookie": "wrong", "X-Api-Key": "wrong", "Host": "wrong.example"}
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	ctx.Request.Header.Set("Authorization", "Bearer client-secret")
+	ctx.Request.Header.Set("X-Client-Header", "unrelated")
+	// Match the reader-only body wrapper used by the relay in production.
+	response, err := (&Adaptor{}).DoRequest(ctx, info, struct{ io.Reader }{strings.NewReader(body)})
+	require.NoError(t, err)
+	defer response.(*http.Response).Body.Close()
+	r := <-seen
+	require.Equal(t, conversationsURL, r.URL.Path)
+	require.Equal(t, http.MethodPost, r.Method)
+	require.Equal(t, int64(len(body)), r.ContentLength)
+	require.Equal(t, body, <-seenBody)
+	require.Equal(t, boraSessionCookieName+`="c2Vzc2lvbg=="`, r.Header.Get("Cookie"))
+	require.Equal(t, "text/event-stream", r.Header.Get("Accept"))
+	require.Equal(t, "application/json", r.Header.Get("Content-Type"))
+	for _, name := range []string{"Authorization", "User-Agent", "X-Api-Key", "X-Client-Header"} {
+		require.NotContains(t, r.Header, name)
+	}
+	require.NotEqual(t, "wrong.example", r.Host)
+	require.Equal(t, "Bearer {api_key}", info.HeadersOverride["Authorization"])
+	require.Equal(t, "wrong", info.RuntimeHeadersOverride["Cookie"])
 }
 
 func testRelayInfo(stream bool) *relaycommon.RelayInfo {
