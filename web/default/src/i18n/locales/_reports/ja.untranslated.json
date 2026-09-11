@@ -95,5 +95,6 @@
   "Whitelist User IDs": "Whitelist User IDs",
   "Window (seconds)": "Window (seconds)",
   "Window Count": "Window Count",
-  "Window Start": "Window Start"
+  "Window Start": "Window Start",
+  "Code Interpreter": "Code Interpreter"
 }
