@@ -6,8 +6,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/types"
 )
 
 type kimiModelFamily int
@@ -21,21 +19,6 @@ const (
 )
 
 const kimiK3MaxCompletionTokens = 1_048_576
-
-const (
-	kimiK3ShortContextTokenLimit     = 262_144
-	kimiK3ProactiveFullContextCutoff = kimiK3ShortContextTokenLimit * 95 / 100 // 249036
-)
-
-// shouldRouteKimiK3DirectForEstimatedContext 预估 prompt token 超过 256K 档 95% 安全边际时
-// 跳过 k3-256k 降级直接发 k3，省掉一次必然失败的上游往返。
-// 预估为 0（CountToken 关闭或媒体低估）时返回 false，由报错兜底路径接管。
-func shouldRouteKimiK3DirectForEstimatedContext(info *relaycommon.RelayInfo) bool {
-	if info == nil {
-		return false
-	}
-	return info.GetEstimatePromptTokens() > kimiK3ProactiveFullContextCutoff
-}
 
 func normalizeKimiOpenAIRequest(info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) kimiModelFamily {
 	if request == nil || relaycommon.IsRequestPassThroughEnabled(info) {
@@ -76,18 +59,6 @@ func classifyKimiModel(model string, kimiCodingBase bool) kimiModelFamily {
 	default:
 		return kimiModelUnknown
 	}
-}
-
-func shouldUseKimiK3ShortContext(info *relaycommon.RelayInfo, model string) bool {
-	if info == nil || info.ChannelMeta == nil || relaycommon.IsRequestPassThroughEnabled(info) || !isKimiCodingBaseURL(info.ChannelBaseUrl) {
-		return false
-	}
-	if info.RelayFormat != types.RelayFormatClaude &&
-		info.RelayMode != constant.RelayModeChatCompletions &&
-		info.RelayMode != constant.RelayModeResponses {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(model), "k3")
 }
 
 // removeConflictingKimiSamplingParameters 丢弃与固定值不符的采样参数。
