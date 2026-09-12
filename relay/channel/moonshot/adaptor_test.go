@@ -509,11 +509,39 @@ func TestConvertOpenAIRequestNormalizesKimiK3Parameters(t *testing.T) {
 	if got.MaxTokens != nil || got.MaxCompletionTokens == nil || *got.MaxCompletionTokens != 4096 {
 		t.Fatalf("max token fields were not normalized: max_tokens=%v max_completion_tokens=%v", got.MaxTokens, got.MaxCompletionTokens)
 	}
-	if got.ReasoningEffort != "" || got.THINKING != nil || got.Reasoning != nil {
+	// K3 支持 low/high/max，客户端档位必须保留而不是清成上游默认的 max。
+	if got.ReasoningEffort != "high" || got.THINKING != nil || got.Reasoning != nil {
 		t.Fatalf("K3 reasoning fields were not normalized: effort=%q thinking=%s reasoning=%s", got.ReasoningEffort, got.THINKING, got.Reasoning)
 	}
 	if got.Temperature != nil || got.TopP != nil || got.N != nil || got.FrequencyPenalty != nil || got.PresencePenalty != nil {
 		t.Fatal("conflicting fixed K3 sampling parameters should be removed")
+	}
+}
+
+func TestNormalizeKimiK3Effort(t *testing.T) {
+	// 上游只接受 low/high/max 且默认 max：未识别值留空，显式低档位不能被抬到 max。
+	tests := []struct {
+		name   string
+		given  string
+		wanted string
+	}{
+		{name: "unset", given: "", wanted: ""},
+		{name: "low", given: "low", wanted: "low"},
+		{name: "low padded uppercase", given: " LOW ", wanted: "low"},
+		{name: "minimal", given: "minimal", wanted: "low"},
+		{name: "none 无法关思考退到最低档", given: "none", wanted: "low"},
+		{name: "medium", given: "medium", wanted: "high"},
+		{name: "high", given: "high", wanted: "high"},
+		{name: "xhigh", given: "xhigh", wanted: "max"},
+		{name: "MAX uppercase", given: "MAX", wanted: "max"},
+		{name: "unknown falls back to upstream default", given: "ultra", wanted: ""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := normalizeKimiK3Effort(test.given); got != test.wanted {
+				t.Fatalf("normalizeKimiK3Effort(%q) = %q, want %q", test.given, got, test.wanted)
+			}
+		})
 	}
 }
 
