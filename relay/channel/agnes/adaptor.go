@@ -75,6 +75,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		}
 		return relaycommon.GetFullRequestURL(baseURL, path, info.ChannelType), nil
 	}
+	// Agnes 没有 /v1/images/edits 端点：图生图与编辑统一走 generations，
+	// 参考图放 image / extra_body.image，由 convertImageRequest 负责搬运字段。
 	if info != nil && info.RelayMode == relayconstant.RelayModeImagesEdits {
 		baseURL := info.ChannelBaseUrl
 		if baseURL == "" {
@@ -213,6 +215,7 @@ func buildImageFields(request dto.ImageRequest) (map[string]any, []string, error
 		}
 	}
 
+	// Agnes 要求 response_format 放在 extra_body，顶层出现会 400。
 	if _, ok := extraBody["response_format"]; !ok && strings.TrimSpace(request.ResponseFormat) != "" {
 		extraBody["response_format"] = strings.TrimSpace(request.ResponseFormat)
 	}

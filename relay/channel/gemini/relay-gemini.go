@@ -68,8 +68,13 @@ var geminiSupportedMimeTypes = map[string]bool{
 	"video/flv":       true,
 }
 
+// Google 文档化的 thought_signature 占位值（另一个是 skip_thought_signature_validator），
+// 用于历史来自其他模型、或客户端确定性执行的工具调用拿不到真签名时兜底，避免 400。
+// 官方要求只作最后手段：伪签名会降低推理质量，所以真签名永远优先。
 const thoughtSignatureBypassValue = "context_engineering_is_the_way_to_go"
 
+// Gemini 2.5 系列 thinkingBudget 的取值区间，取自 Google 模型文档：
+// pro 128–32768、flash 0–24576、flash-lite 512–24576；越界会被上游拒绝或自动归一。
 const (
 	pro25MinBudget       = 128
 	pro25MaxBudget       = 32768

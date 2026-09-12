@@ -24,9 +24,11 @@ import (
 )
 
 const (
-	videoEndpoint       = "/v1/videos"
-	videoQueryPath      = "/agnesapi" // 推荐查询接口：GET /agnesapi?video_id=，完成后返回顶层 url
-	requestContextKey   = "agnes_video_request"
+	videoEndpoint     = "/v1/videos"
+	videoQueryPath    = "/agnesapi" // 推荐查询接口：GET /agnesapi?video_id=，完成后返回顶层 url
+	requestContextKey = "agnes_video_request"
+	// Agnes Video V2.0 官方默认值：num_frames 121（上限 441 且须满足 8n+1）、
+	// frame_rate 24（区间 1–60），时长 = num_frames / frame_rate ≈ 5.04s，用于计费估算。
 	defaultNumFrames    = 121
 	defaultFrameRate    = 24
 	defaultDurationSecs = float64(defaultNumFrames) / float64(defaultFrameRate)

@@ -77,6 +77,9 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+	// Jina 的 /v1/embeddings 严格校验请求体，OpenAI 的 encoding_format 会被拒
+	// （Extra inputs are not permitted ... encoding_format）；Jina 侧同类参数是 embedding_type。
+	// 标准 OpenAI 客户端会自动带上该字段，因此统一剔除。
 	request.EncodingFormat = ""
 	return request, nil
 }

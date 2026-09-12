@@ -369,6 +369,7 @@ func gcd(a, b int) int {
 }
 
 func normalizeFluxDimension(value int) int {
+	// FLUX 1.1 [pro] 自定义尺寸的官方约束：边长 256–1440，且须为 32 的倍数。
 	const (
 		minDim = 256
 		maxDim = 1440

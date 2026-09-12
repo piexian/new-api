@@ -38,6 +38,8 @@ func requestOpenAI2Baidu(request dto.GeneralOpenAIRequest) *BaiduChatRequest {
 	}
 	if request.GetMaxTokens() != 0 {
 		maxTokens := int(request.GetMaxTokens())
+		// 千帆 V1 接口多数 ERNIE 模型的 max_output_tokens 区间下界是 2（[2, 2048] 等），
+		// 传 1 会被上游判为越界，因此抬到最小可用值。
 		if request.GetMaxTokens() == 1 {
 			maxTokens = 2
 		}
