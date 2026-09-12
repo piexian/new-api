@@ -17,6 +17,7 @@ import (
 
 type Pricing struct {
 	ModelName              string                  `json:"model_name"`
+	CreatedTime            int64                   `json:"created_time"` // 匹配的 models 元数据记录创建时间，0 表示未知。
 	Description            string                  `json:"description,omitempty"`
 	Icon                   string                  `json:"icon,omitempty"`
 	Tags                   string                  `json:"tags,omitempty"`
@@ -368,6 +369,7 @@ func updatePricing() {
 			if meta.Status != 1 {
 				continue
 			}
+			pricing.CreatedTime = meta.CreatedTime
 			pricing.Description = meta.Description
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags

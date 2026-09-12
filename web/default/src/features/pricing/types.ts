@@ -30,6 +30,8 @@ export type PricingVendor = {
 export type PricingModel = {
   id: number
   model_name: string
+  /** Model record creation time in Unix seconds; 0 or absent means unknown. */
+  created_time?: number
   description?: string
   icon?: string
   vendor_id?: number

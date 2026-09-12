@@ -17,13 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Card, Table, Empty } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getPricingTableColumns } from './PricingTableColumns';
+import {
+  PRICING_SORT_OPTIONS,
+  PRICING_QUOTA_SORT_OPTIONS,
+  sortPricingModels,
+} from '../../../../../helpers/pricing-sort';
 
 const PricingTable = ({
   filteredModels,
@@ -31,6 +36,8 @@ const PricingTable = ({
   rowSelection,
   pageSize,
   setPageSize,
+  sortBy,
+  onSortChange,
   selectedGroup,
   groupRatio,
   copyText,
@@ -47,6 +54,11 @@ const PricingTable = ({
   perfMetricsMap = {},
   t,
 }) => {
+  const sortedModels = useMemo(
+    () => sortPricingModels(filteredModels, sortBy),
+    [filteredModels, sortBy],
+  );
+
   const columns = useMemo(() => {
     return getPricingTableColumns({
       t,
@@ -86,6 +98,12 @@ const PricingTable = ({
           filteredValue: searchValue ? [searchValue] : [],
         };
       }
+      if (column.dataIndex === 'quota_type') {
+        let sortOrder = false;
+        if (sortBy === PRICING_QUOTA_SORT_OPTIONS.ASC) sortOrder = 'ascend';
+        if (sortBy === PRICING_QUOTA_SORT_OPTIONS.DESC) sortOrder = 'descend';
+        return { ...column, sortOrder };
+      }
       return column;
     });
 
@@ -94,14 +112,30 @@ const PricingTable = ({
       return cols.map(({ fixed, ...rest }) => rest);
     }
     return cols;
-  }, [columns, searchValue, compactMode]);
+  }, [columns, searchValue, compactMode, sortBy]);
+
+  const handleTableChange = useCallback(
+    ({ sorter, extra }) => {
+      if (extra?.changeType !== 'sorter') return;
+      let nextSort = PRICING_SORT_OPTIONS.NAME;
+      if (sorter?.sortOrder === 'ascend')
+        nextSort = PRICING_QUOTA_SORT_OPTIONS.ASC;
+      if (sorter?.sortOrder === 'descend')
+        nextSort = PRICING_QUOTA_SORT_OPTIONS.DESC;
+      onSortChange(nextSort);
+    },
+    [onSortChange],
+  );
 
   const ModelTable = useMemo(
     () => (
       <Card className='!rounded-xl overflow-hidden' bordered={false}>
         <Table
+          // Keep Semi's local pagination; remount on sort to return to page 1.
+          key={sortBy}
           columns={processedColumns}
-          dataSource={filteredModels}
+          dataSource={sortedModels}
+          onChange={handleTableChange}
           loading={loading}
           rowSelection={rowSelection}
           scroll={compactMode ? undefined : { x: 'max-content' }}
@@ -132,7 +166,9 @@ const PricingTable = ({
       </Card>
     ),
     [
-      filteredModels,
+      sortedModels,
+      handleTableChange,
+      sortBy,
       loading,
       processedColumns,
       rowSelection,

@@ -6469,7 +6469,9 @@
     "Convert to multi-key channel": "Convertir en canal multiclés",
     "Converted to multi-key channel": "Canal converti en mode multiclés",
     "Conversion failed": "Échec de la conversion",
-    "Convert channel \"{{name}}\" to multi-key mode? Its current credential and settings will be preserved. This cannot be reversed.": "Convertir le canal « {{name}} » en mode multiclés ? Ses identifiants et paramètres actuels seront conservés. Cette action est irréversible."
+    "Convert channel \"{{name}}\" to multi-key mode? Its current credential and settings will be preserved. This cannot be reversed.": "Convertir le canal « {{name}} » en mode multiclés ? Ses identifiants et paramètres actuels seront conservés. Cette action est irréversible.",
+    "Recently added": "Ajouts récents",
+    "Earliest added": "Ajouts les plus anciens"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

@@ -6469,7 +6469,9 @@
     "Convert to multi-key channel": "轉換為多金鑰渠道",
     "Converted to multi-key channel": "已轉換為多金鑰渠道",
     "Conversion failed": "轉換失敗",
-    "Convert channel \"{{name}}\" to multi-key mode? Its current credential and settings will be preserved. This cannot be reversed.": "將渠道「{{name}}」轉換為多金鑰模式？現有憑證和設定將予以保留，轉換後無法恢復為單金鑰模式。"
+    "Convert channel \"{{name}}\" to multi-key mode? Its current credential and settings will be preserved. This cannot be reversed.": "將渠道「{{name}}」轉換為多金鑰模式？現有憑證和設定將予以保留，轉換後無法恢復為單金鑰模式。",
+    "Recently added": "最新上架",
+    "Earliest added": "最早上架"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

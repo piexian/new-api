@@ -24,6 +24,7 @@ import PricingContent from './content/PricingContent';
 import ModelDetailSideSheet from '../modal/ModelDetailSideSheet';
 import { useModelPricingData } from '../../../../hooks/model-pricing/useModelPricingData';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
+import { PRICING_SORT_OPTIONS } from '../../../../helpers/pricing-sort';
 
 const PricingPage = () => {
   const pricingData = useModelPricingData();
@@ -31,12 +32,29 @@ const PricingPage = () => {
   const isMobile = useIsMobile();
   const [showRatio, setShowRatio] = React.useState(false);
   const [viewMode, setViewMode] = React.useState('card');
+  const [sortBy, setSortBy] = React.useState(PRICING_SORT_OPTIONS.NAME);
+  const onSortChange = React.useCallback(
+    (value) => {
+      setSortBy(value);
+      pricingData.setCurrentPage(1);
+    },
+    [pricingData.setCurrentPage],
+  );
+  const onViewModeChange = React.useCallback(
+    (value) => {
+      setViewMode(value);
+      pricingData.setCurrentPage(1);
+    },
+    [pricingData.setCurrentPage],
+  );
   const allProps = {
     ...pricingData,
     showRatio,
     setShowRatio,
     viewMode,
-    setViewMode,
+    setViewMode: onViewModeChange,
+    sortBy,
+    onSortChange,
   };
 
   return (

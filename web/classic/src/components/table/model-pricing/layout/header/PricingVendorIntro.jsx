@@ -154,6 +154,8 @@ const PricingVendorIntro = memo(
     setShowRatio,
     viewMode,
     setViewMode,
+    sortBy,
+    onSortChange,
     tokenUnit,
     setTokenUnit,
   }) => {
@@ -289,6 +291,8 @@ const PricingVendorIntro = memo(
           setShowRatio={setShowRatio}
           viewMode={viewMode}
           setViewMode={setViewMode}
+          sortBy={sortBy}
+          onSortChange={onSortChange}
           tokenUnit={tokenUnit}
           setTokenUnit={setTokenUnit}
           t={t}
@@ -311,6 +315,8 @@ const PricingVendorIntro = memo(
         setShowRatio,
         viewMode,
         setViewMode,
+        sortBy,
+        onSortChange,
         tokenUnit,
         setTokenUnit,
         t,

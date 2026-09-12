@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useId } from 'react';
 import { Input, Button, Switch, Select, Divider } from '@douyinfe/semi-ui';
 import { IconSearch, IconCopy, IconFilter } from '@douyinfe/semi-icons';
+import { getPricingSortOptions } from '../../../../../helpers/pricing-sort';
 
 const SearchActions = memo(
   ({
@@ -40,6 +41,8 @@ const SearchActions = memo(
     setShowRatio,
     viewMode,
     setViewMode,
+    sortBy,
+    onSortChange,
     tokenUnit,
     setTokenUnit,
     t,
@@ -64,10 +67,20 @@ const SearchActions = memo(
       setTokenUnit?.(tokenUnit === 'K' ? 'M' : 'K');
     }, [tokenUnit, setTokenUnit]);
 
+    const sortOptions = getPricingSortOptions(t);
+    const sortLabelId = useId();
+
     return (
-      <div className='flex items-center gap-2 w-full'>
-        <div className='flex-1'>
+      <div className='flex flex-wrap items-center gap-2 w-full'>
+        <div
+          className={
+            viewMode === 'table'
+              ? 'flex min-w-0 flex-1 basis-full items-center gap-2 md:basis-auto md:max-w-lg'
+              : 'min-w-0 flex-1'
+          }
+        >
           <Input
+            className='min-w-0 flex-1'
             prefix={<IconSearch />}
             placeholder={t('模糊搜索模型名称')}
             value={searchValue}
@@ -76,6 +89,26 @@ const SearchActions = memo(
             onChange={handleChange}
             showClear
           />
+          {viewMode === 'table' && (
+            <>
+              <span id={sortLabelId} className='sr-only'>
+                {t('排序')}
+              </span>
+              <Select
+                aria-labelledby={sortLabelId}
+                placeholder={t('排序')}
+                className='w-36 shrink-0'
+                value={
+                  sortOptions.some((option) => option.value === sortBy)
+                    ? sortBy
+                    : undefined
+                }
+                optionList={sortOptions}
+                onChange={onSortChange}
+                dropdownStyle={{ minWidth: 180 }}
+              />
+            </>
+          )}
         </div>
 
         <Button

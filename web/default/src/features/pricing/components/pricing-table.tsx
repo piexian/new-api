@@ -75,6 +75,8 @@ export function PricingTable(props: PricingTableProps) {
     pagination,
     onPaginationChange: setPagination,
     manualPagination: false,
+    // External sorting/filtering changes models; start the new result at page 1.
+    autoResetPageIndex: true,
     withFilteredRowModel: false,
     withSortedRowModel: false,
     withFacetedRowModel: false,

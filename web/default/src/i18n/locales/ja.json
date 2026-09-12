@@ -6469,7 +6469,9 @@
     "Convert to multi-key channel": "複数キーのチャネルに変換",
     "Converted to multi-key channel": "複数キーのチャネルに変換しました",
     "Conversion failed": "変換に失敗しました",
-    "Convert channel \"{{name}}\" to multi-key mode? Its current credential and settings will be preserved. This cannot be reversed.": "チャネル「{{name}}」を複数キーモードに変換しますか？現在の認証情報と設定は保持されます。変換後は単一キーモードに戻せません。"
+    "Convert channel \"{{name}}\" to multi-key mode? Its current credential and settings will be preserved. This cannot be reversed.": "チャネル「{{name}}」を複数キーモードに変換しますか？現在の認証情報と設定は保持されます。変換後は単一キーモードに戻せません。",
+    "Recently added": "追加が新しい順",
+    "Earliest added": "追加が古い順"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

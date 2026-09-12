@@ -22,6 +22,7 @@ import {
   QUOTA_TYPES,
   QUOTA_TYPE_VALUES,
   ENDPOINT_TYPES,
+  type SortOption,
 } from '../constants'
 import type { PricingModel } from '../types'
 
@@ -105,6 +106,35 @@ function getModelPrice(model: PricingModel): number {
   return model.quota_type === 0 ? model.model_ratio : model.model_price || 0
 }
 
+export function normalizeSortOption(value: unknown): SortOption {
+  return (
+    Object.values(SORT_OPTIONS).find((option) => option === value) ??
+    SORT_OPTIONS.NAME
+  )
+}
+
+function getListedTime(model: PricingModel): number {
+  const time = model.created_time
+  return typeof time === 'number' && Number.isFinite(time) && time > 0
+    ? time
+    : 0
+}
+
+function compareListedTime(
+  a: PricingModel,
+  b: PricingModel,
+  newestFirst: boolean
+): number {
+  const aTime = getListedTime(a)
+  const bTime = getListedTime(b)
+
+  // Unknown dates stay last in either direction.
+  if (aTime === 0 && bTime !== 0) return 1
+  if (bTime === 0 && aTime !== 0) return -1
+  if (aTime !== bTime) return newestFirst ? bTime - aTime : aTime - bTime
+  return (a.model_name || '').localeCompare(b.model_name || '')
+}
+
 /**
  * Sort models by specified option
  */
@@ -114,7 +144,7 @@ export function sortModels(
 ): PricingModel[] {
   const sorted = [...models]
 
-  switch (sortBy) {
+  switch (normalizeSortOption(sortBy)) {
     case SORT_OPTIONS.NAME:
       sorted.sort((a, b) =>
         (a.model_name || '').localeCompare(b.model_name || '')
@@ -125,6 +155,12 @@ export function sortModels(
       break
     case SORT_OPTIONS.PRICE_HIGH:
       sorted.sort((a, b) => getModelPrice(b) - getModelPrice(a))
+      break
+    case SORT_OPTIONS.LISTED_NEWEST:
+      sorted.sort((a, b) => compareListedTime(a, b, true))
+      break
+    case SORT_OPTIONS.LISTED_OLDEST:
+      sorted.sort((a, b) => compareListedTime(a, b, false))
       break
   }
 

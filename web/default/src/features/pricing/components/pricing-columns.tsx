@@ -92,6 +92,8 @@ export function usePricingColumns(
         )
       },
       minSize: 200,
+      // The pricing toolbar owns sorting for both the card and table views.
+      enableSorting: false,
     },
 
     // Type column
