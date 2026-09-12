@@ -22,11 +22,10 @@ import {
   showError,
   getAccountDisabledDialogPayload,
   showAccountDisabledDialog,
-  formatMessageForAPI,
-  isValidMessage,
 } from './utils';
 import axios from 'axios';
-import { MESSAGE_ROLES } from '../constants/playground.constants';
+export { buildApiPayload } from './playground/request';
+import { normalizeModelOptions } from './playground/models';
 
 export let API = axios.create({
   baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
@@ -114,82 +113,6 @@ API.interceptors.response.use(
   },
 );
 
-// playground
-
-// 构建API请求负载
-export const buildApiPayload = (
-  messages,
-  systemPrompt,
-  inputs,
-  parameterEnabled,
-) => {
-  const processedMessages = messages
-    .filter(isValidMessage)
-    .map(formatMessageForAPI)
-    .filter(Boolean);
-
-  // 如果有系统提示，插入到消息开头
-  if (systemPrompt && systemPrompt.trim()) {
-    processedMessages.unshift({
-      role: MESSAGE_ROLES.SYSTEM,
-      content: systemPrompt.trim(),
-    });
-  }
-
-  const payload = {
-    model: inputs.model,
-    group: inputs.group,
-    messages: processedMessages,
-    stream: inputs.stream,
-  };
-
-  // 添加启用的参数
-  const parameterMappings = {
-    temperature: 'temperature',
-    top_p: 'top_p',
-    max_tokens: 'max_tokens',
-    frequency_penalty: 'frequency_penalty',
-    presence_penalty: 'presence_penalty',
-    seed: 'seed',
-  };
-
-  Object.entries(parameterMappings).forEach(([key, param]) => {
-    const enabled = parameterEnabled[key];
-    const value = inputs[param];
-    const hasValue = value !== undefined && value !== null;
-
-    if (!enabled) {
-      return;
-    }
-
-    if (param === 'max_tokens') {
-      if (typeof value === 'number') {
-        payload[param] = value;
-      }
-      return;
-    }
-
-    if (hasValue) {
-      payload[param] = value;
-    }
-  });
-
-
-  // 思考等级
-  if (inputs.reasoningEffort && inputs.reasoningEffort !== 'none') {
-    payload.reasoning_effort = inputs.reasoningEffort;
-  }
-
-  // 内置工具
-  if (inputs.toolsEnabled) {
-    payload.tools = [
-      { type: 'function', function: { name: 'web_search', description: 'Search the web' } },
-      { type: 'function', function: { name: 'code_interpreter', description: 'Execute code' } },
-    ];
-  }
-
-};
-
 // 处理API错误响应
 export const handleApiError = (error, response = null) => {
   const errorInfo = {
@@ -214,10 +137,7 @@ export const handleApiError = (error, response = null) => {
 
 // 处理模型数据
 export const processModelsData = (data, currentModel) => {
-  const modelOptions = data.map((model) => ({
-    label: model,
-    value: model,
-  }));
+  const modelOptions = normalizeModelOptions(data);
 
   const hasCurrentModel = modelOptions.some(
     (option) => option.value === currentModel,

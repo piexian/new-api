@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   API,
@@ -35,29 +35,34 @@ export const useDataLoader = (
   setGroups,
 ) => {
   const { t } = useTranslation();
+  const [catalog, setCatalog] = useState({});
+  const modelRequest = useRef(0);
+  const [loadedModelScope, setLoadedModelScope] = useState(null);
 
   const loadModels = useCallback(async () => {
+    const request = ++modelRequest.current;
+    setLoadedModelScope(null);
+    setModels([]);
     try {
-      const res = await API.get(API_ENDPOINTS.USER_MODELS);
+      const res = await API.get(API_ENDPOINTS.USER_MODELS, {
+        params: { group: inputs.group, with_capabilities: 'true' },
+        // Only the current request may display errors, including HTTP failures.
+        skipErrorHandler: true,
+      });
+      if (request !== modelRequest.current) return;
       const { success, message, data } = res.data;
 
       if (success) {
-        const { modelOptions, selectedModel } = processModelsData(
-          data,
-          inputs.model,
-        );
+        const { modelOptions } = processModelsData(data);
         setModels(modelOptions);
-
-        if (selectedModel !== inputs.model) {
-          handleInputChange('model', selectedModel);
-        }
+        setLoadedModelScope({ group: inputs.group, user: userState?.user });
       } else {
         showError(t(message));
       }
     } catch (error) {
-      showError(t('加载模型失败'));
+      if (request === modelRequest.current) showError(t('加载模型失败'));
     }
-  }, [inputs.model, handleInputChange, setModels, t]);
+  }, [inputs.group, userState?.user, setModels, t]);
 
   const loadGroups = useCallback(async () => {
     try {
@@ -85,15 +90,39 @@ export const useDataLoader = (
     }
   }, [userState, inputs.group, handleInputChange, setGroups, t]);
 
-  // 自动加载数据
   useEffect(() => {
-    if (userState?.user) {
-      loadModels();
-      loadGroups();
-    }
-  }, [userState?.user, loadModels, loadGroups]);
+    if (!userState?.user) return;
+    let active = true;
+    API.get(API_ENDPOINTS.USER_MODELS_DEV_CATALOG, { skipErrorHandler: true })
+      .then((res) => {
+        if (active && res.data.success && res.data.data)
+          setCatalog(res.data.data);
+      })
+      .catch(() => {}); // Unknown capabilities must remain selectable.
+    return () => {
+      active = false;
+    };
+  }, [userState?.user]);
+
+  // Invalidate pending model requests on group changes and unmount.
+  useEffect(() => {
+    if (userState?.user) loadModels();
+    return () => {
+      modelRequest.current++;
+    };
+  }, [userState?.user, loadModels]);
+
+  useEffect(() => {
+    if (userState?.user) loadGroups();
+  }, [userState?.user, loadGroups]);
 
   return {
+    catalog,
+    // This also guards the first render of a new group, before effects clear models.
+    modelsReady:
+      loadedModelScope !== null &&
+      loadedModelScope.group === inputs.group &&
+      loadedModelScope.user === userState?.user,
     loadModels,
     loadGroups,
   };

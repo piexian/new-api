@@ -39,6 +39,9 @@ export const OptimizedMessageContent = React.memo(
         nextProps.message.isReasoningExpanded &&
       prevProps.isEditing === nextProps.isEditing &&
       prevProps.editValue === nextProps.editValue &&
+      prevProps.onEditSave === nextProps.onEditSave &&
+      prevProps.onEditCancel === nextProps.onEditCancel &&
+      prevProps.onEditValueChange === nextProps.onEditValueChange &&
       prevProps.styleState.isMobile === nextProps.styleState.isMobile
     );
   },

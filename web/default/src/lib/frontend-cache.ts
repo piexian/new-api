@@ -24,6 +24,11 @@ const PRESERVED_LOCAL_STORAGE_KEYS = new Set([
   'uid',
   'aff',
   'oauth:binding:result',
+  'playground_config',
+  'playground_config_default',
+  'playground_config_classic',
+  'playground_parameter_enabled',
+  'playground_messages',
 ])
 
 export function initializeFrontendCache(): void {

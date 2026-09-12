@@ -33,34 +33,18 @@ import {
   saveMessages,
 } from '../../components/playground/configStorage';
 import { processIncompleteThinkTags } from '../../helpers';
+import { normalizeConfig } from '../../helpers/playground/config';
+import {
+  OPTIONAL_PARAMETERS,
+  normalizeOptionalNumber,
+} from '../../helpers/playground/parameters';
 
 export const usePlaygroundState = () => {
   const { t } = useTranslation();
 
   // 使用惰性初始化，确保只在组件首次挂载时加载配置和消息
   const [savedConfig] = useState(() => loadConfig());
-  const [initialMessages] = useState(() => {
-    const loaded = loadMessages();
-    // 检查是否是旧的中文默认消息，如果是则清除
-    if (
-      loaded &&
-      loaded.length === 2 &&
-      loaded[0].id === '2' &&
-      loaded[1].id === '3'
-    ) {
-      const hasOldChinese =
-        loaded[0].content === '你好' ||
-        loaded[1].content === '你好，请问有什么可以帮助您的吗？' ||
-        loaded[1].content === '你好！很高兴见到你。有什么我可以帮助你的吗？';
-
-      if (hasOldChinese) {
-        // 清除旧的默认消息
-        localStorage.removeItem('playground_messages');
-        return null;
-      }
-    }
-    return loaded;
-  });
+  const [initialMessages] = useState(() => loadMessages());
 
   // 基础配置状态
   const [inputs, setInputs] = useState(
@@ -121,7 +105,12 @@ export const usePlaygroundState = () => {
 
   // 配置更新函数
   const handleInputChange = useCallback((name, value) => {
-    setInputs((prev) => ({ ...prev, [name]: value }));
+    setInputs((prev) => ({
+      ...prev,
+      [name]: OPTIONAL_PARAMETERS.includes(name)
+        ? normalizeOptionalNumber(value)
+        : value,
+    }));
   }, []);
 
   const handleParameterToggle = useCallback((paramName) => {
@@ -166,54 +155,38 @@ export const usePlaygroundState = () => {
 
   // 配置导入/重置
   const handleConfigImport = useCallback((importedConfig) => {
-    if (importedConfig.inputs) {
-      const parsedMaxTokens = parseInt(importedConfig.inputs.max_tokens, 10);
-      setInputs((prev) => ({
-        ...prev,
-        ...importedConfig.inputs,
-        max_tokens: Number.isNaN(parsedMaxTokens)
-          ? importedConfig.inputs.max_tokens
-          : parsedMaxTokens,
-      }));
-    }
-    if (importedConfig.parameterEnabled) {
-      setParameterEnabled((prev) => ({
-        ...prev,
-        ...importedConfig.parameterEnabled,
-      }));
-    }
-    if (typeof importedConfig.showDebugPanel === 'boolean') {
-      setShowDebugPanel(importedConfig.showDebugPanel);
-    }
-    if (importedConfig.customRequestMode) {
-      setCustomRequestMode(importedConfig.customRequestMode);
-    }
-    if (importedConfig.customRequestBody) {
-      setCustomRequestBody(importedConfig.customRequestBody);
-    }
+    const normalized = normalizeConfig(importedConfig);
+    setInputs(normalized.inputs);
+    setParameterEnabled(normalized.parameterEnabled);
+    setShowDebugPanel(normalized.showDebugPanel);
+    setCustomRequestMode(normalized.customRequestMode);
+    setCustomRequestBody(normalized.customRequestBody);
     // 如果导入的配置包含消息，也恢复消息
     if (importedConfig.messages && Array.isArray(importedConfig.messages)) {
       setMessage(importedConfig.messages);
     }
   }, []);
 
-  const handleConfigReset = useCallback((options = {}) => {
-    const { resetMessages = false } = options;
+  const handleConfigReset = useCallback(
+    (options = {}) => {
+      const { resetMessages = false } = options;
 
-    setInputs(DEFAULT_CONFIG.inputs);
-    setParameterEnabled(DEFAULT_CONFIG.parameterEnabled);
-    setShowDebugPanel(DEFAULT_CONFIG.showDebugPanel);
-    setCustomRequestMode(DEFAULT_CONFIG.customRequestMode);
-    setCustomRequestBody(DEFAULT_CONFIG.customRequestBody);
+      setInputs(DEFAULT_CONFIG.inputs);
+      setParameterEnabled(DEFAULT_CONFIG.parameterEnabled);
+      setShowDebugPanel(DEFAULT_CONFIG.showDebugPanel);
+      setCustomRequestMode(DEFAULT_CONFIG.customRequestMode);
+      setCustomRequestBody(DEFAULT_CONFIG.customRequestBody);
 
-    // 只有在明确指定时才重置消息
-    if (resetMessages) {
-      setMessage([]);
-      setTimeout(() => {
-        setMessage(getDefaultMessages(t));
-      }, 0);
-    }
-  }, []);
+      // 只有在明确指定时才重置消息
+      if (resetMessages) {
+        setMessage([]);
+        setTimeout(() => {
+          setMessage(getDefaultMessages(t));
+        }, 0);
+      }
+    },
+    [t],
+  );
 
   // 清理定时器
   useEffect(() => {

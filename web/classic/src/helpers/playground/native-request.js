@@ -1,39 +1,42 @@
-import type {
-  ChatCompletionRequest,
-  ChatInterface,
-  PlaygroundConfig,
-} from '../../types'
-import { isParameterNumber } from '../parameters/playground-parameters'
+/*
+Copyright (C) 2025 QuantumNous
 
-function numberParameter(
-  key: string,
-  value: number | undefined
-): Record<string, number> {
-  return isParameterNumber(value) ? { [key]: value } : {}
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+function numberParameter(key, value) {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? { [key]: value }
+    : {};
 }
-
-export function supportsCodeInterpreter(chatInterface: ChatInterface): boolean {
-  return chatInterface !== 'openai'
+export function supportsCodeInterpreter(chatInterface) {
+  return chatInterface !== 'openai';
 }
-
-export function buildNativeRequest(
-  chat: ChatCompletionRequest,
-  config: PlaygroundConfig
-): {
-  endpoint: string
-  payload: ChatCompletionRequest | Record<string, unknown>
-} {
-  const base = { model: chat.model, group: chat.group, stream: chat.stream }
-  const messages = chat.messages.filter((message) => message.role !== 'system')
+export function buildNativeRequest(chat, config) {
+  const base = { model: chat.model, group: chat.group, stream: chat.stream };
+  const messages = chat.messages.filter((message) => message.role !== 'system');
   const system = chat.messages
     .filter((message) => message.role === 'system')
-    .map((message) => message.content)
-    .join('\n')
+    .map((message) => message.content).join(`
+`);
   if (config.chatInterface === 'openai-response') {
-    const tools: Record<string, unknown>[] = []
-    if (config.webSearchEnabled) tools.push({ type: 'web_search' })
+    const tools = [];
+    if (config.webSearchEnabled) tools.push({ type: 'web_search' });
     if (config.codeInterpreterEnabled) {
-      tools.push({ type: 'code_interpreter', container: { type: 'auto' } })
+      tools.push({ type: 'code_interpreter', container: { type: 'auto' } });
     }
     return {
       endpoint: '/pg/responses',
@@ -53,7 +56,7 @@ export function buildNativeRequest(
                             : 'input_text',
                         text: part.text,
                       }
-                    : { type: 'input_image', image_url: part.image_url?.url }
+                    : { type: 'input_image', image_url: part.image_url?.url },
                 ),
         })),
         ...numberParameter('temperature', chat.temperature),
@@ -64,15 +67,15 @@ export function buildNativeRequest(
           : undefined,
         tools: tools.length ? tools : undefined,
       },
-    }
+    };
   }
   if (config.chatInterface === 'anthropic') {
-    const tools: Record<string, unknown>[] = []
+    const tools = [];
     if (config.webSearchEnabled) {
-      tools.push({ type: 'web_search_20250305', name: 'web_search' })
+      tools.push({ type: 'web_search_20250305', name: 'web_search' });
     }
     if (config.codeInterpreterEnabled) {
-      tools.push({ type: 'code_execution_20250825', name: 'code_execution' })
+      tools.push({ type: 'code_execution_20250825', name: 'code_execution' });
     }
     return {
       endpoint: '/pg/messages',
@@ -86,10 +89,10 @@ export function buildNativeRequest(
               ? message.content
               : message.content.map((part) => {
                   if (part.type === 'text') {
-                    return { type: 'text', text: part.text }
+                    return { type: 'text', text: part.text };
                   }
-                  const url = part.image_url?.url ?? ''
-                  const inline = /^data:([^;]+);base64,(.*)$/.exec(url)
+                  const url = part.image_url?.url ?? '';
+                  const inline = /^data:([^;]+);base64,(.*)$/.exec(url);
                   return {
                     type: 'image',
                     source: inline
@@ -99,7 +102,7 @@ export function buildNativeRequest(
                           data: inline[2],
                         }
                       : { type: 'url', url },
-                  }
+                  };
                 }),
         })),
         ...numberParameter('max_tokens', chat.max_tokens),
@@ -110,15 +113,15 @@ export function buildNativeRequest(
           : undefined,
         tools: tools.length ? tools : undefined,
       },
-    }
+    };
   }
   if (config.chatInterface === 'gemini') {
-    const tools: Record<string, unknown>[] = []
-    if (config.webSearchEnabled) tools.push({ googleSearch: {} })
-    if (config.codeInterpreterEnabled) tools.push({ codeExecution: {} })
+    const tools = [];
+    if (config.webSearchEnabled) tools.push({ googleSearch: {} });
+    if (config.codeInterpreterEnabled) tools.push({ codeExecution: {} });
     const action = chat.stream
       ? 'streamGenerateContent?alt=sse'
-      : 'generateContent'
+      : 'generateContent';
     return {
       endpoint: `/pg/v1beta/models/${encodeURIComponent(chat.model)}:${action}`,
       payload: {
@@ -130,12 +133,12 @@ export function buildNativeRequest(
             typeof message.content === 'string'
               ? [{ text: message.content }]
               : message.content.map((part) => {
-                  if (part.type === 'text') return { text: part.text }
-                  const url = part.image_url?.url ?? ''
-                  const inline = /^data:([^;]+);base64,(.*)$/.exec(url)
+                  if (part.type === 'text') return { text: part.text };
+                  const url = part.image_url?.url ?? '';
+                  const inline = /^data:([^;]+);base64,(.*)$/.exec(url);
                   return inline
                     ? { inlineData: { mimeType: inline[1], data: inline[2] } }
-                    : { fileData: { fileUri: url } }
+                    : { fileData: { fileUri: url } };
                 }),
         })),
         systemInstruction: system ? { parts: [{ text: system }] } : undefined,
@@ -149,7 +152,7 @@ export function buildNativeRequest(
         },
         tools: tools.length ? tools : undefined,
       },
-    }
+    };
   }
-  return { endpoint: '/pg/chat/completions', payload: chat }
+  return { endpoint: '/pg/chat/completions', payload: chat };
 }

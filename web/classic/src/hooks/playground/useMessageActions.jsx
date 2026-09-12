@@ -26,7 +26,7 @@ import { ERROR_MESSAGES } from '../../constants/playground.constants';
 export const useMessageActions = (
   message,
   setMessage,
-  onMessageSend,
+  generateResponse,
   saveMessages,
 ) => {
   const { t } = useTranslation();
@@ -118,59 +118,13 @@ export const useMessageActions = (
   // 重新生成消息
   const handleMessageReset = useCallback(
     (targetMessage) => {
-      setMessage((prevMessages) => {
-        // 使用引用查找索引，防止重复 id 造成误匹配
-        let messageIndex = prevMessages.findIndex(
-          (msg) => msg === targetMessage,
-        );
-
-        // 回退到 id 匹配（兼容不同引用场景）
-        if (messageIndex === -1) {
-          messageIndex = prevMessages.findIndex(
-            (msg) => msg.id === targetMessage.id,
-          );
-        }
-
-        if (messageIndex === -1) return prevMessages;
-
-        if (targetMessage.role === 'user') {
-          const newMessages = prevMessages.slice(0, messageIndex);
-          const contentToSend = getTextContent(targetMessage);
-
-          setTimeout(() => {
-            onMessageSend(contentToSend);
-          }, 100);
-
-          return newMessages;
-        } else if (
-          targetMessage.role === 'assistant' ||
-          targetMessage.role === 'system'
-        ) {
-          let userMessageIndex = messageIndex - 1;
-          while (
-            userMessageIndex >= 0 &&
-            prevMessages[userMessageIndex].role !== 'user'
-          ) {
-            userMessageIndex--;
-          }
-
-          if (userMessageIndex >= 0) {
-            const userMessage = prevMessages[userMessageIndex];
-            const newMessages = prevMessages.slice(0, userMessageIndex);
-            const contentToSend = getTextContent(userMessage);
-
-            setTimeout(() => {
-              onMessageSend(contentToSend);
-            }, 100);
-
-            return newMessages;
-          }
-        }
-
-        return prevMessages;
-      });
+      let index = message.indexOf(targetMessage);
+      if (index === -1)
+        index = message.findIndex((msg) => msg.id === targetMessage.id);
+      while (index >= 0 && message[index].role !== 'user') index--;
+      if (index >= 0) generateResponse(message.slice(0, index + 1));
     },
-    [setMessage, onMessageSend],
+    [message, generateResponse],
   );
 
   // 删除消息

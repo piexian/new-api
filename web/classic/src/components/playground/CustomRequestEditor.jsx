@@ -40,25 +40,6 @@ const CustomRequestEditor = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [localValue, setLocalValue] = useState(customRequestBody || '');
 
-  // 当切换到自定义模式时，用默认payload初始化
-  useEffect(() => {
-    if (
-      customRequestMode &&
-      (!customRequestBody || customRequestBody.trim() === '')
-    ) {
-      const defaultJson = defaultPayload
-        ? JSON.stringify(defaultPayload, null, 2)
-        : '';
-      setLocalValue(defaultJson);
-      onCustomRequestBodyChange(defaultJson);
-    }
-  }, [
-    customRequestMode,
-    defaultPayload,
-    customRequestBody,
-    onCustomRequestBodyChange,
-  ]);
-
   // 同步外部传入的customRequestBody到本地状态
   useEffect(() => {
     if (customRequestBody !== localValue) {
@@ -96,7 +77,7 @@ const CustomRequestEditor = ({
 
   const handleModeToggle = (enabled) => {
     onCustomRequestModeChange(enabled);
-    if (enabled && defaultPayload) {
+    if (enabled && !customRequestBody.trim() && defaultPayload) {
       const defaultJson = JSON.stringify(defaultPayload, null, 2);
       setLocalValue(defaultJson);
       onCustomRequestBodyChange(defaultJson);

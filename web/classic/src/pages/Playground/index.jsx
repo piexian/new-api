@@ -21,12 +21,12 @@ import React, {
   useContext,
   useEffect,
   useCallback,
-  useRef,
+  useMemo,
   useState,
 } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Layout, Toast, Modal, Button, SideSheet } from '@douyinfe/semi-ui';
+import { Layout, Toast, Button, SideSheet } from '@douyinfe/semi-ui';
 import { Settings, Code } from 'lucide-react';
 import './playground.css';
 
@@ -38,7 +38,6 @@ import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { usePlaygroundState } from '../../hooks/playground/usePlaygroundState';
 import { useMessageActions } from '../../hooks/playground/useMessageActions';
 import { useApiRequest } from '../../hooks/playground/useApiRequest';
-import { useSyncMessageAndCustomBody } from '../../hooks/playground/useSyncMessageAndCustomBody';
 import { useMessageEdit } from '../../hooks/playground/useMessageEdit';
 import { useDataLoader } from '../../hooks/playground/useDataLoader';
 
@@ -46,8 +45,6 @@ import { useDataLoader } from '../../hooks/playground/useDataLoader';
 import {
   MESSAGE_ROLES,
   ERROR_MESSAGES,
-  CHAT_INTERFACE_OPTIONS,
-  API_ENDPOINTS,
   PLAYGROUND_MODES,
 } from '../../constants/playground.constants';
 import {
@@ -57,7 +54,6 @@ import {
   createMessage,
   createLoadingAssistantMessage,
   getTextContent,
-  buildApiPayload,
   encodeToBase64,
 } from '../../helpers';
 
@@ -73,6 +69,8 @@ import { PlaygroundProvider } from '../../contexts/PlaygroundContext';
 import PlaygroundImage from '../../components/playground/PlaygroundImage';
 import PlaygroundVideo from '../../components/playground/PlaygroundVideo';
 import PlaygroundAudio from '../../components/playground/PlaygroundAudio';
+import { buildPlaygroundRequest } from '../../helpers/playground/request';
+import { filterChatModels } from '../../helpers/playground/models';
 
 // 生成头像
 const generateAvatarDataUrl = (username) => {
@@ -144,7 +142,32 @@ const Playground = () => {
   );
 
   // 数据加载
-  useDataLoader(userState, inputs, handleInputChange, setModels, setGroups);
+  const { catalog, modelsReady } = useDataLoader(
+    userState,
+    inputs,
+    handleInputChange,
+    setModels,
+    setGroups,
+  );
+  const chatModels = useMemo(
+    () => filterChatModels(models, inputs, catalog),
+    [models, inputs, catalog],
+  );
+  useEffect(() => {
+    if (customRequestMode || !modelsReady) return;
+    const available = mode === 'chat' ? chatModels : models;
+    if (!available.some((model) => model.value === inputs.model)) {
+      handleInputChange('model', available[0]?.value ?? '');
+    }
+  }, [
+    chatModels,
+    models,
+    modelsReady,
+    mode,
+    inputs.model,
+    customRequestMode,
+    handleInputChange,
+  ]);
 
   // 消息编辑
   const {
@@ -154,25 +177,7 @@ const Playground = () => {
     handleMessageEdit,
     handleEditSave,
     handleEditCancel,
-  } = useMessageEdit(
-    setMessage,
-    inputs,
-    parameterEnabled,
-    sendRequest,
-    saveMessagesImmediately,
-  );
-
-  // 消息和自定义请求体同步
-  const { syncMessageToCustomBody, syncCustomBodyToMessage } =
-    useSyncMessageAndCustomBody(
-      customRequestMode,
-      customRequestBody,
-      message,
-      inputs,
-      setCustomRequestBody,
-      setMessage,
-      debouncedSaveConfig,
-    );
+  } = useMessageEdit(setMessage, generateResponse, saveMessagesImmediately);
 
   // 角色信息
   const roleInfo = {
@@ -194,7 +199,7 @@ const Playground = () => {
   const messageActions = useMessageActions(
     message,
     setMessage,
-    onMessageSend,
+    generateResponse,
     saveMessagesImmediately,
   );
 
@@ -202,12 +207,14 @@ const Playground = () => {
   const constructPreviewPayload = useCallback(() => {
     try {
       // 如果是自定义请求体模式且有自定义内容，直接返回解析后的自定义请求体
-      if (customRequestMode && customRequestBody && customRequestBody.trim()) {
-        try {
-          return JSON.parse(customRequestBody);
-        } catch (parseError) {
-          console.warn('自定义请求体JSON解析失败，回退到默认预览:', parseError);
-        }
+      if (customRequestMode) {
+        return buildPlaygroundRequest(
+          message,
+          inputs,
+          parameterEnabled,
+          true,
+          customRequestBody,
+        ).payload;
       }
 
       // 默认预览逻辑
@@ -242,93 +249,51 @@ const Playground = () => {
         }
       }
 
-      return buildApiPayload(messages, null, inputs, parameterEnabled);
+      return buildPlaygroundRequest(messages, inputs, parameterEnabled).payload;
     } catch (error) {
       console.error('构造预览请求体失败:', error);
       return null;
     }
   }, [inputs, parameterEnabled, message, customRequestMode, customRequestBody]);
 
-  // 根据接口类型获取 endpoint
-  const getChatEndpoint = (chatInterface) => {
-    switch (chatInterface) {
-      case 'openai-response':
-        return API_ENDPOINTS.RESPONSES;
-      case 'anthropic':
-        return API_ENDPOINTS.MESSAGES;
-      case 'gemini':
-        return `${API_ENDPOINTS.RESPONSES}?format=gemini`;
-      default:
-        return undefined;
+  // All generation entry points share the same protocol and custom-body boundary.
+  function generateResponse(messages) {
+    if (!customRequestMode && !inputs.model) {
+      Toast.error(t('请选择模型'));
+      return false;
     }
-  };
-
-  // 发送消息
-  function onMessageSend(content, attachment) {
-    console.log('attachment: ', attachment);
-
-    const chatEndpoint = getChatEndpoint(inputs.chatInterface);
-
-    // 创建用户消息和加载消息
-    const userMessage = createMessage(MESSAGE_ROLES.USER, content);
-    const loadingMessage = createLoadingAssistantMessage();
-
-    // 自定义请求体模式
-    if (customRequestMode && customRequestBody) {
-      try {
-        const customPayload = JSON.parse(customRequestBody);
-
-        setMessage((prevMessage) => {
-          const newMessages = [...prevMessage, userMessage, loadingMessage];
-          sendRequest(
-            customPayload,
-            customPayload.stream !== false,
-            chatEndpoint,
-          );
-          setTimeout(() => saveMessagesImmediately(newMessages), 0);
-          return newMessages;
-        });
-        return;
-      } catch (error) {
-        console.error('自定义请求体JSON解析失败:', error);
-        Toast.error(ERROR_MESSAGES.JSON_PARSE_ERROR);
-        return;
-      }
+    try {
+      const { payload, isStream, endpoint } = buildPlaygroundRequest(
+        messages,
+        inputs,
+        parameterEnabled,
+        customRequestMode,
+        customRequestBody,
+      );
+      const pending = [...messages, createLoadingAssistantMessage()];
+      setMessage(pending);
+      saveMessagesImmediately(pending);
+      sendRequest(payload, isStream, endpoint);
+      return true;
+    } catch (error) {
+      Toast.error(t(ERROR_MESSAGES.JSON_PARSE_ERROR));
+      return false;
     }
+  }
 
-    // 默认模式
-    const validImageUrls = inputs.imageUrls.filter((url) => url.trim() !== '');
+  function onMessageSend(content) {
+    const validImageUrls = (inputs.imageUrls || []).filter(
+      (url) => url.trim() !== '',
+    );
     const messageContent = buildMessageContent(
       content,
       validImageUrls,
       inputs.imageEnabled,
     );
-    const userMessageWithImages = createMessage(
-      MESSAGE_ROLES.USER,
-      messageContent,
-    );
-
-    setMessage((prevMessage) => {
-      const newMessages = [...prevMessage, userMessageWithImages];
-      const payload = buildApiPayload(
-        newMessages,
-        null,
-        inputs,
-        parameterEnabled,
-      );
-      sendRequest(payload, inputs.stream, chatEndpoint);
-
-      // 禁用图片模式
-      if (inputs.imageEnabled) {
-        setTimeout(() => {
-          handleInputChange('imageEnabled', false);
-        }, 100);
-      }
-
-      const messagesWithLoading = [...newMessages, loadingMessage];
-      setTimeout(() => saveMessagesImmediately(messagesWithLoading), 0);
-      return messagesWithLoading;
-    });
+    const userMessage = createMessage(MESSAGE_ROLES.USER, messageContent);
+    if (generateResponse([...message, userMessage]) && inputs.imageEnabled) {
+      handleInputChange('imageEnabled', false);
+    }
   }
 
   // 切换推理展开状态
@@ -401,15 +366,6 @@ const Playground = () => {
   );
 
   // Effects
-
-  // 同步消息和自定义请求体
-  useEffect(() => {
-    syncMessageToCustomBody();
-  }, [message, syncMessageToCustomBody]);
-
-  useEffect(() => {
-    syncCustomBodyToMessage();
-  }, [customRequestBody, syncCustomBodyToMessage]);
 
   // 处理URL参数
   useEffect(() => {
@@ -487,7 +443,7 @@ const Playground = () => {
     <OptimizedSettingsPanel
       inputs={inputs}
       parameterEnabled={parameterEnabled}
-      models={models}
+      models={chatModels}
       groups={groups}
       styleState={styleState}
       showSettings={showSettings}

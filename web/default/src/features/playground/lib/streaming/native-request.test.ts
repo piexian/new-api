@@ -106,9 +106,6 @@ test('native requests match their routes and preserve system instructions and ex
       temperature: 0,
       topP: 0,
       seed: 0,
-      maxOutputTokens: undefined,
-      presencePenalty: undefined,
-      frequencyPenalty: undefined,
     },
     tools: undefined,
   })
@@ -128,8 +125,5 @@ test('native requests match their routes and preserve system instructions and ex
   })
   assert.equal(claude.endpoint, '/pg/messages')
   assert.equal((claude.payload as Record<string, unknown>).system, 'Be concise')
-  assert.equal(
-    (claude.payload as Record<string, unknown>).max_tokens,
-    config.max_tokens
-  )
+  assert.equal(Object.hasOwn(claude.payload, 'max_tokens'), false)
 })

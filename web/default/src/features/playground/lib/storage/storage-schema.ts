@@ -24,25 +24,46 @@ export const MAX_STORED_MESSAGES_BYTES = 1024 * 1024
 export const MAX_LOADED_MESSAGES_CHARS = 120_000
 export const MAX_LOADED_MESSAGE_CHARS = 40_000
 
+// Classic stored number inputs as strings; an empty input is never zero.
+const optionalNumberSchema = z
+  .preprocess((value) => {
+    if (typeof value !== 'string') return value
+    if (value.trim() === '') return null
+    return Number(value)
+  }, z.number().nullable().optional())
+  .catch(undefined)
+
+const optionalBooleanSchema = z.boolean().optional().catch(undefined)
+
 export const playgroundConfigSchema = z.object({
-  model: z.string().optional(),
-  group: z.string().optional(),
-  temperature: z.number().optional(),
-  top_p: z.number().optional(),
-  max_tokens: z.number().optional(),
-  frequency_penalty: z.number().optional(),
-  presence_penalty: z.number().optional(),
-  seed: z.number().nullable().optional(),
-  stream: z.boolean().optional(),
+  model: z.string().optional().catch(undefined),
+  group: z.string().optional().catch(undefined),
+  temperature: optionalNumberSchema,
+  top_p: optionalNumberSchema,
+  max_tokens: optionalNumberSchema,
+  frequency_penalty: optionalNumberSchema,
+  presence_penalty: optionalNumberSchema,
+  seed: optionalNumberSchema,
+  stream: optionalBooleanSchema,
+  webSearchEnabled: optionalBooleanSchema,
+  codeInterpreterEnabled: optionalBooleanSchema,
+  chatInterface: z
+    .enum(['openai', 'openai-response', 'anthropic', 'gemini'])
+    .optional()
+    .catch(undefined),
+  reasoningEffort: z
+    .enum(['none', 'low', 'medium', 'high', 'max'])
+    .optional()
+    .catch(undefined),
 })
 
 export const parameterEnabledSchema = z.object({
-  temperature: z.boolean().optional(),
-  top_p: z.boolean().optional(),
-  max_tokens: z.boolean().optional(),
-  frequency_penalty: z.boolean().optional(),
-  presence_penalty: z.boolean().optional(),
-  seed: z.boolean().optional(),
+  temperature: optionalBooleanSchema,
+  top_p: optionalBooleanSchema,
+  max_tokens: optionalBooleanSchema,
+  frequency_penalty: optionalBooleanSchema,
+  presence_penalty: optionalBooleanSchema,
+  seed: optionalBooleanSchema,
 })
 
 const messageRoleSchema = z.enum(['user', 'assistant', 'system'])

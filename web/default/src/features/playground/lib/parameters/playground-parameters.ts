@@ -16,9 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { PlaygroundConfig, ParameterEnabled } from '../../types'
-
-type ParameterValue = PlaygroundConfig[keyof PlaygroundConfig]
+import type { ParameterEnabled } from '../../types'
 
 export type PlaygroundParameterKey = keyof ParameterEnabled
 
@@ -38,7 +36,7 @@ export const PLAYGROUND_PARAMETER_CONTROLS = [
     labelKey: 'Temperature',
     descriptionKey: 'Controls randomness and creativity',
     valueType: 'slider',
-    min: 0.1,
+    min: 0,
     max: 1,
     step: 0.1,
   },
@@ -47,7 +45,7 @@ export const PLAYGROUND_PARAMETER_CONTROLS = [
     labelKey: 'Top P',
     descriptionKey: 'Limits token selection to a probability mass',
     valueType: 'slider',
-    min: 0.1,
+    min: 0,
     max: 1,
     step: 0.1,
   },
@@ -94,17 +92,17 @@ export const PLAYGROUND_PARAMETER_PANEL_SCROLL_CLASS =
 
 export function normalizeParameterNumberValue(
   key: PlaygroundParameterKey,
-  value: string | number
+  value: string | number | null
 ): number | null {
-  if (value === '') {
-    return key === 'seed' ? null : 0
+  if (value === null || (typeof value === 'string' && value.trim() === '')) {
+    return null
   }
 
   const control = PLAYGROUND_PARAMETER_CONTROLS.find((item) => item.key === key)
-  const parsed = typeof value === 'number' ? value : Number.parseFloat(value)
+  const parsed = typeof value === 'number' ? value : Number(value)
 
-  if (!control || Number.isNaN(parsed)) {
-    return key === 'seed' ? null : 0
+  if (!control || !Number.isFinite(parsed)) {
+    return null
   }
 
   const clamped = Math.min(control.max, Math.max(control.min, parsed))
@@ -117,11 +115,12 @@ export function normalizeParameterNumberValue(
   return Number(clamped.toFixed(precision))
 }
 
-export function getParameterControlValueText(
-  key: PlaygroundParameterKey,
-  value: ParameterValue
-): string {
-  if (key === 'seed' && value === null) {
+export function isParameterNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+export function getParameterControlValueText(value: number | null): string {
+  if (!isParameterNumber(value)) {
     return 'Not set'
   }
 

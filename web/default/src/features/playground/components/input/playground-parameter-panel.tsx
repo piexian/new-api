@@ -85,12 +85,7 @@ function PlaygroundParameterContent({
     key: PlaygroundParameterKey,
     value: number | null
   ) => {
-    if (key === 'seed') {
-      onConfigChange('seed', value)
-      return
-    }
-
-    onConfigChange(key, value ?? 0)
+    onConfigChange(key, value)
   }
 
   return (
@@ -127,7 +122,9 @@ function PlaygroundParameterContent({
                     className='h-5 max-w-24 shrink-0 px-1.5 font-mono text-[11px]'
                     variant='outline'
                   >
-                    {t(getParameterControlValueText(control.key, value))}
+                    {value === null
+                      ? t('Not set')
+                      : getParameterControlValueText(value)}
                   </Badge>
                 </div>
                 <p className='text-muted-foreground text-xs leading-4'>
@@ -148,11 +145,11 @@ function PlaygroundParameterContent({
               />
             </div>
 
-            {control.valueType === 'slider' ? (
+            {control.valueType === 'slider' && value !== null && (
               <Slider
                 className='py-1.5'
                 disabled={disabled || !enabled}
-                id={controlId}
+                aria-label={t(control.labelKey)}
                 max={control.max}
                 min={control.min}
                 onValueChange={(nextValue) => {
@@ -165,29 +162,26 @@ function PlaygroundParameterContent({
                   )
                 }}
                 step={control.step}
-                value={[Number(value)]}
-              />
-            ) : (
-              <Input
-                disabled={disabled || !enabled}
-                id={controlId}
-                inputMode='numeric'
-                max={control.max}
-                min={control.min}
-                onChange={(event) => {
-                  updateParameterConfig(
-                    control.key,
-                    normalizeParameterNumberValue(
-                      control.key,
-                      event.target.value
-                    )
-                  )
-                }}
-                step={control.step}
-                type='number'
-                value={value ?? ''}
+                value={[value]}
               />
             )}
+            <Input
+              disabled={disabled || !enabled}
+              id={controlId}
+              inputMode={control.step < 1 ? 'decimal' : 'numeric'}
+              max={control.max}
+              min={control.min}
+              onChange={(event) => {
+                updateParameterConfig(
+                  control.key,
+                  normalizeParameterNumberValue(control.key, event.target.value)
+                )
+              }}
+              placeholder={t('Not set')}
+              step={control.step}
+              type='number'
+              value={value ?? ''}
+            />
           </div>
         )
       })}

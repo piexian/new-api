@@ -18,14 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import {
-  Input,
-  InputNumber,
-  Slider,
-  Typography,
-  Button,
-  Tag,
-} from '@douyinfe/semi-ui';
+import { InputNumber, Typography, Button, Tag } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import {
   Hash,
@@ -82,13 +75,15 @@ const ParameterControl = ({
         <Typography.Text className='text-xs text-gray-500 mb-2'>
           {t('控制输出的随机性和创造性')}
         </Typography.Text>
-        <Slider
+        <InputNumber
           step={0.1}
-          min={0.1}
-          max={1}
-          value={inputs.temperature}
+          min={0}
+          max={2}
+          value={inputs.temperature ?? ''}
+          placeholder={t('留空使用上游默认值')}
+          aria-label='Temperature'
           onChange={(value) => onInputChange('temperature', value)}
-          className='mt-2'
+          style={{ width: '100%' }}
           disabled={!parameterEnabled.temperature || disabled}
         />
       </div>
@@ -122,13 +117,15 @@ const ParameterControl = ({
         <Typography.Text className='text-xs text-gray-500 mb-2'>
           {t('核采样，控制词汇选择的多样性')}
         </Typography.Text>
-        <Slider
+        <InputNumber
           step={0.1}
-          min={0.1}
+          min={0}
           max={1}
-          value={inputs.top_p}
+          value={inputs.top_p ?? ''}
+          placeholder={t('留空使用上游默认值')}
+          aria-label='Top P'
           onChange={(value) => onInputChange('top_p', value)}
-          className='mt-2'
+          style={{ width: '100%' }}
           disabled={!parameterEnabled.top_p || disabled}
         />
       </div>
@@ -166,13 +163,15 @@ const ParameterControl = ({
         <Typography.Text className='text-xs text-gray-500 mb-2'>
           {t('频率惩罚，减少重复词汇的出现')}
         </Typography.Text>
-        <Slider
+        <InputNumber
           step={0.1}
           min={-2}
           max={2}
-          value={inputs.frequency_penalty}
+          value={inputs.frequency_penalty ?? ''}
+          placeholder={t('留空使用上游默认值')}
+          aria-label='Frequency Penalty'
           onChange={(value) => onInputChange('frequency_penalty', value)}
-          className='mt-2'
+          style={{ width: '100%' }}
           disabled={!parameterEnabled.frequency_penalty || disabled}
         />
       </div>
@@ -210,13 +209,15 @@ const ParameterControl = ({
         <Typography.Text className='text-xs text-gray-500 mb-2'>
           {t('存在惩罚，鼓励讨论新话题')}
         </Typography.Text>
-        <Slider
+        <InputNumber
           step={0.1}
           min={-2}
           max={2}
-          value={inputs.presence_penalty}
+          value={inputs.presence_penalty ?? ''}
+          placeholder={t('留空使用上游默认值')}
+          aria-label='Presence Penalty'
           onChange={(value) => onInputChange('presence_penalty', value)}
-          className='mt-2'
+          style={{ width: '100%' }}
           disabled={!parameterEnabled.presence_penalty || disabled}
         />
       </div>
@@ -249,10 +250,11 @@ const ParameterControl = ({
           />
         </div>
         <InputNumber
-          placeholder='MaxTokens'
+          placeholder={t('留空使用上游默认值')}
+          aria-label='Max Tokens'
           name='max_tokens'
-          value={inputs.max_tokens}
-          onNumberChange={(value) => onInputChange('max_tokens', value)}
+          value={inputs.max_tokens ?? ''}
+          onChange={(value) => onInputChange('max_tokens', value)}
           min={0}
           precision={0}
           style={{ width: '100%' }}
@@ -284,11 +286,13 @@ const ParameterControl = ({
             disabled={disabled}
           />
         </div>
-        <Input
+        <InputNumber
           placeholder={t('随机种子 (留空为随机)')}
+          aria-label='Seed'
           name='seed'
-          autoComplete='new-password'
-          value={inputs.seed || ''}
+          precision={0}
+          style={{ width: '100%' }}
+          value={inputs.seed ?? ''}
           onChange={(value) =>
             onInputChange('seed', value === '' ? null : value)
           }

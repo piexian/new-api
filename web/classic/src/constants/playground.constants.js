@@ -120,32 +120,40 @@ export const IMAGE_QUALITY_OPTIONS = ['standard', 'hd'];
 export const IMAGE_STYLE_OPTIONS = ['vivid', 'natural'];
 
 // 音频 TTS 音色
-export const AUDIO_VOICE_OPTIONS = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+export const AUDIO_VOICE_OPTIONS = [
+  'alloy',
+  'echo',
+  'fable',
+  'onyx',
+  'nova',
+  'shimmer',
+];
 export const AUDIO_FORMAT_OPTIONS = ['mp3', 'opus', 'aac', 'flac', 'wav'];
 // ========== 配置默认值 ==========
 export const DEFAULT_CONFIG = {
   inputs: {
     model: 'gpt-4o',
     group: '',
-    temperature: 0.7,
-    top_p: 1,
-    max_tokens: 4096,
-    frequency_penalty: 0,
-    presence_penalty: 0,
+    temperature: null,
+    top_p: null,
+    max_tokens: null,
+    frequency_penalty: null,
+    presence_penalty: null,
     seed: null,
     stream: true,
     imageEnabled: false,
     imageUrls: [''],
     reasoningEffort: 'none',
-    toolsEnabled: false,
+    webSearchEnabled: false,
+    codeInterpreterEnabled: false,
     chatInterface: 'openai',
   },
   parameterEnabled: {
-    temperature: true,
-    top_p: true,
+    temperature: false,
+    top_p: false,
     max_tokens: false,
-    frequency_penalty: true,
-    presence_penalty: true,
+    frequency_penalty: false,
+    presence_penalty: false,
     seed: false,
   },
   systemPrompt: '',
@@ -171,6 +179,8 @@ export const ERROR_MESSAGES = {
 
 // ========== 存储键名 ==========
 export const STORAGE_KEYS = {
-  CONFIG: 'playground_config',
+  CONFIG: 'playground_config_classic',
+  LEGACY_CONFIG: 'playground_config',
+  LEGACY_PARAMETER_ENABLED: 'playground_parameter_enabled',
   MESSAGES: 'playground_messages',
 };

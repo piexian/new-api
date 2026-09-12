@@ -275,20 +275,63 @@ function trimMessagesByContentSize(messages: Message[]): Message[] {
   return result.reverse()
 }
 
+function readConfigRecord(key: string): Record<string, unknown> | null {
+  try {
+    const value = unwrapStoredValue(readStoredValue(key))
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return value as Record<string, unknown>
+    }
+  } catch {
+    // A corrupt or inaccessible entry must not block the legacy fallback.
+  }
+  return null
+}
+
+function withoutUndefined<T extends object>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, field]) => field !== undefined)
+  ) as T
+}
+
+function getLegacyConfigInputs(
+  saved: Record<string, unknown>
+): Record<string, unknown> {
+  if (
+    !saved.inputs ||
+    typeof saved.inputs !== 'object' ||
+    Array.isArray(saved.inputs)
+  ) {
+    return saved
+  }
+
+  const inputs = saved.inputs as Record<string, unknown>
+  return {
+    ...inputs,
+    webSearchEnabled:
+      inputs.webSearchEnabled === undefined
+        ? inputs.toolsEnabled
+        : inputs.webSearchEnabled,
+    codeInterpreterEnabled:
+      inputs.codeInterpreterEnabled === undefined
+        ? inputs.toolsEnabled
+        : inputs.codeInterpreterEnabled,
+  }
+}
+
 /**
- * Load playground config from localStorage
+ * Prefer this theme's configuration; only consult the shared key before migration.
  */
 export function loadConfig(): Partial<PlaygroundConfig> {
-  try {
-    const saved = readStoredValue(STORAGE_KEYS.CONFIG)
-    if (!saved) return {}
-
-    return playgroundConfigSchema.parse(unwrapStoredValue(saved))
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Failed to load config:', error)
+  const saved = readConfigRecord(STORAGE_KEYS.CONFIG)
+  if (saved) {
+    return withoutUndefined(playgroundConfigSchema.parse(saved))
   }
-  return {}
+
+  const legacy = readConfigRecord(STORAGE_KEYS.LEGACY_CONFIG)
+  if (!legacy) return {}
+  return withoutUndefined(
+    playgroundConfigSchema.parse(getLegacyConfigInputs(legacy))
+  )
 }
 
 /**
@@ -308,16 +351,44 @@ export function saveConfig(config: Partial<PlaygroundConfig>): void {
  * Load parameter enabled state from localStorage
  */
 export function loadParameterEnabled(): Partial<ParameterEnabled> {
-  try {
-    const saved = readStoredValue(STORAGE_KEYS.PARAMETER_ENABLED)
-    if (!saved) return {}
+  const saved = readConfigRecord(STORAGE_KEYS.PARAMETER_ENABLED)
+  const savedEnabled = saved
+    ? withoutUndefined(parameterEnabledSchema.parse(saved))
+    : {}
+  // A theme-local config marks migration complete, even if some flags are absent.
+  if (readConfigRecord(STORAGE_KEYS.CONFIG)) return savedEnabled
 
-    return parameterEnabledSchema.parse(unwrapStoredValue(saved))
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Failed to load parameter enabled:', error)
+  const legacy = readConfigRecord(STORAGE_KEYS.LEGACY_CONFIG)
+  if (!legacy) return savedEnabled
+  const inputs = getLegacyConfigInputs(legacy)
+  if (
+    inputs === legacy &&
+    !Object.keys(playgroundConfigSchema.shape).some((key) => key in inputs)
+  ) {
+    return savedEnabled
   }
-  return {}
+  const historicalDefaults: Partial<ParameterEnabled> = {}
+  // Match classic normalizeConfig: infer only for fields actually in old storage.
+  // A present null stays null in loadConfig; enabling it does not invent a value.
+  for (const key of [
+    'temperature',
+    'top_p',
+    'frequency_penalty',
+    'presence_penalty',
+  ] as const) {
+    if (key in inputs) historicalDefaults[key] = true
+  }
+  const fallback = parameterEnabledSchema.safeParse(
+    unwrapStoredValue(legacy.parameterEnabled)
+  )
+  const migrated = {
+    ...historicalDefaults,
+    ...(fallback.success ? withoutUndefined(fallback.data) : {}),
+    ...savedEnabled,
+  }
+  // Config edits create the theme-local key, so persist flags before that happens.
+  saveParameterEnabled(migrated)
+  return migrated
 }
 
 /**

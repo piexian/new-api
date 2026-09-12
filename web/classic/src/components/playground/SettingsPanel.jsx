@@ -30,6 +30,7 @@ import ParameterControl from './ParameterControl';
 import ImageUrlInput from './ImageUrlInput';
 import ConfigManager from './ConfigManager';
 import CustomRequestEditor from './CustomRequestEditor';
+import { supportsCodeInterpreter } from '../../helpers/playground/native-request';
 
 const SettingsPanel = ({
   inputs,
@@ -109,8 +110,8 @@ const SettingsPanel = ({
       )}
 
       <div className='classic-playground-settings-body overflow-y-auto flex-1 min-h-0 model-settings-scroll'>
-        {/* Chat 接口选择 */}
-        <div className={customRequestMode ? 'opacity-50' : ''}>
+        {/* Custom JSON still uses the selected protocol and endpoint. */}
+        <div>
           <div className='flex items-center gap-2 mb-2'>
             <Typography.Text strong className='text-sm'>
               {t('接口类型')}
@@ -124,7 +125,6 @@ const SettingsPanel = ({
               value: opt.value,
               label: t(opt.labelKey),
             }))}
-            disabled={customRequestMode}
           />
         </div>
 
@@ -214,17 +214,37 @@ const SettingsPanel = ({
         <div className={customRequestMode ? 'opacity-50' : ''}>
           <div className='flex items-center justify-between'>
             <Typography.Text strong className='text-sm'>
-              {t('内置工具')}
+              {t('Web 搜索')}
             </Typography.Text>
             <Switch
-              checked={inputs.toolsEnabled}
+              aria-label={t('Web 搜索')}
+              checked={inputs.webSearchEnabled}
               disabled={customRequestMode}
-              onChange={(v) => onInputChange('toolsEnabled', v)}
+              onChange={(v) => onInputChange('webSearchEnabled', v)}
             />
           </div>
-          <Typography.Text type='tertiary' size='small'>
-            {t('启用后模型可使用 Web 搜索和代码执行工具')}
-          </Typography.Text>
+          <div className='flex items-center justify-between mt-2'>
+            <Typography.Text strong className='text-sm'>
+              {t('代码执行')}
+            </Typography.Text>
+            <Switch
+              aria-label={t('代码执行')}
+              checked={
+                supportsCodeInterpreter(inputs.chatInterface) &&
+                inputs.codeInterpreterEnabled
+              }
+              disabled={
+                customRequestMode ||
+                !supportsCodeInterpreter(inputs.chatInterface)
+              }
+              onChange={(v) => onInputChange('codeInterpreterEnabled', v)}
+            />
+          </div>
+          {!supportsCodeInterpreter(inputs.chatInterface) && (
+            <Typography.Text type='tertiary' size='small'>
+              {t('OpenAI Chat 不支持内置代码执行，请切换接口')}
+            </Typography.Text>
+          )}
         </div>
 
         {/* 图片URL输入 */}

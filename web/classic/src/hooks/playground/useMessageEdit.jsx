@@ -20,20 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useCallback, useState, useRef } from 'react';
 import { Toast, Modal } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
-import {
-  getTextContent,
-  buildApiPayload,
-  createLoadingAssistantMessage,
-} from '../../helpers';
+import { getTextContent } from '../../helpers';
 import { MESSAGE_ROLES } from '../../constants/playground.constants';
 
-export const useMessageEdit = (
-  setMessage,
-  inputs,
-  parameterEnabled,
-  sendRequest,
-  saveMessages,
-) => {
+export const useMessageEdit = (setMessage, generateResponse, saveMessages) => {
   const { t } = useTranslation();
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editValue, setEditValue] = useState('');
@@ -49,10 +39,9 @@ export const useMessageEdit = (
   const handleEditSave = useCallback(() => {
     if (!editingMessageId || !editValue.trim()) return;
 
+    const editedMessage = editingMessageRef.current;
     setMessage((prevMessages) => {
-      let messageIndex = prevMessages.findIndex(
-        (msg) => msg === editingMessageRef.current,
-      );
+      let messageIndex = prevMessages.findIndex((msg) => msg === editedMessage);
 
       if (messageIndex === -1) {
         messageIndex = prevMessages.findIndex(
@@ -61,6 +50,7 @@ export const useMessageEdit = (
       }
 
       const targetMessage = prevMessages[messageIndex];
+      if (!targetMessage) return prevMessages;
       let newContent;
 
       if (Array.isArray(targetMessage.content)) {
@@ -71,8 +61,8 @@ export const useMessageEdit = (
         newContent = editValue.trim();
       }
 
-      const updatedMessages = prevMessages.map((msg) =>
-        msg.id === editingMessageId ? { ...msg, content: newContent } : msg,
+      const updatedMessages = prevMessages.map((msg, index) =>
+        index === messageIndex ? { ...msg, content: newContent } : msg,
       );
 
       // 处理用户消息编辑后的重新生成
@@ -92,23 +82,7 @@ export const useMessageEdit = (
                 0,
                 messageIndex + 1,
               );
-              setMessage(messagesUntilUser);
-              // 编辑后保存（重新生成的情况），传入更新后的消息列表
-              setTimeout(() => saveMessages(messagesUntilUser), 0);
-
-              setTimeout(() => {
-                const payload = buildApiPayload(
-                  messagesUntilUser,
-                  null,
-                  inputs,
-                  parameterEnabled,
-                );
-                setMessage((prevMsg) => [
-                  ...prevMsg,
-                  createLoadingAssistantMessage(),
-                ]);
-                sendRequest(payload, inputs.stream);
-              }, 100);
+              generateResponse(messagesUntilUser);
             },
             onCancel: () => {
               setMessage(updatedMessages);
@@ -133,9 +107,7 @@ export const useMessageEdit = (
     editingMessageId,
     editValue,
     t,
-    inputs,
-    parameterEnabled,
-    sendRequest,
+    generateResponse,
     setMessage,
     saveMessages,
   ]);

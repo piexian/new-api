@@ -62,6 +62,7 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
+import { getModelSearchInitialFocus } from './model-group-selector-focus'
 import {
   modelGroupSelectorLayoutClasses,
   scrollSelectedOptionIntoView,
@@ -591,6 +592,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   const [open, setOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const isMobile = useIsMobile()
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const groupScrollContainerRef = useRef<HTMLDivElement | null>(null)
   const selectedGroupOptionRef = useRef<HTMLButtonElement | null>(null)
   const selectedModelOptionRef = useRef<HTMLDivElement | null>(null)
@@ -749,6 +751,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
         className='h-8 text-[13px]'
         onValueChange={setSearchQuery}
         placeholder={t('Search models...')}
+        ref={searchInputRef}
         value={searchQuery}
       />
       <CommandList
@@ -824,7 +827,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
   )
 
   return isMobile ? (
-    <Drawer open={open} onOpenChange={setOpen}>
+    <Drawer autoFocus={false} open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>{renderTrigger()}</DrawerTrigger>
       <DrawerContent className='flex max-h-[80vh] min-h-[60vh] flex-col'>
         <DrawerHeader className='pb-3 text-left'>
@@ -845,6 +848,9 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
           modelGroupSelectorLayoutClasses.desktopPanel
         )}
         collisionPadding={8}
+        initialFocus={(interactionType) =>
+          getModelSearchInitialFocus(interactionType, searchInputRef.current)
+        }
         side='top'
         sideOffset={8}
       >

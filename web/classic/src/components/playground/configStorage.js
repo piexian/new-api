@@ -17,12 +17,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import {
-  STORAGE_KEYS,
-  DEFAULT_CONFIG,
-} from '../../constants/playground.constants';
+import { STORAGE_KEYS } from '../../constants/playground.constants';
 
-const MESSAGES_STORAGE_KEY = 'playground_messages';
+import { isConfig, normalizeConfig } from '../../helpers/playground/config';
+
+function readStoredConfig() {
+  for (const key of [STORAGE_KEYS.CONFIG, STORAGE_KEYS.LEGACY_CONFIG]) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key));
+      if (isConfig(value)) return value;
+    } catch {
+      // A damaged theme key must not hide a usable legacy configuration.
+    }
+  }
+  return null;
+}
+
+function readLegacyParameterEnabled() {
+  try {
+    return JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.LEGACY_PARAMETER_ENABLED),
+    );
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 保存配置到 localStorage
@@ -31,7 +50,7 @@ const MESSAGES_STORAGE_KEY = 'playground_messages';
 export const saveConfig = (config) => {
   try {
     const configToSave = {
-      ...config,
+      ...normalizeConfig(config),
       timestamp: new Date().toISOString(),
     };
     localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(configToSave));
@@ -60,41 +79,8 @@ export const saveMessages = (messages) => {
  * 从 localStorage 加载配置
  * @returns {Object} 配置对象，如果不存在则返回默认配置
  */
-export const loadConfig = () => {
-  try {
-    const savedConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
-    if (savedConfig) {
-      const parsedConfig = JSON.parse(savedConfig);
-      const parsedMaxTokens = parseInt(parsedConfig?.inputs?.max_tokens, 10);
-
-      const mergedConfig = {
-        inputs: {
-          ...DEFAULT_CONFIG.inputs,
-          ...parsedConfig.inputs,
-          max_tokens: Number.isNaN(parsedMaxTokens)
-            ? parsedConfig?.inputs?.max_tokens
-            : parsedMaxTokens,
-        },
-        parameterEnabled: {
-          ...DEFAULT_CONFIG.parameterEnabled,
-          ...parsedConfig.parameterEnabled,
-        },
-        showDebugPanel:
-          parsedConfig.showDebugPanel || DEFAULT_CONFIG.showDebugPanel,
-        customRequestMode:
-          parsedConfig.customRequestMode || DEFAULT_CONFIG.customRequestMode,
-        customRequestBody:
-          parsedConfig.customRequestBody || DEFAULT_CONFIG.customRequestBody,
-      };
-
-      return mergedConfig;
-    }
-  } catch (error) {
-    console.error('加载配置失败:', error);
-  }
-
-  return DEFAULT_CONFIG;
-};
+export const loadConfig = () =>
+  normalizeConfig(readStoredConfig(), readLegacyParameterEnabled());
 
 /**
  * 从 localStorage 加载消息
@@ -120,7 +106,6 @@ export const loadMessages = () => {
 export const clearConfig = () => {
   try {
     localStorage.removeItem(STORAGE_KEYS.CONFIG);
-    localStorage.removeItem(STORAGE_KEYS.MESSAGES); // 同时清除消息
   } catch (error) {
     console.error('清除配置失败:', error);
   }
@@ -143,7 +128,7 @@ export const clearMessages = () => {
  */
 export const hasStoredConfig = () => {
   try {
-    return localStorage.getItem(STORAGE_KEYS.CONFIG) !== null;
+    return readStoredConfig() !== null;
   } catch (error) {
     console.error('检查配置失败:', error);
     return false;
@@ -156,11 +141,7 @@ export const hasStoredConfig = () => {
  */
 export const getConfigTimestamp = () => {
   try {
-    const savedConfig = localStorage.getItem(STORAGE_KEYS.CONFIG);
-    if (savedConfig) {
-      const parsedConfig = JSON.parse(savedConfig);
-      return parsedConfig.timestamp || null;
-    }
+    return readStoredConfig()?.timestamp || null;
   } catch (error) {
     console.error('获取配置时间戳失败:', error);
   }
@@ -208,7 +189,7 @@ export const importConfig = (file) => {
         try {
           const importedConfig = JSON.parse(e.target.result);
 
-          if (importedConfig.inputs && importedConfig.parameterEnabled) {
+          if (isConfig(importedConfig)) {
             // 如果导入的配置包含消息，也一起导入
             if (
               importedConfig.messages &&
@@ -217,7 +198,9 @@ export const importConfig = (file) => {
               saveMessages(importedConfig.messages);
             }
 
-            resolve(importedConfig);
+            resolve(
+              normalizeConfig(importedConfig, readLegacyParameterEnabled()),
+            );
           } else {
             reject(new Error('配置文件格式无效'));
           }

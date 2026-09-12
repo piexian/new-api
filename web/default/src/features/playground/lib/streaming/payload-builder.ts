@@ -23,6 +23,10 @@ import type {
   ParameterEnabled,
 } from '../../types'
 import { formatMessageForAPI, isValidMessage } from '../message/message-utils'
+import {
+  isParameterNumber,
+  PLAYGROUND_PARAMETER_CONTROLS,
+} from '../parameters/playground-parameters'
 
 /**
  * Build API request payload from messages and config
@@ -44,28 +48,11 @@ export function buildChatCompletionPayload(
     stream: config.stream,
   }
 
-  if (parameterEnabled.temperature) {
-    payload.temperature = config.temperature
-  }
-
-  if (parameterEnabled.top_p) {
-    payload.top_p = config.top_p
-  }
-
-  if (parameterEnabled.max_tokens) {
-    payload.max_tokens = config.max_tokens
-  }
-
-  if (parameterEnabled.frequency_penalty) {
-    payload.frequency_penalty = config.frequency_penalty
-  }
-
-  if (parameterEnabled.presence_penalty) {
-    payload.presence_penalty = config.presence_penalty
-  }
-
-  if (parameterEnabled.seed && config.seed !== null) {
-    payload.seed = config.seed
+  for (const { key } of PLAYGROUND_PARAMETER_CONTROLS) {
+    const value = config[key]
+    if (parameterEnabled[key] && isParameterNumber(value)) {
+      payload[key] = value
+    }
   }
 
   // 思考等级
