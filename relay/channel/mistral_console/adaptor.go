@@ -18,6 +18,9 @@ import (
 
 type Adaptor struct {
 	clientStream bool
+	// sentMaxTokens 是 ConvertOpenAIRequest 实际发给上游的 max_tokens。上游 done 事件
+	// 不带任何截断标志，响应侧只能据此判定输出是否被顶掉（正文被思考链挤空时如实报 length）。
+	sentMaxTokens uint
 }
 
 // boraContinueAssistantInstruction 是尾随 assistant 消息（prefill）被拒绝时追加的
@@ -124,6 +127,10 @@ func (a *Adaptor) ConvertOpenAIRequest(_ *gin.Context, info *relaycommon.RelayIn
 	}
 
 	maxTokens := boraMaxTokens(request)
+	effort := boraReasoningEffort(request)
+	a.sentMaxTokens = maxTokens
+	// 归一化后的等级写回 RelayInfo，消费日志据此输出实际生效值与映射。
+	info.ReasoningEffort = effort
 	return &boraConversationRequest{
 		Model:        info.UpstreamModelName,
 		Instructions: instructions,
@@ -131,9 +138,8 @@ func (a *Adaptor) ConvertOpenAIRequest(_ *gin.Context, info *relaycommon.RelayIn
 			Temperature: normalizeBoraTemperature(request.Temperature),
 			MaxTokens:   &maxTokens,
 			TopP:        normalizeBoraTopP(request.TopP),
-			// Bora only accepts none/high. high is its maximum reasoning level,
-			// so every downstream reasoning setting is normalized to high.
-			ReasoningEffort: boraMaxReasoningEffort,
+			// 上游枚举只有 none/high：客户端显式 none 才关思考，其余等级一律归到 high。
+			ReasoningEffort: effort,
 		},
 		Tools:  tools,
 		Stream: true,
@@ -169,9 +175,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	// after the relay's Content-Type detection changed info.IsStream.
 	info.IsStream = a.clientStream
 	if a.clientStream {
-		return handleBoraStreamResponse(c, resp, info)
+		return handleBoraStreamResponse(c, resp, info, a.sentMaxTokens)
 	}
-	return handleBoraResponse(c, resp, info)
+	return handleBoraResponse(c, resp, info, a.sentMaxTokens)
 }
 
 func (a *Adaptor) GetModelList() []string {
@@ -259,10 +265,77 @@ func boraMaxTokens(request *dto.GeneralOpenAIRequest) uint {
 	} else if request.MaxTokens != nil {
 		value = *request.MaxTokens
 	}
-	if value > defaultBoraMaxTokens {
-		return defaultBoraMaxTokens
+	// 尊重客户端显式请求的预算，只对超出上游可用范围的异常值兜底。
+	if value > maxBoraMaxTokens {
+		return maxBoraMaxTokens
 	}
 	return value
+}
+
+// boraReasoningEffort 把入站的“关思考”开关映射到 bora 的 none，其余一律 high。
+// 思考链与正文共用 max_tokens 预算，客户端显式要求关闭时不能压成 high，
+// 否则正文会被思考内容挤空。
+func boraReasoningEffort(request *dto.GeneralOpenAIRequest) string {
+	if boraThinkingDisabled(request) {
+		return boraNoReasoningEffort
+	}
+	return boraMaxReasoningEffort
+}
+
+// boraThinkingDisabled 认这些写法（任一命中即关闭）：reasoning_effort=none、
+// reasoning={"effort":"none"} / reasoning={"enabled":false} / reasoning="none"（OpenRouter 风格）、
+// thinking={"type":"disabled"}（Claude/豆包风格，Claude 入站转换也会带过来）、enable_thinking=false（Qwen/vLLM 风格）。
+func boraThinkingDisabled(request *dto.GeneralOpenAIRequest) bool {
+	if isBoraNoneEffort(request.ReasoningEffort) {
+		return true
+	}
+	if len(request.Reasoning) > 0 {
+		var effort string
+		if common.Unmarshal(request.Reasoning, &effort) == nil {
+			if isBoraNoneEffort(effort) {
+				return true
+			}
+		} else {
+			var reasoning struct {
+				Effort  string `json:"effort"`
+				Enabled *bool  `json:"enabled"`
+			}
+			if common.Unmarshal(request.Reasoning, &reasoning) == nil {
+				if isBoraNoneEffort(reasoning.Effort) {
+					return true
+				}
+				if reasoning.Enabled != nil && !*reasoning.Enabled {
+					return true
+				}
+			}
+		}
+	}
+	if len(request.THINKING) > 0 {
+		var thinking dto.Thinking
+		if common.Unmarshal(request.THINKING, &thinking) == nil &&
+			isBoraNoneEffort(thinking.Type) {
+			return true
+		}
+	}
+	return isBoraNoneEffort(rawJSONText(request.EnableThinking))
+}
+
+// isBoraNoneEffort 判断某个取值是否表达“关闭思考”，兼容 disabled/false/none 三种写法。
+func isBoraNoneEffort(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case boraNoReasoningEffort, "disabled", "false":
+		return true
+	}
+	return false
+}
+
+// rawJSONText 取出原始 JSON 标量的文本形式（字符串去掉引号），供布尔/字符串混合写法复用。
+func rawJSONText(value []byte) string {
+	trimmed := strings.TrimSpace(string(value))
+	if len(trimmed) >= 2 && trimmed[0] == '"' && trimmed[len(trimmed)-1] == '"' {
+		return trimmed[1 : len(trimmed)-1]
+	}
+	return trimmed
 }
 
 // normalizeBoraTemperature 把 temperature 钳制到 bora 接受的 [0,1] 区间，nil 保持不传。

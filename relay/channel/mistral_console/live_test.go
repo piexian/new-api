@@ -60,7 +60,7 @@ func TestMistralConsoleLiveAdapter(t *testing.T) {
 		t.Fatalf("unexpected Bora status %d: %s", response.StatusCode, message)
 	}
 
-	state := newBoraResponseState(ctx, info)
+	state := newBoraResponseState(ctx, info, 0)
 	err = consumeBoraSSE(response, func(eventName string, event boraStreamEvent) error {
 		_, handleErr := state.handleEvent(eventName, event)
 		return handleErr

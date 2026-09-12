@@ -34,6 +34,9 @@ type boraResponseState struct {
 	usage           *boraUsage
 	completed       bool
 	startEmitted    bool
+	// requestedMaxTokens 是发给上游的 max_tokens，0 表示未知（不判定截断）。
+	requestedMaxTokens uint
+	truncated          bool
 }
 
 type boraEventOutput struct {
@@ -42,8 +45,10 @@ type boraEventOutput struct {
 	toolCall  *dto.ToolCallResponse
 }
 
-func handleBoraStreamResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
-	state := newBoraResponseState(c, info)
+// handleBoraStreamResponse 以流式回给客户端。requestedMaxTokens 是本次发给上游的
+// max_tokens（0 表示未知），用于如实上报被预算截断的 finish_reason。
+func handleBoraStreamResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, requestedMaxTokens uint) (*dto.Usage, *types.NewAPIError) {
+	state := newBoraResponseState(c, info, requestedMaxTokens)
 	helper.SetEventStreamHeaders(c)
 
 	err := consumeBoraSSE(resp, func(eventName string, event boraStreamEvent) error {
@@ -57,6 +62,7 @@ func handleBoraStreamResponse(c *gin.Context, resp *http.Response, info *relayco
 	}
 
 	usage := state.finalUsage(c, info)
+	state.markTruncated()
 	if !state.startEmitted {
 		if err := helper.ObjectData(c, helper.GenerateStartEmptyResponse(state.id, state.created, state.model, nil)); err != nil {
 			return nil, badResponseError(err)
@@ -76,8 +82,8 @@ func handleBoraStreamResponse(c *gin.Context, resp *http.Response, info *relayco
 	return usage, nil
 }
 
-func handleBoraResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
-	state := newBoraResponseState(c, info)
+func handleBoraResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, requestedMaxTokens uint) (*dto.Usage, *types.NewAPIError) {
+	state := newBoraResponseState(c, info, requestedMaxTokens)
 	err := consumeBoraSSE(resp, func(eventName string, event boraStreamEvent) error {
 		_, err := state.handleEvent(eventName, event)
 		return err
@@ -90,6 +96,7 @@ func handleBoraResponse(c *gin.Context, resp *http.Response, info *relaycommon.R
 	}
 
 	usage := state.finalUsage(c, info)
+	state.markTruncated()
 	message := dto.Message{
 		Role:    "assistant",
 		Content: state.text.String(),
@@ -126,12 +133,13 @@ func handleBoraResponse(c *gin.Context, resp *http.Response, info *relaycommon.R
 	return usage, nil
 }
 
-func newBoraResponseState(c *gin.Context, info *relaycommon.RelayInfo) *boraResponseState {
+func newBoraResponseState(c *gin.Context, info *relaycommon.RelayInfo, requestedMaxTokens uint) *boraResponseState {
 	return &boraResponseState{
-		id:              helper.GetResponseID(c),
-		created:         common.GetTimestamp(),
-		model:           info.UpstreamModelName,
-		toolCallIndexes: make(map[string]int),
+		id:                 helper.GetResponseID(c),
+		created:            common.GetTimestamp(),
+		model:              info.UpstreamModelName,
+		toolCallIndexes:    make(map[string]int),
+		requestedMaxTokens: requestedMaxTokens,
 	}
 }
 
@@ -283,7 +291,28 @@ func (state *boraResponseState) nonStreamToolCalls() []dto.ToolCallResponse {
 	return toolCalls
 }
 
+// markTruncated 判定输出是否被 max_tokens 截断：上游 conversation.response.done 只有 usage，
+// 不带任何 finish/截断标志，因此只能拿上游自报的 completion_tokens 和发出去的预算比对。
+// 仅在上游回了 usage 时判定——正文估算值会误报成截断。
+func (state *boraResponseState) markTruncated() {
+	if state.requestedMaxTokens == 0 || state.usage == nil {
+		return
+	}
+	tokens := state.usage.CompletionTokens
+	if tokens == 0 {
+		tokens = state.usage.OutputTokens
+	}
+	if tokens > 0 && uint(tokens) >= state.requestedMaxTokens {
+		state.truncated = true
+	}
+}
+
 func (state *boraResponseState) finishReason() string {
+	// 截断优先：被 max_tokens 掐断时正文和工具调用参数都是残缺的，
+	// 继续报 stop/tool_calls 会让客户端误以为拿到了完整结果。
+	if state.truncated {
+		return constant.FinishReasonLength
+	}
 	if len(state.toolCalls) > 0 {
 		return constant.FinishReasonToolCalls
 	}

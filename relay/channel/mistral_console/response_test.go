@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/types"
 
@@ -146,7 +147,7 @@ data: {"type":"conversation.response.done","usage":{"prompt_tokens":11,"completi
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	info := testRelayInfo(false)
 
-	usage, apiErr := handleBoraResponse(ctx, boraHTTPResponse(sse), info)
+	usage, apiErr := handleBoraResponse(ctx, boraHTTPResponse(sse), info, 0)
 	require.Nil(t, apiErr)
 	require.Equal(t, 11, usage.PromptTokens)
 	require.Equal(t, 3, usage.CompletionTokens)
@@ -172,7 +173,7 @@ data: {"type":"conversation.response.done","usage":{"prompt_tokens":25,"completi
 	info := testRelayInfo(true)
 	info.ShouldIncludeUsage = true
 
-	usage, apiErr := handleBoraStreamResponse(ctx, boraHTTPResponse(sse), info)
+	usage, apiErr := handleBoraStreamResponse(ctx, boraHTTPResponse(sse), info, 0)
 	require.Nil(t, apiErr)
 	require.Equal(t, 34, usage.TotalTokens)
 
@@ -218,7 +219,7 @@ data: {"type":"conversation.response.done","usage":{"input_tokens":15,"output_to
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
-	usage, apiErr := handleBoraResponse(ctx, boraHTTPResponse(sse), testRelayInfo(false))
+	usage, apiErr := handleBoraResponse(ctx, boraHTTPResponse(sse), testRelayInfo(false), 0)
 	require.Nil(t, apiErr)
 	require.Equal(t, 23, usage.TotalTokens)
 
@@ -251,7 +252,7 @@ data: {"type":"conversation.response.done","usage":{"prompt_tokens":10,"completi
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
-	usage, apiErr := handleBoraResponse(ctx, boraHTTPResponse(sse), testRelayInfo(false))
+	usage, apiErr := handleBoraResponse(ctx, boraHTTPResponse(sse), testRelayInfo(false), 0)
 	require.Nil(t, apiErr)
 	require.Equal(t, 14, usage.TotalTokens)
 
@@ -276,7 +277,7 @@ data: {"type":"conversation.response.done"}
 	info := testRelayInfo(false)
 	info.SetEstimatePromptTokens(5)
 
-	usage, apiErr := handleBoraResponse(ctx, boraHTTPResponse(sse), info)
+	usage, apiErr := handleBoraResponse(ctx, boraHTTPResponse(sse), info, 0)
 	require.Nil(t, apiErr)
 	require.Equal(t, 5, usage.PromptTokens)
 	require.Greater(t, usage.CompletionTokens, 0)
@@ -301,7 +302,7 @@ func TestHandleBoraResponseRejectsInvalidOrIncompleteSSE(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
 			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-			_, apiErr := handleBoraResponse(ctx, boraHTTPResponse(test.sse), testRelayInfo(false))
+			_, apiErr := handleBoraResponse(ctx, boraHTTPResponse(test.sse), testRelayInfo(false), 0)
 			require.NotNil(t, apiErr)
 			require.Equal(t, http.StatusBadGateway, apiErr.StatusCode)
 			require.Equal(t, types.ErrorCodeBadResponseBody, apiErr.GetErrorCode())
@@ -327,3 +328,102 @@ func streamDataLines(body string) []string {
 	}
 	return data
 }
+
+// 上游 done 事件只带 usage、不带截断标志，因此发给上游的预算是唯一判定依据。
+func TestHandleBoraResponseReportsLengthWhenBudgetExhausted(t *testing.T) {
+	sse := `data: {"type":"conversation.response.started","conversation_id":"conv-cut"}
+
+data: {"type":"message.output.delta","content":{"type":"thinking","thinking":[{"type":"text","text":"思考占满了预算"}],"closed":true}}
+
+data: {"type":"conversation.response.done","usage":{"prompt_tokens":30,"completion_tokens":800,"total_tokens":830}}
+
+`
+	gin.SetMode(gin.TestMode)
+
+	t.Run("non stream", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		_, apiErr := handleBoraResponse(ctx, boraHTTPResponse(sse), testRelayInfo(false), 800)
+		require.Nil(t, apiErr)
+		var response dto.OpenAITextResponse
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		require.Empty(t, response.Choices[0].Message.StringContent())
+		require.Equal(t, constant.FinishReasonLength, response.Choices[0].FinishReason)
+	})
+
+	t.Run("stream", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		info := testRelayInfo(true)
+		_, apiErr := handleBoraStreamResponse(ctx, boraHTTPResponse(sse), info, 800)
+		require.Nil(t, apiErr)
+		data := streamDataLines(recorder.Body.String())
+		var stop dto.ChatCompletionsStreamResponse
+		require.NoError(t, common.Unmarshal([]byte(data[len(data)-2]), &stop))
+		require.Equal(t, constant.FinishReasonLength, *stop.Choices[0].FinishReason)
+	})
+
+	t.Run("length wins over incomplete tool calls", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		_, apiErr := handleBoraResponse(ctx, boraHTTPResponse(testTruncatedToolCallSSE), testRelayInfo(false), 8)
+		require.Nil(t, apiErr)
+		var response dto.OpenAITextResponse
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		require.Equal(t, constant.FinishReasonLength, response.Choices[0].FinishReason)
+	})
+}
+
+func TestHandleBoraResponseKeepsStopWithoutTruncation(t *testing.T) {
+	sseWithUsage := `data: {"type":"conversation.response.started","conversation_id":"conv-ok"}
+
+data: {"type":"message.output.delta","content":"Hello"}
+
+data: {"type":"conversation.response.done","usage":{"prompt_tokens":30,"completion_tokens":8,"total_tokens":38}}
+
+`
+	sseWithoutUsage := `data: {"type":"conversation.response.started","conversation_id":"conv-estimated"}
+
+data: {"type":"message.output.delta","content":"Hello"}
+
+data: {"type":"conversation.response.done"}
+
+`
+	tests := []struct {
+		name               string
+		sse                string
+		requestedMaxTokens uint
+		expected           string
+	}{
+		{name: "below budget", sse: sseWithUsage, requestedMaxTokens: 800, expected: constant.FinishReasonStop},
+		{name: "budget unknown", sse: sseWithUsage, requestedMaxTokens: 0, expected: constant.FinishReasonStop},
+		// 上游没回 usage 时只能估算正文 token，不足以判定截断，避免误报 length。
+		{name: "usage missing", sse: sseWithoutUsage, requestedMaxTokens: 1, expected: constant.FinishReasonStop},
+	}
+	gin.SetMode(gin.TestMode)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			info := testRelayInfo(false)
+			info.SetEstimatePromptTokens(5)
+			_, apiErr := handleBoraResponse(ctx, boraHTTPResponse(test.sse), info, test.requestedMaxTokens)
+			require.Nil(t, apiErr)
+			var response dto.OpenAITextResponse
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+			require.Equal(t, test.expected, response.Choices[0].FinishReason)
+		})
+	}
+}
+
+var testTruncatedToolCallSSE = `data: {"type":"conversation.response.started","conversation_id":"conv-cut-tools"}
+
+data: {"type":"function.call.delta","id":"fc-1","name":"get_time","tool_call_id":"call-1","arguments":"{\"timezone\":"}
+
+data: {"type":"conversation.response.done","usage":{"prompt_tokens":10,"completion_tokens":8,"total_tokens":18}}
+
+`

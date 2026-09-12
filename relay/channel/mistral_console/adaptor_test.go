@@ -130,7 +130,8 @@ func TestConvertOpenAIRequestMapsFunctionCallHistory(t *testing.T) {
 
 func TestConvertOpenAIRequestMaxTokensAndToolChoice(t *testing.T) {
 	zero := uint(0)
-	tooLarge := uint(defaultBoraMaxTokens + 100)
+	aboveDefault := uint(defaultBoraMaxTokens + 100)
+	aboveCeiling := uint(maxBoraMaxTokens + 100)
 	tests := []struct {
 		name     string
 		request  *dto.GeneralOpenAIRequest
@@ -148,9 +149,15 @@ func TestConvertOpenAIRequestMaxTokensAndToolChoice(t *testing.T) {
 			expected: 0,
 		},
 		{
-			name:     "oversized value clamped",
-			request:  &dto.GeneralOpenAIRequest{MaxTokens: &tooLarge, Messages: []dto.Message{{Role: "user", Content: "hi"}}},
-			expected: defaultBoraMaxTokens,
+			// 客户端显式请求的预算不能被压回默认值，否则思考链会挤掉正文。
+			name:     "above default passes through",
+			request:  &dto.GeneralOpenAIRequest{MaxTokens: &aboveDefault, Messages: []dto.Message{{Role: "user", Content: "hi"}}},
+			expected: aboveDefault,
+		},
+		{
+			name:     "above ceiling clamped",
+			request:  &dto.GeneralOpenAIRequest{MaxTokens: &aboveCeiling, Messages: []dto.Message{{Role: "user", Content: "hi"}}},
+			expected: maxBoraMaxTokens,
 		},
 		{
 			name: "none disables tools",
@@ -519,4 +526,61 @@ func TestConvertOpenAIRequestPassesStrictFlag(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(data), `"strict":true`)
 	require.Contains(t, string(data), `"strict":false`)
+}
+
+func TestConvertOpenAIRequestReasoningEffortMapping(t *testing.T) {
+	tests := []struct {
+		name     string
+		request  *dto.GeneralOpenAIRequest
+		expected string
+	}{
+		{name: "unset keeps thinking", request: &dto.GeneralOpenAIRequest{}, expected: boraMaxReasoningEffort},
+		{name: "high", request: &dto.GeneralOpenAIRequest{ReasoningEffort: "high"}, expected: boraMaxReasoningEffort},
+		{name: "low normalized to high", request: &dto.GeneralOpenAIRequest{ReasoningEffort: "low"}, expected: boraMaxReasoningEffort},
+		{name: "none", request: &dto.GeneralOpenAIRequest{ReasoningEffort: "none"}, expected: boraNoReasoningEffort},
+		{name: "none with case and spaces", request: &dto.GeneralOpenAIRequest{ReasoningEffort: " NONE "}, expected: boraNoReasoningEffort},
+		{name: "reasoning object effort none", request: &dto.GeneralOpenAIRequest{Reasoning: []byte(`{"effort":"none"}`)}, expected: boraNoReasoningEffort},
+		{name: "reasoning object disabled", request: &dto.GeneralOpenAIRequest{Reasoning: []byte(`{"enabled":false,"effort":"low"}`)}, expected: boraNoReasoningEffort},
+		{name: "reasoning string none", request: &dto.GeneralOpenAIRequest{Reasoning: []byte(`"none"`)}, expected: boraNoReasoningEffort},
+		{name: "reasoning object high", request: &dto.GeneralOpenAIRequest{Reasoning: []byte(`{"effort":"high"}`)}, expected: boraMaxReasoningEffort},
+		{name: "thinking disabled", request: &dto.GeneralOpenAIRequest{THINKING: []byte(`{"type":"disabled"}`)}, expected: boraNoReasoningEffort},
+		{name: "thinking enabled with budget", request: &dto.GeneralOpenAIRequest{THINKING: []byte(`{"type":"enabled","budget_tokens":1024}`)}, expected: boraMaxReasoningEffort},
+		{name: "enable_thinking false", request: &dto.GeneralOpenAIRequest{EnableThinking: []byte(`false`)}, expected: boraNoReasoningEffort},
+		{name: "enable_thinking string false", request: &dto.GeneralOpenAIRequest{EnableThinking: []byte(`"false"`)}, expected: boraNoReasoningEffort},
+		{name: "enable_thinking true", request: &dto.GeneralOpenAIRequest{EnableThinking: []byte(`true`)}, expected: boraMaxReasoningEffort},
+		{name: "explicit disable wins over high", expected: boraNoReasoningEffort, request: &dto.GeneralOpenAIRequest{
+			ReasoningEffort: "high",
+			THINKING:        []byte(`{"type":"disabled"}`),
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			info := testRelayInfo(false)
+			test.request.Messages = []dto.Message{{Role: "user", Content: "hi"}}
+			adaptor := &Adaptor{}
+			converted, err := adaptor.ConvertOpenAIRequest(nil, info, test.request)
+			require.NoError(t, err)
+			payload := converted.(*boraConversationRequest)
+			require.Equal(t, test.expected, payload.CompletionArgs.ReasoningEffort)
+			// RelayInfo 记录实际生效等级，供消费日志输出映射。
+			require.Equal(t, test.expected, info.ReasoningEffort)
+			require.Equal(t, defaultBoraMaxTokens, adaptor.sentMaxTokens)
+		})
+	}
+}
+
+func TestConvertOpenAIRequestRecordsSentMaxTokens(t *testing.T) {
+	requested := uint(16384)
+	info := testRelayInfo(false)
+	adaptor := &Adaptor{}
+	converted, err := adaptor.ConvertOpenAIRequest(nil, info, &dto.GeneralOpenAIRequest{
+		MaxTokens:       &requested,
+		ReasoningEffort: "none",
+		Messages:        []dto.Message{{Role: "user", Content: "hi"}},
+	})
+	require.NoError(t, err)
+	payload := converted.(*boraConversationRequest)
+	require.Equal(t, requested, *payload.CompletionArgs.MaxTokens)
+	require.Equal(t, requested, adaptor.sentMaxTokens)
+	require.Equal(t, boraNoReasoningEffort, info.ReasoningEffort)
 }
