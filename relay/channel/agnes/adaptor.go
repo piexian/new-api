@@ -95,6 +95,41 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	return a.Adaptor.ConvertClaudeRequest(c, info, request)
 }
 
+func isZeroUint(v *uint) bool {
+	return v == nil || *v == 0
+}
+
+func upstreamTextModel(info *relaycommon.RelayInfo, requestModel string) string {
+	if info != nil && strings.TrimSpace(info.UpstreamModelName) != "" {
+		return strings.TrimSpace(info.UpstreamModelName)
+	}
+	return strings.TrimSpace(requestModel)
+}
+
+// Agnes 服务端在缺省 max_tokens 时只给 4096。这里对未显式传参的请求默认注入
+// 模型最大输出的一半；客户端传了（含 max_completion_tokens）则原样透传。
+func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+	converted, err := a.Adaptor.ConvertOpenAIRequest(c, info, request)
+	if err != nil {
+		return nil, err
+	}
+	if request != nil && isZeroUint(request.MaxTokens) && isZeroUint(request.MaxCompletionTokens) {
+		if v := defaultMaxTokens(upstreamTextModel(info, request.Model)); v > 0 {
+			request.MaxTokens = &v
+		}
+	}
+	return converted, nil
+}
+
+func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	if isZeroUint(request.MaxOutputTokens) {
+		if v := defaultMaxTokens(upstreamTextModel(info, request.Model)); v > 0 {
+			request.MaxOutputTokens = &v
+		}
+	}
+	return a.Adaptor.ConvertOpenAIResponsesRequest(c, info, request)
+}
+
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
 	if useClaudeAPI(info) {
 		channel.SetupApiRequestHeader(info, c, header)

@@ -315,3 +315,116 @@ func TestClaudeHeadersUseAPIKey(t *testing.T) {
 		t.Fatalf("anthropic-version = %q", got)
 	}
 }
+
+func TestDefaultMaxTokens(t *testing.T) {
+	for model := range maxOutputTokensByModel {
+		if got := defaultMaxTokens(model); got != 32768 {
+			t.Fatalf("defaultMaxTokens(%s) = %d, want 32768", model, got)
+		}
+	}
+	if got := defaultMaxTokens(ModelText15Flash); got != 0 {
+		t.Fatalf("defaultMaxTokens(%s) = %d, want 0 (undocumented model)", ModelText15Flash, got)
+	}
+	if got := defaultMaxTokens(ModelImage21Flash); got != 0 {
+		t.Fatalf("defaultMaxTokens(%s) = %d, want 0 (image model)", ModelImage21Flash, got)
+	}
+}
+
+func agnesTextRelayInfo(upstreamModel string) *relaycommon.RelayInfo {
+	return &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       63,
+			UpstreamModelName: upstreamModel,
+		},
+	}
+}
+
+func TestConvertOpenAIRequestDefaultsMaxTokensToHalfMaxOutput(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{Model: ModelText25Flash}
+	_, err := (&Adaptor{}).ConvertOpenAIRequest(nil, agnesTextRelayInfo(ModelText25Flash), request)
+	if err != nil {
+		t.Fatalf("convert openai request: %v", err)
+	}
+	if request.MaxTokens == nil || *request.MaxTokens != 32768 {
+		t.Fatalf("max_tokens = %v, want 32768", request.MaxTokens)
+	}
+}
+
+func TestConvertOpenAIRequestPreservesClientMaxTokens(t *testing.T) {
+	clientValue := uint(4096)
+	request := &dto.GeneralOpenAIRequest{Model: ModelText25Pro, MaxTokens: &clientValue}
+	_, err := (&Adaptor{}).ConvertOpenAIRequest(nil, agnesTextRelayInfo(ModelText25Pro), request)
+	if err != nil {
+		t.Fatalf("convert openai request: %v", err)
+	}
+	if request.MaxTokens == nil || *request.MaxTokens != 4096 {
+		t.Fatalf("max_tokens = %v, want client value 4096", request.MaxTokens)
+	}
+}
+
+func TestConvertOpenAIRequestPreservesClientMaxCompletionTokens(t *testing.T) {
+	clientValue := uint(8192)
+	request := &dto.GeneralOpenAIRequest{Model: ModelText30Flash, MaxCompletionTokens: &clientValue}
+	_, err := (&Adaptor{}).ConvertOpenAIRequest(nil, agnesTextRelayInfo(ModelText30Flash), request)
+	if err != nil {
+		t.Fatalf("convert openai request: %v", err)
+	}
+	if request.MaxTokens != nil {
+		t.Fatalf("max_tokens = %v, want nil (client used max_completion_tokens)", request.MaxTokens)
+	}
+	if request.MaxCompletionTokens == nil || *request.MaxCompletionTokens != 8192 {
+		t.Fatalf("max_completion_tokens = %v, want client value 8192", request.MaxCompletionTokens)
+	}
+}
+
+func TestConvertOpenAIRequestSkipsDefaultForUndocumentedModel(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{Model: ModelText15Flash}
+	_, err := (&Adaptor{}).ConvertOpenAIRequest(nil, agnesTextRelayInfo(ModelText15Flash), request)
+	if err != nil {
+		t.Fatalf("convert openai request: %v", err)
+	}
+	if request.MaxTokens != nil {
+		t.Fatalf("max_tokens = %v, want nil for undocumented model", request.MaxTokens)
+	}
+}
+
+func TestConvertOpenAIResponsesRequestDefaultsMaxOutputTokens(t *testing.T) {
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, agnesTextRelayInfo(ModelText30Flash), dto.OpenAIResponsesRequest{
+		Model: ModelText30Flash,
+	})
+	if err != nil {
+		t.Fatalf("convert responses request: %v", err)
+	}
+	got := converted.(dto.OpenAIResponsesRequest)
+	if got.MaxOutputTokens == nil || *got.MaxOutputTokens != 32768 {
+		t.Fatalf("max_output_tokens = %v, want 32768", got.MaxOutputTokens)
+	}
+}
+
+func TestConvertOpenAIResponsesRequestPreservesClientMaxOutputTokens(t *testing.T) {
+	clientValue := uint(1024)
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, agnesTextRelayInfo(ModelText25Flash), dto.OpenAIResponsesRequest{
+		Model:           ModelText25Flash,
+		MaxOutputTokens: &clientValue,
+	})
+	if err != nil {
+		t.Fatalf("convert responses request: %v", err)
+	}
+	got := converted.(dto.OpenAIResponsesRequest)
+	if got.MaxOutputTokens == nil || *got.MaxOutputTokens != 1024 {
+		t.Fatalf("max_output_tokens = %v, want client value 1024", got.MaxOutputTokens)
+	}
+}
+
+func TestGetModelListIncludesNewGenerationModels(t *testing.T) {
+	models := (&Adaptor{}).GetModelList()
+	seen := make(map[string]bool, len(models))
+	for _, model := range models {
+		seen[model] = true
+	}
+	for _, model := range []string{ModelText25ProBeta, ModelText30Flash, ModelImage25Flash} {
+		if !seen[model] {
+			t.Fatalf("model list missing %s", model)
+		}
+	}
+}
