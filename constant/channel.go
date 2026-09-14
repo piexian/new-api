@@ -249,6 +249,13 @@ var ChannelSpecialBases = map[string]ChannelSpecialBase{
 		ClaudeBaseURL: "https://api.z.ai/api/anthropic",
 		OpenAIBaseURL: "https://api.z.ai/api/coding/paas/v4",
 	},
+	// zcode-start-plan：ZCode StartPlan 免费档代理（zcode.z.ai），渠道密钥为
+	// ZCode 桌面端 ~/.zcode/credentials.json 中的 zcodeJwtToken（Bearer 鉴权）。
+	// Claude 路径命中 ZCode 客户端的免签白名单 /api/v1/zcode-plan/anthropic/v1/messages。
+	"zcode-start-plan": {
+		ClaudeBaseURL: "https://zcode.z.ai/api/v1/zcode-plan/anthropic",
+		OpenAIBaseURL: "https://zcode.z.ai/api/v1/zcode-plan",
+	},
 	"kimi-coding-plan": {
 		ClaudeBaseURL: "https://api.kimi.com/coding",
 		OpenAIBaseURL: "https://api.kimi.com/coding/v1",

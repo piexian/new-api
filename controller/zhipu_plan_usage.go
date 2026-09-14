@@ -23,6 +23,12 @@ const (
 	zhipuCodingPlanBaseURL              = "glm-coding-plan"
 	zhipuCodingPlanInternationalBaseURL = "glm-coding-plan-international"
 	zhipuCodingPlanQuotaPath            = "/api/monitor/usage/quota/limit"
+
+	// ZCode StartPlan 免费档代理：密钥为 zcodeJwtToken，额度经 balance 接口查询。
+	// app_version 与 relay/channel/zhipu_4v 的 zcodeClientVersion 保持一致。
+	zcodeStartPlanBaseURL    = "zcode-start-plan"
+	zcodeStartPlanBalanceURL = "https://zcode.z.ai/api/v1/zcode-plan/billing/balance"
+	zcodeStartPlanAppVersion = "3.11.2"
 )
 
 type zhipuCodingPlanEnvelope struct {
@@ -58,7 +64,7 @@ func GetZhipuCodingPlanUsage(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
 		return
 	}
-	if _, ok := zhipuCodingPlanAPIBase(ch.GetBaseURL()); !ok {
+	if _, ok := zhipuCodingPlanAPIBase(ch.GetBaseURL()); !ok && !isZcodeStartPlanBaseURL(ch.GetBaseURL()) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgChannelCodingPlanOnly)})
 		return
 	}
@@ -106,7 +112,7 @@ func GetZhipuCodingPlanUsage(c *gin.Context) {
 		message = fmt.Sprintf("upstream status: %d", statusCode)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"success":         success,
 		"message":         message,
 		"multi_key":       ch.ChannelInfo.IsMultiKey,
@@ -119,10 +125,27 @@ func GetZhipuCodingPlanUsage(c *gin.Context) {
 		"upstream_status": statusCode,
 		"request_url":     requestURL,
 		"data":            payload,
-	})
+	}
+	// StartPlan 渠道密钥为 zcodeJwtToken：附带 exp 信息供前端临期提醒。
+	if isZcodeStartPlanBaseURL(ch.GetBaseURL()) {
+		if exp, expOK := service.ExtractZcodeJWTExpiration(keySelection.Key); expOK {
+			response["jwt_expires_at"] = exp
+			response["jwt_expired"] = exp <= time.Now().Unix()
+		}
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func fetchZhipuCodingPlanUsage(ctx context.Context, client *http.Client, channel *model.Channel, apiKey string) (statusCode int, body []byte, requestURL string, err error) {
+	if isZcodeStartPlanBaseURL(channel.GetBaseURL()) {
+		// StartPlan 免费档：GET /billing/balance，zcodeJwtToken 需 Bearer 前缀。
+		requestURL = zcodeStartPlanBalanceURL + "?app_version=" + zcodeStartPlanAppVersion
+		statusCode, body, err = doZhipuCodingPlanUsageRequest(ctx, client, requestURL, "Bearer "+apiKey)
+		if err != nil {
+			return 0, nil, requestURL, err
+		}
+		return statusCode, body, requestURL, nil
+	}
 	requestURL, err = zhipuCodingPlanRequestURL(channel)
 	if err != nil {
 		return 0, nil, "", err
@@ -132,6 +155,17 @@ func fetchZhipuCodingPlanUsage(ctx context.Context, client *http.Client, channel
 		return 0, nil, requestURL, err
 	}
 	return statusCode, body, requestURL, nil
+}
+
+// isZcodeStartPlanBaseURL 判定渠道 base 是否为 ZCode StartPlan 代理：
+// 别名字面量，或包含 zcode.z.ai + zcode-plan 的自定义全 URL。
+func isZcodeStartPlanBaseURL(baseURL string) bool {
+	trimmed := strings.TrimSpace(baseURL)
+	if trimmed == zcodeStartPlanBaseURL {
+		return true
+	}
+	lower := strings.ToLower(trimmed)
+	return strings.Contains(lower, "zcode.z.ai") && strings.Contains(lower, "zcode-plan")
 }
 
 func doZhipuCodingPlanUsageRequest(ctx context.Context, client *http.Client, requestURL string, apiKey string) (statusCode int, body []byte, err error) {

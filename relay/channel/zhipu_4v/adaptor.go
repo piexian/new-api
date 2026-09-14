@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -62,7 +63,25 @@ func isZhipuCodingPlanClaudeRequest(info *relaycommon.RelayInfo) bool {
 }
 
 func zhipuCodingPlanAliases() []string {
-	return []string{"glm-coding-plan", "glm-coding-plan-international"}
+	return []string{"glm-coding-plan", "glm-coding-plan-international", zcodeStartPlanBaseURL}
+}
+
+// zcodeStartPlanBaseURL 是 ZCode StartPlan 免费档（zcode.z.ai 代理）的渠道
+// base 别名，密钥为 zcodeJwtToken（Bearer 鉴权），随 Coding Plan 家族路由。
+const zcodeStartPlanBaseURL = "zcode-start-plan"
+
+// isZhipuStartPlanBase 判定 base 是否为 StartPlan 代理：别名字面量，或
+// zcode.z.ai 的 /api/v1/zcode-plan* 自定义全 URL。
+func isZhipuStartPlanBase(baseURL string) bool {
+	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if normalized == zcodeStartPlanBaseURL {
+		return true
+	}
+	parsed, err := url.Parse(normalized)
+	if err != nil || !strings.EqualFold(parsed.Hostname(), "zcode.z.ai") {
+		return false
+	}
+	return strings.HasPrefix(parsed.Path, "/api/v1/zcode-plan")
 }
 
 func zhipuCodingPlanBases() map[string]channelconstant.ChannelSpecialBase {
@@ -120,7 +139,12 @@ func zhipuSpecialBase(baseURL string) (channelconstant.ChannelSpecialBase, bool)
 
 func setupZhipuClaudeCompatibleHeaders(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
 	channel.SetupApiRequestHeader(info, c, req)
-	req.Set("x-api-key", info.ApiKey)
+	if isZhipuStartPlanBase(info.ChannelBaseUrl) {
+		// StartPlan 代理以 zcodeJwtToken 作 Bearer 鉴权（ZCode 桌面端行为）。
+		req.Set("Authorization", "Bearer "+info.ApiKey)
+	} else {
+		req.Set("x-api-key", info.ApiKey)
+	}
 	anthropicVersion := c.Request.Header.Get("anthropic-version")
 	if anthropicVersion == "" {
 		anthropicVersion = "2023-06-01"
@@ -196,6 +220,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	if shouldUseZhipuClaudeCompatibleAPI(info) {
 		setupZhipuClaudeCompatibleHeaders(c, req, info)
+		// V4 客户端签名需在 ZCode 头（含 x-session-id）就绪后按最终 URL 判定。
+		if finalURL, urlErr := a.GetRequestURL(info); urlErr == nil {
+			applyZCodeClientSigning(c, req, info, finalURL)
+		}
 		return nil
 	}
 	channel.SetupApiRequestHeader(info, c, req)
@@ -249,7 +277,15 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	return channel.DoApiRequest(a, c, info, requestBody)
+	resp, err := channel.DoApiRequest(a, c, info, requestBody)
+	if err == nil {
+		// 上游验签失败（VERIFY_SIGNATURE_INVALID / VERIFY_APIKEY_EXPIRED）时
+		// 作废缓存私钥，交由重试机制以新握手签名重发。
+		if finalURL, urlErr := a.GetRequestURL(info); urlErr == nil {
+			maybeInvalidateZCodeSigningKey(c, info, finalURL, resp)
+		}
+	}
+	return resp, err
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {

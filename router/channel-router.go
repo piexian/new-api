@@ -71,6 +71,8 @@ var channelPermissionRoutes = []permissionRoute{
 	{method: http.MethodPost, path: "/:id/codex/usage/reset", permission: authz.ChannelOperate, handler: controller.ResetCodexChannelUsage},
 	{method: http.MethodGet, path: "/:id/minimax/usage", permission: authz.ChannelRead, handler: controller.GetMiniMaxChannelUsage},
 	{method: http.MethodGet, path: "/:id/zhipu/coding_plan/usage", permission: authz.ChannelRead, handler: controller.GetZhipuCodingPlanUsage},
+	{method: http.MethodPost, path: "/:id/zcode/start_plan/auth/init", permission: authz.ChannelSensitiveWrite, handler: controller.InitZcodeStartPlanAuth},
+	{method: http.MethodGet, path: "/:id/zcode/start_plan/auth/poll", permission: authz.ChannelSensitiveWrite, handler: controller.PollZcodeStartPlanAuth},
 	{method: http.MethodGet, path: "/:id/kimi/coding_plan/usage", permission: authz.ChannelRead, handler: controller.GetKimiCodingPlanUsage},
 	{method: http.MethodGet, path: "/:id/qwen/token_plan/usage", permission: authz.ChannelRead, handler: controller.GetQwenTokenPlanUsage},
 	{method: http.MethodPost, path: "/ollama/pull", permission: authz.ChannelSensitiveWrite, handler: controller.OllamaPullModel},

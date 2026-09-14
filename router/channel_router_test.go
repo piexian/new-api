@@ -76,6 +76,8 @@ func TestSetApiRouterRegistersPermissionRoutes(t *testing.T) {
 		http.MethodPost + " /api/channel/:id/codex/usage/reset",
 		http.MethodGet + " /api/channel/:id/minimax/usage",
 		http.MethodGet + " /api/channel/:id/zhipu/coding_plan/usage",
+		http.MethodPost + " /api/channel/:id/zcode/start_plan/auth/init",
+		http.MethodGet + " /api/channel/:id/zcode/start_plan/auth/poll",
 		http.MethodGet + " /api/channel/:id/kimi/coding_plan/usage",
 		http.MethodGet + " /api/channel/:id/qwen/token_plan/usage",
 	}
