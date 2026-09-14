@@ -27,6 +27,7 @@ const CHANNEL_TYPE_QWEN_TOKEN_PLAN = 69
 const ZHIPU_CODING_PLAN_SPECIAL_BASE_URLS = new Set([
   'glm-coding-plan',
   'glm-coding-plan-international',
+  'zcode-start-plan',
 ])
 
 const ZHIPU_CODING_PLAN_DOMAINS = [
@@ -34,6 +35,7 @@ const ZHIPU_CODING_PLAN_DOMAINS = [
   'open.bigmodel.cn',
   'dev.bigmodel.cn',
   'www.bigmodel.cn',
+  'zcode.z.ai',
 ]
 
 const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan'
@@ -70,4 +72,22 @@ export function isZhipuCodingPlanChannel(channel: Channel): boolean {
 
   const normalized = baseURL.toLowerCase().replace(/\/+$/, '')
   return ZHIPU_CODING_PLAN_DOMAINS.some((domain) => normalized.includes(domain))
+}
+
+const ZCODE_START_PLAN_BASE_URL = 'zcode-start-plan'
+
+// StartPlan 免费档代理渠道（zcode.z.ai，密钥为 zcodeJwtToken），
+// 支持面板内一键重授权（设备码式 OAuth）。
+export function isZcodeStartPlanChannel(channel: Channel): boolean {
+  if (![CHANNEL_TYPE_ZHIPU, CHANNEL_TYPE_ZHIPU_V4].includes(channel.type)) {
+    return false
+  }
+
+  const baseURL = String(channel.base_url || '').trim()
+  if (baseURL === ZCODE_START_PLAN_BASE_URL) {
+    return true
+  }
+
+  const normalized = baseURL.toLowerCase().replace(/\/+$/, '')
+  return normalized.includes('zcode.z.ai') && normalized.includes('zcode-plan')
 }

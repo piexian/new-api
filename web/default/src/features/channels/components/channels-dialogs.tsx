@@ -27,6 +27,7 @@ import { OllamaModelsDialog } from './dialogs/ollama-models-dialog'
 import { PlanUsageQueryDialog } from './dialogs/plan-usage-query-dialog'
 import { TagBatchEditDialog } from './dialogs/tag-batch-edit-dialog'
 import { UpstreamUpdateDialog } from './dialogs/upstream-update-dialog'
+import { ZcodeStartPlanAuthDialog } from './dialogs/zcode-start-plan-auth-dialog'
 import { ChannelMutateDrawer } from './drawers/channel-mutate-drawer'
 
 export function ChannelsDialogs() {
@@ -56,6 +57,12 @@ export function ChannelsDialogs() {
       {/* Token Plan / Coding Plan Usage Dialog */}
       <PlanUsageQueryDialog
         open={open === 'plan-usage'}
+        onOpenChange={(v) => !v && setOpen(null)}
+      />
+
+      {/* ZCode StartPlan Re-authorization Dialog */}
+      <ZcodeStartPlanAuthDialog
+        open={open === 'start-plan-auth'}
         onOpenChange={(v) => !v && setOpen(null)}
       />
 

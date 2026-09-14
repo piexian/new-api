@@ -41,6 +41,7 @@ import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 import { openMiniMaxUsageModal } from '../../components/table/channels/modals/MiniMaxUsageModal';
 import { openZhipuCodingPlanUsageModal } from '../../components/table/channels/modals/ZhipuCodingPlanModal';
+import { openZcodeStartPlanAuthModal } from '../../components/table/channels/modals/ZcodeStartPlanAuthModal';
 import { openKimiCodingPlanUsageModal } from '../../components/table/channels/modals/KimiCodingPlanModal';
 import { openQwenTokenPlanUsageModal } from '../../components/table/channels/modals/QwenTokenPlanModal';
 
@@ -800,6 +801,13 @@ export const useChannelsData = () => {
     });
   };
 
+  const openZcodeStartPlanAuth = (record) => {
+    openZcodeStartPlanAuthModal({
+      t,
+      record,
+    });
+  };
+
   const openKimiCodingPlanUsage = (record) => {
     openKimiCodingPlanUsageModal({
       t,
@@ -1267,6 +1275,7 @@ export const useChannelsData = () => {
     updateChannelBalance,
     openMiniMaxTokenPlanUsage,
     openZhipuCodingPlanUsage,
+    openZcodeStartPlanAuth,
     openKimiCodingPlanUsage,
     openQwenTokenPlanUsage,
     fixChannelsAbilities,

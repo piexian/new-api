@@ -99,6 +99,9 @@ const getStatusLabel = (value, t) => {
 
 const getPlanRegionLabel = (record, t) => {
   const baseURL = String(record?.base_url || '').trim();
+  if (baseURL === 'zcode-start-plan' || baseURL.includes('zcode.z.ai')) {
+    return t('StartPlan 免费档');
+  }
   if (
     baseURL === ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL ||
     baseURL.includes('api.z.ai')
@@ -453,6 +456,17 @@ const ZhipuCodingPlanUsageView = ({ t, record, payload, onRefresh }) => {
         <div className='mt-1 text-xs text-semi-color-text-2'>
           {t('上游状态')}: {payload?.upstream_status ?? '-'}
         </div>
+        {typeof payload?.jwt_expires_at === 'number' && (
+          <div className='mt-1 text-xs text-semi-color-text-2'>
+            {t('JWT 过期时间')}:{' '}
+            {new Date(payload.jwt_expires_at * 1000).toLocaleString()}
+            {payload?.jwt_expired === true && (
+              <Tag color='red' type='light' size='small' className='ml-2'>
+                {t('已过期')}
+              </Tag>
+            )}
+          </div>
+        )}
       </div>
 
       {cards.length > 0 ? (

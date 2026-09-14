@@ -144,6 +144,7 @@ const OPENCODE_GO_BASE_URL = 'opencode-go';
 const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan';
 const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL =
   'glm-coding-plan-international';
+const ZCODE_START_PLAN_BASE_URL = 'zcode-start-plan';
 const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan';
 const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn';
 const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai';
@@ -4406,6 +4407,10 @@ const EditChannelModal = (props) => {
                                         ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL,
                                       label:
                                         ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL,
+                                    },
+                                    {
+                                      value: ZCODE_START_PLAN_BASE_URL,
+                                      label: ZCODE_START_PLAN_BASE_URL,
                                     },
                                   ]}
                                   disabled={isIonetLocked}

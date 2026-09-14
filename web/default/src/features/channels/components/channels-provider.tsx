@@ -40,6 +40,7 @@ type DialogType =
   | 'test-channel'
   | 'balance-query'
   | 'plan-usage'
+  | 'start-plan-auth'
   | 'fetch-models'
   | 'ollama-models'
   | 'multi-key-manage'

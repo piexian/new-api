@@ -60,6 +60,7 @@ import { FaRandom } from 'react-icons/fa';
 const ZHIPU_CODING_PLAN_SPECIAL_KEYS = new Set([
   'glm-coding-plan',
   'glm-coding-plan-international',
+  'zcode-start-plan',
 ]);
 
 const ZHIPU_CODING_PLAN_DOMAINS = [
@@ -67,6 +68,7 @@ const ZHIPU_CODING_PLAN_DOMAINS = [
   'open.bigmodel.cn',
   'dev.bigmodel.cn',
   'www.bigmodel.cn',
+  'zcode.z.ai',
 ];
 
 const isZhipuCodingPlanChannel = (record) => {
@@ -82,6 +84,22 @@ const isZhipuCodingPlanChannel = (record) => {
   }
   const lower = baseURL.toLowerCase().replace(/\/+$/, '');
   return ZHIPU_CODING_PLAN_DOMAINS.some((domain) => lower.includes(domain));
+};
+
+// StartPlan 免费档代理渠道（zcode.z.ai，密钥为 zcodeJwtToken），支持一键重授权。
+const isZcodeStartPlanChannel = (record) => {
+  if (!record || record.children !== undefined) {
+    return false;
+  }
+  if (record.type !== CHANNEL_TYPE_ZHIPU_V4) {
+    return false;
+  }
+  const baseURL = String(record.base_url || '').trim();
+  if (baseURL === 'zcode-start-plan') {
+    return true;
+  }
+  const lower = baseURL.toLowerCase().replace(/\/+$/, '');
+  return lower.includes('zcode.z.ai') && lower.includes('zcode-plan');
 };
 
 const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan';
@@ -404,6 +422,7 @@ export const getChannelsColumns = ({
   updateChannelBalance,
   openMiniMaxTokenPlanUsage,
   openZhipuCodingPlanUsage,
+  openZcodeStartPlanAuth,
   openKimiCodingPlanUsage,
   openQwenTokenPlanUsage,
   manageChannel,
@@ -648,6 +667,7 @@ export const getChannelsColumns = ({
           const isCodexChannel = record.type === CHANNEL_TYPE_CODEX;
           const isMiniMaxChannel = record.type === CHANNEL_TYPE_MINIMAX;
           const isZhipuPlanChannel = isZhipuCodingPlanChannel(record);
+          const isZcodeStartPlan = isZcodeStartPlanChannel(record);
           const isKimiPlanChannel = isKimiCodingPlanChannel(record);
           const isQwenPlanChannel =
             record.type === CHANNEL_TYPE_QWEN_TOKEN_PLAN;
@@ -716,6 +736,19 @@ export const getChannelsColumns = ({
                       onClick={() => openZhipuCodingPlanUsage(record)}
                     >
                       {t('Coding Plan')}
+                    </Tag>
+                  </Tooltip>
+                )}
+                {isZcodeStartPlan && (
+                  <Tooltip content={t('ZCode StartPlan 一键重授权')}>
+                    <Tag
+                      color='green'
+                      type='light'
+                      shape='circle'
+                      className='cursor-pointer'
+                      onClick={() => openZcodeStartPlanAuth(record)}
+                    >
+                      {t('重新授权')}
                     </Tag>
                   </Tooltip>
                 )}

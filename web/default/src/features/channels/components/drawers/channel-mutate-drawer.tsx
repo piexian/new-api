@@ -193,6 +193,7 @@ import {
 
 const ZHIPU_CODING_PLAN_BASE_URL = 'glm-coding-plan'
 const ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL = 'glm-coding-plan-international'
+const ZCODE_START_PLAN_BASE_URL = 'zcode-start-plan'
 const KIMI_CODING_PLAN_BASE_URL = 'kimi-coding-plan'
 const DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan'
 const DOUBAO_AGENT_PLAN_BASE_URL = 'doubao-agent-plan'
@@ -2569,6 +2570,7 @@ export function ChannelMutateDrawer({
                                             '',
                                             ZHIPU_CODING_PLAN_BASE_URL,
                                             ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL,
+                                            ZCODE_START_PLAN_BASE_URL,
                                           ].includes(String(field.value || ''))
                                             ? field.value || '__default__'
                                             : undefined
@@ -2587,6 +2589,7 @@ export function ChannelMutateDrawer({
                                               ![
                                                 ZHIPU_CODING_PLAN_BASE_URL,
                                                 ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL,
+                                                ZCODE_START_PLAN_BASE_URL,
                                               ].includes(
                                                 String(field.value)
                                               ) && (
@@ -2612,6 +2615,11 @@ export function ChannelMutateDrawer({
                                               {
                                                 ZHIPU_CODING_PLAN_INTERNATIONAL_BASE_URL
                                               }
+                                            </SelectItem>
+                                            <SelectItem
+                                              value={ZCODE_START_PLAN_BASE_URL}
+                                            >
+                                              {ZCODE_START_PLAN_BASE_URL}
                                             </SelectItem>
                                           </SelectGroup>
                                         </SelectContent>

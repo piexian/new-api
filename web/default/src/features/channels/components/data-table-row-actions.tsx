@@ -34,6 +34,7 @@ import {
   RefreshCw,
   Loader2,
   ChartNoAxesColumn,
+  KeyRound,
 } from 'lucide-react'
 import { useContext, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -74,6 +75,7 @@ import {
   isMiniMaxTokenPlanChannel,
   isMultiKeyChannel,
   isQwenTokenPlanChannel,
+  isZcodeStartPlanChannel,
   isZhipuCodingPlanChannel,
 } from '../lib'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
@@ -109,6 +111,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     isZhipuCodingPlanChannel(channel) ||
     isKimiCodingPlanChannel(channel) ||
     isQwenTokenPlanChannel(channel)
+  const canReauthorizeStartPlan =
+    canEditSensitive && isZcodeStartPlanChannel(channel)
 
   const convertMutation = useMutation({
     mutationFn: async () => {
@@ -158,6 +162,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const handleQueryPlanUsage = () => {
     setCurrentRow(channel)
     setOpen('plan-usage')
+  }
+
+  const handleStartPlanAuth = () => {
+    setCurrentRow(channel)
+    setOpen('start-plan-auth')
   }
 
   const handleFetchModels = () => {
@@ -334,6 +343,15 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
                 : t('Coding Plan')}
               <DropdownMenuShortcut>
                 <ChartNoAxesColumn size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
+
+          {canReauthorizeStartPlan && (
+            <DropdownMenuItem onClick={handleStartPlanAuth}>
+              {t('StartPlan Re-authorization')}
+              <DropdownMenuShortcut>
+                <KeyRound size={16} />
               </DropdownMenuShortcut>
             </DropdownMenuItem>
           )}

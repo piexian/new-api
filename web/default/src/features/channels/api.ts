@@ -81,6 +81,8 @@ export type ChannelPlanUsageResponse = {
   upstream_status?: number
   request_url?: string
   extra_usage?: KimiExtraUsage
+  jwt_expires_at?: number
+  jwt_expired?: boolean
   data?: unknown
 }
 
@@ -417,6 +419,58 @@ export async function getZhipuCodingPlanUsage(
       ...config,
       params: { key_index: Math.max(Math.floor(keyIndex), 0) },
     }
+  )
+  return res.data
+}
+
+export type ZcodeStartPlanAuthInitResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    channel_id?: number
+    authorize_url?: string
+    expires_at?: number
+    poll_interval_sec?: number
+  }
+}
+
+export type ZcodeStartPlanAuthPollResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    status?: 'pending' | 'failed' | 'ready' | 'expired'
+    user_id?: string
+    user_name?: string
+    email?: string
+    jwt_expires_at?: number
+  }
+}
+
+/**
+ * Start ZCode StartPlan device-style OAuth flow (replicates ZCode CLI
+ * /api/v1/oauth/cli/init). Returns authorize_url for the admin to open.
+ */
+export async function initZcodeStartPlanAuth(
+  channelId: number
+): Promise<ZcodeStartPlanAuthInitResponse> {
+  const res = await api.post(
+    `/api/channel/${channelId}/zcode/start_plan/auth/init`,
+    {},
+    { skipBusinessError: true, disableDuplicate: true }
+  )
+  return res.data
+}
+
+/**
+ * Poll the StartPlan OAuth flow; backend writes the JWT back to the
+ * channel key when status becomes ready.
+ */
+export async function pollZcodeStartPlanAuth(
+  channelId: number
+): Promise<ZcodeStartPlanAuthPollResponse> {
+  const res = await api.get(
+    `/api/channel/${channelId}/zcode/start_plan/auth/poll`,
+    { skipBusinessError: true, disableDuplicate: true }
   )
   return res.data
 }

@@ -44,6 +44,7 @@ import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import dayjs from '@/lib/dayjs'
+import { formatTimestampToDate } from '@/lib/format'
 
 import type { ChannelPlanUsageResponse, KimiExtraUsage } from '../../api'
 import type { Channel } from '../../types'
@@ -528,6 +529,9 @@ function getPlanRegionLabel(
   t: (key: string) => string
 ): string {
   const baseURL = String(channel?.base_url || '').trim()
+  if (baseURL === 'zcode-start-plan' || baseURL.includes('zcode.z.ai')) {
+    return t('StartPlan Free Tier')
+  }
   if (
     baseURL === 'glm-coding-plan-international' ||
     baseURL.includes('api.z.ai')
@@ -876,6 +880,13 @@ function ZhipuUsageView({
               <StatusBadge
                 label={`${t('Upstream Status')}: ${response.upstream_status}`}
                 variant='neutral'
+                copyable={false}
+              />
+            )}
+            {typeof response?.jwt_expires_at === 'number' && (
+              <StatusBadge
+                label={`${t('JWT Expires At')}: ${formatTimestampToDate(response.jwt_expires_at * 1000)}`}
+                variant={response.jwt_expired ? 'danger' : 'neutral'}
                 copyable={false}
               />
             )}
