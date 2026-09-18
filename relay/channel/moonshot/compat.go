@@ -45,12 +45,15 @@ func normalizeKimiOpenAIRequest(info *relaycommon.RelayInfo, request *dto.Genera
 	return family
 }
 
+// classifyKimiModel 归类模型族。kimi-for-coding 自 K2.8 Preview 起与 K3 同参数面
+// （支持 low/high/max/none effort、1M 上下文）；kimi-for-coding-highspeed 仍是
+// K2.7 HighSpeed（思考恒开、无档位）。
 func classifyKimiModel(model string, kimiCodingBase bool) kimiModelFamily {
 	model = strings.ToLower(strings.TrimSpace(model))
 	switch {
-	case model == "kimi-k3", strings.HasPrefix(model, "kimi-k3-"), kimiCodingBase && (model == "k3" || model == "k3-256k"):
+	case model == "kimi-k3", strings.HasPrefix(model, "kimi-k3-"), model == "kimi-for-coding", kimiCodingBase && (model == "k3" || model == "k3-256k"):
 		return kimiModelK3
-	case model == "kimi-for-coding", model == "kimi-for-coding-highspeed", strings.HasPrefix(model, "kimi-k2.7-code"):
+	case model == "kimi-for-coding-highspeed", strings.HasPrefix(model, "kimi-k2.7-code"):
 		return kimiModelK27
 	case strings.HasPrefix(model, "kimi-k2.6"):
 		return kimiModelK26
@@ -99,20 +102,53 @@ func normalizeKimiK3Request(request *dto.GeneralOpenAIRequest) {
 	}
 }
 
-// normalizeKimiK3Effort 把入站档位收敛到 K3 支持的 low/high/max。
-// 上游默认 max，所以未识别的取值留空交给上游决定，而不是把客户端显式要的低档位悄悄抬到 max。
-// K3 无法关闭思考，none/minimal 只能退到最低的 low。
+// normalizeKimiK3Effort 把入站档位收敛到 K3 族支持的 low/high/max/none。
+// 官方映射：minimum/light→low、medium→high、ultra/xhigh→max、none→关闭思考
+// （K3/K2.8 关思考后路由到 K2.8 无思考版）。未识别取值留空交给上游默认
+// （K3=high、K2.8=max），不把客户端显式要的档位悄悄改掉。
 func normalizeKimiK3Effort(effort string) string {
 	switch strings.ToLower(strings.TrimSpace(effort)) {
-	case "low", "minimal", "none":
+	case "low", "minimal", "minimum", "light":
 		return "low"
 	case "medium", "high":
 		return "high"
-	case "xhigh", "max":
+	case "xhigh", "ultra", "max":
 		return "max"
+	case "none":
+		return "none"
 	default:
 		return ""
 	}
+}
+
+// normalizeKimiResponsesRequest 对透传到 coding 端点的 Responses 请求做最小清洗：
+// K3 族归一化 reasoning.effort 档位；K2.7 高速版无思考档位，剥离 reasoning 防 400。
+func normalizeKimiResponsesRequest(info *relaycommon.RelayInfo, request *dto.OpenAIResponsesRequest) {
+	if request == nil {
+		return
+	}
+	model := getUpstreamModelName(info, request.Model)
+	switch classifyKimiModel(model, info != nil && info.ChannelMeta != nil && isKimiCodingBaseURL(info.ChannelBaseUrl)) {
+	case kimiModelK3:
+		if request.Reasoning != nil && request.Reasoning.Effort != "" {
+			request.Reasoning.Effort = normalizeKimiResponsesEffort(request.Reasoning.Effort)
+			// 记录发给上游的生效档位，供消费日志输出与实际生效值。
+			if info != nil {
+				info.ReasoningEffort = request.Reasoning.Effort
+			}
+		}
+	case kimiModelK27:
+		request.Reasoning = nil
+	}
+}
+
+// normalizeKimiResponsesEffort 归一化已知别名防上游 400；未识别取值保持原样，
+// 由上游返回 400 暴露给客户端，而不是悄悄改成模型默认档。
+func normalizeKimiResponsesEffort(effort string) string {
+	if normalized := normalizeKimiK3Effort(effort); normalized != "" {
+		return normalized
+	}
+	return effort
 }
 
 // normalizeKimiK27Request 按 K2.7-code 的参数面清洗请求。

@@ -17,8 +17,9 @@ import (
 )
 
 // Keep this aligned with the Kimi Code release used when building the service.
-// Source: locally installed Kimi Code CLI v0.34.0.
-const kimiCodeCLICompatibilityVersion = "0.34.0"
+// Source: @moonshot-ai/kimi-code v2.0.0 (npm latest). The X-Msh-* identity header
+// scheme is unchanged in 2.0.0; only the version moved.
+const kimiCodeCLICompatibilityVersion = "2.0.0"
 
 var (
 	kimiCLIHeadersOnce sync.Once
@@ -35,13 +36,13 @@ var kimiCLIHeaderNames = []string{
 	"X-Msh-Device-Id",
 }
 
-func setupKimiCodingHeaders(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
-	if relaycommon.IsRequestPassThroughEnabled(info) {
-		clearMoonshotHeaders(req, kimiCLIHeaderNames)
-		copyIncomingMoonshotHeaders(c, req, kimiCLIHeaderNames)
-		return
-	}
+// kimiCacheAffinityHeaderNames 是唯一允许从客户端透传的缓存亲和请求头；
+// 其余客户端头一律过滤，仅渠道 header_override 配置可在框架层覆盖默认值。
+var kimiCacheAffinityHeaderNames = []string{
+	"X-Claude-Code-Session-Id",
+}
 
+func setupKimiCodingHeaders(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
 	clear(*req)
 	req.Set("Content-Type", gin.MIMEJSON)
 	req.Set("Accept", gin.MIMEJSON)
@@ -54,6 +55,7 @@ func setupKimiCodingHeaders(c *gin.Context, req *http.Header, info *relaycommon.
 	for name, value := range getKimiCLIHeaders() {
 		req.Set(name, value)
 	}
+	copyIncomingMoonshotHeaders(c, req, kimiCacheAffinityHeaderNames)
 }
 
 func getKimiCLIHeaders() map[string]string {
@@ -163,11 +165,5 @@ func copyIncomingMoonshotHeaders(c *gin.Context, req *http.Header, names []strin
 		for _, value := range values {
 			req.Add(name, value)
 		}
-	}
-}
-
-func clearMoonshotHeaders(req *http.Header, names []string) {
-	for _, name := range names {
-		req.Del(name)
 	}
 }

@@ -56,11 +56,18 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		if requestFormat == types.RelayFormatClaude {
 			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
 		}
+		// coding 端点原生支持 Responses 协议，透传时直达 /responses
+		if requestFormat == types.RelayFormatOpenAIResponses {
+			return fmt.Sprintf("%s/responses", specialPlan.OpenAIBaseURL), nil
+		}
 		if requestFormat == types.RelayFormatOpenAI {
 			return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
 		}
 	}
 	baseURL = normalizeMoonshotBaseURL(baseURL)
+	if supportsNativeKimiResponses(baseURL) && requestFormat == types.RelayFormatOpenAIResponses {
+		return fmt.Sprintf("%s/v1/responses", baseURL), nil
+	}
 
 	switch requestFormat {
 	case types.RelayFormatClaude:
@@ -111,6 +118,14 @@ func getUpstreamModelName(info *relaycommon.RelayInfo, fallback string) string {
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	// Kimi Code coding 端点与 Kimi 开放平台官方主机均已原生支持 Responses 协议
+	// （流式/reasoning/工具调用），直接透传，只对 reasoning.effort 做档位归一化
+	// 防上游 400；其余 moonshot 兼容 base 保持 Chat 转换兜底。
+	if info != nil && info.RelayFormat == types.RelayFormatOpenAIResponses && supportsNativeKimiResponses(info.ChannelBaseUrl) {
+		normalizeKimiResponsesRequest(info, &request)
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
+		return request, nil
+	}
 	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
 	if err != nil {
 		return nil, err
@@ -181,6 +196,20 @@ func isKimiCodingBaseURL(baseURL string) bool {
 	}
 	return strings.HasSuffix(normalized, "/coding") ||
 		strings.HasSuffix(normalized, "/coding/v1")
+}
+
+// supportsNativeKimiResponses 判断渠道 base 是否原生支持 Responses 协议：
+// Kimi Code coding 端点与 Kimi 开放平台官方主机（api.moonshot.cn/.ai）均已支持，
+// 其余 moonshot 兼容自建/代理 base 保持 Chat 转换兜底。
+func supportsNativeKimiResponses(baseURL string) bool {
+	if isKimiCodingBaseURL(baseURL) {
+		return true
+	}
+	trimmed := strings.ToLower(strings.TrimRight(strings.TrimSpace(baseURL), "/"))
+	trimmed = strings.TrimSuffix(trimmed, "/v1")
+	trimmed = strings.TrimRight(trimmed, "/")
+	trimmed = strings.TrimPrefix(strings.TrimPrefix(trimmed, "https://"), "http://")
+	return trimmed == "api.moonshot.cn" || trimmed == "api.moonshot.ai"
 }
 
 func kimiCodingClaudeBaseURL(baseURL string) string {

@@ -145,6 +145,139 @@ func TestGetRequestURLUsesConvertedOpenAIEndpointForKimiCodingResponses(t *testi
 	}
 }
 
+func TestGetRequestURLUsesNativeResponsesEndpoint(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		baseURL string
+		want    string
+	}{
+		{name: "special coding base", baseURL: "kimi-coding-plan", want: "https://api.kimi.com/coding/v1/responses"},
+		{name: "custom coding base", baseURL: "https://example.com/coding", want: "https://example.com/coding/v1/responses"},
+		{name: "custom coding v1 base", baseURL: "https://example.com/coding/v1", want: "https://example.com/coding/v1/responses"},
+		{name: "platform cn", baseURL: "https://api.moonshot.cn", want: "https://api.moonshot.cn/v1/responses"},
+		{name: "platform cn v1", baseURL: "https://api.moonshot.cn/v1", want: "https://api.moonshot.cn/v1/responses"},
+		{name: "platform ai", baseURL: "https://api.moonshot.ai", want: "https://api.moonshot.ai/v1/responses"},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := (&Adaptor{}).GetRequestURL(&relaycommon.RelayInfo{
+				RelayMode:   relayconstant.RelayModeResponses,
+				RelayFormat: types.RelayFormatOpenAIResponses,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelBaseUrl: testCase.baseURL,
+				},
+			})
+			if err != nil {
+				t.Fatalf("GetRequestURL returned error: %v", err)
+			}
+			if got != testCase.want {
+				t.Fatalf("GetRequestURL() = %q, want %q", got, testCase.want)
+			}
+		})
+	}
+}
+
+func TestConvertOpenAIResponsesRequestPassThroughForNativeBases(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		baseURL       string
+		model         string
+		effort        string
+		wantEffort    string
+		wantReasoning bool
+	}{
+		{name: "coding K3 keeps max", baseURL: "kimi-coding-plan", model: "kimi-k3", effort: "max", wantEffort: "max", wantReasoning: true},
+		{name: "coding K2.8 alias normalized", baseURL: "kimi-coding-plan", model: "kimi-for-coding", effort: "minimal", wantEffort: "low", wantReasoning: true},
+		{name: "coding K2.8 none passthrough", baseURL: "kimi-coding-plan", model: "kimi-for-coding", effort: "none", wantEffort: "none", wantReasoning: true},
+		{name: "coding unknown effort kept for upstream 400", baseURL: "kimi-coding-plan", model: "kimi-k3", effort: "banana", wantEffort: "banana", wantReasoning: true},
+		{name: "coding K2.7 highspeed strips reasoning", baseURL: "kimi-coding-plan", model: "kimi-for-coding-highspeed", effort: "high", wantReasoning: false},
+		{name: "platform cn K3 normalized", baseURL: "https://api.moonshot.cn", model: "kimi-k3", effort: "medium", wantEffort: "high", wantReasoning: true},
+		{name: "platform ai K3 passthrough", baseURL: "https://api.moonshot.ai/v1", model: "kimi-k3", effort: "low", wantEffort: "low", wantReasoning: true},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			gin.SetMode(gin.TestMode)
+			c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+			info := &relaycommon.RelayInfo{
+				RelayMode:   relayconstant.RelayModeResponses,
+				RelayFormat: types.RelayFormatOpenAIResponses,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelBaseUrl:    testCase.baseURL,
+					UpstreamModelName: testCase.model,
+				},
+			}
+			stream := true
+			converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+				Model:     testCase.model,
+				Input:     []byte(`"hello"`),
+				Stream:    &stream,
+				Reasoning: &dto.Reasoning{Effort: testCase.effort},
+			})
+			if err != nil {
+				t.Fatalf("ConvertOpenAIResponsesRequest returned error: %v", err)
+			}
+			responsesReq, ok := converted.(dto.OpenAIResponsesRequest)
+			if !ok {
+				t.Fatalf("ConvertOpenAIResponsesRequest returned %T, want dto.OpenAIResponsesRequest passthrough", converted)
+			}
+			if info.FinalRequestRelayFormat != types.RelayFormatOpenAIResponses {
+				t.Fatalf("FinalRequestRelayFormat = %q, want %q", info.FinalRequestRelayFormat, types.RelayFormatOpenAIResponses)
+			}
+			if responsesReq.Stream == nil || !*responsesReq.Stream {
+				t.Fatalf("Stream = %#v, want true preserved", responsesReq.Stream)
+			}
+			if !testCase.wantReasoning {
+				if responsesReq.Reasoning != nil {
+					t.Fatalf("Reasoning = %#v, want stripped for K2.7 highspeed", responsesReq.Reasoning)
+				}
+				return
+			}
+			if responsesReq.Reasoning == nil || responsesReq.Reasoning.Effort != testCase.wantEffort {
+				t.Fatalf("Reasoning = %#v, want effort %q", responsesReq.Reasoning, testCase.wantEffort)
+			}
+		})
+	}
+}
+
+func TestConvertOpenAIRequestKeepsReasoningEffortForKimiForCoding(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	request := &dto.GeneralOpenAIRequest{
+		Model:           "kimi-for-coding",
+		Messages:        []dto.Message{{Role: "user", Content: "hi"}},
+		ReasoningEffort: "low",
+	}
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(c, &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "kimi-for-coding",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "kimi-coding-plan",
+			UpstreamModelName: "kimi-for-coding",
+		},
+	}, request)
+	if err != nil {
+		t.Fatalf("ConvertOpenAIRequest returned error: %v", err)
+	}
+	got := converted.(*dto.GeneralOpenAIRequest)
+	// kimi-for-coding 自 K2.8 Preview 起支持 low/high/max effort，不能再按 K2.7 剥离。
+	if got.ReasoningEffort != "low" {
+		t.Fatalf("reasoning_effort = %q, want low preserved for K2.8", got.ReasoningEffort)
+	}
+}
+
 func TestConvertOpenAIRequestKeepsOpenAIRequestForKimiCodingPlan(t *testing.T) {
 	t.Parallel()
 
@@ -263,9 +396,9 @@ func TestSetupRequestHeaderAppliesKimiCLICompatibilityHeaders(t *testing.T) {
 		"Authorization":  "Bearer kimi-key",
 		"Content-Type":   gin.MIMEJSON,
 		"Accept":         gin.MIMEJSON,
-		"User-Agent":     "kimi-code-cli/0.34.0",
+		"User-Agent":     "kimi-code-cli/2.0.0",
 		"X-Msh-Platform": "kimi_code_cli",
-		"X-Msh-Version":  "0.34.0",
+		"X-Msh-Version":  "2.0.0",
 	}
 	for name, want := range wantHeaders {
 		if got := headers.Get(name); got != want {
@@ -282,10 +415,13 @@ func TestSetupRequestHeaderAppliesKimiCLICompatibilityHeaders(t *testing.T) {
 			t.Errorf("%s = %q, want no Anthropic header on OpenAI request", name, got)
 		}
 	}
-	for _, name := range []string{"Cookie", "X-Client-Only", "X-Claude-Code-Session-Id"} {
+	for _, name := range []string{"Cookie", "X-Client-Only"} {
 		if got := headers.Get(name); got != "" {
 			t.Errorf("%s = %q, want client header removed from upstream request", name, got)
 		}
+	}
+	if got := headers.Get("X-Claude-Code-Session-Id"); got != "session-123" {
+		t.Errorf("X-Claude-Code-Session-Id = %q, want cache-affinity session header forwarded upstream", got)
 	}
 	if got := c.Request.Header.Get("X-Claude-Code-Session-Id"); got != "session-123" {
 		t.Fatalf("incoming session header = %q, want it preserved for local affinity/cache lookup", got)
@@ -344,7 +480,7 @@ func TestDoRequestAppliesKimiCodingHeaderPolicy(t *testing.T) {
 		{
 			name:              "empty override uses built-in headers",
 			headerOverride:    map[string]interface{}{},
-			wantUserAgent:     "kimi-code-cli/0.34.0",
+			wantUserAgent:     "kimi-code-cli/2.0.0",
 			wantAnthropicBeta: "",
 		},
 		{
@@ -414,10 +550,13 @@ func TestDoRequestAppliesKimiCodingHeaderPolicy(t *testing.T) {
 			if got := upstreamHeaders.Get("Accept"); got != gin.MIMEJSON {
 				t.Fatalf("Accept = %q, want %q", got, gin.MIMEJSON)
 			}
-			for _, name := range []string{"Cookie", "X-Client-Only", "X-Claude-Code-Session-Id"} {
+			for _, name := range []string{"Cookie", "X-Client-Only"} {
 				if got := upstreamHeaders.Get(name); got != "" {
 					t.Errorf("%s = %q, want client header removed from upstream request", name, got)
 				}
+			}
+			if got := upstreamHeaders.Get("X-Claude-Code-Session-Id"); got != "session-123" {
+				t.Errorf("X-Claude-Code-Session-Id = %q, want cache-affinity session header forwarded upstream", got)
 			}
 			if got := c.Request.Header.Get("X-Claude-Code-Session-Id"); got != "session-123" {
 				t.Fatalf("incoming session header = %q, want it preserved for local affinity/cache lookup", got)
@@ -426,7 +565,7 @@ func TestDoRequestAppliesKimiCodingHeaderPolicy(t *testing.T) {
 	}
 }
 
-func TestSetupRequestHeaderPassThroughUsesClientKimiHeadersWithoutDefaults(t *testing.T) {
+func TestSetupRequestHeaderPassThroughKeepsBuiltinKimiHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
@@ -446,15 +585,17 @@ func TestSetupRequestHeaderPassThroughUsesClientKimiHeadersWithoutDefaults(t *te
 	if err != nil {
 		t.Fatalf("SetupRequestHeader returned error: %v", err)
 	}
-	if got := headers.Get("User-Agent"); got != "custom-kimi-client" {
-		t.Fatalf("User-Agent = %q, want client value", got)
+	// 透传 body 模式同样使用内置指纹，客户端自带的 X-Msh 头不透传；
+	// 只有渠道 header_override 配置能覆盖默认值。
+	if got := headers.Get("User-Agent"); got != "kimi-code-cli/"+kimiCodeCLICompatibilityVersion {
+		t.Fatalf("User-Agent = %q, want built-in Kimi CLI fingerprint", got)
 	}
-	if got := headers.Get("X-Msh-Version"); got != "custom-version" {
-		t.Fatalf("X-Msh-Version = %q, want client value", got)
+	if got := headers.Get("X-Msh-Version"); got != kimiCodeCLICompatibilityVersion {
+		t.Fatalf("X-Msh-Version = %q, want built-in value %q", got, kimiCodeCLICompatibilityVersion)
 	}
-	for _, name := range []string{"X-Msh-Platform", "X-Msh-Device-Id", "anthropic-version", "x-app"} {
-		if got := headers.Get(name); got != "" {
-			t.Errorf("%s = %q, want no fixed pass-through value", name, got)
+	for _, name := range kimiCLIHeaderNames[1:] {
+		if got := headers.Get(name); got == "" {
+			t.Errorf("%s should carry the built-in fingerprint value", name)
 		}
 	}
 }
@@ -518,7 +659,8 @@ func TestConvertOpenAIRequestNormalizesKimiK3Parameters(t *testing.T) {
 }
 
 func TestNormalizeKimiK3Effort(t *testing.T) {
-	// 上游只接受 low/high/max 且默认 max：未识别值留空，显式低档位不能被抬到 max。
+	// 官方映射：minimum/light→low、medium→high、ultra/xhigh→max、none→关闭思考；
+	// 未识别值留空回落到模型默认（K3=high、K2.8=max）。
 	tests := []struct {
 		name   string
 		given  string
@@ -528,12 +670,15 @@ func TestNormalizeKimiK3Effort(t *testing.T) {
 		{name: "low", given: "low", wanted: "low"},
 		{name: "low padded uppercase", given: " LOW ", wanted: "low"},
 		{name: "minimal", given: "minimal", wanted: "low"},
-		{name: "none 无法关思考退到最低档", given: "none", wanted: "low"},
+		{name: "minimum", given: "minimum", wanted: "low"},
+		{name: "light", given: "light", wanted: "low"},
+		{name: "none 关闭思考", given: "none", wanted: "none"},
 		{name: "medium", given: "medium", wanted: "high"},
 		{name: "high", given: "high", wanted: "high"},
 		{name: "xhigh", given: "xhigh", wanted: "max"},
+		{name: "ultra", given: "ultra", wanted: "max"},
 		{name: "MAX uppercase", given: "MAX", wanted: "max"},
-		{name: "unknown falls back to upstream default", given: "ultra", wanted: ""},
+		{name: "unknown falls back to upstream default", given: "banana", wanted: ""},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -679,7 +824,7 @@ func TestConvertOpenAIRequestKeepsKimiCodingModelsInOpenAIFormat(t *testing.T) {
 		reasoning string
 	}{
 		{name: "K3", model: "k3", wantModel: "k3", reasoning: "max"},
-		{name: "K2.7", model: "kimi-for-coding", wantModel: "kimi-for-coding", maxTokens: moonshotPointer[uint](2048)},
+		{name: "K2.8", model: "kimi-for-coding", wantModel: "kimi-for-coding", maxTokens: moonshotPointer[uint](2048)},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
