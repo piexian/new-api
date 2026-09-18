@@ -65,6 +65,8 @@ const (
 	RelayModeOCR
 
 	RelayModeGeminiInteractions
+
+	RelayModeStepFunNative
 )
 
 func Path2RelayMode(path string) int {

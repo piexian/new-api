@@ -24,6 +24,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/opencode"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
 	"github.com/QuantumNous/new-api/relay/channel/qwentokenplan"
+	"github.com/QuantumNous/new-api/relay/channel/stepfun"
 	"github.com/QuantumNous/new-api/relay/channel/zenmux"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -1398,6 +1399,9 @@ func FetchModels(c *gin.Context) {
 	}
 	if req.Type == constant.ChannelTypeZenMux {
 		baseURL = zenmux.OpenAIBaseURL(baseURL)
+	}
+	if req.Type == constant.ChannelTypeStepFun {
+		baseURL = stepfun.OpenAIBaseURL(baseURL)
 	}
 	if req.Type == constant.ChannelTypeMistralConsole {
 		c.JSON(http.StatusOK, gin.H{

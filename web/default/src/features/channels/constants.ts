@@ -93,13 +93,14 @@ export const CHANNEL_TYPES = {
   72: 'Gemini Interactions',
   73: 'CLIProxyAPI',
   74: 'Groq',
+  75: 'StepFun',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   1, 14, 33, 24, 43, 68, 3, 41, 48, 42, 34, 20, 4, 40, 27, 25, 17, 69, 26, 15,
   46, 23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 67, 57, 58, 59, 22, 21,
   44, 2, 5, 36, 50, 51, 52, 53, 54, 55, 56, 60, 61, 62, 63, 64, 65, 66, 70, 71,
-  72, 73, 74,
+  72, 73, 74, 75,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -404,7 +405,7 @@ export const FIELD_DESCRIPTIONS = {
 // 注意：与 web/classic/src/constants/channel.constants.js 的 MODEL_FETCHABLE_CHANNEL_TYPES 为两份手工同步清单，新增渠道类型时需同时更新。
 export const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 17, 20, 23, 24, 25, 26, 27, 31, 34, 35, 40, 42, 43, 45, 47, 48, 58,
-  59, 62, 63, 64, 65, 66, 68, 69, 71, 72, 73,
+  59, 62, 63, 64, 65, 66, 68, 69, 71, 72, 73, 75,
 ])
 
 export function canFetchChannelModels(type: number, baseURL?: string | null) {

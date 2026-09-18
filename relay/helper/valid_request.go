@@ -59,6 +59,10 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request = &dto.BaseRequest{}
 	case types.RelayFormatMoarkNative:
 		request = &dto.BaseRequest{}
+	case types.RelayFormatStepFunNative:
+		request = &dto.BaseRequest{}
+	case types.RelayFormatStepFunWss:
+		request = &dto.BaseRequest{}
 	default:
 		return nil, fmt.Errorf("unsupported relay format: %s", format)
 	}

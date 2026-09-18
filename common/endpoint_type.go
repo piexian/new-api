@@ -78,6 +78,8 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
 	case constant.ChannelTypeXai:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
+	case constant.ChannelTypeStepFun:
+		endpointTypes = getStepFunEndpointTypes(modelName)
 	case constant.ChannelTypeMoark:
 		endpointTypes = getMoarkEndpointTypes(modelName)
 	case constant.ChannelTypeVolcEngine:
@@ -151,6 +153,28 @@ func prependEndpointType(endpointTypes []constant.EndpointType, endpointType con
 		}
 	}
 	return append([]constant.EndpointType{endpointType}, endpointTypes...)
+}
+
+// getStepFunEndpointTypes 依据上游协议能力快照推导 StepFun 渠道的模型端点类型。
+// 音频系模型标注语音/转写端点；确认仅支持 chat 的模型不再标注 Anthropic/Responses。
+func getStepFunEndpointTypes(modelName string) []constant.EndpointType {
+	normalized := strings.ToLower(strings.TrimSpace(modelName))
+	if stringListContainsFold(constant.StepFunSpeechModels, normalized) {
+		return []constant.EndpointType{constant.EndpointTypeAudioSpeech}
+	}
+	if stringListContainsFold(constant.StepFunTranscriptionModels, normalized) {
+		return []constant.EndpointType{constant.EndpointTypeAudioTranscription}
+	}
+	if stringListContainsFold(constant.StepFunChatOnlyModels, normalized) {
+		return []constant.EndpointType{constant.EndpointTypeOpenAI}
+	}
+	if !constant.StepFunModelSupportsMessages(normalized) {
+		return []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
+	}
+	if !constant.StepFunModelSupportsResponses(normalized) {
+		return []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeAnthropic}
+	}
+	return []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAIResponse}
 }
 
 func getMoarkEndpointTypes(modelName string) []constant.EndpointType {

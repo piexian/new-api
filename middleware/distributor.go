@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
+	"github.com/QuantumNous/new-api/relay/channel/stepfun"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -286,6 +287,18 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		modelRequest.Model = moarkNativeRouteModel(c, req)
 		c.Set("relay_mode", relayconstant.RelayModeMoarkNative)
+	} else if isStepFunNativeRoute(c.Request.Method, c.Request.URL.Path) {
+		// 原生端点：优先请求体（含嵌套字段），其次 ?model=（WebSocket 端点只有查询串）
+		modelRequest.Model = strings.TrimSpace(c.Query("model"))
+		if endpoint, ok := stepfun.LookupNativeEndpoint(c.Request.URL.Path, c.Request.Method); ok {
+			if resolved := stepfun.NativeRouteModel(stepFunNativeBody(c), c.Request.URL.Query(), endpoint); resolved != "" {
+				modelRequest.Model = resolved
+			}
+		}
+		if modelRequest.Model == "" {
+			modelRequest.Model = constant.StepFunNativeFallbackModel
+		}
+		c.Set("relay_mode", relayconstant.RelayModeStepFunNative)
 	} else if strings.Contains(c.Request.URL.Path, "/mj/") {
 		relayMode := relayconstant.Path2RelayModeMidjourney(c.Request.URL.Path)
 		if relayMode == relayconstant.RelayModeMidjourneyTaskFetch ||
@@ -515,6 +528,38 @@ func xAINativeRouteModel(path string, queryModel string) string {
 		return "grok-4.3"
 	}
 	return "grok-voice-latest"
+}
+
+// isStepFunNativeRoute 判断请求是否命中 StepFun 原生端点（音频/音乐/音色/文件/WebSocket）。
+func isStepFunNativeRoute(method, path string) bool {
+	// 先按路径族短路，避免在聊天等高频路径上做端点表查找
+	if !strings.HasPrefix(path, "/v1/audio/") && !strings.HasPrefix(path, "/v1/files") && path != "/v1/realtime/audio" {
+		return false
+	}
+	if _, ok := stepfun.LookupNativeEndpoint(path, method); ok {
+		return true
+	}
+	// WebSocket 原生端点只有 GET 握手
+	return method == http.MethodGet && stepfun.IsWssPath(path)
+}
+
+// stepFunNativeBody 读取请求体用于解析路由模型（可重复读取，不影响后续转发）。
+func stepFunNativeBody(c *gin.Context) []byte {
+	if c == nil || c.Request == nil || c.Request.ContentLength == 0 {
+		return nil
+	}
+	if !strings.HasPrefix(strings.ToLower(c.Request.Header.Get("Content-Type")), "application/json") {
+		return nil
+	}
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return nil
+	}
+	body, err := storage.Bytes()
+	if err != nil {
+		return nil
+	}
+	return body
 }
 
 func isMoarkNativeRoute(path string) bool {

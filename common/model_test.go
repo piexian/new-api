@@ -2,6 +2,7 @@ package common
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -24,6 +25,37 @@ func TestGetEndpointTypesByChannelTypeForCompactModel(t *testing.T) {
 	endpoints := GetEndpointTypesByChannelType(constant.ChannelTypeOpenAI, "gpt-5-openai-compact")
 	if len(endpoints) != 1 || endpoints[0] != constant.EndpointTypeOpenAIResponseCompact {
 		t.Fatalf("expected compact model to expose only response compact endpoint, got %#v", endpoints)
+	}
+}
+
+func TestGetEndpointTypesByChannelTypeForStepFun(t *testing.T) {
+	t.Parallel()
+
+	// 文本三端点：chat/messages/responses 全支持
+	triple := GetEndpointTypesByChannelType(constant.ChannelTypeStepFun, "step-3.7-flash")
+	if len(triple) != 3 {
+		t.Fatalf("expected triple endpoints for step-3.7-flash, got %#v", triple)
+	}
+	for _, want := range []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeAnthropic, constant.EndpointTypeOpenAIResponse} {
+		if !slices.Contains(triple, want) {
+			t.Fatalf("expected %s in %#v", want, triple)
+		}
+	}
+
+	// 上游 supported_protocols 只有 chat 的模型不再标注 Anthropic/Responses
+	chatOnly := GetEndpointTypesByChannelType(constant.ChannelTypeStepFun, "step-1o-turbo-vision")
+	if len(chatOnly) != 1 || chatOnly[0] != constant.EndpointTypeOpenAI {
+		t.Fatalf("expected chat-only endpoints, got %#v", chatOnly)
+	}
+
+	// 音频系模型标注语音/转写端点
+	speech := GetEndpointTypesByChannelType(constant.ChannelTypeStepFun, "stepaudio-3-tts")
+	if len(speech) != 1 || speech[0] != constant.EndpointTypeAudioSpeech {
+		t.Fatalf("expected audio-speech endpoint, got %#v", speech)
+	}
+	transcription := GetEndpointTypesByChannelType(constant.ChannelTypeStepFun, "stepaudio-2.5-asr")
+	if len(transcription) != 1 || transcription[0] != constant.EndpointTypeAudioTranscription {
+		t.Fatalf("expected audio-transcription endpoint, got %#v", transcription)
 	}
 }
 

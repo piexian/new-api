@@ -18,6 +18,8 @@ const (
 	RelayFormatXAI                                   = "xai"
 	RelayFormatXAIRealtime                           = "xai_realtime"
 	RelayFormatMoarkNative                           = "moark_native"
+	RelayFormatStepFunNative                         = "stepfun_native"
+	RelayFormatStepFunWss                            = "stepfun_wss"
 	RelayFormatOCR                                   = "ocr"
 
 	RelayFormatTask    = "task"

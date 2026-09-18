@@ -140,6 +140,21 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'OpenAI-compatible Chat/Responses/Audio endpoints with Groq-specific parameters such as reasoning_format passed through',
     },
   },
+  75: {
+    id: 75,
+    name: CHANNEL_TYPES[75],
+    icon: 'Stepfun.Color',
+    defaultBaseUrl: 'https://api.stepfun.com',
+    hints: {
+      baseUrl:
+        'Default: https://api.stepfun.com (or the stepfun / stepfun-intl / stepfun-step-plan / stepfun-intl-step-plan alias)',
+      key: 'StepFun API Key',
+      models:
+        'step-3.7-flash,step-3.5-flash,step-router-v1,stepaudio-2.5-tts,stepaudio-2.5-asr,stepaudio-3-music-preview',
+      other:
+        'Chat Completions, Anthropic Messages and OpenAI Responses are passed through natively. Native audio, music, voice and file endpoints are forwarded 1:1; add the stepfun-native model for endpoints that carry no model field. Music/generate/files are open-platform only.',
+    },
+  },
   69: {
     id: 69,
     name: CHANNEL_TYPES[69],

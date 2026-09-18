@@ -72,6 +72,7 @@ const (
 	ChannelTypeGeminiInteractions = 72
 	ChannelTypeCLIProxyAPI        = 73
 	ChannelTypeGroq               = 74
+	ChannelTypeStepFun            = 75
 	ChannelTypeDummy              // this one is only for count, do not add any channel after this
 
 )
@@ -152,6 +153,7 @@ var ChannelBaseURLs = []string{
 	"https://generativelanguage.googleapis.com",      //72
 	"",                            //73
 	"https://api.groq.com/openai", //74
+	StepFunRootCNBaseURL,          //75
 }
 
 var ChannelTypeNames = map[int]string{
@@ -226,6 +228,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeGeminiInteractions: "Gemini Interactions",
 	ChannelTypeCLIProxyAPI:        "CLIProxyAPI",
 	ChannelTypeGroq:               "Groq",
+	ChannelTypeStepFun:            "StepFun",
 }
 
 func GetChannelTypeName(channelType int) string {

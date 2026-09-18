@@ -358,6 +358,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeQwenTokenPlan:  true,
 	constant.ChannelTypeGMICloud:       true,
 	constant.ChannelTypeCLIProxyAPI:    true,
+	constant.ChannelTypeStepFun:        true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
@@ -470,6 +471,27 @@ func GenRelayInfoMoarkNative(c *gin.Context, request dto.Request) *RelayInfo {
 	if info.RelayMode == relayconstant.RelayModeUnknown {
 		info.RelayMode = relayconstant.RelayModeMoarkNative
 	}
+	return info
+}
+
+// GenRelayInfoStepFunNative 构造 StepFun 原生端点（音频/音乐/音色/文件）的 RelayInfo。
+func GenRelayInfoStepFunNative(c *gin.Context, request dto.Request) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	info.RelayFormat = types.RelayFormatStepFunNative
+	if info.RelayMode == relayconstant.RelayModeUnknown {
+		info.RelayMode = relayconstant.RelayModeStepFunNative
+	}
+	return info
+}
+
+// GenRelayInfoStepFunWss 构造 StepFun WebSocket 原生端点（流式 TTS / 双向 ASR / 双向对话）的 RelayInfo。
+func GenRelayInfoStepFunWss(c *gin.Context, ws *websocket.Conn) *RelayInfo {
+	info := genBaseRelayInfo(c, nil)
+	info.RelayFormat = types.RelayFormatStepFunWss
+	info.RelayMode = relayconstant.RelayModeStepFunNative
+	info.ClientWs = ws
+	info.IsStream = true
+	info.IsFirstRequest = true
 	return info
 }
 
@@ -633,6 +655,10 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoXAIRealtime(c, request, ws)
 	case types.RelayFormatMoarkNative:
 		info = GenRelayInfoMoarkNative(c, request)
+	case types.RelayFormatStepFunNative:
+		info = GenRelayInfoStepFunNative(c, request)
+	case types.RelayFormatStepFunWss:
+		info = GenRelayInfoStepFunWss(c, ws)
 	case types.RelayFormatOpenAIResponses:
 		if request, ok := request.(*dto.OpenAIResponsesRequest); ok {
 			info = GenRelayInfoResponses(c, request)

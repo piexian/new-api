@@ -61,6 +61,8 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 		err = relay.XAINativeHelper(c, info)
 	case relayconstant.RelayModeMoarkNative:
 		err = relay.MoarkNativeHelper(c, info)
+	case relayconstant.RelayModeStepFunNative:
+		err = relay.StepFunNativeHelper(c, info)
 	default:
 		err = relay.TextHelper(c, info)
 	}
@@ -105,7 +107,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
-			case types.RelayFormatOpenAIRealtime, types.RelayFormatXAIRealtime:
+			case types.RelayFormatOpenAIRealtime, types.RelayFormatXAIRealtime, types.RelayFormatStepFunWss:
 				helper.WssError(c, ws, newAPIError.ToClientOpenAIError(c))
 			case types.RelayFormatClaude:
 				c.JSON(newAPIError.StatusCode, gin.H{
@@ -255,6 +257,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = relay.WssHelper(c, relayInfo)
 		case types.RelayFormatXAIRealtime:
 			newAPIError = relay.XAINativeWssHelper(c, relayInfo)
+		case types.RelayFormatStepFunWss:
+			newAPIError = relay.StepFunNativeWssHelper(c, relayInfo)
 		case types.RelayFormatClaude:
 			newAPIError = relay.ClaudeHelper(c, relayInfo)
 		case types.RelayFormatGemini:
@@ -295,7 +299,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 }
 
 func isWebSocketRelayFormat(relayFormat types.RelayFormat) bool {
-	return relayFormat == types.RelayFormatOpenAIRealtime || relayFormat == types.RelayFormatXAIRealtime
+	return relayFormat == types.RelayFormatOpenAIRealtime || relayFormat == types.RelayFormatXAIRealtime ||
+		relayFormat == types.RelayFormatStepFunWss
 }
 
 var upgrader = websocket.Upgrader{

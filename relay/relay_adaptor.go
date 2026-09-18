@@ -41,6 +41,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/qwentokenplan"
 	"github.com/QuantumNous/new-api/relay/channel/replicate"
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
+	"github.com/QuantumNous/new-api/relay/channel/stepfun"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
 	taskagnes "github.com/QuantumNous/new-api/relay/channel/task/agnes"
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
@@ -167,6 +168,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &cliproxyapi.Adaptor{}
 	case constant.APITypeGroq:
 		return &groq.Adaptor{}
+	case constant.APITypeStepFun:
+		return &stepfun.Adaptor{}
 	}
 	return nil
 }

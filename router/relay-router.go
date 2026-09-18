@@ -5,6 +5,7 @@ import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/channel/stepfun"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -101,7 +102,19 @@ func SetRelayRouter(router *gin.Engine) {
 		wsRouter := relayV1Router.Group("")
 		wsRouter.Use(middleware.Distribute(), middleware.GroupConcurrencyLimit())
 		wsRouter.GET("/realtime", func(c *gin.Context) {
+			// StepFun 双向实时语音与 OpenAI Realtime 共用 /v1/realtime，按模型分派
+			if stepfun.IsRealtimeModel(c.Query("model")) {
+				controller.Relay(c, types.RelayFormatStepFunWss)
+				return
+			}
 			controller.Relay(c, types.RelayFormatOpenAIRealtime)
+		})
+		// StepFun 原生 WebSocket 端点（原始双向透传）
+		wsRouter.GET("/realtime/audio", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatStepFunWss)
+		})
+		wsRouter.GET("/audio/asr/stream", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatStepFunWss)
 		})
 		wsRouter.GET("/tts", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatXAIRealtime)
@@ -183,6 +196,28 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/audio/speech", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIAudio)
 		})
+
+		// StepFun native audio / music / voice routes（入站路径与上游 1:1，仅 StepFun 渠道生效）
+		for _, route := range []struct {
+			method string
+			path   string
+		}{
+			{"POST", "/audio/generate"},
+			{"POST", "/audio/music/submit"},
+			{"POST", "/audio/music/query"},
+			{"POST", "/audio/asr/sse"},
+			{"POST", "/audio/asr/file/submit"},
+			{"POST", "/audio/asr/file/query"},
+			{"POST", "/audio/voices"},
+			{"GET", "/audio/voices"},
+			{"POST", "/audio/voices/preview"},
+			{"GET", "/audio/system_voices"},
+		} {
+			method, path := route.method, route.path
+			httpRouter.Handle(method, path, func(c *gin.Context) {
+				controller.Relay(c, types.RelayFormatStepFunNative)
+			})
+		}
 
 		// Moark native async/task routes
 		httpRouter.POST("/async/*path", func(c *gin.Context) {
@@ -278,11 +313,15 @@ func SetRelayRouter(router *gin.Engine) {
 
 		// not implemented
 		httpRouter.POST("/images/variations", controller.RelayNotImplemented)
-		httpRouter.GET("/files", controller.RelayNotImplemented)
-		httpRouter.POST("/files", controller.RelayNotImplemented)
-		httpRouter.DELETE("/files/:id", controller.RelayNotImplemented)
-		httpRouter.GET("/files/:id", controller.RelayNotImplemented)
-		httpRouter.GET("/files/:id/content", controller.RelayNotImplemented)
+		// StepFun Files（音色复刻前置依赖）：非 StepFun 渠道由 handler 返回等价的未实现语义
+		stepFunFilesRelay := func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatStepFunNative)
+		}
+		httpRouter.GET("/files", stepFunFilesRelay)
+		httpRouter.POST("/files", stepFunFilesRelay)
+		httpRouter.DELETE("/files/:id", stepFunFilesRelay)
+		httpRouter.GET("/files/:id", stepFunFilesRelay)
+		httpRouter.GET("/files/:id/content", stepFunFilesRelay)
 		httpRouter.POST("/fine-tunes", controller.RelayNotImplemented)
 		httpRouter.GET("/fine-tunes", controller.RelayNotImplemented)
 		httpRouter.GET("/fine-tunes/:id", controller.RelayNotImplemented)
