@@ -243,6 +243,15 @@ func renderGeminiError(c *gin.Context, statusCode int, status string, message st
 	})
 }
 
+// anthropicListBounds 返回 Anthropic /v1/models 列表游标的首尾 ID。
+// 空列表与上游一致返回 null，避免对空切片索引导致 panic。
+func anthropicListBounds(models []dto.AnthropicModel) (any, any) {
+	if len(models) == 0 {
+		return nil, nil
+	}
+	return models[0].ID, models[len(models)-1].ID
+}
+
 func channelOwnerName(channelType int) string {
 	apiType, success := common.ChannelType2APIType(channelType)
 	if !success {
@@ -415,11 +424,12 @@ func ListModels(c *gin.Context, modelType int) {
 				Type:        "model",
 			}
 		}
+		firstID, lastID := anthropicListBounds(useranthropicModels)
 		c.JSON(200, gin.H{
 			"data":     useranthropicModels,
-			"first_id": useranthropicModels[0].ID,
+			"first_id": firstID,
 			"has_more": false,
-			"last_id":  useranthropicModels[len(useranthropicModels)-1].ID,
+			"last_id":  lastID,
 		})
 	case constant.ChannelTypeGemini:
 		userGeminiModels := make([]dto.GeminiModel, len(userOpenAiModels))
