@@ -6,10 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// ZCode 客户端版本对齐 ZCode Desktop 3.11.2 内置常量（X-Client-Version /
+// ZCode 客户端版本对齐 ZCode Desktop 3.12.3 内置常量（X-Client-Version /
 // X-ZCode-App-Version / UA 同源）。服务端 forceUpdate.minimalVersion=3.5.3
 // 仅为强制更新下限，指纹取当前最新版而非下限。
-const zcodeClientVersion = "3.11.2"
+const zcodeClientVersion = "3.12.3"
 
 // setupZCodeTraceHeaders 清除 Claude 系客户端指纹头并写入 ZCode 请求级
 // tracing 头。Coding Plan 渠道的默认（非 ZCode 模式）行为。
