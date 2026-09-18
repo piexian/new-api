@@ -47,9 +47,13 @@ func IsGrokViolationFeeContext(relayInfo *relaycommon.RelayInfo) bool {
 	if channelType == constant.ChannelTypeXai {
 		return true
 	}
+	// UpstreamModelName 是 ChannelMeta 的字段（经嵌入指针提升），ChannelMeta 未
+	// 初始化（如选渠道前即报错的路径）时直接访问会 nil deref，必须判空。
+	if relayInfo.ChannelMeta == nil {
+		return common.IsGrokModel(relayInfo.OriginModelName)
+	}
 	return common.IsGrokModel(relayInfo.OriginModelName) ||
-		common.IsGrokModel(relayInfo.UpstreamModelName) ||
-		(relayInfo.ChannelMeta != nil && common.IsGrokModel(relayInfo.ChannelMeta.UpstreamModelName))
+		common.IsGrokModel(relayInfo.ChannelMeta.UpstreamModelName)
 }
 
 func IsGrokViolationFeeContextFromFields(channelType int, modelNames ...string) bool {

@@ -5072,7 +5072,7 @@ export function ChannelMutateDrawer({
                                         <FormLabel>{t('ZCode Mode')}</FormLabel>
                                         <FormDescription>
                                           {t(
-                                            'Route all LLM requests via /v1/messages with the ZCode client fingerprint (GLM Coding Plan channels only)'
+                                            'Only accept /v1/messages (Claude format) requests with the ZCode client fingerprint; other formats are rejected (GLM Coding Plan channels only)'
                                           )}
                                         </FormDescription>
                                       </div>

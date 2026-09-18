@@ -12,11 +12,13 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
+	"github.com/QuantumNous/new-api/relay/channel/zhipu_4v"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -213,6 +215,26 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			logger.LogError(c, channelErr.Error())
 			newAPIError = channelErr
 			break
+		}
+
+		// ZCode 模式渠道仅接受 Claude Messages(/v1/messages) 入站，其余格式直接拒绝：
+		// 协议转换会丢失 ZCode 客户端指纹，导致 Coding Plan 客户端权益失效。
+		// 判定取 gin context（SetupContextForSelectedChannel 写入）：getChannel 在
+		// ChannelMeta==nil 时返回的轻量渠道不含 Setting/BaseURL，直接用会静默放行。
+		if relayFormat != types.RelayFormatClaude {
+			channelSetting, _ := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+			if zhipu_4v.IsZCodeModeChannel(
+				common.GetContextKeyInt(c, constant.ContextKeyChannelType),
+				common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl),
+				channelSetting,
+			) {
+				newAPIError = types.NewErrorWithStatusCode(
+					errors.New(i18n.T(c, i18n.MsgDistributorZCodeModeClaudeOnly)),
+					types.ErrorCodeInvalidRequest,
+					http.StatusBadRequest,
+					types.ErrOptionWithSkipRetry())
+				break
+			}
 		}
 
 		addUsedChannel(c, channel.Id)

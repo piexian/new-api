@@ -5310,6 +5310,7 @@
     "Upstream": "上游",
     "Upstream OpenAI Compat": "上游 OpenAI 相容直傳",
     "Send OpenAI chat requests straight to the upstream OpenAI-compatible endpoint (Gemini channels only)": "開啟後 OpenAI 格式對話請求直接轉發到上游 OpenAI 相容端點，不再做協議轉換（僅 Gemini 系渠道）",
+    "Only accept /v1/messages (Claude format) requests with the ZCode client fingerprint; other formats are rejected (GLM Coding Plan channels only)": "僅接受 /v1/messages（Claude 格式）請求並攜帶 ZCode 客戶端指紋，其餘格式將被拒絕（僅 GLM Coding Plan 渠道）",
     "Upstream did not return reset credit details.": "上游未返回重置次數詳情。",
     "Upstream Model Detection Settings": "偵測上游模型設定",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "上游模型檢測任務已開始。可在「系統資訊」中查看進度，完成後重新整理以查看待處理的更新。",

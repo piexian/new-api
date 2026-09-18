@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/xai"
+	"github.com/QuantumNous/new-api/relay/channel/zhipu_4v"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -144,7 +145,11 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 	}
 
-	if !model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
+	// ZCode 模式渠道禁 Responses 重路由与请求体透传：保证上游只收到官方化
+	// 处理后的 /v1/messages（协议转换会丢失 ZCode 指纹权益）。
+	zcodeMode := zhipu_4v.IsZCodeModeChannel(info.ChannelType, info.ChannelBaseUrl, info.ChannelSetting)
+	if !zcodeMode &&
+		!model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
 		!info.ChannelSetting.PassThroughBodyEnabled &&
 		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelSetting, info.ChannelId, info.ChannelType, info.OriginModelName) {
 		result, convErr := service.ConvertRequest(c, info, types.RelayFormatOpenAI, request)
@@ -166,7 +171,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	var requestBody io.Reader
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	if !zcodeMode && (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) {
 		body, size, err := relaycommon.PassThroughRequestBody(c, info)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())

@@ -3159,7 +3159,7 @@ const EditChannelModal = (props) => {
                         handleChannelSettingsChange('zcode_mode_enabled', value)
                       }
                       extraText={t(
-                        '开启后全部 LLM 请求固定转换为 /v1/messages 并携带 ZCode 客户端指纹；关闭保持原有透传逻辑（仅 GLM Coding Plan 渠道）',
+                        '开启后仅接受 /v1/messages（Claude 格式）请求并携带 ZCode 客户端指纹，其余格式请求将被拒绝；关闭保持原有透传逻辑（仅 GLM Coding Plan 渠道）',
                       )}
                     />
                   )}

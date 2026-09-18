@@ -99,28 +99,42 @@ func isZhipuCodingPlan(info *relaycommon.RelayInfo) bool {
 	if info == nil {
 		return false
 	}
-	baseURL := strings.TrimRight(strings.TrimSpace(info.ChannelBaseUrl), "/")
+	return isZhipuCodingPlanBase(info.ChannelBaseUrl)
+}
+
+func isZhipuCodingPlanBase(baseURL string) bool {
+	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	for _, alias := range zhipuCodingPlanAliases() {
-		if baseURL == alias {
+		if normalized == alias {
 			return true
 		}
 	}
 	for _, specialBase := range zhipuCodingPlanBases() {
-		if baseURL == strings.TrimRight(specialBase.ClaudeBaseURL, "/") ||
-			baseURL == strings.TrimRight(specialBase.OpenAIBaseURL, "/") {
+		if normalized == strings.TrimRight(specialBase.ClaudeBaseURL, "/") ||
+			normalized == strings.TrimRight(specialBase.OpenAIBaseURL, "/") {
 			return true
 		}
 	}
 	return false
 }
 
-// isZhipuZcodeMode 判定 Coding Plan 渠道是否开启 ZCode 模式：开启后全部 LLM 请求
-// 固定转 /v1/messages 并注入 ZCode 设备指纹；关闭保持原有透传逻辑。
+// isZhipuZcodeMode 判定 Coding Plan 渠道是否开启 ZCode 模式：开启后仅接受
+// Claude Messages(/v1/messages) 入站并注入 ZCode 设备指纹；关闭保持原有透传逻辑。
 func isZhipuZcodeMode(info *relaycommon.RelayInfo) bool {
 	if !isZhipuCodingPlan(info) {
 		return false
 	}
 	return info.ChannelSetting.ZcodeModeEnabled
+}
+
+// IsZCodeModeChannel 按渠道类型、base 与设置判定渠道是否处于 ZCode 模式。
+// ZCode 模式渠道仅接受 Claude Messages(/v1/messages) 入站：协议转换会丢失
+// ZCode 客户端指纹，导致 Coding Plan 客户端权益（夜间 0 扣费、1.5× 加成）失效。
+func IsZCodeModeChannel(channelType int, baseURL string, setting dto.ChannelSettings) bool {
+	if channelType != channelconstant.ChannelTypeZhipu_v4 || !setting.ZcodeModeEnabled {
+		return false
+	}
+	return isZhipuCodingPlanBase(baseURL)
 }
 
 func zhipuSpecialBase(baseURL string) (channelconstant.ChannelSpecialBase, bool) {
@@ -152,7 +166,12 @@ func setupZhipuClaudeCompatibleHeaders(c *gin.Context, req *http.Header, info *r
 	req.Set("anthropic-version", anthropicVersion)
 	claude.CommonClaudeHeadersOperation(c, req, info)
 	if isZhipuZcodeMode(info) {
-		setupZCodeCompatibilityHeaders(req)
+		// 归一为官方形态：AI SDK 恒发 application/json（流式由 body.stream 决定），
+		// 官方对 GLM 不带 anthropic-beta；下游二手转换带入的客户端头在此清除。
+		req.Set("Content-Type", "application/json")
+		req.Set("Accept", "application/json")
+		req.Del("anthropic-beta")
+		setupZCodeCompatibilityHeaders(req, info)
 	} else if isZhipuCodingPlan(info) {
 		setupZCodeTraceHeaders(req)
 	}
@@ -164,6 +183,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
+	applyZCodeBodyFingerprint(info, req)
 	return req, nil
 }
 
@@ -237,7 +257,14 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 	if shouldUseZhipuClaudeCompatibleAPI(info) {
 		adaptor := claude.Adaptor{}
-		return adaptor.ConvertOpenAIRequest(c, info, request)
+		converted, err := adaptor.ConvertOpenAIRequest(c, info, request)
+		if err != nil {
+			return nil, err
+		}
+		if claudeReq, ok := converted.(*dto.ClaudeRequest); ok {
+			applyZCodeBodyFingerprint(info, claudeReq)
+		}
+		return converted, nil
 	}
 	if lo.FromPtrOr(request.TopP, 0) >= 1 {
 		request.TopP = lo.ToPtr(0.99)
@@ -261,7 +288,12 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	// ZCode 模式下 Responses 入站也固定转 Claude Messages，不走 OpenAI 直连。
 	if shouldUseZhipuClaudeCompatibleAPI(info) && (info.RelayFormat != types.RelayFormatOpenAI || isZhipuZcodeMode(info)) {
 		info.FinalRequestRelayFormat = types.RelayFormatClaude
-		return relayconvert.OpenAIResponsesRequestToClaudeMessages(c, &request)
+		converted, err := relayconvert.OpenAIResponsesRequestToClaudeMessages(c, &request)
+		if err != nil {
+			return nil, err
+		}
+		applyZCodeBodyFingerprint(info, converted)
+		return converted, nil
 	}
 	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
 	if err != nil {

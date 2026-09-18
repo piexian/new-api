@@ -184,3 +184,19 @@ func assertViolationFeeCharge(t *testing.T, initialQuota int, expectedQuota int,
 		require.NotContains(t, other, "upstream_cost_usd")
 	}
 }
+
+func TestIsGrokViolationFeeContextNilChannelMeta(t *testing.T) {
+	// ChannelMeta 未初始化（如选渠道前即报错的路径）时不得 panic
+	require.NotPanics(t, func() {
+		if IsGrokViolationFeeContext(&relaycommon.RelayInfo{OriginModelName: "gpt-4o"}) {
+			t.Fatal("非 grok 模型应返回 false")
+		}
+		if !IsGrokViolationFeeContext(&relaycommon.RelayInfo{OriginModelName: "grok-4"}) {
+			t.Fatal("grok 模型名应返回 true")
+		}
+	})
+	require.NotPanics(t, func() {
+		NormalizeViolationFeeErrorForRelay(&relaycommon.RelayInfo{OriginModelName: "gpt-4o"},
+			types.NewError(errors.New("x"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry()))
+	})
+}

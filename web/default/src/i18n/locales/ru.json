@@ -5310,6 +5310,7 @@
     "Upstream": "Источник",
     "Upstream OpenAI Compat": "Прямая передача в совместимый OpenAI интерфейс",
     "Send OpenAI chat requests straight to the upstream OpenAI-compatible endpoint (Gemini channels only)": "Отправлять OpenAI-запросы чата напрямую в совместимый с OpenAI эндпоинт апстрима (только каналы Gemini)",
+    "Only accept /v1/messages (Claude format) requests with the ZCode client fingerprint; other formats are rejected (GLM Coding Plan channels only)": "Принимаются только запросы /v1/messages (формат Claude) с клиентским отпечатком ZCode; остальные форматы отклоняются (только каналы GLM Coding Plan)",
     "Upstream did not return reset credit details.": "Вышестоящий сервис не вернул сведения о сбросах лимита.",
     "Upstream Model Detection Settings": "Настройки обнаружения моделей провайдера",
     "Upstream model detection task started. Track progress in System Info, then refresh to review staged updates.": "Задача обнаружения моделей вышестоящего источника запущена. Следите за ходом в разделе «Информация о системе», затем обновите, чтобы просмотреть подготовленные изменения.",

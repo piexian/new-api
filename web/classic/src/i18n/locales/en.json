@@ -2245,7 +2245,7 @@
     "开启后，该渠道请求 Claude 时将强制追加 ?beta=true（无需客户端手动传参）": "When enabled, requests to Claude through this channel will force append ?beta=true (no need for clients to pass this parameter manually)",
     "开启后，违规请求将额外扣费。": "When enabled, violation requests will incur additional charges.",
     "开启后不限制：必须设置模型倍率": "After enabling, no limit: must set model ratio",
-    "开启后全部 LLM 请求固定转换为 /v1/messages 并携带 ZCode 客户端指纹；关闭保持原有透传逻辑（仅 GLM Coding Plan 渠道）": "When enabled, all LLM requests are fixed to /v1/messages with the ZCode client fingerprint; when disabled, the original passthrough behavior is kept (GLM Coding Plan channels only)",
+    "开启后仅接受 /v1/messages（Claude 格式）请求并携带 ZCode 客户端指纹，其余格式请求将被拒绝；关闭保持原有透传逻辑（仅 GLM Coding Plan 渠道）": "When enabled, only /v1/messages (Claude format) requests are accepted with the ZCode client fingerprint; other formats are rejected. When disabled, the original passthrough behavior is kept (GLM Coding Plan channels only)",
     "开启后创建令牌默认选择auto分组，初始令牌也将设为auto": "When enabled, new tokens default to auto group, initial tokens are also set to auto",
     "开启后未登录用户无法访问排行榜": "When enabled, unauthenticated users cannot access rankings",
     "开启后未登录用户无法访问模型广场": "When enabled, unauthenticated users cannot access the model marketplace",

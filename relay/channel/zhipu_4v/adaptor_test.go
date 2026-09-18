@@ -105,6 +105,37 @@ func TestSetupRequestHeaderUsesClaudeCompatibleHeadersForClaudeModel(t *testing.
 	}
 }
 
+func TestIsZCodeModeChannel(t *testing.T) {
+	t.Parallel()
+
+	zcodeOn := dto.ChannelSettings{ZcodeModeEnabled: true}
+	tests := []struct {
+		name        string
+		channelType int
+		baseURL     string
+		setting     dto.ChannelSettings
+		want        bool
+	}{
+		{"coding plan alias + zcode on", constant.ChannelTypeZhipu_v4, "glm-coding-plan", zcodeOn, true},
+		{"international alias + zcode on", constant.ChannelTypeZhipu_v4, "glm-coding-plan-international", zcodeOn, true},
+		{"start plan alias + zcode on", constant.ChannelTypeZhipu_v4, zcodeStartPlanBaseURL, zcodeOn, true},
+		{"coding plan claude URL + zcode on", constant.ChannelTypeZhipu_v4, constant.ChannelSpecialBases["glm-coding-plan"].ClaudeBaseURL, zcodeOn, true},
+		{"trailing slash tolerated", constant.ChannelTypeZhipu_v4, "glm-coding-plan/", zcodeOn, true},
+		{"coding plan alias + zcode off", constant.ChannelTypeZhipu_v4, "glm-coding-plan", dto.ChannelSettings{}, false},
+		{"default zhipu base + zcode on", constant.ChannelTypeZhipu_v4, "https://open.bigmodel.cn", zcodeOn, false},
+		{"wrong channel type", constant.ChannelTypeOpenAI, "glm-coding-plan", zcodeOn, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := IsZCodeModeChannel(tt.channelType, tt.baseURL, tt.setting); got != tt.want {
+				t.Fatalf("IsZCodeModeChannel(%d, %q, %+v) = %v, want %v", tt.channelType, tt.baseURL, tt.setting, got, tt.want)
+			}
+		})
+	}
+
+}
+
 func TestSetupRequestHeaderAddsZCodeFingerprintForCodingPlan(t *testing.T) {
 	t.Parallel()
 
