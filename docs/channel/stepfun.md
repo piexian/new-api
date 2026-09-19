@@ -12,4 +12,9 @@
 - 无 `model` 字段的端点（`/v1/files*`、音色列表等）使用伪模型 `stepfun-native` 路由：需加入渠道模型清单（"填入所有模型"已包含），若令牌开启了模型白名单也需一并放行；查询类端点也可由客户端在请求体或 `?model=` 里带上模型名替代。
 - WebSocket 原生端点原始双向透传（帧级转发，不改写事件）：`/v1/realtime/audio`（流式 TTS）、`/v1/audio/asr/stream`（双向流式识别，仅开放平台）、`/v1/realtime`（双向实时语音，按模型名 `stepaudio-*-realtime` 与 OpenAI Realtime 共用路径分派）。查询串原样转发（`?model=` 是上游必需参数）；上游 WS 不回用量，按请求体估算 prompt token 计费，建议为 WS 模型配置固定价格。
 - 通道能力差异（实测）：Step Plan 通道仅提供文本三端点 + `audio/speech` + `audio/asr/sse` + `audio/voices` + `realtime/audio`；音乐、音频生成、ASR 文件异步、`system_voices`、`files`、`voices/preview` 仅开放平台提供，网关侧直接 400。
-- 待实测项（账号额度限制）：`return_url` 音频下载域名、音乐/音频生成成功态载荷、`tool_choice` 是否可放宽。
+- 生成端点实测（2026-09-19，stepaudio-3-gen-preview / stepaudio-3-music-preview）：
+  - `POST /v1/audio/generate` 默认返回 `audio/mpeg` 二进制（113 KB ≈ 7.1 s @128 kbps/24 kHz 单声道），客户端等待 ≈38 s，网关原样转发。
+  - `POST /v1/audio/music/submit` 约 0.1 s 返回 `task_id`；`query` 轮询 PENDING→RUNNING→SUCCESS 约 16 s。
+  - 音乐 SUCCESS 载荷实测为 `{status, task, model_id, caption, lyrics, response_format, audio(Base64)}`：**没有** `sample_rate`、`rewritten_caption`、`rewritten_lyrics`（与官方文档描述不一致，网关不做补字段，原样透传）；音频为 48 kHz 立体声 MP3。
+  - 查询类端点实测不计费（仅 submit 产生一条计费记录）；提交类按渠道配置的固定价格计费。
+- 待实测项：TTS `return_url` 的音频下载域名（需一次成功调用带 `return_url=true`）、Messages 入站 `tool_choice` 是否可放宽、WebSocket 三端点的真机会话收发。
