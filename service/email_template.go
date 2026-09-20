@@ -82,7 +82,7 @@ type defaultEmailTemplate struct {
 var (
 	emailTemplateWriteMutex       sync.Mutex
 	emailTemplateTokenRegex       = regexp.MustCompile(`\{\{\s*([^{}]+?)\s*\}\}`)
-	emailTemplateBasePlaceholders = []string{"site_name", "site_url", "logo_url", "recipient_email", "provider", "sent_at", "current_year"}
+	emailTemplateBasePlaceholders = []string{"site_name", "site_url", "logo_url", "recipient_email", "provider", "sent_at", "current_year", "notification_settings_url"}
 	emailTemplateEvents           = []EmailTemplateEventInfo{
 		{Event: EmailTemplateEventVerification, Placeholders: emailTemplatePlaceholders("code", "valid_minutes", "verification_purpose")},
 		{Event: EmailTemplateEventPasswordReset, Placeholders: emailTemplatePlaceholders("reset_url", "valid_minutes")},
@@ -424,6 +424,9 @@ func SendTemplatedEmail(event, locale, receiver string, variables map[string]str
 	if strings.TrimSpace(values["site_url"]) == "" {
 		values["site_url"] = currentEmailSiteURL()
 	}
+	if strings.TrimSpace(values["notification_settings_url"]) == "" {
+		values["notification_settings_url"] = GetNotificationSettingsURL()
+	}
 	if strings.TrimSpace(values["recipient_email"]) == "" {
 		values["recipient_email"] = strings.TrimSpace(receiver)
 	}
@@ -458,84 +461,85 @@ func PreviewEmailTemplate(event, locale, subject, htmlContent string) (RenderedE
 
 func SampleEmailTemplateVariables(event string) map[string]string {
 	values := map[string]string{
-		"site_name":               currentEmailSiteName(),
-		"site_url":                currentEmailSiteURL(),
-		"logo_url":                currentEmailLogoURL(),
-		"recipient_email":         "user@example.com",
-		"provider":                strings.ToUpper(currentEmailProvider()),
-		"sent_at":                 time.Now().Format(time.RFC1123),
-		"current_year":            fmt.Sprintf("%d", time.Now().Year()),
-		"code":                    "482915",
-		"valid_minutes":           fmt.Sprintf("%d", common.VerificationValidMinutes),
-		"verification_purpose":    "register",
-		"reset_url":               "https://example.com/user/reset?token=preview",
-		"user_id":                 "42",
-		"current_balance":         "$4.20",
-		"threshold":               "$10.00",
-		"recharge_url":            GetBalanceLowRechargeURL(),
-		"quota_status":            "running low",
-		"subscription_id":         "108",
-		"subscription_name":       "Pro",
-		"plan_id":                 "12",
-		"amount_total":            "$100.00",
-		"start_at":                time.Now().Format(time.RFC1123),
-		"end_at":                  time.Now().AddDate(0, 1, 0).Format(time.RFC1123),
-		"next_reset_at":           time.Now().Add(24 * time.Hour).Format(time.RFC1123),
-		"reset_period":            "daily",
-		"reset_at":                time.Now().Add(2 * time.Hour).Format(time.RFC1123),
-		"reset_in":                "2 hours",
-		"subscription_source":     "order",
-		"expired_at":              time.Now().Format(time.RFC1123),
-		"allow_wallet_overflow":   "yes",
-		"order_no":                "ORDER-20260721-001",
-		"quota_added":             "$25.00",
-		"payment_amount":          "25.00",
-		"payment_method":          "card",
-		"payment_provider":        "stripe",
-		"completed_at":            time.Now().Format(time.RFC1123),
-		"username":                "example-user",
-		"display_name":            "Example User",
-		"disable_reason":          "Terms of service violation",
-		"disabled_at":             time.Now().Format(time.RFC1123),
-		"channel_id":              "12",
-		"channel_name":            "Primary OpenAI",
-		"channel_type":            "1",
-		"reason":                  "Upstream returned HTTP 429",
-		"cooldown_until":          time.Now().Add(time.Hour).Format(time.RFC3339),
-		"test_mode":               "all",
-		"tested_channels":         "24",
-		"succeeded_channels":      "21",
-		"failed_channels":         "3",
-		"disabled_channels":       "2",
-		"enabled_channels":        "1",
-		"checked_channels":        "48",
-		"changed_channels":        "4",
-		"detected_add_models":     "7",
-		"detected_remove_models":  "2",
-		"auto_added_models":       "5",
-		"changed_channel_details": "Primary OpenAI (+2 / -1)\nBackup provider (+5 / -1)",
-		"added_model_samples":     "gpt-5, gpt-5-mini, o3",
-		"removed_model_samples":   "gpt-4-0314, text-davinci-003",
-		"failed_channel_ids":      "18, 31, 44",
-		"notification_type":       "system.notice",
-		"notification_title":      "System notification",
-		"notification_content":    "A system event requires your attention.",
-		"ban_source":              "error_ban",
-		"ban_reason":              "Repeated upstream authentication failures",
-		"is_permanent":            "no",
-		"ban_type":                "Temporary",
-		"ban_duration":            "240 分钟",
-		"banned_at":               time.Now().Format(time.RFC1123),
-		"unban_at":                time.Now().Add(4 * time.Hour).Format(time.RFC1123),
-		"offense_count":           "2",
-		"tier_level":              "2",
-		"tier_action":             "temp_ip_ban",
-		"rule_id":                 "invalid_api_key",
-		"rule_name":               "Invalid API key",
-		"error_sample":            "status_code=401, invalid_api_key: incorrect api key provided",
-		"triggered_models":        "gpt-5, claude-3-5-sonnet",
-		"trigger_ip":              "203.0.113.42",
-		"appeal_hint":             "如认为误封，请联系管理员。",
+		"site_name":                 currentEmailSiteName(),
+		"site_url":                  currentEmailSiteURL(),
+		"logo_url":                  currentEmailLogoURL(),
+		"recipient_email":           "user@example.com",
+		"provider":                  strings.ToUpper(currentEmailProvider()),
+		"sent_at":                   time.Now().Format(time.RFC1123),
+		"current_year":              fmt.Sprintf("%d", time.Now().Year()),
+		"code":                      "482915",
+		"valid_minutes":             fmt.Sprintf("%d", common.VerificationValidMinutes),
+		"verification_purpose":      "register",
+		"reset_url":                 "https://example.com/user/reset?token=preview",
+		"user_id":                   "42",
+		"current_balance":           "$4.20",
+		"threshold":                 "$10.00",
+		"recharge_url":              GetBalanceLowRechargeURL(),
+		"notification_settings_url": GetNotificationSettingsURL(),
+		"quota_status":              "running low",
+		"subscription_id":           "108",
+		"subscription_name":         "Pro",
+		"plan_id":                   "12",
+		"amount_total":              "$100.00",
+		"start_at":                  time.Now().Format(time.RFC1123),
+		"end_at":                    time.Now().AddDate(0, 1, 0).Format(time.RFC1123),
+		"next_reset_at":             time.Now().Add(24 * time.Hour).Format(time.RFC1123),
+		"reset_period":              "daily",
+		"reset_at":                  time.Now().Add(2 * time.Hour).Format(time.RFC1123),
+		"reset_in":                  "2 hours",
+		"subscription_source":       "order",
+		"expired_at":                time.Now().Format(time.RFC1123),
+		"allow_wallet_overflow":     "yes",
+		"order_no":                  "ORDER-20260721-001",
+		"quota_added":               "$25.00",
+		"payment_amount":            "25.00",
+		"payment_method":            "card",
+		"payment_provider":          "stripe",
+		"completed_at":              time.Now().Format(time.RFC1123),
+		"username":                  "example-user",
+		"display_name":              "Example User",
+		"disable_reason":            "Terms of service violation",
+		"disabled_at":               time.Now().Format(time.RFC1123),
+		"channel_id":                "12",
+		"channel_name":              "Primary OpenAI",
+		"channel_type":              "1",
+		"reason":                    "Upstream returned HTTP 429",
+		"cooldown_until":            time.Now().Add(time.Hour).Format(time.RFC3339),
+		"test_mode":                 "all",
+		"tested_channels":           "24",
+		"succeeded_channels":        "21",
+		"failed_channels":           "3",
+		"disabled_channels":         "2",
+		"enabled_channels":          "1",
+		"checked_channels":          "48",
+		"changed_channels":          "4",
+		"detected_add_models":       "7",
+		"detected_remove_models":    "2",
+		"auto_added_models":         "5",
+		"changed_channel_details":   "Primary OpenAI (+2 / -1)\nBackup provider (+5 / -1)",
+		"added_model_samples":       "gpt-5, gpt-5-mini, o3",
+		"removed_model_samples":     "gpt-4-0314, text-davinci-003",
+		"failed_channel_ids":        "18, 31, 44",
+		"notification_type":         "system.notice",
+		"notification_title":        "System notification",
+		"notification_content":      "A system event requires your attention.",
+		"ban_source":                "error_ban",
+		"ban_reason":                "Repeated upstream authentication failures",
+		"is_permanent":              "no",
+		"ban_type":                  "Temporary",
+		"ban_duration":              "240 分钟",
+		"banned_at":                 time.Now().Format(time.RFC1123),
+		"unban_at":                  time.Now().Add(4 * time.Hour).Format(time.RFC1123),
+		"offense_count":             "2",
+		"tier_level":                "2",
+		"tier_action":               "temp_ip_ban",
+		"rule_id":                   "invalid_api_key",
+		"rule_name":                 "Invalid API key",
+		"error_sample":              "status_code=401, invalid_api_key: incorrect api key provided",
+		"triggered_models":          "gpt-5, claude-3-5-sonnet",
+		"trigger_ip":                "203.0.113.42",
+		"appeal_hint":               "如认为误封，请联系管理员。",
 	}
 	return values
 }
@@ -571,6 +575,18 @@ func GetBalanceLowRechargeURL() string {
 		return ""
 	}
 	return rechargeURL
+}
+
+// GetNotificationSettingsURL 返回通知设置页地址，按当前主题区分新旧前端路径（/profile 或 /console/personal）。
+func GetNotificationSettingsURL() string {
+	if strings.TrimSpace(system_setting.ServerAddress) == "" {
+		return ""
+	}
+	settingsURL := PaymentReturnURL("/console/personal")
+	if ValidateEmailActionURL(settingsURL) != nil {
+		return ""
+	}
+	return settingsURL
 }
 
 func currentEmailSiteName() string {
@@ -648,20 +664,20 @@ func buildDefaultEmailTemplates() map[string]map[string]defaultEmailTemplate {
 				HTML:    emailHTMLLayout("重設您的密碼", "我們收到了您的 {{ site_name }} 帳號密碼重設請求。", emailActionButton("重設密碼", "{{ reset_url }}")+"\n"+`<p style="margin:20px 0 0;color:#667085;font-size:14px;line-height:22px;">連結將在 {{ valid_minutes }} 分鐘後失效。如非本人操作，請忽略本郵件。</p>`),
 			},
 		},
-		EmailTemplateEventBalanceLow:             buildBalanceLowTemplates(false),
-		EmailTemplateEventTopUpSucceeded:         buildTopUpSucceededTemplates(),
-		EmailTemplateEventSubscriptionBalanceLow: buildBalanceLowTemplates(true),
-		EmailTemplateEventSubscriptionResetQuota: buildSubscriptionResetQuotaTemplates(),
-		EmailTemplateEventSubscriptionSucceeded:  buildSubscriptionSucceededTemplates(),
-		EmailTemplateEventSubscriptionExpired:    buildSubscriptionExpiredTemplates(),
-		EmailTemplateEventUserDisabled:           buildUserDisabledTemplates(),
-		EmailTemplateEventAccountAutoBanned:      buildAccountAutoBannedTemplates(),
-		EmailTemplateEventChannelAutoDisabled:    buildChannelAutoDisabledTemplates(),
-		EmailTemplateEventChannelAutoEnabled:     buildChannelAutoEnabledTemplates(),
-		EmailTemplateEventChannelQuotaCooldown:   buildChannelQuotaCooldownTemplates(),
-		EmailTemplateEventChannelTestResult:      buildChannelTestResultTemplates(),
-		EmailTemplateEventChannelModelUpdates:    buildChannelModelUpdateTemplates(),
-		EmailTemplateEventGeneralNotification:    buildGeneralNotificationTemplates(),
+		EmailTemplateEventBalanceLow:             withOptOutHint(buildBalanceLowTemplates(false)),
+		EmailTemplateEventTopUpSucceeded:         withOptOutHint(buildTopUpSucceededTemplates()),
+		EmailTemplateEventSubscriptionBalanceLow: withOptOutHint(buildBalanceLowTemplates(true)),
+		EmailTemplateEventSubscriptionResetQuota: withOptOutHint(buildSubscriptionResetQuotaTemplates()),
+		EmailTemplateEventSubscriptionSucceeded:  withOptOutHint(buildSubscriptionSucceededTemplates()),
+		EmailTemplateEventSubscriptionExpired:    withOptOutHint(buildSubscriptionExpiredTemplates()),
+		EmailTemplateEventUserDisabled:           withOptOutHint(buildUserDisabledTemplates()),
+		EmailTemplateEventAccountAutoBanned:      withOptOutHint(buildAccountAutoBannedTemplates()),
+		EmailTemplateEventChannelAutoDisabled:    withOptOutHint(buildChannelAutoDisabledTemplates()),
+		EmailTemplateEventChannelAutoEnabled:     withOptOutHint(buildChannelAutoEnabledTemplates()),
+		EmailTemplateEventChannelQuotaCooldown:   withOptOutHint(buildChannelQuotaCooldownTemplates()),
+		EmailTemplateEventChannelTestResult:      withOptOutHint(buildChannelTestResultTemplates()),
+		EmailTemplateEventChannelModelUpdates:    withOptOutHint(buildChannelModelUpdateTemplates()),
+		EmailTemplateEventGeneralNotification:    withOptOutHint(buildGeneralNotificationTemplates()),
 		EmailTemplateEventSystemTest: {
 			i18n.LangEn: {
 				Subject: "[{{ site_name }}] Test email",
@@ -1159,6 +1175,32 @@ func emailHTMLLayout(title, intro, content string) string {
     </table>
   </body>
 </html>`
+}
+
+// emailOptOutFooterAnchor 是 emailHTMLLayout 页脚版权行的注入锚点（布局中唯一）。
+const emailOptOutFooterAnchor = `">&copy; {{ current_year }} {{ site_name }}</td>`
+
+// withOptOutHint 给通知类事件的默认模板页脚追加“关闭通知”提示；事务性邮件（验证码/重置密码/测试邮件）不加。
+func withOptOutHint(templates map[string]defaultEmailTemplate) map[string]defaultEmailTemplate {
+	for locale, template := range templates {
+		template.HTML = strings.Replace(template.HTML, emailOptOutFooterAnchor, "\">"+emailOptOutHint(locale)+"&copy; {{ current_year }} {{ site_name }}</td>", 1)
+		templates[locale] = template
+	}
+	return templates
+}
+
+// emailOptOutHint 返回按语言区分的提示段落；链接走 {{ notification_settings_url }}，未配置站点地址时整段被渲染管线移除。
+func emailOptOutHint(locale string) string {
+	var prefix, label, suffix string
+	switch locale {
+	case i18n.LangZhTW:
+		prefix, label, suffix = "不想接收此類郵件？可在 ", "通知設定", " 中調整通知偏好。"
+	case i18n.LangEn:
+		prefix, label, suffix = "Don't want these emails? Update your preferences in ", "notification settings", "."
+	default:
+		prefix, label, suffix = "不想接收此类邮件？可在 ", "通知设置", " 中调整通知偏好。"
+	}
+	return `<p data-email-optional-url="{{ notification_settings_url }}" style="margin:0 0 8px;color:#98a2b3;font-size:12px;line-height:18px;">` + prefix + `<a href="{{ notification_settings_url }}" target="_blank" style="color:#98a2b3;text-decoration:underline;">` + label + `</a>` + suffix + "</p>\n"
 }
 
 func emailActionButton(label, actionURL string) string {

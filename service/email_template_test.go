@@ -333,3 +333,77 @@ func TestEmailTemplateUsesConfiguredLogo(t *testing.T) {
 	assert.Contains(t, rendered.HTML, `src="https://billing.example.com/assets/logo.png"`)
 	assert.NotContains(t, rendered.HTML, emailOptionalURLAttribute)
 }
+
+func TestNotificationTemplatesIncludeOptOutHint(t *testing.T) {
+	transactional := map[string]bool{
+		EmailTemplateEventVerification:  true,
+		EmailTemplateEventPasswordReset: true,
+		EmailTemplateEventSystemTest:    true,
+	}
+	for _, event := range GetEmailTemplateCatalog().Events {
+		for _, locale := range []string{i18n.LangEn, i18n.LangZhCN, i18n.LangZhTW} {
+			template, err := GetEmailTemplate(event.Event, locale)
+			require.NoError(t, err, "%s/%s", event.Event, locale)
+			if transactional[event.Event] {
+				assert.NotContains(t, template.HTML, "notification_settings_url", "%s/%s", event.Event, locale)
+				continue
+			}
+			assert.Contains(t, template.HTML, `data-email-optional-url="{{ notification_settings_url }}"`, "%s/%s", event.Event, locale)
+			assert.Contains(t, template.HTML, `href="{{ notification_settings_url }}"`, "%s/%s", event.Event, locale)
+		}
+	}
+	assert.NotContains(t, emailOptOutHint(i18n.LangZhCN), "notification settings")
+	assert.Contains(t, emailOptOutHint(i18n.LangZhCN), "通知设置")
+	assert.Contains(t, emailOptOutHint(i18n.LangZhTW), "通知設定")
+	assert.Contains(t, emailOptOutHint(i18n.LangEn), "notification settings")
+}
+
+func TestNotificationOptOutHintRendersThemeAwareURL(t *testing.T) {
+	previousAddress := system_setting.ServerAddress
+	previousTheme := common.GetTheme()
+	t.Cleanup(func() {
+		system_setting.ServerAddress = previousAddress
+		common.SetTheme(previousTheme)
+	})
+	system_setting.ServerAddress = "https://api.example.com/"
+
+	common.SetTheme(common.FrontendThemeDefault)
+	assert.Equal(t, "https://api.example.com/profile", GetNotificationSettingsURL())
+	common.SetTheme(common.FrontendThemeClassic)
+	assert.Equal(t, "https://api.example.com/console/personal", GetNotificationSettingsURL())
+
+	system_setting.ServerAddress = ""
+	assert.Empty(t, GetNotificationSettingsURL())
+
+	template, err := GetEmailTemplate(EmailTemplateEventBalanceLow, i18n.LangZhCN)
+	require.NoError(t, err)
+	rendered, err := RenderEmailTemplate(template, map[string]string{
+		"site_name":                 "New API",
+		"logo_url":                  "",
+		"current_balance":           "1.00",
+		"threshold":                 "10.00",
+		"recharge_url":              "",
+		"quota_status":              "偏低",
+		"notification_settings_url": "https://api.example.com/profile",
+	})
+	require.NoError(t, err)
+	assert.Contains(t, rendered.HTML, `href="https://api.example.com/profile"`)
+	assert.Contains(t, rendered.HTML, "通知设置")
+	assert.NotContains(t, rendered.HTML, emailOptionalURLAttribute)
+}
+
+func TestNotificationOptOutHintRemovedWithoutServerAddress(t *testing.T) {
+	template, err := GetEmailTemplate(EmailTemplateEventGeneralNotification, i18n.LangEn)
+	require.NoError(t, err)
+	rendered, err := RenderEmailTemplate(template, map[string]string{
+		"site_name":                 "New API",
+		"logo_url":                  "",
+		"notification_type":         "system.notice",
+		"notification_title":        "System notification",
+		"notification_content":      "A system event requires your attention.",
+		"notification_settings_url": "",
+	})
+	require.NoError(t, err)
+	assert.NotContains(t, rendered.HTML, "notification settings")
+	assert.NotContains(t, rendered.HTML, `href=""`)
+}
