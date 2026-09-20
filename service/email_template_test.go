@@ -407,3 +407,52 @@ func TestNotificationOptOutHintRemovedWithoutServerAddress(t *testing.T) {
 	assert.NotContains(t, rendered.HTML, "notification settings")
 	assert.NotContains(t, rendered.HTML, `href=""`)
 }
+
+func TestLocalizeEmailVariableValues(t *testing.T) {
+	values := map[string]string{
+		"reset_period":          "never",
+		"subscription_source":   "wallet",
+		"payment_method":        "wallet",
+		"payment_provider":      "balance",
+		"allow_wallet_overflow": "true",
+		"subscription_name":     "日卡（#4）",
+	}
+	localizeEmailVariableValues(values, i18n.LangZhCN)
+	assert.Equal(t, "不重置", values["reset_period"])
+	assert.Equal(t, "钱包余额购买", values["subscription_source"])
+	assert.Equal(t, "钱包余额", values["payment_method"])
+	assert.Equal(t, "余额支付", values["payment_provider"])
+	assert.Equal(t, "允许", values["allow_wallet_overflow"])
+	assert.Equal(t, "日卡（#4）", values["subscription_name"])
+
+	valuesEn := map[string]string{
+		"reset_period":        "monthly",
+		"subscription_source": "redemption",
+		"payment_method":      "alipay",
+	}
+	localizeEmailVariableValues(valuesEn, i18n.LangEn)
+	assert.Equal(t, "Monthly", valuesEn["reset_period"])
+	assert.Equal(t, "Redemption code", valuesEn["subscription_source"])
+	assert.Equal(t, "Alipay", valuesEn["payment_method"])
+
+	// 未知值原样保留
+	valuesUnknown := map[string]string{"payment_method": "custom_gateway"}
+	localizeEmailVariableValues(valuesUnknown, i18n.LangZhCN)
+	assert.Equal(t, "custom_gateway", valuesUnknown["payment_method"])
+}
+
+func TestSubscriptionTemplatesRenderLocalizedEnumValues(t *testing.T) {
+	rendered, err := renderTemplatedEmail(EmailTemplateEventSubscriptionExpired, i18n.LangZhCN, "user@example.com", map[string]string{
+		"site_name":             "New API",
+		"subscription_name":     "日卡",
+		"plan_id":               "4",
+		"subscription_id":       "9779",
+		"expired_at":            "2026/09/20 16:06:09",
+		"subscription_source":   "wallet",
+		"allow_wallet_overflow": "true",
+	})
+	require.NoError(t, err)
+	assert.Contains(t, rendered.HTML, "钱包余额购买")
+	assert.Contains(t, rendered.HTML, "允许")
+	assert.NotContains(t, rendered.HTML, ">wallet<")
+}

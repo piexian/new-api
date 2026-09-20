@@ -410,9 +410,18 @@ func sanitizeEmailTemplateNode(node *xhtml.Node, variables map[string]string) bo
 }
 
 func SendTemplatedEmail(event, locale, receiver string, variables map[string]string) error {
-	template, err := GetEmailTemplate(event, NormalizeEmailTemplateLocale(locale))
+	rendered, err := renderTemplatedEmail(event, locale, receiver, variables)
 	if err != nil {
 		return err
+	}
+	return common.SendEmail(rendered.Subject, receiver, rendered.HTML)
+}
+
+// renderTemplatedEmail 解析模板、补齐基础变量、按语言本地化枚举值并渲染，不发信。
+func renderTemplatedEmail(event, locale, receiver string, variables map[string]string) (RenderedEmailTemplate, error) {
+	template, err := GetEmailTemplate(event, NormalizeEmailTemplateLocale(locale))
+	if err != nil {
+		return RenderedEmailTemplate{}, err
 	}
 	values := make(map[string]string, len(variables)+len(emailTemplateBasePlaceholders))
 	for key, value := range variables {
@@ -442,11 +451,8 @@ func SendTemplatedEmail(event, locale, receiver string, variables map[string]str
 	if strings.TrimSpace(values["logo_url"]) == "" {
 		values["logo_url"] = currentEmailLogoURL()
 	}
-	rendered, err := RenderEmailTemplate(template, values)
-	if err != nil {
-		return err
-	}
-	return common.SendEmail(rendered.Subject, receiver, rendered.HTML)
+	localizeEmailVariableValues(values, template.Locale)
+	return RenderEmailTemplate(template, values)
 }
 
 func PreviewEmailTemplate(event, locale, subject, htmlContent string) (RenderedEmailTemplate, error) {
@@ -456,7 +462,9 @@ func PreviewEmailTemplate(event, locale, subject, htmlContent string) (RenderedE
 	}
 	template.Subject = subject
 	template.HTML = htmlContent
-	return RenderEmailTemplate(template, SampleEmailTemplateVariables(event))
+	values := SampleEmailTemplateVariables(event)
+	localizeEmailVariableValues(values, NormalizeEmailTemplateLocale(locale))
+	return RenderEmailTemplate(template, values)
 }
 
 func SampleEmailTemplateVariables(event string) map[string]string {
@@ -1190,6 +1198,53 @@ func withOptOutHint(templates map[string]defaultEmailTemplate) map[string]defaul
 }
 
 // emailOptOutHint 返回按语言区分的提示段落；链接走 {{ notification_settings_url }}，未配置站点地址时整段被渲染管线移除。
+
+// emailEnumValueTranslations 把模板中枚举型变量的原始值按邮件语言本地化：
+// 键为变量名，内层为 原始值 → 展示文本。未收录的值原样保留。
+var emailEnumValueTranslations = map[string]map[string]map[string]string{
+	"reset_period": {
+		i18n.LangEn:   {"never": "Never", "daily": "Daily", "weekly": "Weekly", "monthly": "Monthly", "custom": "Custom"},
+		i18n.LangZhTW: {"never": "不重置", "daily": "每日重置", "weekly": "每週重置", "monthly": "每月重置", "custom": "自訂週期"},
+		i18n.LangZhCN: {"never": "不重置", "daily": "每日重置", "weekly": "每週重置", "monthly": "每月重置", "custom": "自訂週期"},
+	},
+	"subscription_source": {
+		i18n.LangEn:   {"wallet": "Wallet purchase", "order": "Online payment", "redemption": "Redemption code", "admin": "Admin assigned", "auto": "System grant"},
+		i18n.LangZhTW: {"wallet": "錢包餘額購買", "order": "線上支付購買", "redemption": "兌換碼兌換", "admin": "管理員分配", "auto": "系統贈送"},
+		i18n.LangZhCN: {"wallet": "钱包余额购买", "order": "在线支付购买", "redemption": "兑换码兑换", "admin": "管理员分配", "auto": "系统赠送"},
+	},
+	"payment_method": {
+		i18n.LangEn:   {"wallet": "Wallet balance", "balance": "Balance", "stripe": "Stripe", "epay": "Epay", "creem": "Creem", "waffo_pancake": "Waffo Pancake", "waffo": "Waffo", "alipay": "Alipay", "wxpay": "WeChat Pay", "qqpay": "QQ Wallet", "admin": "Admin", "redemption": "Redemption code"},
+		i18n.LangZhTW: {"wallet": "錢包餘額", "balance": "餘額支付", "stripe": "Stripe", "epay": "易支付", "creem": "Creem", "waffo_pancake": "Waffo Pancake", "waffo": "Waffo", "alipay": "支付寶", "wxpay": "微信支付", "qqpay": "QQ 錢包", "admin": "管理員", "redemption": "兌換碼"},
+		i18n.LangZhCN: {"wallet": "钱包余额", "balance": "余额支付", "stripe": "Stripe", "epay": "易支付", "creem": "Creem", "waffo_pancake": "Waffo Pancake", "waffo": "Waffo", "alipay": "支付宝", "wxpay": "微信支付", "qqpay": "QQ 钱包", "admin": "管理员", "redemption": "兑换码"},
+	},
+	"payment_provider": {
+		i18n.LangEn:   {"wallet": "Wallet balance", "balance": "Balance", "stripe": "Stripe", "epay": "Epay", "creem": "Creem", "waffo_pancake": "Waffo Pancake", "waffo": "Waffo", "admin": "Admin"},
+		i18n.LangZhTW: {"wallet": "錢包餘額", "balance": "餘額支付", "stripe": "Stripe", "epay": "易支付", "creem": "Creem", "waffo_pancake": "Waffo Pancake", "waffo": "Waffo", "admin": "管理員"},
+		i18n.LangZhCN: {"wallet": "钱包余额", "balance": "余额支付", "stripe": "Stripe", "epay": "易支付", "creem": "Creem", "waffo_pancake": "Waffo Pancake", "waffo": "Waffo", "admin": "管理员"},
+	},
+	"allow_wallet_overflow": {
+		i18n.LangEn:   {"true": "Allowed", "false": "Not allowed"},
+		i18n.LangZhTW: {"true": "允許", "false": "不允許"},
+		i18n.LangZhCN: {"true": "允许", "false": "不允许"},
+	},
+}
+
+// localizeEmailVariableValues 按邮件语言就地翻译枚举型变量的值。
+func localizeEmailVariableValues(values map[string]string, locale string) {
+	for key, translations := range emailEnumValueTranslations {
+		raw := strings.TrimSpace(values[key])
+		if raw == "" {
+			continue
+		}
+		byValue := translations[locale]
+		if byValue == nil {
+			continue
+		}
+		if localized, ok := byValue[raw]; ok {
+			values[key] = localized
+		}
+	}
+}
 func emailOptOutHint(locale string) string {
 	var prefix, label, suffix string
 	switch locale {
