@@ -73,6 +73,7 @@ interface Props {
   epayMethods?: PaymentMethod[]
   purchaseLimit?: number
   purchaseCount?: number
+  maxPurchaseQuantity?: number
   walletQuota?: number
   activeSubscriptions?: UserSubscriptionRecord[]
   onSuccess?: () => void
@@ -85,7 +86,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const [confirmWalletOpen, setConfirmWalletOpen] = useState(false)
   const [purchaseMode, setPurchaseMode] =
     useState<SubscriptionPurchaseMode>('concurrent')
-
+  const [quantity, setQuantity] = useState(1)
   useEffect(() => {
     if (props.open && props.epayMethods && props.epayMethods.length > 0) {
       setSelectedEpayMethod(props.epayMethods[0].type)
@@ -96,6 +97,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   useEffect(() => {
     setPurchaseMode('concurrent')
+    setQuantity(1)
   }, [props.open, props.plan?.plan?.id])
 
   const plan = props.plan?.plan
@@ -121,29 +123,56 @@ export function SubscriptionPurchaseDialog(props: Props) {
     return 0
   })()
   const walletBalance = props.walletQuota ?? 0
-  const walletSufficient = walletBalance >= requiredQuota
   const selectedEpayMethodLabel =
     (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
       ?.name ||
     selectedEpayMethod ||
     t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
-  const price = formatBillingCurrencyFromUSD(Number(plan.price_amount || 0))
-  const limitReached =
-    (props.purchaseLimit || 0) > 0 &&
-    (props.purchaseCount || 0) >= (props.purchaseLimit || 0)
+  const price = formatBillingCurrencyFromUSD(
+    Number(plan.price_amount || 0) * quantity
+  )
   const hasActiveSamePlan = (props.activeSubscriptions || []).some(
     (record) => record?.subscription?.plan_id === plan.id
   )
+  // 数量上限：管理员配置 与 剩余可购份数 取小；钱包支付另按余额折算，防止超付。
+  const configMaxQuantity = Math.max(1, props.maxPurchaseQuantity || 10)
+  const limitRemaining =
+    (props.purchaseLimit || 0) > 0
+      ? Math.max(0, (props.purchaseLimit || 0) - (props.purchaseCount || 0))
+      : configMaxQuantity
+  const maxQuantity = Math.max(1, Math.min(configMaxQuantity, limitRemaining))
+  const walletMaxQuantity =
+    requiredQuota > 0
+      ? Math.floor(walletBalance / requiredQuota)
+      : configMaxQuantity
+  const totalDeduction = requiredQuota * quantity
+  const walletSufficient = walletBalance >= totalDeduction
+  const limitReached =
+    (props.purchaseLimit || 0) > 0 &&
+    (props.purchaseCount || 0) + quantity > (props.purchaseLimit || 0)
   const purchaseModeLabel =
     purchaseMode === 'renew' ? t('Renew') : t('Use Together')
-
+  let purchaseModeHint: string | null = null
+  if (quantity > 1) {
+    purchaseModeHint =
+      purchaseMode === 'renew'
+        ? t(
+            'Buy {{count}} subscriptions: they take effect one by one, each starting when the previous one ends.',
+            { count: quantity }
+          )
+        : t(
+            'Buy {{count}} subscriptions: they all start now and quotas stack together.',
+            { count: quantity }
+          )
+  }
   const handlePayStripe = async () => {
     setPaying(true)
     try {
       const res = await paySubscriptionStripe({
         plan_id: plan.id,
         purchase_mode: purchaseMode,
+        quantity,
       })
       if (res.message === 'success' && res.data?.pay_link) {
         window.open(res.data.pay_link, '_blank')
@@ -169,6 +198,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
       const res = await paySubscriptionCreem({
         plan_id: plan.id,
         purchase_mode: purchaseMode,
+        quantity,
       })
       if (res.message === 'success' && res.data?.checkout_url) {
         window.open(res.data.checkout_url, '_blank')
@@ -194,6 +224,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
       const res = await paySubscriptionWallet({
         plan_id: plan.id,
         purchase_mode: purchaseMode,
+        quantity,
       })
       if (res.success) {
         toast.success(t('Wallet payment successful'))
@@ -215,6 +246,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
       const res = await paySubscriptionWaffoPancake({
         plan_id: plan.id,
         purchase_mode: purchaseMode,
+        quantity,
       })
       if (res.message === 'success' && res.data?.checkout_url) {
         toast.success(t('Redirecting to payment page...'))
@@ -248,6 +280,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
         plan_id: plan.id,
         payment_method: selectedEpayMethod,
         purchase_mode: purchaseMode,
+        quantity,
       })
       if (res.message === 'success' && res.url) {
         const form = document.createElement('form')
@@ -352,6 +385,43 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 </AlertDescription>
               </Alert>
             )}
+            <div className='space-y-2'>
+              <div className='flex items-center justify-between'>
+                <p className='text-muted-foreground text-xs'>{t('Quantity')}</p>
+                <div className='flex items-center gap-1'>
+                  <Button
+                    variant='outline'
+                    size='icon'
+                    className='h-7 w-7'
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    disabled={quantity <= 1 || paying}
+                  >
+                    -
+                  </Button>
+                  <span className='min-w-8 text-center text-sm font-medium'>
+                    {quantity}
+                  </span>
+                  <Button
+                    variant='outline'
+                    size='icon'
+                    className='h-7 w-7'
+                    onClick={() =>
+                      setQuantity((q) => Math.min(maxQuantity, q + 1))
+                    }
+                    disabled={quantity >= maxQuantity || paying}
+                  >
+                    +
+                  </Button>
+                </div>
+              </div>
+              {requiredQuota > 0 && hasWallet && (
+                <p className='text-muted-foreground text-xs'>
+                  {t('{{count}} affordable with current balance', {
+                    count: walletMaxQuantity,
+                  })}
+                </p>
+              )}
+            </div>
 
             {hasActiveSamePlan && (
               <div className='space-y-2'>
@@ -371,6 +441,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     <TabsTrigger value='renew'>{t('Renew')}</TabsTrigger>
                   </TabsList>
                 </Tabs>
+                {purchaseModeHint && (
+                  <p className='text-muted-foreground text-xs'>
+                    {purchaseModeHint}
+                  </p>
+                )}
               </div>
             )}
 
@@ -491,6 +566,14 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   {plan.title}
                 </span>
               </div>
+              {quantity > 1 && (
+                <div className='flex justify-between'>
+                  <span className='text-muted-foreground text-sm'>
+                    {t('Quantity')}
+                  </span>
+                  <span className='text-sm font-medium'>×{quantity}</span>
+                </div>
+              )}
               <div className='flex justify-between'>
                 <span className='text-muted-foreground text-sm'>
                   {t('Current Balance')}
@@ -505,10 +588,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   {t('Deduction Amount')}
                 </span>
                 <span className='text-sm font-medium'>
-                  {requiredQuota > 0 ? formatQuota(requiredQuota) : t('Free')}
+                  {totalDeduction > 0 ? formatQuota(totalDeduction) : t('Free')}
                 </span>
               </div>
-              {requiredQuota === 0 && (
+              {totalDeduction === 0 && (
                 <p className='text-muted-foreground text-xs'>
                   {t(
                     'This plan is free. No wallet balance will be deducted, but a subscription order will be created.'
@@ -526,14 +609,14 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 </div>
               )}
             </div>
-            {!walletSufficient && requiredQuota > 0 && (
+            {!walletSufficient && totalDeduction > 0 && (
               <Alert variant='destructive'>
                 <AlertDescription>
                   {t(
                     'Insufficient balance. Current: {{current}}, Required: {{required}}',
                     {
                       current: formatQuota(walletBalance),
-                      required: formatQuota(requiredQuota),
+                      required: formatQuota(totalDeduction),
                     }
                   )}
                 </AlertDescription>

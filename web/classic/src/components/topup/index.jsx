@@ -603,6 +603,8 @@ const TopUp = () => {
         setTopupInfo({
           amount_options: data.amount_options || [],
           discount: data.discount || {},
+          subscription_purchase_max_quantity:
+            data.subscription_purchase_max_quantity,
         });
 
         // 处理支付方式
@@ -1023,6 +1025,7 @@ const TopUp = () => {
               loading={subscriptionLoading}
               plans={subscriptionPlans}
               payMethods={confirmPayMethods}
+              maxPurchaseQuantity={topupInfo?.subscription_purchase_max_quantity}
               enableOnlineTopUp={enableOnlineTopUp}
               enableStripeTopUp={enableStripeTopUp}
               enableCreemTopUp={enableCreemTopUp}

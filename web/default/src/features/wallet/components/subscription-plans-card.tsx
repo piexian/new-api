@@ -671,6 +671,7 @@ export function SubscriptionPlansCard({
             ? planPurchaseCountMap.get(selectedPlan.plan.id)
             : undefined
         }
+        maxPurchaseQuantity={topupInfo?.subscription_purchase_max_quantity}
         walletQuota={walletQuota}
         activeSubscriptions={activeSubscriptions}
         onSuccess={onWalletPaySuccess}

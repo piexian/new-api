@@ -217,6 +217,7 @@ const (
 	EmailNotificationTemplateOptionPrefix = "EmailNotificationTemplate."
 	BalanceLowNotifyEnabledOptionKey      = "BalanceLowNotifyEnabled"
 	EmailDefaultLanguageOptionKey         = "EmailDefaultLanguage"
+	SubscriptionPurchaseMaxQuantityKey    = "SubscriptionPurchaseMaxQuantity"
 	DefaultEmailLanguage                  = "zh-CN"
 )
 

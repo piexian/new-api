@@ -6485,7 +6485,10 @@
     "StartPlan Re-authorization": "StartPlan 重新授權",
     "The official client has no refresh token flow. When the JWT expires, re-run this authorization: open the page, log in to z.ai once, and the new key is saved automatically.": "官方客戶端沒有 refresh token 機制。JWT 到期後請重新執行本授權：開啟授權頁登入一次 z.ai，新金鑰將自動儲存。",
     "Waiting for authorization to complete…": "等待授權完成…",
-    "ZCode StartPlan uses a JWT channel key": "ZCode StartPlan 使用 JWT 渠道金鑰"
+    "ZCode StartPlan uses a JWT channel key": "ZCode StartPlan 使用 JWT 渠道金鑰",
+    "Buy {{count}} subscriptions: they take effect one by one, each starting when the previous one ends.": "購買 {{count}} 份：依次生效，每份在前一份到期後自動接續。",
+    "Buy {{count}} subscriptions: they all start now and quotas stack together.": "購買 {{count}} 份：同時生效，額度疊加使用。",
+    "{{count}} affordable with current balance": "當前餘額最多可購 {{count}} 份"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

@@ -55,6 +55,9 @@ const SubscriptionPurchaseModal = ({
   purchaseLimitInfo = null,
   purchaseMode = 'concurrent',
   setPurchaseMode,
+  purchaseQuantity = 1,
+  setPurchaseQuantity,
+  maxQuantity = 10,
   showPurchaseMode = false,
   onPayStripe,
   onPayCreem,
@@ -65,9 +68,19 @@ const SubscriptionPurchaseModal = ({
   const { symbol, rate } = getCurrencyConfig();
   const price = plan ? Number(plan.price_amount || 0) : 0;
   const convertedPrice = price * rate;
-  const displayPrice = convertedPrice.toFixed(
+  const displayPrice = (convertedPrice * purchaseQuantity).toFixed(
     Number.isInteger(convertedPrice) ? 0 : 2,
   );
+  const purchaseModeHint =
+    purchaseQuantity > 1
+      ? purchaseMode === 'renew'
+        ? t('购买 {{count}} 份：依次生效，每份在前一份到期后自动接续', {
+            count: purchaseQuantity,
+          })
+        : t('购买 {{count}} 份：同时生效，额度叠加使用', {
+            count: purchaseQuantity,
+          })
+      : null;
   // 只有当管理员开启支付网关 AND 套餐配置了对应的支付ID时才显示
   const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
   const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
@@ -182,6 +195,24 @@ const SubscriptionPurchaseModal = ({
             />
           )}
 
+          {/* 购买份数 */}
+          <div className='space-y-2'>
+            <Text size='small' type='tertiary'>
+              {t('购买份数')}：
+            </Text>
+            <Select
+              value={purchaseQuantity}
+              onChange={(value) =>
+                setPurchaseQuantity?.(Number(value) || 1)
+              }
+              style={{ width: '100%' }}
+              optionList={Array.from({ length: maxQuantity }, (_, i) => ({
+                value: i + 1,
+                label: `× ${i + 1}`,
+              }))}
+            />
+          </div>
+
           {showPurchaseMode && (
             <div className='space-y-2'>
               <Text size='small' type='tertiary'>
@@ -196,6 +227,9 @@ const SubscriptionPurchaseModal = ({
                   { value: 'renew', label: t('续期') },
                 ]}
               />
+              {purchaseModeHint && (
+                <Text size='small' type='tertiary'>{purchaseModeHint}</Text>
+              )}
             </div>
           )}
 

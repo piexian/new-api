@@ -108,6 +108,7 @@ export interface SubscriptionPayRequest {
   plan_id: number
   payment_method?: string
   purchase_mode?: SubscriptionPurchaseMode
+  quantity?: number
 }
 
 export interface SubscriptionPayResponse {

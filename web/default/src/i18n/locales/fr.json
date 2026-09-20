@@ -6485,7 +6485,10 @@
     "StartPlan Re-authorization": "Réautorisation StartPlan",
     "The official client has no refresh token flow. When the JWT expires, re-run this authorization: open the page, log in to z.ai once, and the new key is saved automatically.": "Le client officiel n'a pas de flux de jeton de rafraîchissement. À l'expiration du JWT, relancez cette autorisation : ouvrez la page, connectez-vous une fois à z.ai, et la nouvelle clé est enregistrée automatiquement.",
     "Waiting for authorization to complete…": "En attente de la fin de l'autorisation…",
-    "ZCode StartPlan uses a JWT channel key": "ZCode StartPlan utilise une clé de canal JWT"
+    "ZCode StartPlan uses a JWT channel key": "ZCode StartPlan utilise une clé de canal JWT",
+    "Buy {{count}} subscriptions: they take effect one by one, each starting when the previous one ends.": "Achat de {{count}} abonnements : ils prennent effet l'un après l'autre, chacun commençant à la fin du précédent.",
+    "Buy {{count}} subscriptions: they all start now and quotas stack together.": "Achat de {{count}} abonnements : ils démarrent immédiatement et les quotas s'additionnent.",
+    "{{count}} affordable with current balance": "Solde actuel suffisant pour {{count}}"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

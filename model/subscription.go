@@ -231,6 +231,7 @@ type SubscriptionOrder struct {
 	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string `json:"payment_provider" gorm:"type:varchar(50);default:''"`
 	PurchaseMode    string `json:"purchase_mode" gorm:"type:varchar(16);default:'concurrent'"`
+	Quantity        int    `json:"quantity" gorm:"type:int;not null;default:1"`
 	Status          string `json:"status"`
 	CreateTime      int64  `json:"create_time"`
 	CompleteTime    int64  `json:"complete_time"`
@@ -329,6 +330,11 @@ const (
 
 	SubscriptionPurchaseModeConcurrent = "concurrent"
 	SubscriptionPurchaseModeRenew      = "renew"
+
+	// 单次批量购买的份数：默认 10，可由管理员通过 option 调整；
+	// 硬顶 100 防止误配置导致超额扣款。
+	SubscriptionPurchaseQuantityDefault = 10
+	SubscriptionPurchaseQuantityHardCap = 100
 )
 
 func NormalizeSubscriptionModelRestrictMode(mode string) string {
@@ -709,6 +715,33 @@ func NormalizeSubscriptionPurchaseMode(mode string) string {
 	}
 }
 
+// GetSubscriptionPurchaseMaxQuantity 返回单次批量购买的份数上限（option 可配，钳制在 1..硬顶）。
+func GetSubscriptionPurchaseMaxQuantity() int {
+	common.OptionMapRWMutex.RLock()
+	raw := strings.TrimSpace(common.OptionMap[common.SubscriptionPurchaseMaxQuantityKey])
+	common.OptionMapRWMutex.RUnlock()
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 {
+		return SubscriptionPurchaseQuantityDefault
+	}
+	if value > SubscriptionPurchaseQuantityHardCap {
+		return SubscriptionPurchaseQuantityHardCap
+	}
+	return value
+}
+
+// NormalizeSubscriptionPurchaseQuantity 校验批量购买份数：<=0 按 1 份，超上限返回错误（防止超额扣款）。
+func NormalizeSubscriptionPurchaseQuantity(quantity int) (int, error) {
+	if quantity <= 0 {
+		return 1, nil
+	}
+	maxQuantity := GetSubscriptionPurchaseMaxQuantity()
+	if quantity > maxQuantity {
+		return 0, fmt.Errorf("单次最多购买 %d 份", maxQuantity)
+	}
+	return quantity, nil
+}
+
 func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) int64 {
 	if plan == nil {
 		return 0
@@ -1003,6 +1036,30 @@ func CreateUserSubscriptionFromPlanWithModeTx(tx *gorm.DB, userId int, plan *Sub
 	return sub, nil
 }
 
+// CreateUserSubscriptionsFromPlanWithModeTx 在同一事务内批量创建订阅：
+//   - concurrent：每份都从当前时刻起效（一起生效，额度并行叠加）
+//   - renew：第 i 份的起始时间取同套餐最近一条活跃订阅的结束时间（依次生效，链式接续）
+//
+// 返回按创建顺序排列的订阅列表，首份用于订单完成事件/邮件汇总。
+func CreateUserSubscriptionsFromPlanWithModeTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, purchaseMode string, quantity int) ([]*UserSubscription, error) {
+	if quantity <= 0 {
+		quantity = 1
+	}
+	maxQuantity := GetSubscriptionPurchaseMaxQuantity()
+	if quantity > maxQuantity {
+		return nil, fmt.Errorf("单次最多购买 %d 份", maxQuantity)
+	}
+	subs := make([]*UserSubscription, 0, quantity)
+	for i := 0; i < quantity; i++ {
+		sub, err := CreateUserSubscriptionFromPlanWithModeTx(tx, userId, plan, source, purchaseMode)
+		if err != nil {
+			return nil, err
+		}
+		subs = append(subs, sub)
+	}
+	return subs, nil
+}
+
 func calcSubscriptionPlanRequiredQuota(plan *SubscriptionPlan) (int, error) {
 	if plan == nil {
 		return 0, errors.New("plan is nil")
@@ -1023,9 +1080,13 @@ func GetSubscriptionPlanRequiredQuota(plan *SubscriptionPlan) (int, error) {
 	return calcSubscriptionPlanRequiredQuota(plan)
 }
 
-func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, callerIp string) (*SubscriptionOrder, error) {
+func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, quantity int, callerIp string) (*SubscriptionOrder, error) {
 	if userId <= 0 || planId <= 0 {
 		return nil, errors.New("invalid userId or planId")
+	}
+	quantity, err := NormalizeSubscriptionPurchaseQuantity(quantity)
+	if err != nil {
+		return nil, err
 	}
 	purchaseMode = NormalizeSubscriptionPurchaseMode(purchaseMode)
 	now := common.GetTimestamp()
@@ -1036,7 +1097,7 @@ func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, cal
 	upgradeGroup := ""
 	planTitle := ""
 	var completedEvent *SubscriptionCompletedEvent
-	err := DB.Transaction(func(tx *gorm.DB) error {
+	err = DB.Transaction(func(tx *gorm.DB) error {
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
 			return err
@@ -1048,6 +1109,8 @@ func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, cal
 		if err != nil {
 			return err
 		}
+		// 按金额锁定：批量份数对应倍数金额，先校验再扣款，避免超付。
+		requiredQuota *= quantity
 		if plan.MaxPurchasePerUser > 0 {
 			var count int64
 			if err := tx.Model(&UserSubscription{}).
@@ -1055,7 +1118,7 @@ func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, cal
 				Count(&count).Error; err != nil {
 				return err
 			}
-			if count >= int64(plan.MaxPurchasePerUser) {
+			if count+int64(quantity) > int64(plan.MaxPurchasePerUser) {
 				return errors.New("已达到该套餐购买上限")
 			}
 		}
@@ -1077,7 +1140,11 @@ func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, cal
 				return err
 			}
 		}
-		sub, err := CreateUserSubscriptionFromPlanWithModeTx(tx, userId, plan, "wallet", purchaseMode)
+		subs, err := CreateUserSubscriptionsFromPlanWithModeTx(tx, userId, plan, "wallet", purchaseMode, quantity)
+		if err != nil {
+			return err
+		}
+		sub := subs[0]
 		if err != nil {
 			return err
 		}
@@ -1086,10 +1153,11 @@ func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, cal
 		order = &SubscriptionOrder{
 			UserId:        userId,
 			PlanId:        plan.Id,
-			Money:         plan.PriceAmount,
+			Money:         plan.PriceAmount * float64(quantity),
 			TradeNo:       tradeNo,
 			PaymentMethod: "wallet",
 			PurchaseMode:  purchaseMode,
+			Quantity:      quantity,
 			Status:        common.TopUpStatusSuccess,
 			CreateTime:    now,
 			CompleteTime:  now,
@@ -1130,7 +1198,7 @@ func WalletPurchaseSubscription(userId int, planId int, purchaseMode string, cal
 			common.SysLog(fmt.Sprintf("failed to update user group cache after wallet subscription purchase: user_id=%d, group=%s, error=%v", userId, upgradeGroup, err))
 		}
 	}
-	RecordTopupLog(userId, fmt.Sprintf("使用钱包余额购买套餐成功，套餐: %s，支付金额: %.2f", planTitle, order.Money), callerIp, "wallet", "wallet", "") // 服务端流程无请求上下文，User-Agent 留空
+	RecordTopupLog(userId, fmt.Sprintf("使用钱包余额购买套餐成功，套餐: %s，份数: %d，支付金额: %.2f", planTitle, quantity, order.Money), callerIp, "wallet", "wallet", "") // 服务端流程无请求上下文，User-Agent 留空
 	if completedEvent != nil {
 		emitSubscriptionCompleted(*completedEvent)
 	}
@@ -1210,6 +1278,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	var logPlanTitle string
 	var logMoney float64
 	var logPaymentMethod string
+	var logQuantity int
 	var upgradeGroup string
 	var completedEvent *SubscriptionCompletedEvent
 	err := DB.Transaction(func(tx *gorm.DB) error {
@@ -1234,10 +1303,15 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			// still allow completion for already purchased orders
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		sub, err := CreateUserSubscriptionFromPlanWithModeTx(tx, order.UserId, plan, "order", order.PurchaseMode)
+		orderQuantity := order.Quantity
+		if orderQuantity <= 0 {
+			orderQuantity = 1
+		}
+		subs, err := CreateUserSubscriptionsFromPlanWithModeTx(tx, order.UserId, plan, "order", order.PurchaseMode, orderQuantity)
 		if err != nil {
 			return err
 		}
+		sub := subs[0]
 		if err := upsertSubscriptionTopUpTx(tx, &order, callerIp); err != nil {
 			return err
 		}
@@ -1257,6 +1331,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		logPlanTitle = plan.Title
 		logMoney = order.Money
 		logPaymentMethod = order.PaymentMethod
+		logQuantity = orderQuantity
 		completedEvent = &SubscriptionCompletedEvent{
 			UserId:             order.UserId,
 			SubscriptionId:     sub.Id,
@@ -1281,7 +1356,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		_ = UpdateUserGroupCache(logUserId, upgradeGroup)
 	}
 	if logUserId > 0 {
-		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
+		msg := fmt.Sprintf("订阅购买成功，套餐: %s，份数: %d，支付金额: %.2f，支付方式: %s", logPlanTitle, logQuantity, logMoney, logPaymentMethod)
 		RecordTopupLog(logUserId, msg, callerIp, logPaymentMethod, expectedPaymentProvider, "") // 支付回调无请求上下文，User-Agent 留空
 	}
 	if completedEvent != nil {

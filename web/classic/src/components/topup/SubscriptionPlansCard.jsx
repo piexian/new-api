@@ -86,6 +86,7 @@ const SubscriptionPlansCard = ({
   walletQuota = 0,
   quotaPerUnit = 0,
   reloadUserQuota,
+  maxPurchaseQuantity,
   withCard = true,
   hideSubscriptions = false,
   hidePlans = false,
@@ -97,6 +98,7 @@ const SubscriptionPlansCard = ({
   const [refreshing, setRefreshing] = useState(false);
   const [walletPayingPlanId, setWalletPayingPlanId] = useState(null);
   const [purchaseMode, setPurchaseMode] = useState('concurrent');
+  const [purchaseQuantity, setPurchaseQuantity] = useState(1);
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
 
@@ -104,6 +106,7 @@ const SubscriptionPlansCard = ({
     setSelectedPlan(p);
     setSelectedEpayMethod(epayMethods?.[0]?.type || '');
     setPurchaseMode('concurrent');
+    setPurchaseQuantity(1);
     setOpen(true);
   };
 
@@ -112,6 +115,7 @@ const SubscriptionPlansCard = ({
     setSelectedPlan(null);
     setPaying(false);
     setPurchaseMode('concurrent');
+    setPurchaseQuantity(1);
   };
 
   const hasActiveSamePlan = (planId) => {
@@ -126,6 +130,15 @@ const SubscriptionPlansCard = ({
       );
     });
   };
+  // 数量上限：管理员配置 与 剩余可购份数 取小，防止超限/超付
+  const getMaxQuantity = (planRecord) => {
+    const configMax = Math.max(1, Number(maxPurchaseQuantity) || 10);
+    const limit = Number(planRecord?.plan?.max_purchase_per_user || 0);
+    if (limit <= 0) return configMax;
+    const count = getPlanPurchaseCount(planRecord?.plan?.id);
+    return Math.max(1, Math.min(configMax, Math.max(0, limit - count)));
+  };
+
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -160,15 +173,52 @@ const SubscriptionPlansCard = ({
     const showPurchaseMode = hasActiveSamePlan(plan.id);
     const requiredQuota = getRequiredQuota(planRecord);
     const currentWalletQuota = Number(walletQuota || 0);
-    if (requiredQuota > currentWalletQuota) {
+    const maxQuantity = getMaxQuantity(planRecord);
+    if (purchaseQuantity > maxQuantity) {
+      setPurchaseQuantity(1);
+      return;
+    }
+    const totalDeduction = requiredQuota * purchaseQuantity;
+    if (totalDeduction > currentWalletQuota) {
       showError(
         t('余额不足，当前余额 {{current}}，所需 {{required}}', {
           current: renderQuota(currentWalletQuota),
-          required: renderQuota(requiredQuota),
+          required: renderQuota(totalDeduction),
         }),
       );
       return;
     }
+    const walletQuantityRef = { current: purchaseQuantity };
+    const QuantityBox = () => {
+      const [qty, setQty] = useState(purchaseQuantity);
+      walletQuantityRef.current = qty;
+      const total = requiredQuota * qty;
+      return (
+        <>
+          <p>
+            <Text>{t('购买份数')}：</Text>
+            <Select
+              value={qty}
+              onChange={(v) => setQty(Number(v) || 1)}
+              optionList={Array.from({ length: maxQuantity }, (_, i) => ({
+                value: i + 1,
+                label: String(i + 1),
+              }))}
+              style={{ width: 120 }}
+            />
+          </p>
+          <p>
+            <Text>{t('本次扣减')}：</Text>
+            <Text strong>{renderQuota(total)}</Text>
+            {total > currentWalletQuota && (
+              <Text type='danger' style={{ marginLeft: 8 }}>
+                {t('余额不足')}
+              </Text>
+            )}
+          </p>
+        </>
+      );
+    };
     Modal.confirm({
       title: t('确认余额购买订阅'),
       content: (
@@ -181,10 +231,7 @@ const SubscriptionPlansCard = ({
             <Text>{t('当前余额')}：</Text>
             <Text strong>{renderQuota(currentWalletQuota)}</Text>
           </p>
-          <p>
-            <Text>{t('本次扣减')}：</Text>
-            <Text strong>{renderQuota(requiredQuota)}</Text>
-          </p>
+          <QuantityBox />
           {requiredQuota === 0 && (
             <Text type='tertiary'>
               {t('该套餐价格为 0，本次不会扣减钱包余额，但会创建订阅订单记录')}
@@ -214,6 +261,7 @@ const SubscriptionPlansCard = ({
           const res = await API.post('/api/subscription/wallet/pay', {
             plan_id: plan.id,
             purchase_mode: walletPurchaseMode,
+            quantity: walletQuantityRef.current,
           });
           if (res.data?.success) {
             showSuccess(t('余额购买成功'));
@@ -241,6 +289,7 @@ const SubscriptionPlansCard = ({
       const res = await API.post('/api/subscription/stripe/pay', {
         plan_id: selectedPlan.plan.id,
         purchase_mode: purchaseMode,
+        quantity: purchaseQuantity,
       });
       if (res.data?.message === 'success') {
         window.open(res.data.data?.pay_link, '_blank');
@@ -270,6 +319,7 @@ const SubscriptionPlansCard = ({
       const res = await API.post('/api/subscription/creem/pay', {
         plan_id: selectedPlan.plan.id,
         purchase_mode: purchaseMode,
+        quantity: purchaseQuantity,
       });
       if (res.data?.message === 'success') {
         window.open(res.data.data?.checkout_url, '_blank');
@@ -300,6 +350,7 @@ const SubscriptionPlansCard = ({
         plan_id: selectedPlan.plan.id,
         payment_method: selectedEpayMethod,
         purchase_mode: purchaseMode,
+        quantity: purchaseQuantity,
       });
       if (res.data?.message === 'success') {
         submitEpayForm({ url: res.data.url, params: res.data.data });
@@ -984,6 +1035,9 @@ const SubscriptionPlansCard = ({
         enableStripeTopUp={enableStripeTopUp}
         enableCreemTopUp={enableCreemTopUp}
         purchaseMode={purchaseMode}
+        purchaseQuantity={purchaseQuantity}
+        setPurchaseQuantity={setPurchaseQuantity}
+        maxQuantity={getMaxQuantity(selectedPlan)}
         setPurchaseMode={setPurchaseMode}
         showPurchaseMode={hasActiveSamePlan(selectedPlan?.plan?.id)}
         purchaseLimitInfo={

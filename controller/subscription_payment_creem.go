@@ -19,6 +19,7 @@ import (
 type SubscriptionCreemPayRequest struct {
 	PlanId       int    `json:"plan_id"`
 	PurchaseMode string `json:"purchase_mode"`
+	Quantity     int    `json:"quantity"`
 }
 
 func SubscriptionRequestCreemPay(c *gin.Context) {
@@ -39,6 +40,11 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+		return
+	}
+	quantity, qErr := model.NormalizeSubscriptionPurchaseQuantity(req.Quantity)
+	if qErr != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": qErr.Error()})
 		return
 	}
 
@@ -77,7 +83,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
-		if count >= int64(plan.MaxPurchasePerUser) {
+		if count+int64(quantity) > int64(plan.MaxPurchasePerUser) {
 			common.ApiErrorMsg(c, "已达到该套餐购买上限")
 			return
 		}
@@ -90,11 +96,12 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
+		Money:           plan.PriceAmount * float64(quantity),
 		TradeNo:         referenceId,
 		PaymentMethod:   model.PaymentMethodCreem,
 		PaymentProvider: model.PaymentProviderCreem,
 		PurchaseMode:    model.NormalizeSubscriptionPurchaseMode(req.PurchaseMode),
+		Quantity:        quantity,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 		ServerIp:        common.GetIp(),
@@ -119,7 +126,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	product := &CreemProduct{
 		ProductId: plan.CreemProductId,
 		Name:      plan.Title,
-		Price:     plan.PriceAmount,
+		Price:     plan.PriceAmount * float64(quantity),
 		Currency:  currency,
 		Quota:     0,
 	}

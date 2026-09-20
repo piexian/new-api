@@ -20,12 +20,18 @@ type SubscriptionEpayPayRequest struct {
 	PlanId        int    `json:"plan_id"`
 	PaymentMethod string `json:"payment_method"`
 	PurchaseMode  string `json:"purchase_mode"`
+	Quantity      int    `json:"quantity"`
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
 	var req SubscriptionEpayPayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
 		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	quantity, qErr := model.NormalizeSubscriptionPurchaseQuantity(req.Quantity)
+	if qErr != nil {
+		common.ApiErrorMsg(c, qErr.Error())
 		return
 	}
 
@@ -53,7 +59,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		common.ApiErrorMsg(c, "获取用户分组失败")
 		return
 	}
-	payMoney := getSubscriptionPayMoney(plan.PriceAmount, group, operation_setting.Price)
+	payMoney := getSubscriptionPayMoney(plan.PriceAmount, group, operation_setting.Price) * float64(quantity)
 	if payMoney < 0.01 {
 		common.ApiErrorMsg(c, "支付金额过低")
 		return
@@ -64,7 +70,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
-		if count >= int64(plan.MaxPurchasePerUser) {
+		if count+int64(quantity) > int64(plan.MaxPurchasePerUser) {
 			common.ApiErrorMsg(c, "已达到该套餐购买上限")
 			return
 		}
@@ -99,6 +105,7 @@ func SubscriptionRequestEpay(c *gin.Context) {
 		PaymentMethod:   req.PaymentMethod,
 		PaymentProvider: model.PaymentProviderEpay,
 		PurchaseMode:    model.NormalizeSubscriptionPurchaseMode(req.PurchaseMode),
+		Quantity:        quantity,
 		CreateTime:      time.Now().Unix(),
 		Status:          common.TopUpStatusPending,
 		ServerIp:        common.GetIp(),

@@ -11,6 +11,7 @@ import (
 type SubscriptionWalletPayRequest struct {
 	PlanId       int    `json:"plan_id"`
 	PurchaseMode string `json:"purchase_mode"`
+	Quantity     int    `json:"quantity"`
 }
 
 func SubscriptionRequestWalletPay(c *gin.Context) {
@@ -21,7 +22,7 @@ func SubscriptionRequestWalletPay(c *gin.Context) {
 	}
 
 	userId := c.GetInt("id")
-	order, err := model.WalletPurchaseSubscription(userId, req.PlanId, req.PurchaseMode, c.ClientIP())
+	order, err := model.WalletPurchaseSubscription(userId, req.PlanId, req.PurchaseMode, req.Quantity, c.ClientIP())
 	if err != nil {
 		switch {
 		case errors.Is(err, model.ErrSubscriptionWalletQuotaNotEnough):

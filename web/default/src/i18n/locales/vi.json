@@ -6485,7 +6485,10 @@
     "StartPlan Re-authorization": "Ủy quyền lại StartPlan",
     "The official client has no refresh token flow. When the JWT expires, re-run this authorization: open the page, log in to z.ai once, and the new key is saved automatically.": "Ứng dụng chính thức không có luồng làm mới token. Khi JWT hết hạn, hãy chạy lại ủy quyền này: mở trang, đăng nhập z.ai một lần, khóa mới sẽ được lưu tự động.",
     "Waiting for authorization to complete…": "Đang chờ hoàn tất ủy quyền…",
-    "ZCode StartPlan uses a JWT channel key": "ZCode StartPlan dùng khóa kênh JWT"
+    "ZCode StartPlan uses a JWT channel key": "ZCode StartPlan dùng khóa kênh JWT",
+    "Buy {{count}} subscriptions: they take effect one by one, each starting when the previous one ends.": "Mua {{count}} gói đăng ký: có hiệu lực lần lượt, gói sau bắt đầu khi gói trước hết hạn.",
+    "Buy {{count}} subscriptions: they all start now and quotas stack together.": "Mua {{count}} gói đăng ký: tất cả có hiệu lực ngay và hạn mức cộng dồn.",
+    "{{count}} affordable with current balance": "Số dư hiện tại đủ mua {{count}}"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",
