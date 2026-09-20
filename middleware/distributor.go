@@ -533,7 +533,14 @@ func xAINativeRouteModel(path string, queryModel string) string {
 }
 
 // isStepFunNativeRoute 判断请求是否命中 StepFun 原生端点（音频/音乐/音色/文件/WebSocket）。
+//
+// /v1/realtime 与 OpenAI Realtime 共用同一路径，由 router 按模型名分派（IsRealtimeModel），且
+// GenRelayInfoStepFunWss 已无条件覆写 info.RelayMode，因此这里显式排除它：一旦纳入，无 model 查询串时
+// 会退到 StepFunNativeFallbackModel，而该模型名不满足 IsRealtimeModel，会被送进 OpenAI Realtime 渠道。
 func isStepFunNativeRoute(method, path string) bool {
+	if path == "/v1/realtime" {
+		return false
+	}
 	// 先按路径族短路，避免在聊天等高频路径上做端点表查找
 	if !strings.HasPrefix(path, "/v1/audio/") && !strings.HasPrefix(path, "/v1/files") && path != "/v1/realtime/audio" {
 		return false
