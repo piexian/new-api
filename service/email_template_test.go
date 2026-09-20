@@ -456,3 +456,12 @@ func TestSubscriptionTemplatesRenderLocalizedEnumValues(t *testing.T) {
 	assert.Contains(t, rendered.HTML, "允许")
 	assert.NotContains(t, rendered.HTML, ">wallet<")
 }
+
+func TestLocalizeEmailVariableValuesTestMode(t *testing.T) {
+	values := map[string]string{"test_mode": "scheduled_all"}
+	localizeEmailVariableValues(values, i18n.LangZhCN)
+	assert.Equal(t, "计划全量测试", values["test_mode"])
+	enValues := map[string]string{"test_mode": "passive_recovery"}
+	localizeEmailVariableValues(enValues, i18n.LangEn)
+	assert.Equal(t, "Passive recovery", enValues["test_mode"])
+}

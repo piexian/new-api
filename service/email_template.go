@@ -1222,6 +1222,11 @@ var emailEnumValueTranslations = map[string]map[string]map[string]string{
 		i18n.LangZhTW: {"wallet": "錢包餘額", "balance": "餘額支付", "stripe": "Stripe", "epay": "易支付", "creem": "Creem", "waffo_pancake": "Waffo Pancake", "waffo": "Waffo", "admin": "管理員"},
 		i18n.LangZhCN: {"wallet": "钱包余额", "balance": "余额支付", "stripe": "Stripe", "epay": "易支付", "creem": "Creem", "waffo_pancake": "Waffo Pancake", "waffo": "Waffo", "admin": "管理员"},
 	},
+	"test_mode": {
+		i18n.LangEn:   {"scheduled_all": "Scheduled full test", "passive_recovery": "Passive recovery"},
+		i18n.LangZhTW: {"scheduled_all": "計畫全量測試", "passive_recovery": "被動恢復"},
+		i18n.LangZhCN: {"scheduled_all": "计划全量测试", "passive_recovery": "被动恢复"},
+	},
 	"allow_wallet_overflow": {
 		i18n.LangEn:   {"true": "Allowed", "false": "Not allowed"},
 		i18n.LangZhTW: {"true": "允許", "false": "不允許"},
