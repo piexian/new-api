@@ -61,6 +61,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request = &dto.BaseRequest{}
 	case types.RelayFormatStepFunNative:
 		request = &dto.BaseRequest{}
+	case types.RelayFormatTypeSafe:
+		request, err = GetAndValidateSystemOneRequest(c)
 	case types.RelayFormatStepFunWss:
 		request = &dto.BaseRequest{}
 	default:
@@ -465,6 +467,24 @@ func GetAndValidateGeminiBatchEmbeddingRequest(c *gin.Context) (*dto.GeminiBatch
 	err := common.UnmarshalBodyReusable(c, request)
 	if err != nil {
 		return nil, err
+	}
+	return request, nil
+}
+
+// GetAndValidateSystemOneRequest 校验 TypeSafe /v1/systemone 原生请求, state/questions 保持原始 JSON 透传
+func GetAndValidateSystemOneRequest(c *gin.Context) (*dto.SystemOneRequest, error) {
+	request := &dto.SystemOneRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		return nil, errors.New("model is required")
+	}
+	if len(request.State) == 0 {
+		return nil, errors.New("state is required")
+	}
+	if len(request.Questions) == 0 || string(request.Questions) == "{}" {
+		return nil, errors.New("questions is required")
 	}
 	return request, nil
 }

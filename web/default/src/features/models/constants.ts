@@ -173,6 +173,10 @@ export const ENDPOINT_TEMPLATES: Record<
     path: '/v1beta/interactions',
     method: 'POST',
   },
+  typesafe: {
+    path: '/v1/systemone',
+    method: 'POST',
+  },
   'jina-rerank': { path: '/rerank', method: 'POST' },
   'image-generation': { path: '/v1/images/generations', method: 'POST' },
   'image-edit': { path: '/v1/images/edits', method: 'POST' },

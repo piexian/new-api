@@ -63,6 +63,8 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 		err = relay.MoarkNativeHelper(c, info)
 	case relayconstant.RelayModeStepFunNative:
 		err = relay.StepFunNativeHelper(c, info)
+	case relayconstant.RelayModeTypeSafeNative:
+		err = relay.TypeSafeNativeHelper(c, info)
 	default:
 		err = relay.TextHelper(c, info)
 	}
@@ -239,6 +241,17 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			}
 		}
 
+		// TypeSafe 渠道仅接受官方 /v1/systemone 入站，其余端点本地拦截，不做协议转换也不透传上游
+		// 判定取 gin context（SetupContextForSelectedChannel 写入），避免 getChannel 轻量渠道不含 Type 导致静默放行
+		if relayFormat != types.RelayFormatTypeSafe &&
+			common.GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeTypeSafe {
+			newAPIError = types.NewErrorWithStatusCode(
+				errors.New(i18n.T(c, i18n.MsgDistributorTypeSafeNativeOnly)),
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry())
+			break
+		}
 		addUsedChannel(c, channel.Id)
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {

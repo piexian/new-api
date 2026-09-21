@@ -89,6 +89,7 @@ export function getChannelTypeIcon(type: number): string {
     68: 'Cerebras', // Cerebras
     74: 'Groq.Mono', // Groq
     75: 'Stepfun.Color', // StepFun
+    76: 'https://docs.typesafe.ai/favicon.ico', // TypeSafe
     69: 'https://avatars.githubusercontent.com/u/282503705?s=200&v=4', // Qwen Token Plan
     70: 'Mistral', // Mistral Console
     71: 'https://console.gmicloud.ai/favicon.ico', // GMI Cloud

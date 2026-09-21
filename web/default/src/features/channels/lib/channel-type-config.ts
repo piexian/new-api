@@ -155,6 +155,19 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Chat Completions, Anthropic Messages and OpenAI Responses are passed through natively. Native audio, music, voice and file endpoints are forwarded 1:1; add the stepfun-native model for endpoints that carry no model field. Music/generate/files are open-platform only.',
     },
   },
+  76: {
+    id: 76,
+    name: CHANNEL_TYPES[76],
+    icon: 'https://docs.typesafe.ai/favicon.ico',
+    defaultBaseUrl: 'https://api.typesafe.ai',
+    hints: {
+      baseUrl: 'Default: https://api.typesafe.ai',
+      key: 'TypeSafe API Key',
+      models: 'jev-latest,jev-preview,jev-1.13.0',
+      other:
+        'POST /v1/systemone is forwarded 1:1 to the upstream and responses are passed through as-is; requests to other endpoints are rejected locally. No streaming support.',
+    },
+  },
   69: {
     id: 69,
     name: CHANNEL_TYPES[69],

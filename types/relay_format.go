@@ -21,6 +21,7 @@ const (
 	RelayFormatStepFunNative                         = "stepfun_native"
 	RelayFormatStepFunWss                            = "stepfun_wss"
 	RelayFormatOCR                                   = "ocr"
+	RelayFormatTypeSafe                             = "typesafe"
 
 	RelayFormatTask    = "task"
 	RelayFormatMjProxy = "mj_proxy"

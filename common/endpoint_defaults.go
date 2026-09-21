@@ -38,6 +38,7 @@ var defaultEndpointInfoMap = map[constant.EndpointType]EndpointInfo{
 	constant.EndpointTypeCohereChat:            {Path: "/v1/chat/completions", Method: "POST"},
 	constant.EndpointTypeCohereRerank:          {Path: "/v1/rerank", Method: "POST"},
 	constant.EndpointTypeCohereEmbeddings:      {Path: "/v1/embeddings", Method: "POST"},
+	constant.EndpointTypeTypeSafe:              {Path: "/v1/systemone", Method: "POST"},
 }
 
 // GetDefaultEndpointInfo 返回指定端点类型的默认信息以及是否存在

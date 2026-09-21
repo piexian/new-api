@@ -33,6 +33,7 @@ export const CHANNEL_TYPE_GEMINI_INTERACTIONS = 72;
 export const CHANNEL_TYPE_CLIPROXYAPI = 73;
 export const CHANNEL_TYPE_GROQ = 74;
 export const CHANNEL_TYPE_STEPFUN = 75;
+export const CHANNEL_TYPE_TYPESAFE = 76;
 
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
@@ -78,6 +79,7 @@ export const CHANNEL_OPTIONS = [
   { value: CHANNEL_TYPE_CEREBRAS, color: 'blue', label: 'Cerebras' },
   { value: CHANNEL_TYPE_GROQ, color: 'orange', label: 'Groq' },
   { value: CHANNEL_TYPE_STEPFUN, color: 'blue', label: 'StepFun' },
+  { value: CHANNEL_TYPE_TYPESAFE, color: 'purple', label: 'TypeSafe' },
   {
     value: 15,
     color: 'blue',
@@ -314,6 +316,7 @@ export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
   CHANNEL_TYPE_CLIPROXYAPI,
   CHANNEL_TYPE_GROQ,
   CHANNEL_TYPE_STEPFUN,
+  CHANNEL_TYPE_TYPESAFE,
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;

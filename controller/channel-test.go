@@ -62,6 +62,9 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}
+	if channel != nil && channel.Type == constant.ChannelTypeTypeSafe {
+		return string(constant.EndpointTypeTypeSafe)
+	}
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
 	}
@@ -235,6 +238,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		// 根据指定的端点类型设置 relayFormat
 		switch constant.EndpointType(endpointType) {
 		case constant.EndpointTypeOpenAI, constant.EndpointTypeCohereChat:
+		case constant.EndpointTypeTypeSafe:
+			relayFormat = types.RelayFormatTypeSafe
 			relayFormat = types.RelayFormatOpenAI
 		case constant.EndpointTypeOpenAIResponse:
 			relayFormat = types.RelayFormatOpenAIResponses
@@ -452,6 +457,17 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				context:     c,
 				localErr:    errors.New("invalid gemini interactions request type"),
 				newAPIError: types.NewError(errors.New("invalid gemini interactions request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
+	case relayconstant.RelayModeTypeSafeNative:
+		// 原生 systemone 测试请求直接透传,与入站 relay 行为一致
+		if systemOneReq, ok := request.(*dto.SystemOneRequest); ok {
+			convertedRequest = systemOneReq
+		} else {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid typesafe systemone request type"),
+				newAPIError: types.NewError(errors.New("invalid typesafe systemone request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	case relayconstant.RelayModeGemini:
@@ -1006,6 +1022,13 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
 			}
 			return req
+		case constant.EndpointTypeTypeSafe:
+			// TypeSafe System One 原生评估请求, 与上游 /v1/systemone 报文一致
+			return &dto.SystemOneRequest{
+				Model:     model,
+				State:     json.RawMessage(`"This is a harmless channel test."`),
+				Questions: json.RawMessage(`{"is_urgent":{"type":"noul","instructions":"Does this state convey urgency?"}}`),
+			}
 		}
 	}
 

@@ -56,6 +56,7 @@ import (
 	taskVidu "github.com/QuantumNous/new-api/relay/channel/task/vidu"
 	taskxai "github.com/QuantumNous/new-api/relay/channel/task/xai"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
+	"github.com/QuantumNous/new-api/relay/channel/typesafe"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
 	"github.com/QuantumNous/new-api/relay/channel/xai"
@@ -170,6 +171,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &groq.Adaptor{}
 	case constant.APITypeStepFun:
 		return &stepfun.Adaptor{}
+	case constant.APITypeTypeSafe:
+		return &typesafe.Adaptor{}
 	}
 	return nil
 }

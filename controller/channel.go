@@ -25,6 +25,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/poe"
 	"github.com/QuantumNous/new-api/relay/channel/qwentokenplan"
 	"github.com/QuantumNous/new-api/relay/channel/stepfun"
+	"github.com/QuantumNous/new-api/relay/channel/typesafe"
 	"github.com/QuantumNous/new-api/relay/channel/zenmux"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -1488,6 +1489,31 @@ func FetchModels(c *gin.Context) {
 	}
 	defer response.Body.Close()
 
+	if req.Type == constant.ChannelTypeTypeSafe {
+		// TypeSafe /v1/models 返回 {models:[{name}]} 而非 OpenAI 的 {data:[{id}]}, 仅列出别名时合并版本化 ID
+		var tsResult struct {
+			Models []struct {
+				Name string `json:"name"`
+			} `json:"models"`
+		}
+		if err := json.NewDecoder(response.Body).Decode(&tsResult); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		models := make([]string, 0, len(tsResult.Models))
+		for _, m := range tsResult.Models {
+			models = append(models, m.Name)
+		}
+		models = mergeModelNames(models, typesafe.ModelList)
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    models,
+		})
+		return
+	}
 	var result struct {
 		Data []struct {
 			ID string `json:"id"`

@@ -474,6 +474,16 @@ func GenRelayInfoMoarkNative(c *gin.Context, request dto.Request) *RelayInfo {
 	return info
 }
 
+// GenRelayInfoTypeSafe 构造 TypeSafe System One 原生端点(/v1/systemone)的 RelayInfo。
+func GenRelayInfoTypeSafe(c *gin.Context, request dto.Request) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	info.RelayFormat = types.RelayFormatTypeSafe
+	if info.RelayMode == relayconstant.RelayModeUnknown {
+		info.RelayMode = relayconstant.RelayModeTypeSafeNative
+	}
+	return info
+}
+
 // GenRelayInfoStepFunNative 构造 StepFun 原生端点（音频/音乐/音色/文件）的 RelayInfo。
 func GenRelayInfoStepFunNative(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
@@ -655,6 +665,8 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoXAIRealtime(c, request, ws)
 	case types.RelayFormatMoarkNative:
 		info = GenRelayInfoMoarkNative(c, request)
+	case types.RelayFormatTypeSafe:
+		info = GenRelayInfoTypeSafe(c, request)
 	case types.RelayFormatStepFunNative:
 		info = GenRelayInfoStepFunNative(c, request)
 	case types.RelayFormatStepFunWss:

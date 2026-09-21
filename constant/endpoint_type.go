@@ -24,6 +24,7 @@ const (
 	EndpointTypeCohereChat            EndpointType = "cohere-chat"
 	EndpointTypeCohereRerank          EndpointType = "cohere-rerank"
 	EndpointTypeCohereEmbeddings      EndpointType = "cohere-embeddings"
+	EndpointTypeTypeSafe              EndpointType = "typesafe"
 	//EndpointTypeMidjourney     EndpointType = "midjourney-proxy"
 	//EndpointTypeSuno           EndpointType = "suno-proxy"
 	//EndpointTypeKling          EndpointType = "kling"
