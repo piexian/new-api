@@ -14,12 +14,15 @@ var ModelList = []string{
 	"mimo-v2-pro",
 	"mimo-v2-omni",
 	"mimo-v2-flash",
+	"mimo-v2.6-pro-ultraspeed",
 	// TTS V2
 	"mimo-v2-tts",
 	// TTS V2.5
 	"mimo-v2.5-tts",
 	"mimo-v2.5-tts-voicedesign",
 	"mimo-v2.5-tts-voiceclone",
+	// ASR V2.5
+	"mimo-v2.5-asr",
 }
 
 var ChannelName = "xiaomimimo"

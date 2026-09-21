@@ -28,6 +28,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if shouldUseClaudeCompatibleAPI(info) {
 		return fmt.Sprintf("%s/anthropic/v1/messages", baseURL), nil
 	}
+	if info.RelayMode == relayconstant.RelayModeResponses {
+		// MiMo 原生支持 OpenAI Responses 协议
+		return fmt.Sprintf("%s/v1/responses", baseURL), nil
+	}
 	return fmt.Sprintf("%s/v1/chat/completions", baseURL), nil
 }
 
@@ -53,8 +57,27 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	return request, nil
 }
 
+// normalizeResponsesReasoningEffort 将 OpenAI 扩展档位映射到 MiMo 接受的 none/low/medium/high
+func normalizeResponsesReasoningEffort(effort string) string {
+	switch effort {
+	case "", "none", "low", "medium", "high":
+		return effort
+	case "minimal":
+		return "low"
+	case "xhigh":
+		return "high"
+	default:
+		return effort
+	}
+}
+
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	if info.RelayMode != relayconstant.RelayModeAudioSpeech {
+	switch info.RelayMode {
+	case relayconstant.RelayModeAudioSpeech:
+	case relayconstant.RelayModeAudioTranscription:
+		// MiMo ASR(mimo-v2.5-asr) 复用 chat/completions 端点
+		return convertOpenAISTTToMiMo(c, request, info.UpstreamModelName)
+	default:
 		return nil, errors.New("unsupported audio relay mode")
 	}
 
@@ -92,7 +115,20 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	// MiMo 原生支持 OpenAI Responses(/v1/responses), 直接透传;
+	// 官方声明不支持 previous_response_id/context_management, 携带会被忽略或报错, 统一清洗;
+	// reasoning.effort 仅接受 none/low/medium/high, 归一 OpenAI 扩展档位防上游 400
+	if request.PreviousResponseID != "" {
+		request.PreviousResponseID = ""
+	}
+	request.ContextManagement = nil
+	if request.Reasoning != nil {
+		request.Reasoning = &dto.Reasoning{Effort: normalizeResponsesReasoningEffort(request.Reasoning.Effort)}
+	}
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
+	}
+	return request, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -100,6 +136,9 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info.RelayMode == relayconstant.RelayModeAudioTranscription {
+		return handleASRResponse(c, resp, info)
+	}
 	if info.RelayMode == relayconstant.RelayModeAudioSpeech {
 		if info.IsStream {
 			return handleStreamTTSResponse(c, resp, info)
