@@ -96,6 +96,7 @@ const ModelTestModal = ({
       value: 'gemini-interactions',
       label: 'Gemini Interactions (/v1beta/interactions)',
     },
+    { value: 'typesafe', label: 'TypeSafe (/v1/systemone)' },
     { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
     {
       value: 'image-generation',
