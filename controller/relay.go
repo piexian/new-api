@@ -671,6 +671,11 @@ func RelayTask(c *gin.Context) {
 			}
 		}
 
+		// TypeSafe 渠道仅接受官方 /v1/systemone 入站,任务类端点同样本地拦截(与 Relay() 主门禁语义一致)
+		if common.GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeTypeSafe {
+			taskErr = service.TaskErrorWrapperLocal(errors.New(i18n.T(c, i18n.MsgDistributorTypeSafeNativeOnly)), "typesafe_native_only", http.StatusBadRequest)
+			break
+		}
 		addUsedChannel(c, channel.Id)
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {

@@ -144,6 +144,13 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 
 	endpointType = normalizeChannelTestEndpoint(channel, testModel, endpointType)
+
+	// TypeSafe 渠道只支持 typesafe 端点测试,显式指定其他端点时本地拦截并给出明确错误
+	if channel.Type == constant.ChannelTypeTypeSafe && constant.EndpointType(endpointType) != constant.EndpointTypeTypeSafe {
+		return testResult{
+			localErr: fmt.Errorf("TypeSafe channel only supports the typesafe (/v1/systemone) endpoint, got endpoint_type %q", endpointType),
+		}
+	}
 	// Gemini Interactions 独立渠道自动走 interactions 端点
 	if endpointType == "" && channel.Type == constant.ChannelTypeGeminiInteractions {
 		endpointType = string(constant.EndpointTypeGeminiInteractions)
