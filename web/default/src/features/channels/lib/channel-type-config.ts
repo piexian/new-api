@@ -143,7 +143,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
   75: {
     id: 75,
     name: CHANNEL_TYPES[75],
-    icon: 'Stepfun.Color',
+    icon: 'Stepfun',
     defaultBaseUrl: 'https://api.stepfun.com',
     hints: {
       baseUrl:
@@ -158,7 +158,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
   76: {
     id: 76,
     name: CHANNEL_TYPES[76],
-    icon: 'https://docs.typesafe.ai/favicon.ico',
+    icon: 'TypeSafe',
     defaultBaseUrl: 'https://api.typesafe.ai',
     hints: {
       baseUrl: 'Default: https://api.typesafe.ai',
@@ -167,6 +167,12 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       other:
         'POST /v1/systemone is forwarded 1:1 to the upstream and responses are passed through as-is; requests to other endpoints are rejected locally. No streaming support.',
     },
+  },
+  70: {
+    id: 70,
+    name: CHANNEL_TYPES[70],
+    icon: 'Mistral',
+    defaultBaseUrl: 'https://console.mistral.ai',
   },
   69: {
     id: 69,
@@ -266,7 +272,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
   72: {
     id: 72,
     name: CHANNEL_TYPES[72],
-    icon: 'https://generativelanguage.googleapis.com/favicon.ico',
+    icon: 'Gemini',
     defaultBaseUrl: 'https://generativelanguage.googleapis.com',
     hints: {
       baseUrl: 'Default: https://generativelanguage.googleapis.com',
