@@ -59,6 +59,7 @@ const ModelTestModal = ({
 }) => {
   const hasChannel = Boolean(currentTestChannel);
   const streamToggleDisabled = [
+    'typesafe',
     'embeddings',
     'image-generation',
     'jina-rerank',

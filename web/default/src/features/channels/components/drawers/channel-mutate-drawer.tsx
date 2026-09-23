@@ -3295,6 +3295,10 @@ export function ChannelMutateDrawer({
                                       {t(
                                         'OpenCode Zen uses https://opencode.ai/zen. OpenCode Go uses https://opencode.ai/zen/go.'
                                       )}
+                                      <br />
+                                      {t(
+                                        'OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.'
+                                      )}
                                     </FormDescription>
                                     <FormMessage />
                                   </FormItem>

@@ -241,7 +241,7 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       key: 'OpenCode Zen API Key',
       models: 'gpt-5.5,claude-sonnet-4-6,gemini-3-flash,glm-5.1',
       other:
-        'OpenCode Zen supports Responses, Anthropic Messages, Gemini native, and Chat Completions. OpenCode Go supports Chat Completions and Anthropic Messages.',
+        'OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.',
     },
   },
   66: {

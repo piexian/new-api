@@ -4368,6 +4368,9 @@ const EditChannelModal = (props) => {
                                     },
                                   ]}
                                   defaultValue={OPENCODE_ZEN_BASE_URL}
+                                  extraText={t(
+                                    '自动补齐 OpenCode CLI 请求头；Zen 的 JEV 模型使用 /v1/systemone，不支持流式。',
+                                  )}
                                   disabled={isIonetLocked}
                                 />
                               </div>

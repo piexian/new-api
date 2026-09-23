@@ -230,6 +230,7 @@ const endpointSelectItemClass =
   'items-start py-2 [&_[data-slot=select-item-text]]:min-w-0 [&_[data-slot=select-item-text]]:shrink [&_[data-slot=select-item-text]]:whitespace-normal'
 
 const STREAM_INCOMPATIBLE_ENDPOINTS = new Set([
+  'typesafe',
   'embeddings',
   'gemini-embeddings',
   'image-generation',
