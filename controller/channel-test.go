@@ -88,6 +88,39 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	return normalized
 }
 
+func channelTestEndpointRelayFormat(endpointType constant.EndpointType) types.RelayFormat {
+	var relayFormat types.RelayFormat
+	switch endpointType {
+	case constant.EndpointTypeOpenAI, constant.EndpointTypeCohereChat:
+		relayFormat = types.RelayFormatOpenAI
+	case constant.EndpointTypeTypeSafe:
+		relayFormat = types.RelayFormatTypeSafe
+	case constant.EndpointTypeOpenAIResponse:
+		relayFormat = types.RelayFormatOpenAIResponses
+	case constant.EndpointTypeOpenAIResponseCompact:
+		relayFormat = types.RelayFormatOpenAIResponsesCompaction
+	case constant.EndpointTypeAnthropic:
+		relayFormat = types.RelayFormatClaude
+	case constant.EndpointTypeGemini, constant.EndpointTypeGeminiInteractions:
+		relayFormat = types.RelayFormatGemini
+	case constant.EndpointTypeJinaRerank, constant.EndpointTypeCohereRerank:
+		relayFormat = types.RelayFormatRerank
+	case constant.EndpointTypeImageGeneration, constant.EndpointTypeImageEdit:
+		relayFormat = types.RelayFormatOpenAIImage
+	case constant.EndpointTypeEmbeddings, constant.EndpointTypeCohereEmbeddings:
+		relayFormat = types.RelayFormatEmbedding
+	case constant.EndpointTypeGeminiEmbeddings:
+		relayFormat = types.RelayFormatEmbedding
+	case constant.EndpointTypeOpenAIVideo, constant.EndpointTypeVideoEdit, constant.EndpointTypeVideoExtension:
+		relayFormat = types.RelayFormatTask
+	case constant.EndpointTypeAudioSpeech, constant.EndpointTypeAudioTranscription, constant.EndpointTypeAudioTranslation, constant.EndpointTypeModerations:
+		relayFormat = types.RelayFormatOpenAI
+	default:
+		relayFormat = types.RelayFormatOpenAI
+	}
+	return relayFormat
+}
+
 func resolveChannelTestUserID(c *gin.Context) (int, error) {
 	if c != nil {
 		if userID := c.GetInt("id"); userID > 0 {
@@ -144,6 +177,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 
 	endpointType = normalizeChannelTestEndpoint(channel, testModel, endpointType)
+	if endpointType == string(constant.EndpointTypeTypeSafe) {
+		isStream = false
+	}
 
 	// TypeSafe 渠道只支持 typesafe 端点测试,显式指定其他端点时本地拦截并给出明确错误
 	if channel.Type == constant.ChannelTypeTypeSafe && constant.EndpointType(endpointType) != constant.EndpointTypeTypeSafe {
@@ -242,35 +278,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	// Determine relay format based on endpoint type or request path
 	var relayFormat types.RelayFormat
 	if endpointType != "" {
-		// 根据指定的端点类型设置 relayFormat
-		switch constant.EndpointType(endpointType) {
-		case constant.EndpointTypeOpenAI, constant.EndpointTypeCohereChat:
-		case constant.EndpointTypeTypeSafe:
-			relayFormat = types.RelayFormatTypeSafe
-			relayFormat = types.RelayFormatOpenAI
-		case constant.EndpointTypeOpenAIResponse:
-			relayFormat = types.RelayFormatOpenAIResponses
-		case constant.EndpointTypeOpenAIResponseCompact:
-			relayFormat = types.RelayFormatOpenAIResponsesCompaction
-		case constant.EndpointTypeAnthropic:
-			relayFormat = types.RelayFormatClaude
-		case constant.EndpointTypeGemini, constant.EndpointTypeGeminiInteractions:
-			relayFormat = types.RelayFormatGemini
-		case constant.EndpointTypeJinaRerank, constant.EndpointTypeCohereRerank:
-			relayFormat = types.RelayFormatRerank
-		case constant.EndpointTypeImageGeneration, constant.EndpointTypeImageEdit:
-			relayFormat = types.RelayFormatOpenAIImage
-		case constant.EndpointTypeEmbeddings, constant.EndpointTypeCohereEmbeddings:
-			relayFormat = types.RelayFormatEmbedding
-		case constant.EndpointTypeGeminiEmbeddings:
-			relayFormat = types.RelayFormatEmbedding
-		case constant.EndpointTypeOpenAIVideo, constant.EndpointTypeVideoEdit, constant.EndpointTypeVideoExtension:
-			relayFormat = types.RelayFormatTask
-		case constant.EndpointTypeAudioSpeech, constant.EndpointTypeAudioTranscription, constant.EndpointTypeAudioTranslation, constant.EndpointTypeModerations:
-			relayFormat = types.RelayFormatOpenAI
-		default:
-			relayFormat = types.RelayFormatOpenAI
-		}
+		relayFormat = channelTestEndpointRelayFormat(constant.EndpointType(endpointType))
 	} else {
 		// 根据请求路径自动检测
 		relayFormat = types.RelayFormatOpenAI
