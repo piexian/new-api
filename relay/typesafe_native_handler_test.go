@@ -72,7 +72,7 @@ func TestTypeSafeNativeHelperRejectsNonTypeSafeChannel(t *testing.T) {
 	newAPIError := TypeSafeNativeHelper(c, &relaycommon.RelayInfo{})
 	require.NotNil(t, newAPIError)
 	require.Equal(t, http.StatusBadRequest, newAPIError.StatusCode)
-	require.Contains(t, newAPIError.Error(), "requires TypeSafe channel")
+	require.Contains(t, newAPIError.Error(), "native endpoint is not supported")
 }
 
 func TestPath2RelayModeSystemOne(t *testing.T) {

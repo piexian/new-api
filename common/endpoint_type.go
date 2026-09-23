@@ -219,6 +219,9 @@ func isMoarkImageGenerationModel(modelName string) bool {
 
 func getOpenCodeEndpointTypes(modelName string) []constant.EndpointType {
 	modelName = strings.ToLower(strings.TrimSpace(modelName))
+	if stringListContainsFold(constant.OpenCodeZenSystemOneModels, modelName) {
+		return []constant.EndpointType{constant.EndpointTypeTypeSafe}
+	}
 	endpointTypes := make([]constant.EndpointType, 0, 4)
 	add := func(endpointType constant.EndpointType) {
 		for _, existing := range endpointTypes {

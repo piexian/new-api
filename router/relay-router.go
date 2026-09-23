@@ -242,7 +242,7 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatMoarkNative)
 		})
 
-		// TypeSafe System One 原生评估端点（原样透传，仅 TypeSafe 渠道生效）
+		// TypeSafe / OpenCode Zen System One 原生评估端点
 		httpRouter.POST("/systemone", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatTypeSafe)
 		})

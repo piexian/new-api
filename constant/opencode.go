@@ -33,6 +33,7 @@ var OpenCodeZenResponsesModels = []string{
 	"grok-build-0.1",
 	"muse-spark-1.2",
 	"muse-spark-1.2-contributor-free",
+	"muse-spark-1.3-contributor-free",
 }
 
 var OpenCodeZenClaudeModels = []string{
@@ -77,10 +78,17 @@ var OpenCodeZenChatModels = []string{
 	"big-pickle",
 	"x-preview-f-free",
 	"mimo-v2.5-free",
+	"mimo-v2.6-flash-free",
+	"ling-3.0-flash-fin-free",
 	"hy3-free",
 	"nemotron-3-ultra-free",
 	"nemotron-3.5-lightning-free",
 	"deepseek-v4-flash-free",
+}
+
+var OpenCodeZenSystemOneModels = []string{
+	"jev-1.13",
+	"jev-1.13-free",
 }
 
 var OpenCodeGoResponsesModels = []string{
@@ -123,6 +131,7 @@ var OpenCodeModelList = uniqueStringList(
 	OpenCodeZenClaudeModels,
 	OpenCodeZenGeminiModels,
 	OpenCodeZenChatModels,
+	OpenCodeZenSystemOneModels,
 	OpenCodeGoResponsesModels,
 	OpenCodeGoChatModels,
 	OpenCodeGoClaudeModels,

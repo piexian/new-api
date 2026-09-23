@@ -11,18 +11,25 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/sjson"
 )
 
-// TypeSafeNativeHelper 将 POST /v1/systemone 原样透传到 TypeSafe 上游（仅 TypeSafe 渠道）,
-// 响应原样写回客户端, usage 从响应体提取后按实际 token 计费
+// TypeSafeNativeHelper 透传 TypeSafe 和 OpenCode Zen 的 System One 请求及响应。
 func TypeSafeNativeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
-	if info.ChannelType != constant.ChannelTypeTypeSafe {
-		return types.NewErrorWithStatusCode(fmt.Errorf("TypeSafe native endpoint requires TypeSafe channel, got channel type %d", info.ChannelType), types.ErrorCodeInvalidApiType, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	if info.ChannelType != constant.ChannelTypeTypeSafe && info.ChannelType != constant.ChannelTypeOpenCode {
+		return types.NewErrorWithStatusCode(fmt.Errorf("native endpoint is not supported by the selected channel"), types.ErrorCodeInvalidApiType, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+
+	if info.ChannelType == constant.ChannelTypeOpenCode {
+		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+			return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+		}
 	}
 
 	adaptor := GetAdaptor(info.ApiType)
@@ -75,10 +82,16 @@ func typesafeNativeRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.
 		return nil, nil, err
 	}
 
-	if typesafeIsJSONContentType(c.Request.Header.Get("Content-Type")) && info != nil && info.ChannelMeta != nil && len(info.ParamOverride) > 0 {
+	if typesafeIsJSONContentType(c.Request.Header.Get("Content-Type")) && info != nil && info.ChannelMeta != nil && (len(info.ParamOverride) > 0 || info.IsModelMapped) {
 		requestBody, err := storage.Bytes()
 		if err != nil {
 			return nil, nil, err
+		}
+		if info.IsModelMapped {
+			requestBody, err = sjson.SetBytes(requestBody, "model", info.UpstreamModelName)
+			if err != nil {
+				return nil, nil, err
+			}
 		}
 		requestBody, err = relaycommon.ApplyParamOverrideWithRelayInfo(requestBody, info)
 		if err != nil {

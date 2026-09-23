@@ -1,8 +1,6 @@
 package opencode
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
+	"github.com/QuantumNous/new-api/relay/channel/typesafe"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/service"
@@ -28,17 +27,25 @@ const (
 	requestModeResponses
 	requestModeClaude
 	requestModeGemini
+	requestModeSystemOne
 )
 
 type Adaptor struct {
-	RequestMode  int
-	RouteByModel bool
+	RequestMode        int
+	RouteByModel       bool
+	freeResponseStream *freeStream
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.RequestMode = requestModeOpenAI
 	a.RouteByModel = false
+	a.freeResponseStream = nil
 	if info == nil {
+		return
+	}
+	if info.RelayFormat == types.RelayFormatTypeSafe || info.RelayMode == relayconstant.RelayModeTypeSafeNative {
+		a.RequestMode = requestModeSystemOne
+		info.FinalRequestRelayFormat = types.RelayFormatTypeSafe
 		return
 	}
 	if info.RelayFormat == types.RelayFormatClaude ||
@@ -83,6 +90,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if err := a.validateRequest(info); err != nil {
+		return "", err
+	}
 	if info != nil && IsGoBase(info.ChannelBaseUrl) {
 		if a.RequestMode == requestModeGemini {
 			return "", errors.New("opencode go does not support Gemini endpoint")
@@ -90,6 +100,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	}
 
 	switch a.RequestMode {
+	case requestModeSystemOne:
+		return openCodeRoot(info) + "/v1/systemone", nil
 	case requestModeResponses:
 		return openCodeResponsesURL(info), nil
 	case requestModeClaude:
@@ -106,13 +118,6 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
-	// 会话头用于上游 sticky 路由：优先透传客户端值，否则按用户+令牌生成稳定回退 ID
-	session := strings.TrimSpace(c.Request.Header.Get("x-opencode-session"))
-	if session == "" {
-		sum := sha256.Sum256([]byte(fmt.Sprintf("newapi:%d:%d", info.UserId, info.TokenId)))
-		session = "newapi-" + hex.EncodeToString(sum[:8])
-	}
-	req.Set("x-opencode-session", session)
 	switch a.RequestMode {
 	case requestModeClaude:
 		req.Set("x-api-key", info.ApiKey)
@@ -125,7 +130,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	default:
 		req.Set("Authorization", "Bearer "+info.ApiKey)
 	}
-	return nil
+	return setupOpenCodeHeaders(c, req)
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
@@ -148,13 +153,19 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if a.needsFreeCompatibility(info) {
+		return a.doFreeRequest(c, info, requestBody)
+	}
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+func (a *Adaptor) doResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch a.RequestMode {
+	case requestModeSystemOne:
+		nativeAdaptor := typesafe.Adaptor{}
+		return nativeAdaptor.DoResponse(c, resp, info)
 	case requestModeResponses:
-		if info.RelayMode == relayconstant.RelayModeChatCompletions {
+		if info.RelayFormat == types.RelayFormatOpenAI && (info.RelayMode == relayconstant.RelayModeChatCompletions || info.RelayMode == relayconstant.RelayModeUnknown) {
 			if info.IsStream {
 				return openai.OaiResponsesToChatStreamHandler(c, info, resp)
 			}
@@ -192,13 +203,16 @@ func shouldRouteOpenCodeByModel(info *relaycommon.RelayInfo) bool {
 	if info == nil || relaycommon.IsRequestPassThroughEnabled(info) {
 		return false
 	}
-	if info.RelayMode != relayconstant.RelayModeChatCompletions && info.RelayMode != relayconstant.RelayModeResponses {
+	if info.RelayMode != relayconstant.RelayModeUnknown && info.RelayMode != relayconstant.RelayModeChatCompletions && info.RelayMode != relayconstant.RelayModeResponses {
 		return false
 	}
 	return info.RelayFormat == types.RelayFormatOpenAI || info.RelayFormat == types.RelayFormatOpenAIResponses
 }
 
 func (a *Adaptor) convertRequest(c *gin.Context, info *relaycommon.RelayInfo, request any) (any, error) {
+	if err := a.validateRequest(info); err != nil {
+		return nil, err
+	}
 	if relaycommon.IsRequestPassThroughEnabled(info) {
 		return request, nil
 	}

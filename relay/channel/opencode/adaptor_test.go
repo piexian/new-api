@@ -427,7 +427,7 @@ func TestOpenCodeModelRoutedClaudeUsesAnthropicHeaders(t *testing.T) {
 	require.Equal(t, "opencode-key", headers.Get("x-api-key"))
 	require.Empty(t, headers.Get("Authorization"))
 	require.Equal(t, "2023-06-01", headers.Get("anthropic-version"))
-	require.Contains(t, headers.Get("User-Agent"), "claude-cli/2.1.165")
+	require.Equal(t, openCodeUserAgent, headers.Get("User-Agent"))
 }
 
 func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
@@ -464,7 +464,7 @@ func TestSetupRequestHeaderForwardsClientSessionHeader(t *testing.T) {
 
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-	c.Request.Header.Set("x-opencode-session", "sess-abc")
+	c.Request.Header.Set("x-opencode-session", "ses_f525e4699ffe5hmrr6t1FiPVca")
 	info := &relaycommon.RelayInfo{
 		UserId:  7,
 		TokenId: 42,
@@ -479,7 +479,7 @@ func TestSetupRequestHeaderForwardsClientSessionHeader(t *testing.T) {
 	headers := make(http.Header)
 
 	require.NoError(t, adaptor.SetupRequestHeader(c, &headers, info))
-	require.Equal(t, "sess-abc", headers.Get("x-opencode-session"))
+	require.Equal(t, "ses_f525e4699ffe5hmrr6t1FiPVca", headers.Get("x-opencode-session"))
 }
 
 func TestSetupRequestHeaderGeneratesStableSessionFallback(t *testing.T) {
@@ -505,14 +505,16 @@ func TestSetupRequestHeaderGeneratesStableSessionFallback(t *testing.T) {
 
 	require.NoError(t, adaptor.SetupRequestHeader(c, &headers, info))
 	session := headers.Get("x-opencode-session")
-	require.Regexp(t, `^newapi-[0-9a-f]{16}$`, session)
+	require.Regexp(t, openCodeSessionIDPattern, session)
 
 	repeat := make(http.Header)
 	require.NoError(t, adaptor.SetupRequestHeader(c, &repeat, info))
 	require.Equal(t, session, repeat.Get("x-opencode-session"))
 
 	other := make(http.Header)
-	require.NoError(t, adaptor.SetupRequestHeader(c, &other, newInfo(43)))
+	otherContext, _ := gin.CreateTestContext(httptest.NewRecorder())
+	otherContext.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	require.NoError(t, adaptor.SetupRequestHeader(otherContext, &other, newInfo(43)))
 	require.NotEqual(t, session, other.Get("x-opencode-session"))
 }
 
@@ -537,5 +539,5 @@ func TestSetupRequestHeaderSetsSessionForClaudeMode(t *testing.T) {
 	headers := make(http.Header)
 
 	require.NoError(t, adaptor.SetupRequestHeader(c, &headers, info))
-	require.Regexp(t, `^newapi-[0-9a-f]{16}$`, headers.Get("x-opencode-session"))
+	require.Regexp(t, openCodeSessionIDPattern, headers.Get("x-opencode-session"))
 }
