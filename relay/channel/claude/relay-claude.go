@@ -145,26 +145,37 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 	if claudeInfo.Usage.PromptTokens == 0 {
 		//上游出错
 	}
+	estimated := false
 	if claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done {
 		if common.DebugEnabled {
 			common.SysLog("claude response usage is not complete, maybe upstream error")
 		}
 		// 只补缺失字段，不整份覆盖——保留 message_start 已拿到的 cache 字段
 		fallback := service.ResponseText2Usage(c, claudeInfo.ResponseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
-		if claudeInfo.Usage.CompletionTokens == 0 ||
+		if (claudeInfo.Usage.CompletionTokens == 0 && fallback.CompletionTokens > 0) ||
 			(!claudeInfo.Done && fallback.CompletionTokens > claudeInfo.Usage.CompletionTokens) {
 			claudeInfo.Usage.CompletionTokens = fallback.CompletionTokens
+			estimated = true
 		}
-		if claudeInfo.Usage.PromptTokens == 0 {
+		if claudeInfo.Usage.PromptTokens == 0 && fallback.PromptTokens > 0 {
 			claudeInfo.Usage.PromptTokens = fallback.PromptTokens
+			estimated = true
 		}
 		claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 	}
 	if claudeInfo.Usage != nil {
 		claudeInfo.Usage.UsageSemantic = "anthropic"
 	}
-	if claudeInfo.Usage != nil && claudeInfo.Usage.BillingUsage == nil {
-		claudeInfo.Usage.BillingUsage = dto.NewClaudeMessagesBillingUsage(buildMessageDeltaPatchUsage(nil, claudeInfo))
+	if claudeInfo.Usage.BillingUsage == nil || claudeInfo.Usage.BillingUsage.ClaudeUsage == nil {
+		billing := buildMessageDeltaPatchUsage(nil, claudeInfo)
+		billing.OutputTokens = claudeInfo.Usage.CompletionTokens
+		claudeInfo.Usage.BillingUsage = dto.NewClaudeMessagesBillingUsage(billing)
+	}
+	if estimated && claudeInfo.Usage.BillingUsage != nil {
+		// message_start may have recorded zero output before the fallback estimate.
+		claudeInfo.Usage.BillingUsage.ClaudeUsage.InputTokens = claudeInfo.Usage.PromptTokens
+		claudeInfo.Usage.BillingUsage.ClaudeUsage.OutputTokens = claudeInfo.Usage.CompletionTokens
+		claudeInfo.Usage.BillingUsage.Estimated = true
 	}
 
 	if info.RelayFormat == types.RelayFormatClaude {
