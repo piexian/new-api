@@ -1,6 +1,7 @@
 package opencode
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestFreeAndAlphaModelsUseTheirNativeRoutes(t *testing.T) {
@@ -149,6 +151,145 @@ func TestSystemOneRoundTripPreservesBodyUsageAndHeaderOverrides(t *testing.T) {
 	require.Nil(t, apiErr)
 	require.Equal(t, &dto.Usage{PromptTokens: 7, TotalTokens: 7}, usage)
 	require.Equal(t, response, recorder.Body.String())
+}
+
+func TestNewModelChatRoundTripToNativeEndpoints(t *testing.T) {
+	service.InitHttpClient()
+	for _, tc := range []struct {
+		model, path, reply, authHeader, requestField, excludedField, basePath string
+	}{
+		{"gpt-6-sol", "/v1/responses", `{"id":"resp_test","object":"response","model":"gpt-6-sol","status":"completed","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"OK"}]}],"usage":{"input_tokens":3,"output_tokens":2,"total_tokens":5}}`, "Authorization", "input", "messages", "/zen"},
+		{"claude-opus-5-5", "/v1/messages", `{"id":"msg_test","type":"message","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"OK"}],"stop_reason":"end_turn","usage":{"input_tokens":3,"output_tokens":2}}`, "x-api-key", "messages", "input", "/zen"},
+		{"space-bunny-free", "/v1/chat/completions", `{"id":"chat_test","object":"chat.completion","model":"space-bunny-free","choices":[{"index":0,"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`, "Authorization", "messages", "input", "/zen"},
+		{"qwen3.8-flash", "/v1/messages", `{"id":"msg_test","type":"message","role":"assistant","model":"qwen3.8-flash","content":[{"type":"text","text":"OK"}],"stop_reason":"end_turn","usage":{"input_tokens":3,"output_tokens":2}}`, "x-api-key", "messages", "input", "/zen/go"},
+	} {
+		t.Run(tc.model, func(t *testing.T) {
+			type observed struct {
+				path, body string
+				headers    http.Header
+			}
+			sent := make(chan observed, 1)
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				sent <- observed{r.URL.Path, string(body), r.Header.Clone()}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, tc.reply)
+			}))
+			defer upstream.Close()
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+			info := &relaycommon.RelayInfo{
+				RelayFormat: types.RelayFormatOpenAI, RelayMode: relayconstant.RelayModeUnknown, RequestURLPath: "/v1/chat/completions",
+				ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenCode, ChannelBaseUrl: upstream.URL + tc.basePath, UpstreamModelName: tc.model, ApiKey: "test-key"},
+			}
+			a := &Adaptor{}
+			a.Init(info)
+			converted, err := a.ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{Model: tc.model, Messages: []dto.Message{{Role: "user", Content: "hi"}}})
+			require.NoError(t, err)
+			body, err := common.Marshal(converted)
+			require.NoError(t, err)
+			result, err := a.DoRequest(c, info, strings.NewReader(string(body)))
+			require.NoError(t, err)
+			request := <-sent
+			require.Equal(t, tc.basePath+tc.path, request.path)
+			require.Equal(t, tc.model, gjson.Get(request.body, "model").String())
+			require.True(t, gjson.Get(request.body, tc.requestField).Exists())
+			require.False(t, gjson.Get(request.body, tc.excludedField).Exists())
+			require.False(t, gjson.Get(request.body, "stream").Bool())
+			require.NotEmpty(t, request.headers.Get(tc.authHeader))
+			if tc.model == "space-bunny-free" {
+				require.False(t, gjson.Get(request.body, "tools").Exists())
+			}
+			usage, apiErr := a.DoResponse(c, result.(*http.Response), info)
+			require.Nil(t, apiErr)
+			require.Equal(t, 5, usage.(*dto.Usage).TotalTokens)
+			require.Equal(t, "chat.completion", gjson.GetBytes(recorder.Body.Bytes(), "object").String())
+			require.Equal(t, "OK", gjson.GetBytes(recorder.Body.Bytes(), "choices.0.message.content").String())
+		})
+	}
+}
+
+func TestGoSpaceBunnyResponsesRoundTripViaChat(t *testing.T) {
+	service.InitHttpClient()
+	type observed struct{ path, body string }
+	sent := make(chan observed, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		sent <- observed{r.URL.Path, string(body)}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"chat_test","object":"chat.completion","model":"space-bunny-free","choices":[{"index":0,"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`)
+	}))
+	defer server.Close()
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Request.Header.Set("Content-Type", "application/json")
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatOpenAIResponses, RelayMode: relayconstant.RelayModeResponses, RequestURLPath: "/v1/responses",
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenCode, ChannelBaseUrl: server.URL + "/zen/go", UpstreamModelName: "space-bunny-free", ApiKey: "test", ChannelSetting: dto.ChannelSettings{PassThroughBodyEnabled: true}},
+	}
+	a := &Adaptor{}
+	a.Init(info)
+	converted, err := a.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{Model: "space-bunny-free", Input: []byte(`[{"role":"user","content":"hi"}]`)})
+	require.NoError(t, err)
+	body, err := common.Marshal(converted)
+	require.NoError(t, err)
+	result, err := a.DoRequest(c, info, strings.NewReader(string(body)))
+	require.NoError(t, err)
+	request := <-sent
+	require.Equal(t, "/zen/go/v1/chat/completions", request.path)
+	require.True(t, gjson.Get(request.body, "messages").Exists())
+	require.False(t, gjson.Get(request.body, "input").Exists())
+	usage, apiErr := a.DoResponse(c, result.(*http.Response), info)
+	require.Nil(t, apiErr)
+	require.Equal(t, 5, usage.(*dto.Usage).TotalTokens)
+	require.Equal(t, "response", gjson.GetBytes(recorder.Body.Bytes(), "object").String())
+	require.Equal(t, "OK", gjson.GetBytes(recorder.Body.Bytes(), "output.0.content.0.text").String())
+}
+
+func TestGoSpaceBunnyClaudeRoundTripViaChat(t *testing.T) {
+	service.InitHttpClient()
+	for _, fromChannelTest := range []bool{false, true} {
+		t.Run(fmt.Sprintf("channel-test=%t", fromChannelTest), func(t *testing.T) {
+			sent := make(chan struct{ path, body string }, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ := io.ReadAll(r.Body)
+				sent <- struct{ path, body string }{r.URL.Path, string(body)}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, `{"id":"chat_test","object":"chat.completion","model":"space-bunny-free","choices":[{"index":0,"message":{"role":"assistant","content":"OK"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}`)
+			}))
+			defer server.Close()
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+			info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, RelayMode: relayconstant.RelayModeUnknown, RequestURLPath: "/v1/messages", ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenCode, ChannelBaseUrl: server.URL + "/zen/go", UpstreamModelName: "space-bunny-free", ApiKey: "test", ChannelSetting: dto.ChannelSettings{PassThroughBodyEnabled: true}}}
+			a := &Adaptor{}
+			a.Init(info)
+			var converted any
+			var err error
+			if fromChannelTest {
+				converted, err = a.ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{Model: "space-bunny-free", Messages: []dto.Message{{Role: "user", Content: "hi"}}})
+			} else {
+				maxTokens := uint(16)
+				converted, err = a.ConvertClaudeRequest(c, info, &dto.ClaudeRequest{Model: "space-bunny-free", MaxTokens: &maxTokens, Messages: []dto.ClaudeMessage{{Role: "user", Content: "hi"}}})
+			}
+			require.NoError(t, err)
+			payload, err := common.Marshal(converted)
+			require.NoError(t, err)
+			resp, err := a.DoRequest(c, info, strings.NewReader(string(payload)))
+			require.NoError(t, err)
+			request := <-sent
+			require.Equal(t, "/zen/go/v1/chat/completions", request.path)
+			require.True(t, gjson.Get(request.body, "messages").Exists())
+			require.NotEmpty(t, gjson.Get(request.body, "model").String())
+			usage, apiErr := a.DoResponse(c, resp.(*http.Response), info)
+			require.Nil(t, apiErr)
+			require.Equal(t, 5, usage.(*dto.Usage).TotalTokens)
+			require.Equal(t, "message", gjson.GetBytes(recorder.Body.Bytes(), "type").String())
+			require.Equal(t, "OK", gjson.GetBytes(recorder.Body.Bytes(), "content.0.text").String())
+		})
+	}
 }
 
 func TestChatViaResponsesUnknownModeConvertsStreamBack(t *testing.T) {

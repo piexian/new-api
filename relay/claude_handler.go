@@ -63,6 +63,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
+	knownOpenCodeRoute := isKnownOpenCodeRoute(info)
 
 	if info.RelayMode != relayconstant.RelayModeClaudeCountTokens && (request.MaxTokens == nil || *request.MaxTokens == 0) {
 		defaultMaxTokens := uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(request.Model))
@@ -152,7 +153,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	// ZCode 模式渠道禁 Responses 重路由与请求体透传：保证上游只收到官方化
 	// 处理后的 /v1/messages（协议转换会丢失 ZCode 指纹权益）。
 	zcodeMode := zhipu_4v.IsZCodeModeChannel(info.ChannelType, info.ChannelBaseUrl, info.ChannelSetting)
-	if !zcodeMode &&
+	if !zcodeMode && !knownOpenCodeRoute &&
 		!model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
 		!info.ChannelSetting.PassThroughBodyEnabled &&
 		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelSetting, info.ChannelId, info.ChannelType, info.OriginModelName) {
@@ -175,7 +176,7 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	var requestBody io.Reader
-	if !zcodeMode && (model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled) {
+	if !zcodeMode && shouldPassThroughModelRequest(info) {
 		body, size, err := relaycommon.PassThroughRequestBody(c, info)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -194,7 +195,11 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 
 		// remove disabled fields for Claude API
-		jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
+		if knownOpenCodeRoute {
+			jsonData, err = relaycommon.FilterDisabledFields(jsonData, info.ChannelOtherSettings)
+		} else {
+			jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
+		}
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}

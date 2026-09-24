@@ -8,6 +8,8 @@ const (
 )
 
 var OpenCodeZenResponsesModels = []string{
+	"gpt-6-astra",
+	"gpt-6-sol",
 	"gpt-5.6-sol",
 	"gpt-5.6-terra",
 	"gpt-5.6-luna",
@@ -28,16 +30,20 @@ var OpenCodeZenResponsesModels = []string{
 	"gpt-5",
 	"gpt-5-codex",
 	"gpt-5-nano",
+	"grok-4.7",
 	"grok-4.6",
 	"grok-4.5",
 	"grok-build-0.1",
+	"muse-spark-1.3",
 	"muse-spark-1.2",
 	"muse-spark-1.2-contributor-free",
 	"muse-spark-1.3-contributor-free",
 }
 
 var OpenCodeZenClaudeModels = []string{
+	"claude-fable-5-1",
 	"claude-fable-5",
+	"claude-opus-5-5",
 	"claude-opus-5",
 	"claude-opus-4-8",
 	"claude-opus-4-7",
@@ -47,6 +53,7 @@ var OpenCodeZenClaudeModels = []string{
 	"claude-sonnet-4-6",
 	"claude-sonnet-4-5",
 	"claude-haiku-4-5",
+	"qwen3.8-flash",
 	"qwen3.7-max",
 	"qwen3.7-plus",
 	"qwen3.6-plus",
@@ -54,6 +61,7 @@ var OpenCodeZenClaudeModels = []string{
 }
 
 var OpenCodeZenGeminiModels = []string{
+	"gemini-3.8-flash",
 	"gemini-3.7-flash",
 	"gemini-3.6-flash",
 	"gemini-3.5-flash",
@@ -63,11 +71,15 @@ var OpenCodeZenGeminiModels = []string{
 }
 
 var OpenCodeZenChatModels = []string{
+	"deepseek-v4.1-flash",
 	"deepseek-v4-pro",
 	"deepseek-v4-flash",
+	"deepseek-v4-flash-vision-exp",
 	"minimax-m3",
 	"minimax-m2.7",
 	"minimax-m2.5",
+	"glm-5.3-flash",
+	"glm-5.3",
 	"glm-5.2",
 	"glm-5.1",
 	"glm-5",
@@ -76,6 +88,7 @@ var OpenCodeZenChatModels = []string{
 	"kimi-k2.7-code",
 	"kimi-k3",
 	"big-pickle",
+	"space-bunny-free",
 	"x-preview-f-free",
 	"mimo-v2.5-free",
 	"mimo-v2.6-flash-free",
@@ -92,29 +105,45 @@ var OpenCodeZenSystemOneModels = []string{
 }
 
 var OpenCodeGoResponsesModels = []string{
+	"grok-4.7",
+	"grok-4.6",
 	"grok-4.5",
 	"gpt-5.6-luna",
+	"muse-spark-1.3-contributor",
 	"muse-spark-1.2-contributor",
 }
 
 var OpenCodeGoChatModels = []string{
+	"glm-5.3-flash",
 	"glm-5.3",
 	"glm-5.2",
 	"glm-5.1",
 	"kimi-k3",
 	"kimi-k2.7-code",
 	"kimi-k2.6",
+	"longcat-2.0",
+	"deepseek-v4.1-flash",
 	"deepseek-v4-pro",
 	"deepseek-v4-flash",
+	"deepseek-v4-flash-vision-exp",
+	"mimo-v2.6-flash",
+	"mimo-v2.6-pro",
 	"mimo-v2.5",
 	"mimo-v2.5-pro",
+	"hy4-preview",
 	"hy3",
+}
+
+// Go accepts this model on Chat, but does not list it in its public /v1/models inventory.
+var OpenCodeGoChatRouteOnlyModels = []string{
+	"space-bunny-free",
 }
 
 var OpenCodeGoClaudeModels = []string{
 	"minimax-m3",
 	"minimax-m2.7",
 	"minimax-m2.5",
+	"qwen3.8-flash",
 	"qwen3.8-max",
 	"qwen3.7-max",
 	"qwen3.7-plus",

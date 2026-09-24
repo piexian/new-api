@@ -16,7 +16,7 @@ import (
 var freeCoreTools = []string{"bash", "edit", "glob", "grep", "read"}
 
 func (a *Adaptor) needsFreeCompatibility(info *relaycommon.RelayInfo) bool {
-	if info == nil || info.ChannelMeta == nil || relaycommon.IsRequestPassThroughEnabled(info) {
+	if info == nil || info.ChannelMeta == nil || (relaycommon.IsRequestPassThroughEnabled(info) && !a.RouteByModel) {
 		return false
 	}
 	if info.RelayMode != relayconstant.RelayModeUnknown && info.RelayMode != relayconstant.RelayModeChatCompletions && info.RelayMode != relayconstant.RelayModeResponses {
@@ -26,6 +26,10 @@ func (a *Adaptor) needsFreeCompatibility(info *relaycommon.RelayInfo) bool {
 		return false
 	}
 	model := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(info.UpstreamModelName, "models/")))
+	// Space Bunny has a Chat endpoint, but its Free stream/tool contract is unverified.
+	if model == "space-bunny-free" {
+		return false
+	}
 	return model == "big-pickle" || strings.HasSuffix(model, "-free") &&
 		(stringListContains(constant.OpenCodeZenChatModels, model) || stringListContains(constant.OpenCodeZenResponsesModels, model))
 }

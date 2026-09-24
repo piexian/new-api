@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
+	"github.com/QuantumNous/new-api/relay/channel/opencode"
 	"github.com/QuantumNous/new-api/relay/channel/stepfun"
 	"github.com/QuantumNous/new-api/relay/channel/xai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -25,6 +26,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func isKnownOpenCodeRoute(info *relaycommon.RelayInfo) bool {
+	return info != nil && info.ChannelMeta != nil && info.ApiType == constant.APITypeOpenCode && opencode.ShouldRouteByModel(info)
+}
+
+func shouldPassThroughModelRequest(info *relaycommon.RelayInfo) bool {
+	return relaycommon.IsRequestPassThroughEnabled(info) && !isKnownOpenCodeRoute(info)
+}
 
 func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -100,11 +109,13 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	}
 	adaptor.Init(info)
 
+	knownOpenCodeRoute := isKnownOpenCodeRoute(info)
 	passThroughGlobal := model_setting.GetGlobalSettings().PassThroughRequestEnabled
 	if info.RelayMode == relayconstant.RelayModeChatCompletions &&
 		!passThroughGlobal &&
 		!info.ChannelSetting.PassThroughBodyEnabled &&
 		!info.UpstreamOpenAICompatChat() &&
+		!knownOpenCodeRoute &&
 		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelSetting, info.ChannelId, info.ChannelType, info.OriginModelName) {
 		applySystemPromptIfNeeded(c, info, request)
 		usage, newApiErr := chatCompletionsViaResponses(c, info, adaptor, request)
@@ -125,7 +136,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 
 	var requestBody io.Reader
 
-	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
+	if shouldPassThroughModelRequest(info) {
 		body, _, err := relaycommon.PassThroughRequestBody(c, info)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -197,7 +208,11 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		}
 
 		// remove disabled fields for OpenAI API
-		jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
+		if knownOpenCodeRoute {
+			jsonData, err = relaycommon.FilterDisabledFields(jsonData, info.ChannelOtherSettings)
+		} else {
+			jsonData, err = relaycommon.RemoveDisabledFields(jsonData, info.ChannelOtherSettings, info.ChannelSetting.PassThroughBodyEnabled)
+		}
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}

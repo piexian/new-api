@@ -48,6 +48,11 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 		info.FinalRequestRelayFormat = types.RelayFormatTypeSafe
 		return
 	}
+	if ShouldRouteByModel(info) {
+		a.RequestMode, _ = requestModeForModel(info.ChannelBaseUrl, info.UpstreamModelName)
+		a.RouteByModel = true
+		return
+	}
 	if info.RelayFormat == types.RelayFormatClaude ||
 		info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
 		a.RequestMode = requestModeClaude
@@ -64,12 +69,6 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 		info.RelayFormat == types.RelayFormatOpenAIResponses ||
 		info.RelayFormat == types.RelayFormatOpenAIResponsesCompaction {
 		a.RequestMode = requestModeResponses
-	}
-	if shouldRouteOpenCodeByModel(info) {
-		if requestMode, ok := requestModeForModel(info.ChannelBaseUrl, info.UpstreamModelName); ok {
-			a.RequestMode = requestMode
-			a.RouteByModel = true
-		}
 	}
 }
 
@@ -165,7 +164,7 @@ func (a *Adaptor) doResponse(c *gin.Context, resp *http.Response, info *relaycom
 		nativeAdaptor := typesafe.Adaptor{}
 		return nativeAdaptor.DoResponse(c, resp, info)
 	case requestModeResponses:
-		if info.RelayFormat == types.RelayFormatOpenAI && (info.RelayMode == relayconstant.RelayModeChatCompletions || info.RelayMode == relayconstant.RelayModeUnknown) {
+		if info.RelayFormat == types.RelayFormatClaude || info.RelayFormat == types.RelayFormatGemini || (info.RelayFormat == types.RelayFormatOpenAI && (info.RelayMode == relayconstant.RelayModeChatCompletions || info.RelayMode == relayconstant.RelayModeUnknown)) {
 			if info.IsStream {
 				return openai.OaiResponsesToChatStreamHandler(c, info, resp)
 			}
@@ -174,6 +173,15 @@ func (a *Adaptor) doResponse(c *gin.Context, resp *http.Response, info *relaycom
 		openaiAdaptor := openai.Adaptor{}
 		return openaiAdaptor.DoResponse(c, resp, info)
 	case requestModeClaude:
+		if info.RelayFormat == types.RelayFormatGemini {
+			if info.IsStream {
+				return claudeToConvertedStream(c, resp, info, types.RelayFormatGemini)
+			}
+			return claudeToGeminiResponse(c, resp, info)
+		}
+		if info.RelayMode == relayconstant.RelayModeResponses && info.IsStream {
+			return claudeToConvertedStream(c, resp, info, types.RelayFormatOpenAIResponses)
+		}
 		claudeAdaptor := claude.Adaptor{}
 		return claudeAdaptor.DoResponse(c, resp, info)
 	case requestModeGemini:
@@ -199,21 +207,36 @@ func (a *Adaptor) GetChannelName() string {
 	return ChannelName
 }
 
-func shouldRouteOpenCodeByModel(info *relaycommon.RelayInfo) bool {
-	if info == nil || relaycommon.IsRequestPassThroughEnabled(info) {
+// ShouldRouteByModel reports whether a text request targets a registered OpenCode model.
+func ShouldRouteByModel(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
 		return false
 	}
-	if info.RelayMode != relayconstant.RelayModeUnknown && info.RelayMode != relayconstant.RelayModeChatCompletions && info.RelayMode != relayconstant.RelayModeResponses {
+	switch info.RelayFormat {
+	case types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses:
+		if info.RelayMode != relayconstant.RelayModeUnknown && info.RelayMode != relayconstant.RelayModeChatCompletions && info.RelayMode != relayconstant.RelayModeResponses {
+			return false
+		}
+	case types.RelayFormatClaude:
+		if info.RelayMode != relayconstant.RelayModeUnknown || (info.RequestURLPath != "" && info.RequestURLPath != "/v1/messages") {
+			return false
+		}
+	case types.RelayFormatGemini:
+		if info.RelayMode != relayconstant.RelayModeGemini || (!strings.Contains(info.RequestURLPath, ":generateContent") && !strings.Contains(info.RequestURLPath, ":streamGenerateContent")) {
+			return false
+		}
+	default:
 		return false
 	}
-	return info.RelayFormat == types.RelayFormatOpenAI || info.RelayFormat == types.RelayFormatOpenAIResponses
+	_, ok := requestModeForModel(info.ChannelBaseUrl, info.UpstreamModelName)
+	return ok
 }
 
 func (a *Adaptor) convertRequest(c *gin.Context, info *relaycommon.RelayInfo, request any) (any, error) {
 	if err := a.validateRequest(info); err != nil {
 		return nil, err
 	}
-	if relaycommon.IsRequestPassThroughEnabled(info) {
+	if relaycommon.IsRequestPassThroughEnabled(info) && !a.RouteByModel {
 		return request, nil
 	}
 	target, err := a.targetRelayFormat()

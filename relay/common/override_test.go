@@ -2061,6 +2061,13 @@ func TestRemoveDisabledFieldsSkipWhenChannelPassThroughEnabled(t *testing.T) {
 	assertJSONEqual(t, input, string(out))
 }
 
+func TestFilterDisabledFieldsForKnownModelRoute(t *testing.T) {
+	input := []byte(`{"service_tier":"flex","safety_identifier":"user-123","store":true,"stream_options":{"include_obfuscation":false}}`)
+	out, err := FilterDisabledFields(input, dto.ChannelOtherSettings{})
+	require.NoError(t, err)
+	assertJSONEqual(t, `{"store":true}`, string(out))
+}
+
 func TestRemoveDisabledFieldsSkipWhenGlobalPassThroughEnabled(t *testing.T) {
 	original := model_setting.GetGlobalSettings().PassThroughRequestEnabled
 	model_setting.GetGlobalSettings().PassThroughRequestEnabled = true

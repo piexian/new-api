@@ -89,12 +89,21 @@ func TestFreeStreamSizeLimits(t *testing.T) {
 	}
 }
 
-func TestFreePassThroughStaysUnmodified(t *testing.T) {
-	info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatOpenAI, RelayMode: relayconstant.RelayModeUnknown, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "mimo-v2.5-free"}}
-	info.ChannelSetting.PassThroughBodyEnabled = true
-	adaptor := &Adaptor{}
-	adaptor.Init(info)
-	require.False(t, adaptor.needsFreeCompatibility(info))
+func TestFreePassThroughOnlyForUnknownModels(t *testing.T) {
+	for _, tc := range []struct {
+		model string
+		want  bool
+	}{
+		{"mimo-v2.5-free", true},
+		{"space-bunny-free", false},
+		{"unlisted-free", false},
+	} {
+		info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatOpenAI, RelayMode: relayconstant.RelayModeUnknown, ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: constant.OpenCodeZenBaseURLAlias, UpstreamModelName: tc.model}}
+		info.ChannelSetting.PassThroughBodyEnabled = true
+		adaptor := &Adaptor{}
+		adaptor.Init(info)
+		require.Equal(t, tc.want, adaptor.needsFreeCompatibility(info), tc.model)
+	}
 }
 
 func TestFreeRequestCancellationBeforeUpstreamHeaders(t *testing.T) {

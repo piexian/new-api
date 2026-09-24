@@ -256,6 +256,13 @@ func TestGetRequestURLRoutesKnownModelsByBase(t *testing.T) {
 			want:    "https://opencode.ai/zen/go/v1/responses",
 			mode:    requestModeResponses,
 		},
+		{
+			name:    "go Chat-only Space Bunny",
+			baseURL: channelconstant.OpenCodeGoBaseURLAlias,
+			model:   "space-bunny-free",
+			want:    "https://opencode.ai/zen/go/v1/chat/completions",
+			mode:    requestModeOpenAI,
+		},
 	}
 
 	for _, tt := range tests {
@@ -285,6 +292,55 @@ func TestGetRequestURLRoutesKnownModelsByBase(t *testing.T) {
 	}
 }
 
+func TestOpenCodeNewModelRoutes(t *testing.T) {
+	t.Parallel()
+
+	for _, group := range []struct {
+		baseURL string
+		models  []string
+		mode    int
+		suffix  string
+	}{
+		{channelconstant.OpenCodeZenBaseURLAlias, []string{"gpt-6-astra", "gpt-6-sol", "grok-4.7", "muse-spark-1.3"}, requestModeResponses, "/v1/responses"},
+		{channelconstant.OpenCodeZenBaseURLAlias, []string{"claude-fable-5-1", "claude-opus-5-5", "qwen3.8-flash"}, requestModeClaude, "/v1/messages"},
+		{channelconstant.OpenCodeZenBaseURLAlias, []string{"gemini-3.8-flash"}, requestModeGemini, "/v1/models/gemini-3.8-flash:generateContent"},
+		{channelconstant.OpenCodeZenBaseURLAlias, []string{"deepseek-v4.1-flash", "deepseek-v4-flash-vision-exp", "glm-5.3-flash", "glm-5.3", "space-bunny-free"}, requestModeOpenAI, "/v1/chat/completions"},
+		{channelconstant.OpenCodeGoBaseURLAlias, []string{"grok-4.7", "grok-4.6", "muse-spark-1.3-contributor"}, requestModeResponses, "/v1/responses"},
+		{channelconstant.OpenCodeGoBaseURLAlias, []string{"qwen3.8-flash"}, requestModeClaude, "/v1/messages"},
+		{channelconstant.OpenCodeGoBaseURLAlias, []string{"glm-5.3-flash", "longcat-2.0", "deepseek-v4.1-flash", "deepseek-v4-flash-vision-exp", "mimo-v2.6-flash", "mimo-v2.6-pro", "hy4-preview"}, requestModeOpenAI, "/v1/chat/completions"},
+	} {
+		for _, model := range group.models {
+			for _, incoming := range []struct {
+				format types.RelayFormat
+				mode   int
+				path   string
+			}{
+				{types.RelayFormatOpenAI, relayconstant.RelayModeChatCompletions, "/v1/chat/completions"},
+				{types.RelayFormatOpenAIResponses, relayconstant.RelayModeResponses, "/v1/responses"},
+			} {
+				t.Run(group.baseURL+"/"+model+"/"+string(incoming.format), func(t *testing.T) {
+					t.Parallel()
+					info := &relaycommon.RelayInfo{
+						RelayMode: incoming.mode, RelayFormat: incoming.format, RequestURLPath: incoming.path,
+						ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: group.baseURL, ChannelType: channelconstant.ChannelTypeOpenCode, UpstreamModelName: model},
+					}
+					adaptor := &Adaptor{}
+					adaptor.Init(info)
+					require.True(t, adaptor.RouteByModel)
+					require.Equal(t, group.mode, adaptor.RequestMode)
+					requestURL, err := adaptor.GetRequestURL(info)
+					require.NoError(t, err)
+					require.Equal(t, NormalizeRoot(group.baseURL)+group.suffix, requestURL)
+					require.Contains(t, ModelList, model)
+					if IsGoBase(group.baseURL) {
+						require.Contains(t, StaticModelListForBase(group.baseURL), model)
+					}
+				})
+			}
+		}
+	}
+}
+
 func TestOpenCodeModelRoutingConvertsOpenAIChatRequests(t *testing.T) {
 	t.Parallel()
 
@@ -303,9 +359,30 @@ func TestOpenCodeModelRoutingConvertsOpenAIChatRequests(t *testing.T) {
 			format:   types.RelayFormatOpenAIResponses,
 		},
 		{
+			name:     "chat to GPT 6 Sol responses",
+			baseURL:  channelconstant.OpenCodeZenBaseURLAlias,
+			model:    "gpt-6-sol",
+			wantType: &dto.OpenAIResponsesRequest{},
+			format:   types.RelayFormatOpenAIResponses,
+		},
+		{
 			name:     "chat to Claude",
 			baseURL:  channelconstant.OpenCodeGoBaseURLAlias,
 			model:    "minimax-m3",
+			wantType: &dto.ClaudeRequest{},
+			format:   types.RelayFormatClaude,
+		},
+		{
+			name:     "chat to Claude Opus 5.5",
+			baseURL:  channelconstant.OpenCodeZenBaseURLAlias,
+			model:    "claude-opus-5-5",
+			wantType: &dto.ClaudeRequest{},
+			format:   types.RelayFormatClaude,
+		},
+		{
+			name:     "chat to Go Qwen3.8 Flash",
+			baseURL:  channelconstant.OpenCodeGoBaseURLAlias,
+			model:    "qwen3.8-flash",
 			wantType: &dto.ClaudeRequest{},
 			format:   types.RelayFormatClaude,
 		},
@@ -315,6 +392,20 @@ func TestOpenCodeModelRoutingConvertsOpenAIChatRequests(t *testing.T) {
 			model:    "gemini-3.5-flash",
 			wantType: &dto.GeminiChatRequest{},
 			format:   types.RelayFormatGemini,
+		},
+		{
+			name:     "chat to Gemini 3.8 Flash",
+			baseURL:  channelconstant.OpenCodeZenBaseURLAlias,
+			model:    "gemini-3.8-flash",
+			wantType: &dto.GeminiChatRequest{},
+			format:   types.RelayFormatGemini,
+		},
+		{
+			name:     "chat to Space Bunny Free",
+			baseURL:  channelconstant.OpenCodeZenBaseURLAlias,
+			model:    "space-bunny-free",
+			wantType: &dto.GeneralOpenAIRequest{},
+			format:   types.RelayFormatOpenAI,
 		},
 	}
 
@@ -388,7 +479,7 @@ func TestOpenCodePassThroughKeepsClientProtocolRoute(t *testing.T) {
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelBaseUrl:    channelconstant.OpenCodeZenBaseURLAlias,
 			ChannelType:       channelconstant.ChannelTypeOpenCode,
-			UpstreamModelName: "claude-sonnet-5",
+			UpstreamModelName: "unlisted-open-code-model",
 			ChannelSetting:    dto.ChannelSettings{PassThroughBodyEnabled: true},
 		},
 	}
@@ -401,6 +492,121 @@ func TestOpenCodePassThroughKeepsClientProtocolRoute(t *testing.T) {
 	require.Equal(t, requestModeOpenAI, adaptor.RequestMode)
 	require.False(t, adaptor.RouteByModel)
 	require.Equal(t, "https://opencode.ai/zen/v1/chat/completions", requestURL)
+	request := &dto.GeneralOpenAIRequest{Model: "unlisted-open-code-model"}
+	converted, err := adaptor.ConvertOpenAIRequest(nil, info, request)
+	require.NoError(t, err)
+	require.Same(t, request, converted)
+}
+func TestOpenCodeNativeIngressUsesModelProtocol(t *testing.T) {
+	for _, tc := range []struct {
+		name, baseURL, model, path, wantURL string
+		format                              types.RelayFormat
+		mode                                int
+		wantType                            any
+	}{
+		{"go Claude to Chat", channelconstant.OpenCodeGoBaseURLAlias, "space-bunny-free", "/v1/messages", "/v1/chat/completions", types.RelayFormatClaude, requestModeOpenAI, &dto.GeneralOpenAIRequest{}},
+		{"go native Claude", channelconstant.OpenCodeGoBaseURLAlias, "qwen3.8-flash", "/v1/messages", "/v1/messages", types.RelayFormatClaude, requestModeClaude, &dto.ClaudeRequest{}},
+		{"zen Claude to Responses", channelconstant.OpenCodeZenBaseURLAlias, "gpt-6-sol", "/v1/messages", "/v1/responses", types.RelayFormatClaude, requestModeResponses, &dto.OpenAIResponsesRequest{}},
+		{"zen Claude to Gemini", channelconstant.OpenCodeZenBaseURLAlias, "gemini-3.8-flash", "/v1/messages", "/v1/models/gemini-3.8-flash:generateContent", types.RelayFormatClaude, requestModeGemini, &dto.GeminiChatRequest{}},
+		{"go Gemini to Chat", channelconstant.OpenCodeGoBaseURLAlias, "space-bunny-free", "/v1beta/models/space-bunny-free:generateContent", "/v1/chat/completions", types.RelayFormatGemini, requestModeOpenAI, &dto.GeneralOpenAIRequest{}},
+		{"go Gemini to Claude", channelconstant.OpenCodeGoBaseURLAlias, "qwen3.8-flash", "/v1beta/models/qwen3.8-flash:generateContent", "/v1/messages", types.RelayFormatGemini, requestModeClaude, &dto.ClaudeRequest{}},
+		{"zen Gemini to Responses", channelconstant.OpenCodeZenBaseURLAlias, "gpt-6-sol", "/v1beta/models/gpt-6-sol:generateContent", "/v1/responses", types.RelayFormatGemini, requestModeResponses, &dto.OpenAIResponsesRequest{}},
+		{"zen native Gemini", channelconstant.OpenCodeZenBaseURLAlias, "gemini-3.8-flash", "/v1beta/models/gemini-3.8-flash:generateContent", "/v1/models/gemini-3.8-flash:generateContent", types.RelayFormatGemini, requestModeGemini, &dto.GeminiChatRequest{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+			relayMode := relayconstant.RelayModeUnknown
+			if tc.format == types.RelayFormatGemini {
+				relayMode = relayconstant.RelayModeGemini
+			}
+			info := &relaycommon.RelayInfo{RelayFormat: tc.format, RelayMode: relayMode, RequestURLPath: tc.path, ChannelMeta: &relaycommon.ChannelMeta{ChannelType: channelconstant.ChannelTypeOpenCode, ChannelBaseUrl: tc.baseURL, UpstreamModelName: tc.model, ChannelSetting: dto.ChannelSettings{PassThroughBodyEnabled: true}}}
+			a := &Adaptor{}
+			a.Init(info)
+			require.True(t, a.RouteByModel)
+			require.Equal(t, tc.mode, a.RequestMode)
+			url, err := a.GetRequestURL(info)
+			require.NoError(t, err)
+			require.Equal(t, NormalizeRoot(tc.baseURL)+tc.wantURL, url)
+			var converted any
+			if tc.format == types.RelayFormatClaude {
+				maxTokens := uint(16)
+				converted, err = a.ConvertClaudeRequest(c, info, &dto.ClaudeRequest{Model: tc.model, MaxTokens: &maxTokens, Messages: []dto.ClaudeMessage{{Role: "user", Content: "hi"}}})
+			} else {
+				converted, err = a.ConvertGeminiRequest(c, info, &dto.GeminiChatRequest{Contents: []dto.GeminiChatContent{{Role: "user", Parts: []dto.GeminiPart{{Text: "hi"}}}}})
+			}
+			require.NoError(t, err)
+			require.IsType(t, tc.wantType, converted)
+			target, err := a.targetRelayFormat()
+			require.NoError(t, err)
+			require.Equal(t, target, info.FinalRequestRelayFormat)
+		})
+	}
+}
+
+func TestOpenCodeNativeIngressNonTextEndpointsKeepOriginalRoute(t *testing.T) {
+	for _, tc := range []struct {
+		name, path string
+		format     types.RelayFormat
+		mode       int
+	}{
+		{"count tokens", "/v1/messages/count_tokens", types.RelayFormatClaude, relayconstant.RelayModeClaudeCountTokens},
+		{"responses compact", "/v1/responses/compact", types.RelayFormatOpenAIResponsesCompaction, relayconstant.RelayModeResponsesCompact},
+		{"responses input tokens", "/v1/responses/input_tokens", types.RelayFormatOpenAIResponses, relayconstant.RelayModeResponsesInputTokens},
+		{"gemini embed", "/v1beta/models/space-bunny-free:embedContent", types.RelayFormatGemini, relayconstant.RelayModeGemini},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{RelayFormat: tc.format, RelayMode: tc.mode, RequestURLPath: tc.path, ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: channelconstant.OpenCodeGoBaseURLAlias, UpstreamModelName: "space-bunny-free"}}
+			a := &Adaptor{}
+			a.Init(info)
+			require.False(t, ShouldRouteByModel(info))
+			require.False(t, a.RouteByModel)
+		})
+	}
+}
+
+func TestKnownOpenCodeModelsOverridePassThrough(t *testing.T) {
+	for _, tc := range []struct {
+		name, baseURL, model, path string
+		incoming                   types.RelayFormat
+		mode                       int
+		final                      types.RelayFormat
+		converted                  any
+	}{
+		{"zen claude", channelconstant.OpenCodeZenBaseURLAlias, "claude-opus-5-5", "/v1/messages", types.RelayFormatOpenAI, requestModeClaude, types.RelayFormatClaude, &dto.ClaudeRequest{}},
+		{"zen chat", channelconstant.OpenCodeZenBaseURLAlias, "space-bunny-free", "/v1/chat/completions", types.RelayFormatOpenAIResponses, requestModeOpenAI, types.RelayFormatOpenAI, &dto.GeneralOpenAIRequest{}},
+		{"go responses", channelconstant.OpenCodeGoBaseURLAlias, "grok-4.7", "/v1/responses", types.RelayFormatOpenAI, requestModeResponses, types.RelayFormatOpenAIResponses, &dto.OpenAIResponsesRequest{}},
+		{"go claude", channelconstant.OpenCodeGoBaseURLAlias, "qwen3.8-flash", "/v1/messages", types.RelayFormatOpenAIResponses, requestModeClaude, types.RelayFormatClaude, &dto.ClaudeRequest{}},
+		{"go Chat-only Space Bunny", channelconstant.OpenCodeGoBaseURLAlias, "space-bunny-free", "/v1/chat/completions", types.RelayFormatOpenAIResponses, requestModeOpenAI, types.RelayFormatOpenAI, &dto.GeneralOpenAIRequest{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+			mode := relayconstant.RelayModeChatCompletions
+			if tc.incoming == types.RelayFormatOpenAIResponses {
+				mode = relayconstant.RelayModeResponses
+			}
+			info := &relaycommon.RelayInfo{
+				RelayFormat: tc.incoming, RelayMode: mode,
+				ChannelMeta: &relaycommon.ChannelMeta{ChannelType: channelconstant.ChannelTypeOpenCode, ChannelBaseUrl: tc.baseURL, UpstreamModelName: tc.model, ChannelSetting: dto.ChannelSettings{PassThroughBodyEnabled: true}},
+			}
+			adaptor := &Adaptor{}
+			adaptor.Init(info)
+			require.True(t, ShouldRouteByModel(info))
+			require.True(t, adaptor.RouteByModel)
+			require.Equal(t, tc.mode, adaptor.RequestMode)
+			url, err := adaptor.GetRequestURL(info)
+			require.NoError(t, err)
+			require.Equal(t, NormalizeRoot(tc.baseURL)+tc.path, url)
+			var converted any
+			if tc.incoming == types.RelayFormatOpenAIResponses {
+				converted, err = adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{Model: tc.model, Input: []byte(`[{"role":"user","content":"hi"}]`)})
+			} else {
+				converted, err = adaptor.ConvertOpenAIRequest(c, info, &dto.GeneralOpenAIRequest{Model: tc.model, Messages: []dto.Message{{Role: "user", Content: "hi"}}})
+			}
+			require.NoError(t, err)
+			require.IsType(t, tc.converted, converted)
+			require.Equal(t, tc.final, info.FinalRequestRelayFormat)
+		})
+	}
 }
 
 func TestOpenCodeModelRoutedClaudeUsesAnthropicHeaders(t *testing.T) {
@@ -434,18 +640,27 @@ func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
 	t.Parallel()
 
 	require.Equal(t, []string{
+		"glm-5.3-flash",
 		"glm-5.3",
 		"glm-5.2",
 		"glm-5.1",
 		"kimi-k3",
 		"kimi-k2.7-code",
 		"kimi-k2.6",
+		"longcat-2.0",
+		"deepseek-v4.1-flash",
 		"deepseek-v4-pro",
 		"deepseek-v4-flash",
+		"deepseek-v4-flash-vision-exp",
+		"mimo-v2.6-flash",
+		"mimo-v2.6-pro",
 		"mimo-v2.5",
 		"mimo-v2.5-pro",
+		"hy4-preview",
 		"hy3",
 	}, channelconstant.OpenCodeGoChatModels)
+	require.Contains(t, channelconstant.OpenCodeGoChatRouteOnlyModels, "space-bunny-free")
+	require.NotContains(t, StaticModelListForBase(channelconstant.OpenCodeGoBaseURLAlias), "space-bunny-free")
 	require.Contains(t, channelconstant.OpenCodeGoClaudeModels, "minimax-m3")
 	require.Contains(t, channelconstant.OpenCodeZenResponsesModels, "gpt-5.6-sol")
 	require.Contains(t, channelconstant.OpenCodeZenResponsesModels, "gpt-5.6-terra")

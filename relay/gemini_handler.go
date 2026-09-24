@@ -118,6 +118,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	adaptor.Init(info)
+	knownOpenCodeRoute := isKnownOpenCodeRoute(info)
 
 	if info.ChannelSetting.SystemPrompt != "" {
 		if request.SystemInstructions == nil {
@@ -160,7 +161,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	var requestBody io.Reader
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	if shouldPassThroughModelRequest(info) {
 		body, _, err := relaycommon.PassThroughRequestBody(c, info)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -176,6 +177,13 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		jsonData, err := common.Marshal(convertedRequest)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+
+		if knownOpenCodeRoute {
+			jsonData, err = relaycommon.FilterDisabledFields(jsonData, info.ChannelOtherSettings)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
 		}
 
 		// apply param override

@@ -110,8 +110,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 
 	other["admin_info"] = adminInfo
 	appendRequestPath(ctx, relayInfo, other)
-	appendRequestConversionChain(relayInfo, other)
-	appendFinalRequestFormat(relayInfo, other)
+	AppendRequestFormatInfo(relayInfo, other)
 	appendBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
@@ -233,6 +232,12 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		// Wallet quota is not deducted when billed from subscription.
 		other["wallet_quota_deducted"] = 0
 	}
+}
+
+// AppendRequestFormatInfo records the actual protocol chain for success and error logs.
+func AppendRequestFormatInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	appendRequestConversionChain(relayInfo, other)
+	appendFinalRequestFormat(relayInfo, other)
 }
 
 func appendRequestConversionChain(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {

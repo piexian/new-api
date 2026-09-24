@@ -1045,6 +1045,11 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || channelPassThroughEnabled {
 		return jsonData, nil
 	}
+	return FilterDisabledFields(jsonData, channelOtherSettings)
+}
+
+// FilterDisabledFields applies channel field restrictions even when global passthrough is enabled.
+func FilterDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOtherSettings) ([]byte, error) {
 	if !hasRemovableDisabledField(jsonData, channelOtherSettings) {
 		return jsonData, nil
 	}

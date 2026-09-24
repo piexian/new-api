@@ -87,7 +87,7 @@ func requestModeForModel(baseURL string, model string) (int, bool) {
 			return requestModeResponses, true
 		case stringListContains(channelconstant.OpenCodeGoClaudeModels, model):
 			return requestModeClaude, true
-		case stringListContains(channelconstant.OpenCodeGoChatModels, model):
+		case stringListContains(channelconstant.OpenCodeGoChatModels, model) || stringListContains(channelconstant.OpenCodeGoChatRouteOnlyModels, model):
 			return requestModeOpenAI, true
 		default:
 			return 0, false

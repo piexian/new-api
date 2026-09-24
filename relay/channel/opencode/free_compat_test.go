@@ -82,6 +82,8 @@ func TestFreeCompatibilityScope(t *testing.T) {
 		{"mimo-v2.5-free", types.RelayFormatOpenAI, relayconstant.RelayModeUnknown, true},
 		{"muse-spark-1.3-contributor-free", types.RelayFormatOpenAIResponses, relayconstant.RelayModeResponses, true},
 		{"big-pickle", types.RelayFormatOpenAI, relayconstant.RelayModeUnknown, true},
+		{"space-bunny-free", types.RelayFormatOpenAI, relayconstant.RelayModeUnknown, false},
+		{"space-bunny-free", types.RelayFormatOpenAIResponses, relayconstant.RelayModeResponses, false},
 		{"mimo-v2.5", types.RelayFormatOpenAI, relayconstant.RelayModeUnknown, false},
 		{"omen-alpha", types.RelayFormatOpenAI, relayconstant.RelayModeUnknown, false},
 		{"jev-1.13-free", types.RelayFormatTypeSafe, relayconstant.RelayModeTypeSafeNative, false},
