@@ -173,7 +173,7 @@ func setupZhipuClaudeCompatibleHeaders(c *gin.Context, req *http.Header, info *r
 		req.Del("anthropic-beta")
 		setupZCodeCompatibilityHeaders(req, info)
 	} else if isZhipuCodingPlan(info) {
-		setupZCodeTraceHeaders(req)
+		setupZCodeTraceHeaders(req, zcodeLegacyTraceHeadersEnabled(info))
 	}
 }
 
@@ -240,9 +240,12 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	if shouldUseZhipuClaudeCompatibleAPI(info) {
 		setupZhipuClaudeCompatibleHeaders(c, req, info)
-		// V4 客户端签名需在 ZCode 头（含 x-session-id）就绪后按最终 URL 判定。
-		if finalURL, urlErr := a.GetRequestURL(info); urlErr == nil {
-			applyZCodeClientSigning(c, req, info, finalURL)
+		// V4 客户端签名需在 ZCode 头（含 x-session-id）就绪后按最终 URL 判定；
+		// 默认关闭，仅渠道显式开启时才计算。
+		if zcodeClientSigningEnabled(info) {
+			if finalURL, urlErr := a.GetRequestURL(info); urlErr == nil {
+				applyZCodeClientSigning(c, req, info, finalURL)
+			}
 		}
 		return nil
 	}

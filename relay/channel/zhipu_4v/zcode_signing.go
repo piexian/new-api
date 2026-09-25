@@ -20,6 +20,11 @@ package zhipu_4v
 //
 // 仅对 ZCode 模式下发往智谱业务域（api.z.ai / *.bigmodel.cn）的请求生效；
 // zcode.z.ai 的 zcode-plan / off-peak 代理路径在 ZCode 客户端即属免签白名单。
+//
+// 版本现状：官方 3.14.3 客户端解包产物里已不存在 X-Client-Sig / X-Client-Pow /
+// X-Client-Nonce / X-Client-Version、握手路径与 KDF 常量，因此本实现默认关闭
+// （渠道 zcode_client_signing_enabled=true 时才启用），仅作为对齐老版本上游的
+// 可选路径保留。
 
 import (
 	"bytes"
@@ -373,6 +378,10 @@ func applyZCodeClientSigning(c *gin.Context, req *http.Header, info *relaycommon
 	if !isZhipuZcodeMode(info) || !isZCodeSigningTargetURL(finalURL) {
 		return
 	}
+	// 官方 3.14.3 客户端已不做 V4 签名，默认关闭；只有渠道显式打开时才走握手。
+	if !zcodeClientSigningEnabled(info) {
+		return
+	}
 	cred, ok := parseZCodeSigningCredential(info.ApiKey)
 	if !ok {
 		return
@@ -395,7 +404,8 @@ func applyZCodeClientSigning(c *gin.Context, req *http.Header, info *relaycommon
 
 	ts := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	nonce := zcodeSigningRandomHex(zcodeSigningNonceBytes)
-	message := cred.apiKeyID + "\n" + ts + "\n" + zcodeClientVersion + "\n" + sessionID + "\n" + nonce
+	// 签名串里的版本必须与本次请求声明的指纹版本一致。
+	message := cred.apiKeyID + "\n" + ts + "\n" + zcodeFingerprintVersion(info) + "\n" + sessionID + "\n" + nonce
 	signature := zcodeSigningBase64(ed25519.Sign(key, []byte(message)))
 
 	pow, err := zcodeSigningSolvePow(cred.apiKeyID, sessionID, ts, zcodeSigningPowBits)
@@ -405,7 +415,7 @@ func applyZCodeClientSigning(c *gin.Context, req *http.Header, info *relaycommon
 	}
 
 	req.Set("X-Client-Ts", ts)
-	req.Set("X-Client-Version", zcodeClientVersion)
+	req.Set("X-Client-Version", zcodeFingerprintVersion(info))
 	req.Set("X-Client-Sig", signature)
 	req.Set("X-Client-Nonce", nonce)
 	req.Set("X-App-Id", zcodeSigningAppID)
@@ -419,6 +429,9 @@ func maybeInvalidateZCodeSigningKey(c *gin.Context, info *relaycommon.RelayInfo,
 		return
 	}
 	if info == nil || !isZhipuZcodeMode(info) || !isZCodeSigningTargetURL(finalURL) {
+		return
+	}
+	if !zcodeClientSigningEnabled(info) {
 		return
 	}
 	cred, ok := parseZCodeSigningCredential(info.ApiKey)

@@ -14,18 +14,47 @@ import (
 	"github.com/google/uuid"
 )
 
-// ZCode 客户端版本对齐 ZCode Desktop 3.12.3 内置常量（X-Client-Version /
-// X-ZCode-App-Version / UA 同源）。服务端 forceUpdate.minimalVersion=3.5.3
-// 仅为强制更新下限，指纹取当前最新版而非下限。
-const zcodeClientVersion = "3.12.3"
+// zcodeClientVersion 声明的客户端版本，对齐官方解包（ZCode Desktop 3.14.3，
+// Windows x64 安装包）的 buildZCodeSourceHeadersFromContext：User-Agent 为
+// `ZCode/<version>`，X-ZCode-App-Version 同源。服务端 forceUpdate.minimalVersion
+// 只是强制更新下限，指纹取实际客户端版本，因此这里必须跟随当前官方版本而不是下限。
+const zcodeClientVersion = "3.14.3"
 
 // zcodeOsVersion 与 X-Platform=win32-x64 配套（Windows 11 24H2，对齐官方
 // os.release() 在 Windows 上的形态）；不使用宿主机 release，避免与平台指纹矛盾。
 const zcodeOsVersion = "10.0.26100"
 
-// setupZCodeTraceHeaders 清除 Claude 系客户端指纹头并写入 ZCode 请求级
-// tracing 头。Coding Plan 渠道的默认（非 ZCode 模式）行为。
-func setupZCodeTraceHeaders(req *http.Header) {
+// zcodeFingerprintVersion 返回本次请求声明的客户端版本：渠道可覆盖，默认当前官方版本。
+func zcodeFingerprintVersion(info *relaycommon.RelayInfo) string {
+	if info != nil {
+		if version := strings.TrimSpace(info.ChannelSetting.ZcodeFingerprintVersion); version != "" {
+			return version
+		}
+	}
+	return zcodeClientVersion
+}
+
+// zcodeLegacyTraceHeadersEnabled：旧版追踪头默认关闭。
+// 官方 3.14.3 的请求头集合只剩 x-request-id，不再发送 x-zcode-session-type /
+// x-zcode-trace-id / x-query-id / x-session-id（老版本才有）。渠道可显式打开以回退。
+func zcodeLegacyTraceHeadersEnabled(info *relaycommon.RelayInfo) bool {
+	return info != nil && info.ChannelSetting.ZcodeLegacyTraceHeaders != nil &&
+		*info.ChannelSetting.ZcodeLegacyTraceHeaders
+}
+
+// zcodeClientSigningEnabled：Client Request Signing V4 默认关闭。
+// 官方 3.14.3 客户端不再做 Ed25519 签名与 hashcash PoW（整套 X-Client-* 头与握手
+// 路径在解包产物里已不存在），默认关闭避免每次换 Key/Origin 都白跑一次握手。
+// 需要对齐老版本上游时由渠道显式打开。
+func zcodeClientSigningEnabled(info *relaycommon.RelayInfo) bool {
+	return info != nil && info.ChannelSetting.ZcodeClientSigningEnabled != nil &&
+		*info.ChannelSetting.ZcodeClientSigningEnabled
+}
+
+// setupZCodeTraceHeaders 清除 Claude 系客户端指纹头并写入 ZCode 请求级追踪头。
+// legacy=false 时只保留 x-request-id（官方当前形态）；legacy=true 时补齐旧版
+// x-zcode-*/x-query-id/x-session-id。Coding Plan 渠道的默认（非 ZCode 模式）行为。
+func setupZCodeTraceHeaders(req *http.Header, legacy bool) {
 	if req == nil {
 		return
 	}
@@ -33,6 +62,9 @@ func setupZCodeTraceHeaders(req *http.Header) {
 		req.Del(name)
 	}
 	req.Set("x-request-id", uuid.NewString())
+	if !legacy {
+		return
+	}
 	req.Set("x-zcode-session-type", "main")
 	req.Set("x-zcode-trace-id", uuid.NewString())
 	req.Set("x-query-id", uuid.NewString())
@@ -97,21 +129,25 @@ func setupZCodeCompatibilityHeaders(req *http.Header, info *relaycommon.RelayInf
 	if req == nil {
 		return
 	}
-	setupZCodeTraceHeaders(req)
-	req.Set("User-Agent", "ZCode/"+zcodeClientVersion)
+	legacy := zcodeLegacyTraceHeadersEnabled(info)
+	version := zcodeFingerprintVersion(info)
+	setupZCodeTraceHeaders(req, legacy)
+	req.Set("User-Agent", "ZCode/"+version)
 	req.Set("HTTP-Referer", "https://zcode.z.ai")
 	req.Set("X-Title", "Z Code@electron")
-	req.Set("X-ZCode-App-Version", zcodeClientVersion)
+	req.Set("X-ZCode-App-Version", version)
 	req.Set("X-Platform", "win32-x64")
 	req.Set("X-Release-Channel", "production")
 	req.Set("X-Client-Language", "zh-CN")
 	req.Set("X-Client-Timezone", "Asia/Shanghai")
 	req.Set("X-Os-Category", "windows")
-	// 3.12.3 官方 host 附带项：OS 版本 + 持久设备 ID；x-session-id 覆盖为
-	// 稳定派生值（官方为会话级持久 ID，非每请求随机）。
+	// 官方 host 附带项：OS 版本 + 持久设备 ID。
 	req.Set("X-Os-Version", zcodeOsVersion)
 	req.Set("X-Device-Mid", zcodeDeviceMid())
-	req.Set("x-session-id", zcodeSessionId(info))
+	if legacy {
+		// 旧版形态才带会话级 x-session-id，且为稳定派生值（非每请求随机）。
+		req.Set("x-session-id", zcodeSessionId(info))
+	}
 }
 
 var zcodeReplacedClaudeHeaders = []string{

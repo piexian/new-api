@@ -165,36 +165,104 @@ func TestSetupRequestHeaderAddsZCodeFingerprintForCodingPlan(t *testing.T) {
 		t.Fatalf("x-api-key = %q, want coding-plan-key", headers.Get("x-api-key"))
 	}
 	zcodeFingerprint := map[string]string{
-		"User-Agent":           "ZCode/" + zcodeClientVersion,
-		"HTTP-Referer":         "https://zcode.z.ai",
-		"X-Title":              "Z Code@electron",
-		"X-ZCode-App-Version":  zcodeClientVersion,
-		"X-Platform":           "win32-x64",
-		"X-Release-Channel":    "production",
-		"X-Client-Language":    "zh-CN",
-		"X-Client-Timezone":    "Asia/Shanghai",
-		"X-Os-Category":        "windows",
-		"x-zcode-session-type": "main",
+		"User-Agent":          "ZCode/" + zcodeClientVersion,
+		"HTTP-Referer":        "https://zcode.z.ai",
+		"X-Title":             "Z Code@electron",
+		"X-ZCode-App-Version": zcodeClientVersion,
+		"X-Platform":          "win32-x64",
+		"X-Release-Channel":   "production",
+		"X-Client-Language":   "zh-CN",
+		"X-Client-Timezone":   "Asia/Shanghai",
+		"X-Os-Category":       "windows",
 	}
 	for name, want := range zcodeFingerprint {
 		if value := headers.Get(name); value != want {
 			t.Fatalf("%s = %q, want %q", name, value, want)
 		}
 	}
-	for _, name := range []string{"x-request-id", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
-		if value := headers.Get(name); value == "" {
-			t.Fatalf("%s is empty", name)
+	if headers.Get("x-request-id") == "" {
+		t.Fatalf("x-request-id is empty")
+	}
+	// 官方 3.14.3 不再发送旧版追踪头，默认形态必须不带。
+	for _, name := range []string{"x-zcode-session-type", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
+		if value := headers.Get(name); value != "" {
+			t.Fatalf("%s = %q, want empty in the current official shape", name, value)
 		}
+	}
+	// 指纹版本跟随官方解包版本，不得停留在 3.12.x。
+	if zcodeClientVersion != "3.14.3" {
+		t.Fatalf("zcodeClientVersion = %q, want the officially shipped 3.14.3", zcodeClientVersion)
 	}
 	for _, name := range []string{"X-Stainless-Runtime", "X-Stainless-Package-Version", "x-app", "X-Claude-Code-Session-Id", "x-client-request-id", "anthropic-client-platform", "anthropic-client-version", "anthropic-dangerous-direct-browser-access"} {
 		if value := headers.Get(name); value != "" {
 			t.Fatalf("%s = %q, want cleared from Claude fingerprint", name, value)
 		}
 	}
-	for _, name := range []string{"x-request-id", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
-		if _, err := uuid.Parse(headers.Get(name)); err != nil {
-			t.Fatalf("%s = %q is not a UUID: %v", name, headers.Get(name), err)
+	if _, err := uuid.Parse(headers.Get("x-request-id")); err != nil {
+		t.Fatalf("x-request-id = %q is not a UUID: %v", headers.Get("x-request-id"), err)
+	}
+}
+
+func TestSetupZCodeCompatibilityHeadersLegacyTraceMode(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	enabled := true
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "glm-coding-plan",
+			ApiKey:            "coding-plan-key",
+			UpstreamModelName: "glm-4.6",
+			ChannelSetting: dto.ChannelSettings{
+				ZcodeModeEnabled:        true,
+				ZcodeLegacyTraceHeaders: &enabled,
+			},
+		},
+	}
+	headers := make(http.Header)
+	if err := (&Adaptor{}).SetupRequestHeader(c, &headers, info); err != nil {
+		t.Fatalf("SetupRequestHeader returned error: %v", err)
+	}
+	if headers.Get("x-zcode-session-type") != "main" {
+		t.Fatalf("x-zcode-session-type = %q, want main in legacy mode", headers.Get("x-zcode-session-type"))
+	}
+	for _, name := range []string{"x-zcode-trace-id", "x-query-id", "x-session-id"} {
+		if headers.Get(name) == "" {
+			t.Fatalf("%s is empty in legacy mode", name)
 		}
+	}
+}
+
+func TestSetupZCodeCompatibilityHeadersVersionOverride(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatOpenAI,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "glm-coding-plan",
+			ApiKey:            "coding-plan-key",
+			UpstreamModelName: "glm-4.6",
+			ChannelSetting: dto.ChannelSettings{
+				ZcodeModeEnabled:        true,
+				ZcodeFingerprintVersion: "3.12.3",
+			},
+		},
+	}
+	headers := make(http.Header)
+	if err := (&Adaptor{}).SetupRequestHeader(c, &headers, info); err != nil {
+		t.Fatalf("SetupRequestHeader returned error: %v", err)
+	}
+	if headers.Get("X-ZCode-App-Version") != "3.12.3" {
+		t.Fatalf("X-ZCode-App-Version = %q, want the channel override", headers.Get("X-ZCode-App-Version"))
+	}
+	if headers.Get("User-Agent") != "ZCode/3.12.3" {
+		t.Fatalf("User-Agent = %q, want ZCode/3.12.3", headers.Get("User-Agent"))
 	}
 }
 
@@ -387,17 +455,17 @@ func TestSetupRequestHeaderTraceOnlyForCodingPlanWhenZcodeModeOff(t *testing.T) 
 	if headers.Get("x-api-key") != "coding-plan-key" {
 		t.Fatalf("x-api-key = %q, want coding-plan-key", headers.Get("x-api-key"))
 	}
-	// tracing 头保留（原有透传逻辑），ZCode 设备指纹不注入
-	for _, name := range []string{"x-request-id", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
-		if value := headers.Get(name); value == "" {
-			t.Fatalf("%s is empty", name)
-		}
-		if _, err := uuid.Parse(headers.Get(name)); err != nil {
-			t.Fatalf("%s = %q is not a UUID: %v", name, headers.Get(name), err)
-		}
+	// 请求级追踪头保留（原有透传逻辑），ZCode 设备指纹不注入。
+	if headers.Get("x-request-id") == "" {
+		t.Fatalf("x-request-id is empty")
 	}
-	if headers.Get("x-zcode-session-type") != "main" {
-		t.Fatalf("x-zcode-session-type = %q, want main", headers.Get("x-zcode-session-type"))
+	if _, err := uuid.Parse(headers.Get("x-request-id")); err != nil {
+		t.Fatalf("x-request-id = %q is not a UUID: %v", headers.Get("x-request-id"), err)
+	}
+	for _, name := range []string{"x-zcode-session-type", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
+		if value := headers.Get(name); value != "" {
+			t.Fatalf("%s = %q, want empty unless legacy trace mode is enabled", name, value)
+		}
 	}
 	for _, name := range []string{"User-Agent", "HTTP-Referer", "X-ZCode-App-Version", "X-Release-Channel", "X-Platform", "X-Os-Category"} {
 		if value := headers.Get(name); value != "" {

@@ -238,13 +238,20 @@ func TestZCodeSigningPerformHandshakeRejectsBusinessError(t *testing.T) {
 }
 
 func newZCodeSigningTestInfo(baseURL, apiKey string, zcodeMode bool) *relaycommon.RelayInfo {
+	// 签名路径只在渠道显式开启时可用，且依赖旧版形态的 x-session-id。
+	legacyTrace := true
+	signing := true
 	return &relaycommon.RelayInfo{
 		RelayFormat: types.RelayFormatOpenAI,
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ChannelBaseUrl:    baseURL,
 			ApiKey:            apiKey,
 			UpstreamModelName: "glm-5.3-flash",
-			ChannelSetting:    dto.ChannelSettings{ZcodeModeEnabled: zcodeMode},
+			ChannelSetting: dto.ChannelSettings{
+				ZcodeModeEnabled:          zcodeMode,
+				ZcodeLegacyTraceHeaders:   &legacyTrace,
+				ZcodeClientSigningEnabled: &signing,
+			},
 		},
 	}
 }
@@ -268,7 +275,7 @@ func TestApplyZCodeClientSigningSetsVerifiableHeaders(t *testing.T) {
 
 	headers := make(http.Header)
 	info := newZCodeSigningTestInfo("glm-coding-plan-international", cred.raw, true)
-	setupZCodeTraceHeaders(&headers)
+	setupZCodeTraceHeaders(&headers, true)
 	applyZCodeClientSigning(c, &headers, info, origin+"/api/anthropic/v1/messages")
 
 	sessionID := headers.Get("X-Session-Id")
@@ -337,7 +344,7 @@ func TestApplyZCodeClientSigningSkipsNonTargetAndBadKey(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		headers := make(http.Header)
-		setupZCodeTraceHeaders(&headers)
+		setupZCodeTraceHeaders(&headers, true)
 		applyZCodeClientSigning(c, &headers, testCase.info, testCase.finalURL)
 		if headers.Get("X-Client-Sig") != "" {
 			t.Fatalf("%s: X-Client-Sig should not be set", testCase.name)

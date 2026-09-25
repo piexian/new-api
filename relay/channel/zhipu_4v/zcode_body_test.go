@@ -165,32 +165,42 @@ func TestZCodeHeadersOfficialShape(t *testing.T) {
 		t.Fatalf("X-Device-Mid 为空")
 	}
 
-	// x-session-id 稳定：同渠道同令牌两次调用一致；不同令牌不同值
-	s1 := headers.Get("x-session-id")
-	headers2 := make(http.Header)
-	if err := (&Adaptor{}).SetupRequestHeader(c, &headers2, zcodeTestInfo(5675)); err != nil {
-		t.Fatalf("SetupRequestHeader returned error: %v", err)
-	}
-	if s1 == "" || headers2.Get("x-session-id") != s1 {
-		t.Fatalf("x-session-id 应稳定: %q vs %q", s1, headers2.Get("x-session-id"))
-	}
-	headers3 := make(http.Header)
-	if err := (&Adaptor{}).SetupRequestHeader(c, &headers3, zcodeTestInfo(9999)); err != nil {
-		t.Fatalf("SetupRequestHeader returned error: %v", err)
-	}
-	if headers3.Get("x-session-id") == s1 {
-		t.Fatalf("不同令牌 x-session-id 应不同")
+	// 默认形态不带 x-session-id（官方 3.14.3 已不发该头）。
+	if got := headers.Get("x-session-id"); got != "" {
+		t.Fatalf("x-session-id = %q, want empty in the current official shape", got)
 	}
 
-	// metadata 与头共用同一 session id
-	req := &dto.ClaudeRequest{Model: "glm-5.3-flash", Messages: []dto.ClaudeMessage{{Role: "user", Content: "hi"}}}
-	applyZCodeBodyFingerprint(zcodeTestInfo(5675), req)
-	var metadata map[string]string
-	_ = common.Unmarshal(req.Metadata, &metadata)
-	var userID map[string]string
-	_ = common.Unmarshal([]byte(metadata["user_id"]), &userID)
-	if userID["session_id"] != s1 {
-		t.Fatalf("metadata session_id 应与 x-session-id 一致: %q vs %q", userID["session_id"], s1)
+	// metadata 里的会话标识必须稳定：同渠道同令牌两次一致，不同令牌不同值。
+	sessionIDOf := func(info *relaycommon.RelayInfo) string {
+		req := &dto.ClaudeRequest{Model: "glm-5.3-flash", Messages: []dto.ClaudeMessage{{Role: "user", Content: "hi"}}}
+		applyZCodeBodyFingerprint(info, req)
+		var metadata map[string]string
+		_ = common.Unmarshal(req.Metadata, &metadata)
+		var userID map[string]string
+		_ = common.Unmarshal([]byte(metadata["user_id"]), &userID)
+		return userID["session_id"]
+	}
+	s1 := sessionIDOf(zcodeTestInfo(5675))
+	if s1 == "" {
+		t.Fatalf("metadata session_id 为空")
+	}
+	if s2 := sessionIDOf(zcodeTestInfo(5675)); s2 != s1 {
+		t.Fatalf("metadata session_id 应稳定: %q vs %q", s1, s2)
+	}
+	if s3 := sessionIDOf(zcodeTestInfo(9999)); s3 == s1 {
+		t.Fatalf("不同令牌的 metadata session_id 应不同")
+	}
+
+	// 旧版追踪形态：头与 metadata 共用同一个会话标识。
+	legacyInfo := zcodeTestInfo(5675)
+	enabled := true
+	legacyInfo.ChannelSetting.ZcodeLegacyTraceHeaders = &enabled
+	legacyHeaders := make(http.Header)
+	if err := (&Adaptor{}).SetupRequestHeader(c, &legacyHeaders, legacyInfo); err != nil {
+		t.Fatalf("SetupRequestHeader returned error: %v", err)
+	}
+	if got := legacyHeaders.Get("x-session-id"); got != s1 {
+		t.Fatalf("legacy x-session-id = %q, want the same session id as metadata %q", got, s1)
 	}
 }
 
