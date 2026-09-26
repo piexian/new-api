@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel/gmicloud"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/opencode"
 	"github.com/QuantumNous/new-api/relay/channel/stepfun"
@@ -31,7 +32,18 @@ func isKnownOpenCodeRoute(info *relaycommon.RelayInfo) bool {
 	return info != nil && info.ChannelMeta != nil && info.ApiType == constant.APITypeOpenCode && opencode.ShouldRouteByModel(info)
 }
 
+// GMI 图像模型在 chat 端点走 requestqueue 信封，透传 OpenAI 请求体会被上游拒绝。
+func isGMICloudImageChatRequest(info *relaycommon.RelayInfo) bool {
+	return info != nil && info.ChannelMeta != nil &&
+		info.ChannelType == constant.ChannelTypeGMICloud &&
+		gmicloud.IsChatEndpointRequest(info) &&
+		gmicloud.IsSupportedImageModel(info.UpstreamModelName)
+}
+
 func shouldPassThroughModelRequest(info *relaycommon.RelayInfo) bool {
+	if isGMICloudImageChatRequest(info) {
+		return false
+	}
 	return relaycommon.IsRequestPassThroughEnabled(info) && !isKnownOpenCodeRoute(info)
 }
 

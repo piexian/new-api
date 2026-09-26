@@ -36,15 +36,29 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		if !isGMITTSModel(model) && !isGMIVoiceCloneModel(model) {
 			return "", fmt.Errorf("gmicloud model %q does not support /v1/audio/speech", model)
 		}
-		return audioBaseURL(info) + submitRequestPath, nil
+		return requestQueueBaseURL(info) + submitRequestPath, nil
 	case relayconstant.RelayModeMiniMaxMusicGeneration:
 		if !IsSupportedMusicModel(model) {
 			return "", fmt.Errorf("gmicloud model %q does not support /v1/music_generation", model)
 		}
-		return audioBaseURL(info) + submitRequestPath, nil
+		return requestQueueBaseURL(info) + submitRequestPath, nil
+	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		if !IsSupportedImageModel(model) {
+			return "", fmt.Errorf("gmicloud model %q does not support /v1/images/generations", model)
+		}
+		return requestQueueBaseURL(info) + submitRequestPath, nil
+	case relayconstant.RelayModeUnknown, relayconstant.RelayModeChatCompletions:
+		// 图像模型在 chat 端点也接受文生图/图生图，走同一个 requestqueue。
+		if IsSupportedImageModel(model) {
+			return requestQueueBaseURL(info) + submitRequestPath, nil
+		}
+		// 其余走下面的 Claude / chat 分支。
 	}
 	if isGMIAudioModel(model) {
 		return "", fmt.Errorf("gmicloud audio model %q is not available on this endpoint", model)
+	}
+	if isGMIImageModel(model) {
+		return "", fmt.Errorf("gmicloud image model %q is not available on this endpoint", model)
 	}
 
 	base := llmBaseURL(info)
@@ -80,6 +94,10 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
+	}
+	// 图像模型在 chat 端点也接受文生图/图生图。
+	if IsChatEndpointRequest(info) && IsSupportedImageModel(gmiModelName(info)) {
+		return buildChatImageRequest(c, info, request)
 	}
 	if info.RelayFormat == types.RelayFormatClaude {
 		result, err := relayConvertToClaude(c, info, request)
@@ -134,7 +152,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return buildImageRequest(c, info, request)
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -167,7 +185,9 @@ func isAsyncMediaRequest(info *relaycommon.RelayInfo) bool {
 	}
 	model := gmiModelName(info)
 	return (info.RelayMode == relayconstant.RelayModeAudioSpeech && IsSupportedSpeechModel(model)) ||
-		(info.RelayMode == relayconstant.RelayModeMiniMaxMusicGeneration && IsSupportedMusicModel(model))
+		(info.RelayMode == relayconstant.RelayModeMiniMaxMusicGeneration && IsSupportedMusicModel(model)) ||
+		((info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) &&
+			IsSupportedImageModel(model))
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
@@ -176,6 +196,13 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 	if info.RelayMode == relayconstant.RelayModeAudioSpeech && (isGMITTSModel(gmiModelName(info)) || isGMIVoiceCloneModel(gmiModelName(info))) {
 		return handleAudioResponse(c, resp, info)
+	}
+	if (info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) &&
+		IsSupportedImageModel(gmiModelName(info)) {
+		return handleImageResponse(c, resp, info)
+	}
+	if IsChatEndpointRequest(info) && IsSupportedImageModel(gmiModelName(info)) {
+		return handleChatImageResponse(c, resp, info)
 	}
 
 	// Responses API converted to chat completions.
@@ -215,10 +242,10 @@ func llmBaseURL(info *relaycommon.RelayInfo) string {
 	return base
 }
 
-func audioBaseURL(info *relaycommon.RelayInfo) string {
+func requestQueueBaseURL(info *relaycommon.RelayInfo) string {
 	base := strings.TrimRight(strings.TrimSpace(info.ChannelBaseUrl), "/")
 	if base == "" || strings.Contains(base, "gmi-serving.com") {
-		return defaultAudioBaseURL
+		return defaultRequestQueueBaseURL
 	}
 	return base
 }

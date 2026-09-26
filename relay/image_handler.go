@@ -146,7 +146,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	}
 
 	if len(imageLogDetails) == 0 {
-		imageLogDetails = request.GetLogDetails()
+		imageLogDetails = adaptorImageLogDetails(c, request.GetLogDetails())
 	}
 	if len(imageLogDetails) > 0 {
 		c.Set("image_request_detail", imageLogDetails)
@@ -157,10 +157,26 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	return nil
 }
 
+// adaptorImageLogDetails 让适配器在转换阶段写入的图片日志明细优先于请求 DTO 派生的明细，
+// 便于把客户端简写（如 size=4k+16:9）替换成实际计费尺寸。
+func adaptorImageLogDetails(c *gin.Context, fallback map[string]interface{}) map[string]interface{} {
+	if existing, ok := common.GetContextKeyType[map[string]interface{}](c, constant.ContextKey("image_request_detail")); ok && len(existing) > 0 {
+		return existing
+	}
+	return fallback
+}
+
 func shouldForceConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo) bool {
-	return info != nil &&
-		info.ChannelMeta != nil &&
-		info.ChannelType == constant.ChannelTypeXai &&
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	// GMI 图片走 requestqueue 信封（model + payload），与 OpenAI 图片请求体不同，
+	// 透传必然被上游拒绝，这里强制走 ConvertImageRequest。
+	if info.ChannelType == constant.ChannelTypeGMICloud &&
+		(info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) {
+		return true
+	}
+	return info.ChannelType == constant.ChannelTypeXai &&
 		info.RelayMode == relayconstant.RelayModeImagesEdits &&
 		c != nil &&
 		c.Request != nil &&

@@ -84,7 +84,7 @@ func TestGetRequestURLAudioUsesAudioHost(t *testing.T) {
 
 		url, err := (&Adaptor{}).GetRequestURL(info)
 		require.NoError(t, err)
-		require.Equal(t, defaultAudioBaseURL+submitRequestPath, url, "model %s", model)
+		require.Equal(t, defaultRequestQueueBaseURL+submitRequestPath, url, "model %s", model)
 	}
 }
 
@@ -104,7 +104,7 @@ func TestGetRequestURLMiniMaxMusicUsesRequestqueue(t *testing.T) {
 
 	url, err := (&Adaptor{}).GetRequestURL(info)
 	require.NoError(t, err)
-	require.Equal(t, defaultAudioBaseURL+submitRequestPath, url)
+	require.Equal(t, defaultRequestQueueBaseURL+submitRequestPath, url)
 }
 
 func TestGetRequestURLRejectsResponsesInputTokens(t *testing.T) {
