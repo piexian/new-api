@@ -4,10 +4,10 @@ import "strings"
 
 const ChannelName = "gmicloud"
 
-// GMI serves LLM and audio workloads from different hosts.
+// GMI 的 LLM 与 requestqueue（音频、图像）服务在不同主机上。
 const (
-	defaultLLMBaseURL   = "https://api.gmi-serving.com"
-	defaultAudioBaseURL = "https://console.gmicloud.ai"
+	defaultLLMBaseURL          = "https://api.gmi-serving.com"
+	defaultRequestQueueBaseURL = "https://console.gmicloud.ai"
 )
 
 // Requestqueue paths on console.gmicloud.ai.
@@ -26,6 +26,16 @@ var ModelList = []string{
 	"minimax-audio-voice-clone-speech-2.8-hd",
 	"minimax-audio-voice-clone-speech-2.6-hd",
 	"minimax-music-3.0",
+	"hy-image-v3.5-preview",
+}
+
+func isGMIImageModel(model string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "hy-image-")
+}
+
+// IsSupportedImageModel reports whether the upstream model is implemented by the image adaptor.
+func IsSupportedImageModel(model string) bool {
+	return strings.EqualFold(strings.TrimSpace(model), "hy-image-v3.5-preview")
 }
 
 func isGMIMusicModel(model string) bool {

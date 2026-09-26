@@ -53,6 +53,8 @@ type gmiOutcome struct {
 	Bitrate    int64      `json:"bitrate,omitempty"`
 	MediaURLs  []gmiMedia `json:"media_urls,omitempty"`
 	Medias     []gmiMedia `json:"medias,omitempty"`
+	// ThumbnailImageURL 是图像生成的兜底地址，取不到 media_urls 时使用。
+	ThumbnailImageURL string `json:"thumbnail_image_url,omitempty"`
 }
 
 // gmiStatusResponse is returned by GET /apikey/requests/{id}.
@@ -61,9 +63,12 @@ type gmiStatusResponse struct {
 	Model     string         `json:"model"`
 	Status    string         `json:"status"`
 	Payload   map[string]any `json:"payload,omitempty"`
-	Outcome   *gmiOutcome    `json:"outcome,omitempty"`
-	Message   string         `json:"message,omitempty"`
-	Error     string         `json:"error,omitempty"`
+	// 提交响应与状态响应同形，时间戳用于回填 OpenAI 响应的 created。
+	CreatedAt int64       `json:"created_at,omitempty"`
+	UpdatedAt int64       `json:"updated_at,omitempty"`
+	Outcome   *gmiOutcome `json:"outcome,omitempty"`
+	Message   string      `json:"message,omitempty"`
+	Error     string      `json:"error,omitempty"`
 }
 
 func buildAudioRequestBody(_ *gin.Context, info *relaycommon.RelayInfo, request *dto.AudioRequest) (io.Reader, error) {
@@ -193,7 +198,8 @@ func pollGMIResult(c *gin.Context, info *relaycommon.RelayInfo, requestID, initi
 
 	status := initialStatus
 	maxWait := 90 * time.Second
-	if isGMIMusicModel(gmiModelName(info)) {
+	if isGMIMusicModel(gmiModelName(info)) || IsSupportedImageModel(gmiModelName(info)) {
+		// 音乐与图像生成单次可跑 1-3 分钟，提交后仍可能需要继续轮询。
 		maxWait = 180 * time.Second
 	}
 	deadline := time.Now().Add(maxWait)
@@ -248,7 +254,7 @@ func pollGMIResult(c *gin.Context, info *relaycommon.RelayInfo, requestID, initi
 }
 
 func fetchGMIStatus(c *gin.Context, info *relaycommon.RelayInfo, requestID string) (*gmiStatusResponse, *types.NewAPIError) {
-	url := audioBaseURL(info) + requestStatusPath + requestID
+	url := requestQueueBaseURL(info) + requestStatusPath + requestID
 	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, url, nil)
 	if err != nil {
 		return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
