@@ -85,7 +85,7 @@ func InitHttpClient() {
 		transport.ResponseHeaderTimeout = time.Duration(seconds) * time.Second
 	}
 	if common.TLSInsecureSkipVerify {
-		transport.TLSClientConfig = common.InsecureTLSConfig
+		transport.TLSClientConfig = common.InsecureTLSConfig.Clone()
 	}
 
 	if common.RelayTimeout == 0 {
