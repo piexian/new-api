@@ -284,11 +284,11 @@ func TestCalculateTextQuotaSummaryUsesOpenAIResponsesInputTokenDetails(t *testin
 	relayInfo := &relaycommon.RelayInfo{
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "gpt-4o",
-		PriceData: hosttypes.PriceData{
+		PriceData: types.PriceData{
 			ModelRatio:      1,
 			CompletionRatio: 2,
 			CacheRatio:      0.25,
-			GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1},
+			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
 		},
 		StartTime: time.Now(),
 	}
