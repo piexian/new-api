@@ -6544,5 +6544,7 @@
   "Start a playground chat": "Start a playground chat",
   "Stop": "Stop",
   "Unsaved changes": "Unsaved changes",
-  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?"
+  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?",
+  "Start ≤ end: within the day; start > end: across midnight": "Début ≤ fin : dans la journée ; début > fin : traverse minuit",
+  "Time range": "Plage horaire"
 }

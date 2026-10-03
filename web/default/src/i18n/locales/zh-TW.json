@@ -6544,5 +6544,7 @@
   "Start a playground chat": "Start a playground chat",
   "Stop": "Stop",
   "Unsaved changes": "Unsaved changes",
-  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?"
+  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?",
+  "Start ≤ end: within the day; start > end: across midnight": "開始 ≤ 結束為當日區間，開始 > 結束為跨午夜區間",
+  "Time range": "時間範圍"
 }

@@ -6544,5 +6544,7 @@
   "Start a playground chat": "开始对话",
   "Stop": "停止",
   "Unsaved changes": "有未保存的更改",
-  "You have unsaved changes. Are you sure you want to leave?": "有未保存的更改，确定要离开吗？"
+  "You have unsaved changes. Are you sure you want to leave?": "有未保存的更改，确定要离开吗？",
+  "Start ≤ end: within the day; start > end: across midnight": "开始 ≤ 结束为当日区间，开始 > 结束为跨零点区间",
+  "Time range": "时间范围"
 }

@@ -6544,5 +6544,7 @@
   "Start a playground chat": "Start a playground chat",
   "Stop": "Stop",
   "Unsaved changes": "Unsaved changes",
-  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?"
+  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?",
+  "Start ≤ end: within the day; start > end: across midnight": "開始 ≤ 終了：当日内、開始 > 終了：深夜をまたぐ",
+  "Time range": "時間範囲"
 }
