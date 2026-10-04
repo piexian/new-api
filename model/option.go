@@ -368,8 +368,10 @@ func updateOptionMap(key string, value string) (err error) {
 			common.PasswordLoginEnabled = boolValue
 		case "PasswordLoginEncryptionEnabled":
 			common.PasswordLoginEncryptionEnabled = boolValue
-			if boolValue {
-				_ = InitPasswordEncryption()
+			if keyID, _ := common.PasswordEncryptionPublicKey(); boolValue && keyID == "" {
+				if initErr := InitPasswordEncryption(); initErr != nil {
+					common.SysError("failed to initialize password encryption: " + initErr.Error())
+				}
 			}
 		case "EmailVerificationEnabled":
 			common.EmailVerificationEnabled = boolValue

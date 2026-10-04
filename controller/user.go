@@ -39,20 +39,31 @@ var (
 	errOriginalPasswordFail = errors.New("original password is incorrect")
 )
 
+// ensurePasswordEncryptionKey lazily loads the shared key on replicas that
+// enabled encryption through option sync before the key was loaded.
+func ensurePasswordEncryptionKey() (keyID string, publicKey string, err error) {
+	keyID, publicKey = common.PasswordEncryptionPublicKey()
+	if keyID != "" && publicKey != "" {
+		return keyID, publicKey, nil
+	}
+	if err = model.InitPasswordEncryption(); err != nil {
+		return "", "", err
+	}
+	keyID, publicKey = common.PasswordEncryptionPublicKey()
+	if keyID == "" || publicKey == "" {
+		return "", "", errors.New("password encryption key is unavailable")
+	}
+	return keyID, publicKey, nil
+}
+
 func GetPasswordEncryptionKey(c *gin.Context) {
 	if !common.PasswordLoginEncryptionEnabled {
 		common.ApiSuccess(c, gin.H{"enabled": false})
 		return
 	}
-	keyID, publicKey := common.PasswordEncryptionPublicKey()
-	if keyID == "" || publicKey == "" {
-		if err := model.InitPasswordEncryption(); err != nil {
-			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
-			return
-		}
-		keyID, publicKey = common.PasswordEncryptionPublicKey()
-	}
-	if keyID == "" || publicKey == "" {
+	keyID, publicKey, err := ensurePasswordEncryptionKey()
+	if err != nil {
+		common.SysError("failed to load password encryption key: " + err.Error())
 		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		return
 	}
@@ -191,6 +202,11 @@ func Login(c *gin.Context) {
 	if common.PasswordLoginEncryptionEnabled {
 		if loginRequest.PasswordEncrypted == "" || loginRequest.EncryptionKeyID == "" {
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if _, _, keyErr := ensurePasswordEncryptionKey(); keyErr != nil {
+			common.SysError("failed to load password encryption key: " + keyErr.Error())
+			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 			return
 		}
 		password, err = common.DecryptPassword(loginRequest.PasswordEncrypted, loginRequest.EncryptionKeyID)
