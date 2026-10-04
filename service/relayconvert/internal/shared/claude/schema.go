@@ -9,7 +9,7 @@ func FunctionParametersToInputSchema(parameters any) map[string]any {
 			params = p
 		}
 	}
-	schema := make(map[string]any, len(params)+2)
+	schema := make(map[string]any, len(params))
 	for key, value := range params {
 		schema[key] = value
 	}
