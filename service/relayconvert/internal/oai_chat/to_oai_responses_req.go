@@ -367,6 +367,8 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		Metadata:          req.Metadata,
 		PromptCacheKey:    promptCacheKeyRaw,
 		Thinking:          req.THINKING,
+		EnableThinking:    req.EnableThinking,
+		ThinkingBudget:    req.ThinkingBudget,
 	}
 	if req.MaxTokens != nil || req.MaxCompletionTokens != nil {
 		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)
