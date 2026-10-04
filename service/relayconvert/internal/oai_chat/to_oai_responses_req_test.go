@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -36,6 +37,38 @@ func TestChatCompletionsRequestToResponsesRequestInstructionsAndTools(t *testing
 	assert.Equal(t, "function_call", gjson.GetBytes(got.Input, "2.type").String())
 	assert.Equal(t, "call_1", gjson.GetBytes(got.Input, "2.call_id").String())
 	assert.Equal(t, "function_call_output", gjson.GetBytes(got.Input, "3.type").String())
+}
+
+func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheKey(t *testing.T) {
+	t.Run("present", func(t *testing.T) {
+		key := "session-\"quoted\"\\path\n世界"
+		got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+			Model:          "gpt-test",
+			Messages:       []dto.Message{{Role: "user", Content: "hello"}},
+			PromptCacheKey: key,
+		})
+		require.NoError(t, err)
+
+		keyRaw, err := common.Marshal(key)
+		require.NoError(t, err)
+		assert.Equal(t, keyRaw, []byte(got.PromptCacheKey))
+
+		encoded, err := common.Marshal(got)
+		require.NoError(t, err)
+		assert.Equal(t, key, gjson.GetBytes(encoded, "prompt_cache_key").String())
+	})
+
+	t.Run("absent", func(t *testing.T) {
+		got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+			Model:    "gpt-test",
+			Messages: []dto.Message{{Role: "user", Content: "hello"}},
+		})
+		require.NoError(t, err)
+
+		encoded, err := common.Marshal(got)
+		require.NoError(t, err)
+		assert.False(t, gjson.GetBytes(encoded, "prompt_cache_key").Exists())
+	})
 }
 
 func TestChatCompletionsRequestToResponsesRequestRejectsMultipleChoices(t *testing.T) {
