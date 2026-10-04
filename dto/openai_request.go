@@ -141,9 +141,18 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		tokenCountMeta.MaxTokens = int(maxTokens)
 	}
 
+	var dynamicTools []ToolCallRequest
 	for _, message := range r.Messages {
 		tokenCountMeta.MessagesCount++
 		texts = append(texts, message.Role)
+		if len(message.Tools) > 0 {
+			// Kimi K3 dynamic tool loading: tools declared on a message are
+			// visible to the model and are counted like top-level tools.
+			var messageTools []ToolCallRequest
+			if err := common.Unmarshal(message.Tools, &messageTools); err == nil {
+				dynamicTools = append(dynamicTools, messageTools...)
+			}
+		}
 		if message.Content != nil {
 			if message.Name != nil {
 				tokenCountMeta.NameCount++
@@ -175,22 +184,23 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		}
 	}
 
-	if r.Tools != nil {
-		openaiTools := r.Tools
-		for _, tool := range openaiTools {
-			tokenCountMeta.ToolsCount++
-			texts = append(texts, tool.Function.Name)
-			if tool.Function.Description != "" {
-				texts = append(texts, tool.Function.Description)
-			}
-			if tool.Function.Parameters != nil {
-				texts = append(texts, fmt.Sprintf("%v", tool.Function.Parameters))
-			}
-		}
-		//toolTokens := CountTokenInput(countStr, request.Model)
-		//tkm += 8
-		//tkm += toolTokens
+	tools := r.Tools
+	if len(dynamicTools) > 0 {
+		tools = append(dynamicTools, r.Tools...)
 	}
+	for _, tool := range tools {
+		tokenCountMeta.ToolsCount++
+		texts = append(texts, tool.Function.Name)
+		if tool.Function.Description != "" {
+			texts = append(texts, tool.Function.Description)
+		}
+		if tool.Function.Parameters != nil {
+			texts = append(texts, fmt.Sprintf("%v", tool.Function.Parameters))
+		}
+	}
+	//toolTokens := CountTokenInput(countStr, request.Model)
+	//tkm += 8
+	//tkm += toolTokens
 	tokenCountMeta.CombineText = strings.Join(texts, "\n")
 	tokenCountMeta.Files = fileMeta
 	return &tokenCountMeta
