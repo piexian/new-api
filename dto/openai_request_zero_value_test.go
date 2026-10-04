@@ -57,6 +57,8 @@ func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
 		"max_tool_calls":0,
 		"stream":false,
 		"top_p":0,
+		"frequency_penalty":0,
+		"presence_penalty":0,
 		"caching":{"type":"enabled"},
 		"thinking":{"type":"disabled"}
 	}`)
@@ -72,6 +74,8 @@ func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "max_tool_calls").Exists())
 	require.True(t, gjson.GetBytes(encoded, "stream").Exists())
 	require.True(t, gjson.GetBytes(encoded, "top_p").Exists())
+	require.True(t, gjson.GetBytes(encoded, "frequency_penalty").Exists())
+	require.True(t, gjson.GetBytes(encoded, "presence_penalty").Exists())
 	require.Equal(t, "enabled", gjson.GetBytes(encoded, "caching.type").String())
 	require.Equal(t, "disabled", gjson.GetBytes(encoded, "thinking.type").String())
 }

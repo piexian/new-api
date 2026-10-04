@@ -333,6 +333,14 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		topP = common.GetPointer(lo.FromPtr(req.TopP))
 	}
 
+	var frequencyPenaltyRaw, presencePenaltyRaw json.RawMessage
+	if req.FrequencyPenalty != nil {
+		frequencyPenaltyRaw, _ = common.Marshal(req.FrequencyPenalty)
+	}
+	if req.PresencePenalty != nil {
+		presencePenaltyRaw, _ = common.Marshal(req.PresencePenalty)
+	}
+
 	out := &dto.OpenAIResponsesRequest{
 		Model:             req.Model,
 		Input:             inputRaw,
@@ -343,6 +351,8 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		ToolChoice:        toolChoiceRaw,
 		Tools:             toolsRaw,
 		TopP:              topP,
+		FrequencyPenalty:  frequencyPenaltyRaw,
+		PresencePenalty:   presencePenaltyRaw,
 		User:              req.User,
 		ParallelToolCalls: parallelToolCallsRaw,
 		Store:             req.Store,
