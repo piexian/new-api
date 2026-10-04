@@ -556,8 +556,7 @@ export function transformChannelToFormDefaults(
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
         http_protocol: protocol,
-        http2_connection_shards:
-          protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
+        http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         upstream_openai_compat_enabled:
           parsed.upstream_openai_compat_enabled === true,
