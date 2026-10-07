@@ -496,6 +496,7 @@
     "Async task refund": "异步任务退款",
     "At least one model regex pattern is required": "至少需要一个模型正则匹配模式",
     "At least one valid key source is required": "至少需要一个有效的密钥来源",
+    "At least one AI officer model is required when enabled": "启用 AI 信贷员时至少需要配置一个模型",
     "At most 30 friend links": "最多添加 30 个友情链接",
     "Attach": "附加",
     "Audio": "音频",

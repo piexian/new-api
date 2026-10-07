@@ -68,6 +68,14 @@ func CreateLoanApplication(userId int, topic, modelUsed string) (*TokenLoanAppli
 		UpdatedAt: now.Unix(),
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		// 先锁用户行，再 Create + Count。仅在事务里 Count 无法阻止两个并发
+		// 请求同时看到同一个 open 数量，用户行锁把 active/daily 两个限额
+		// 检查串行化；PostgreSQL/MySQL 通过 lockForUpdate 生效，SQLite
+		// 继续依赖其事务写锁。
+		var user User
+		if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&user).Error; err != nil {
+			return err
+		}
 		if err := tx.Create(app).Error; err != nil {
 			return err
 		}
@@ -124,9 +132,10 @@ func GetLoanApplicationMessages(appId int) ([]TokenLoanApplicationMessage, error
 }
 
 // ApplyLoanOfficerDecision AI 结案决定的单事务落库（spec 5.3）：
-// 锁定工单校验 open → 锁定账户并先 settle → 写入非零个人覆盖字段
-// （interest_free_until = loanDay(now)+days，先结算再写，避免新利率回溯计息）→
-// 工单置 closed 并落 decision JSON。任一失败整体回滚，工单保持 open。
+// 锁定工单校验 open → 锁定账户并逐条锁定/结算 funding → 同步账户投影 → 写入
+// 非零个人覆盖字段（interest_free_until = loanDay(now)+days，先按旧规则结算，避免
+// 新利率回溯计息）→ 工单置 closed 并落 decision JSON。P2P funding 使用自身利率，
+// platform funding 使用账户有效利率与宽限期。任一失败整体回滚，工单保持 open。
 // 决定字段为 0 表示该项不调整，不覆盖现有值。账户不存在时顺带创建（授予额度需要承载行）。
 func ApplyLoanOfficerDecision(appId int, decisionJSON string, customMaxTotal int64, customDailyRate float64, interestFreeDays int) error {
 	return DB.Transaction(func(tx *gorm.DB) error {
@@ -142,7 +151,27 @@ func ApplyLoanOfficerDecision(appId int, decisionJSON string, customMaxTotal int
 		if err != nil {
 			return err
 		}
-		settle(acc, now)
+		fundings, err := loadUserFundingsTx(tx, app.UserId)
+		if err != nil {
+			return err
+		}
+		for i := range fundings {
+			before := fundings[i]
+			settleFunding(&fundings[i], acc, now)
+			if fundings[i].DebtQuota != before.DebtQuota || fundings[i].LastSettledDay != before.LastSettledDay {
+				if err := tx.Save(&fundings[i]).Error; err != nil {
+					return err
+				}
+			}
+		}
+		// 账户债务是 active/overdue funding 的投影。同步发生在写入 AI 覆盖值之前，
+		// 保证本次结算继续使用旧的利率与宽限设置。迁移尚未完成的历史账户可能
+		// 暂时没有 funding，保留旧账户级结算，避免一次 AI 结案把存量债务清零。
+		if len(fundings) > 0 {
+			syncAccountFromFundings(acc, fundings)
+		} else {
+			settle(acc, now)
+		}
 		if customMaxTotal > 0 {
 			acc.CustomMaxTotal = customMaxTotal
 		}

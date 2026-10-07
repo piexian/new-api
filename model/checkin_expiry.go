@@ -144,23 +144,41 @@ func SettleCheckinDate(date string, mode string, limit int) (int, int64, error) 
 			want = 0
 		}
 
-		// 扣余额 + 标记已清算必须在同一事务：标记失败则回滚扣减，不会重复回收
+		// 先在同一事务内条件 claim，再扣余额。多个清算 worker 可能同时读到
+		// 同一批待处理行；只有成功把 settled_at 从 0 改掉的 worker 才能回收，
+		// claim 失败的 worker 跳过该行。任一后续错误会回滚 claim，保证不会出现
+		// 已标记但未扣款的半状态。
 		var reclaimed int64
+		claimed := false
 		err := DB.Transaction(func(tx *gorm.DB) error {
+			claim := tx.Model(&Checkin{}).
+				Where("id = ? AND settled_at = 0", row.Id).
+				Update("settled_at", now)
+			if claim.Error != nil {
+				return claim.Error
+			}
+			if claim.RowsAffected != 1 {
+				return nil
+			}
+			claimed = true
 			var err error
 			reclaimed, err = reclaimUserQuotaInTx(tx, row.UserId, want)
 			if err != nil {
 				return err
 			}
-			return tx.Model(&Checkin{}).
-				Where("id = ? AND settled_at = 0", row.Id).
-				Updates(map[string]interface{}{
-					"settled_at":    now,
-					"expired_quota": reclaimed,
-				}).Error
+			updated := tx.Model(&Checkin{}).
+				Where("id = ? AND settled_at = ?", row.Id, now).
+				Update("expired_quota", reclaimed)
+			if updated.Error != nil {
+				return updated.Error
+			}
+			return nil
 		})
 		if err != nil {
 			return settled, reclaimedTotal, err
+		}
+		if !claimed {
+			continue
 		}
 		settled++
 		reclaimedTotal += reclaimed

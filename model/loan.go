@@ -344,7 +344,7 @@ func BorrowLoanWithOptions(userId int, amountUsd string, intendedOrderId int, ai
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		// 事务内读用户当前值：状态、注册天数与余额 64 位上界校验
 		var user User
-		if err := tx.Select("id", "quota", "created_at", "status").Where("id = ?", userId).First(&user).Error; err != nil {
+		if err := lockForUpdate(tx).Select("id", "quota", "created_at", "status").Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
 		}
 		if user.Status != common.UserStatusEnabled {
@@ -482,9 +482,13 @@ func BorrowLoanWithOptions(userId int, amountUsd string, intendedOrderId int, ai
 		}
 
 		// quota 入账与账户/台账/funding 同一事务（镜像签到模式），失败整体回滚
-		if err := tx.Model(&User{}).Where("id = ?", userId).
-			Update("quota", gorm.Expr("quota + ?", amount)).Error; err != nil {
-			return err
+		quotaResult := tx.Model(&User{}).Where("id = ?", userId).
+			Update("quota", gorm.Expr("quota + ?", amount))
+		if quotaResult.Error != nil {
+			return quotaResult.Error
+		}
+		if quotaResult.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
 		}
 		return nil
 	})
@@ -549,9 +553,10 @@ func planTotal(plans []FundingPlan) int64 {
 }
 
 // executeFundingPlans 在事务内按撮合计划放款（spec §6）：
-//   - 非 platform 计划：lockForUpdate 重读 offer 行二次校验 amount_available >= plan.Amount
-//     （撮合是只读快照，available 可能已被并发借款占用，故此处必须加锁重验；
-//     校验失败返回错误整体回滚），随后扣减 amount_available、累加 total_lent 并落库；
+//   - 非 platform 计划：lockForUpdate 重读 offer 行二次校验 status/mode/lender/amount；
+//     撮合是只读快照，available 可能已被并发借款占用，故此处必须加锁重验。
+//     失效计划只放弃对应的市场额度，缺额统一追加 platform funding，避免并发竞争把
+//     一笔本可完成的借款变成内部错误；
 //     秒结清惩罚条款（FastRepayPenaltyQuota/FastRepayWindowDays）在此从 offer 复制到
 //     funding（撮合引擎不感知惩罚，放款阶段以 offer 行锁定后的值为准）；惩罚额度
 //     复制时按"不超过本笔借出金额的 2 倍"封顶（借款人侧最高承担 本金+2×本金）；
@@ -568,31 +573,77 @@ func planTotal(plans []FundingPlan) int64 {
 // 返回本次新建的 funding 列表（含 platform 兜底）。
 func executeFundingPlans(tx *gorm.DB, userId int, borrowEventId int64, plans []FundingPlan, now time.Time) ([]TokenLoanFunding, error) {
 	dueDay := loanDay(now) + max(operation_setting.GetLoanSetting().LoanTermDays, 1)
+	requestedTotal := planTotal(plans)
+	if requestedTotal <= 0 {
+		return nil, ErrLoanInvalidAmount
+	}
 
 	// 第一遍：非 platform 计划按 OfferId 升序锁定并扣减 offer 行（全局锁序
 	// offers(id 升序)）；同一 offer 的多条计划相邻处理，后一条读到前一条扣减后的 available。
-	offerPlans := make([]*FundingPlan, 0, len(plans))
+	// 撮合完成到执行之间 offer 可能暂停、关闭、改模式或被其他借款占用。所有这些
+	// 业务性失效都降级为平台资金，只有数据库故障才中止整个借款事务。
+	type indexedPlan struct {
+		index int
+		plan  *FundingPlan
+	}
+	offerPlans := make([]indexedPlan, 0, len(plans))
 	for i := range plans {
 		if plans[i].SourceType != LoanFundingPlatform {
-			offerPlans = append(offerPlans, &plans[i])
+			offerPlans = append(offerPlans, indexedPlan{index: i, plan: &plans[i]})
 		}
 	}
-	sort.Slice(offerPlans, func(a, b int) bool { return offerPlans[a].OfferId < offerPlans[b].OfferId })
+	sort.Slice(offerPlans, func(a, b int) bool {
+		if offerPlans[a].plan.OfferId == offerPlans[b].plan.OfferId {
+			return offerPlans[a].index < offerPlans[b].index
+		}
+		return offerPlans[a].plan.OfferId < offerPlans[b].plan.OfferId
+	})
+	allocated := make([]int64, len(plans))
 	// 秒结清条款按 offer 记录，供第二遍建 funding 时复制（platform 兜底无 offer，恒为 0）
 	offerPenalties := make(map[int]struct {
 		quota  int64
 		window int
 	}, len(offerPlans))
-	for _, plan := range offerPlans {
+	for _, item := range offerPlans {
+		plan := item.plan
+		if plan.Amount <= 0 || plan.OfferId <= 0 {
+			continue
+		}
 		var offer TokenLoanOffer
-		if err := lockForUpdate(tx).Where("id = ?", plan.OfferId).First(&offer).Error; err != nil {
+		err := lockForUpdate(tx).Where("id = ?", plan.OfferId).First(&offer).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
 			return nil, err
 		}
-		if offer.AmountAvailable < plan.Amount {
-			return nil, fmt.Errorf("loan offer %d available %d < plan amount %d", offer.Id, offer.AmountAvailable, plan.Amount)
+		if offer.Status != LoanOfferStatusActive ||
+			offer.Mode != plan.SourceType ||
+			offer.LenderId != plan.LenderId ||
+			offer.LenderId == userId ||
+			offer.AmountAvailable <= 0 {
+			continue
 		}
-		offer.AmountAvailable -= plan.Amount
-		offer.TotalLent += plan.Amount
+		// AI 计划的利率是审批结果，执行时仍需落在最新 offer 区间；固定利率
+		// offer 则以锁定后的 offer 值为准，避免管理员改价后沿用旧快照。
+		if offer.Mode == LoanOfferModeAi {
+			if plan.Rate < offer.RateMin || plan.Rate > offer.RateMax {
+				continue
+			}
+		} else {
+			plan.Rate = offer.RateFixed
+		}
+		available := offer.AmountAvailable
+		if offer.PerLoanCap > 0 && available > offer.PerLoanCap {
+			available = offer.PerLoanCap
+		}
+		amount := min(plan.Amount, available)
+		if amount <= 0 {
+			continue
+		}
+		allocated[item.index] = amount
+		offer.AmountAvailable -= amount
+		offer.TotalLent += amount
 		offer.UpdatedAt = now.Unix()
 		if err := tx.Save(&offer).Error; err != nil {
 			return nil, err
@@ -605,10 +656,35 @@ func executeFundingPlans(tx *gorm.DB, userId int, borrowEventId int64, plans []F
 		}
 	}
 
-	// 第二遍：按计划原始顺序创建 funding 行（含 platform 兜底），事件内顺序稳定
-	newFundings := make([]TokenLoanFunding, 0, len(plans))
+	// 第二遍：按计划原始顺序创建 funding 行。被跳过或截短的市场计划，其
+	// 缺额在此统一追加一条 platform funding，保证借款总额仍等于请求金额。
+	effectivePlans := make([]FundingPlan, 0, len(plans)+1)
+	var effectiveTotal int64
 	for i := range plans {
-		plan := &plans[i]
+		plan := plans[i]
+		if plan.SourceType != LoanFundingPlatform {
+			plan.Amount = allocated[i]
+			if plan.Amount <= 0 {
+				continue
+			}
+		}
+		if plan.Amount <= 0 {
+			continue
+		}
+		effectiveTotal += plan.Amount
+		effectivePlans = append(effectivePlans, plan)
+	}
+	if shortfall := requestedTotal - effectiveTotal; shortfall > 0 {
+		effectivePlans = append(effectivePlans, FundingPlan{
+			SourceType: LoanFundingPlatform,
+			Amount:     shortfall,
+			Rate:       operation_setting.GetLoanSetting().DailyRate,
+		})
+	}
+
+	newFundings := make([]TokenLoanFunding, 0, len(effectivePlans))
+	for i := range effectivePlans {
+		plan := &effectivePlans[i]
 		penalty := offerPenalties[plan.OfferId]
 		// 秒结清惩罚随放款复制时按"不超过本笔借出金额的 2 倍"封顶：
 		// offer 条款是大单总惩罚，小额 funding 不得承担超过 2×本金的罚单
@@ -710,7 +786,7 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 	var flipped []TokenLoanFunding // 本次新翻转的逾期 funding（Task 15 官方处置派发）
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var user User
-		if err := tx.Select("id", "quota").Where("id = ?", userId).First(&user).Error; err != nil {
+		if err := lockForUpdate(tx).Select("id", "quota").Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
 		}
 
@@ -805,9 +881,13 @@ func RepayLoan(userId int, amountUsd string) (*TokenLoanAccount, *LoanRepayInfo,
 
 		// 余额扣款（还款额+手续费+秒结清惩罚）与账户/台账/funding/offer/放贷人入账
 		// 同一事务，失败整体回滚。惩罚不经余额充足性校验，允许扣成负数。
-		if err := tx.Model(&User{}).Where("id = ?", userId).
-			Update("quota", gorm.Expr("quota - ?", info.Amount+info.FeePart+penaltyTotal)).Error; err != nil {
-			return err
+		quotaResult := tx.Model(&User{}).Where("id = ?", userId).
+			Update("quota", gorm.Expr("quota - ?", info.Amount+info.FeePart+penaltyTotal))
+		if quotaResult.Error != nil {
+			return quotaResult.Error
+		}
+		if quotaResult.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
 		}
 		return nil
 	})

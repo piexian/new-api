@@ -496,6 +496,7 @@
     "Async task refund": "Возврат асинхронной задачи",
     "At least one model regex pattern is required": "Требуется хотя бы один шаблон регулярного выражения модели",
     "At least one valid key source is required": "Требуется хотя бы один действительный источник ключа",
+    "At least one AI officer model is required when enabled": "При включенном ИИ-агенте требуется хотя бы одна модель",
     "At most 30 friend links": "Не более 30 партнёрских ссылок",
     "Attach": "Прикрепить",
     "Audio": "Аудио",

@@ -1579,6 +1579,7 @@
     "启动配置": "Startup Configuration",
     "启用": "Activer",
     "启用 AI 信贷员": "Activer l'agent de crédit IA",
+    "启用 AI 信贷员时至少配置一个模型": "Configurez au moins un modèle lorsque l'agent IA est activé",
     "启用 io.net 部署": "Enable io.net Deployment",
     "启用 io.net 部署开关": "Enable io.net Deployment Switch",
     "启用 io.net 部署时必须填写 API Key": "API Key is required when enabling io.net deployment",

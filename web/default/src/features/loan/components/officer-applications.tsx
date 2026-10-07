@@ -109,7 +109,7 @@ function NewApplicationDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated: () => void
+  onCreated: (applicationId?: number) => void | Promise<void>
 }) {
   const { t } = useTranslation()
   const topicLabel = useTopicLabel()
@@ -125,17 +125,21 @@ function NewApplicationDialog({
     setSubmitting(true)
     try {
       const res = await createLoanApplication(topic, content.trim())
+      const applicationId = res.data?.application?.id
       if (res.success) {
         toast.success(t('Application submitted'))
         setContent('')
         setTopic('credit')
         onOpenChange(false)
-        onCreated()
+        await onCreated(applicationId)
         return
       }
       // 首轮 AI 对话失败时工单可能已创建：刷新列表并引导用户到详情继续，
       // 具体错误信息已由 api 拦截器弹出
-      onCreated()
+      setContent('')
+      setTopic('credit')
+      onOpenChange(false)
+      await onCreated(applicationId)
       toast.info(
         t(
           'If the application was created, open it from the list to continue the conversation.'
@@ -143,7 +147,10 @@ function NewApplicationDialog({
       )
     } catch {
       // 网络异常同样无法确定工单是否已创建：刷新列表 + 中性引导
-      onCreated()
+      setContent('')
+      setTopic('credit')
+      onOpenChange(false)
+      await onCreated()
       toast.info(
         t(
           'If the application was created, open it from the list to continue the conversation.'
@@ -474,8 +481,9 @@ export function OfficerApplications() {
   const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  const refreshList = () => {
-    queryClient.invalidateQueries({ queryKey: ['loan-applications'] })
+  const refreshList = async (applicationId?: number) => {
+    await queryClient.invalidateQueries({ queryKey: ['loan-applications'] })
+    if (applicationId !== undefined) setDetailId(applicationId)
   }
 
   const listContent = (() => {

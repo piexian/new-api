@@ -219,3 +219,17 @@ func TestValidateLoanMarketSettingRateBounds(t *testing.T) {
 	bad.RepayFeeRate = -0.001
 	assert.Error(t, ValidateLoanMarketSetting(bad))
 }
+
+func TestValidateLoanMarketSettingRequiresOfficerModelWhenEnabled(t *testing.T) {
+	setting := &LoanSetting{
+		AiEnabled:          true,
+		DailyRate:          0.001,
+		LenderRateMin:      0.0005,
+		LenderRateMax:      0.003,
+		MaxFundingsPerBorrow: 5,
+	}
+	assert.Error(t, ValidateLoanMarketSetting(setting))
+
+	setting.AiModels = []AiModelConfig{{Model: "officer", ContextWindow: 8192}}
+	assert.NoError(t, ValidateLoanMarketSetting(setting))
+}

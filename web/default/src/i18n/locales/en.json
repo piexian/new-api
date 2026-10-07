@@ -496,6 +496,7 @@
     "Async task refund": "Async task refund",
     "At least one model regex pattern is required": "At least one model regex pattern is required",
     "At least one valid key source is required": "At least one valid key source is required",
+    "At least one AI officer model is required when enabled": "At least one AI officer model is required when enabled",
     "At most 30 friend links": "At most 30 friend links",
     "Attach": "Attach",
     "Audio": "Audio",

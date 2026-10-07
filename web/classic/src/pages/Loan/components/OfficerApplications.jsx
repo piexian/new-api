@@ -76,23 +76,30 @@ const NewApplicationModal = ({ t, visible, onClose, onCreated }) => {
         topic,
         content: content.trim(),
       });
-      const { success, message } = res.data;
+      const { success, message, data } = res.data;
+      const applicationId = data?.application?.id;
       if (success) {
         showSuccess(t('申请已提交'));
         setContent('');
         setTopic('credit');
         onClose();
-        onCreated();
+        await onCreated(applicationId);
         return;
       }
       // 首轮 AI 对话失败时工单可能已创建：刷新列表并引导到详情继续，
       // 具体错误信息由后端返回
       if (message) showError(message);
-      onCreated();
+      setContent('');
+      setTopic('credit');
+      onClose();
+      await onCreated(applicationId);
       showInfo(t('如工单已创建，请从列表中打开继续对话。'));
     } catch {
       // 网络异常同样无法确定工单是否已创建：刷新列表 + 中性引导
-      onCreated();
+      setContent('');
+      setTopic('credit');
+      onClose();
+      await onCreated();
       showInfo(t('如工单已创建，请从列表中打开继续对话。'));
     } finally {
       setSubmitting(false);
@@ -430,7 +437,10 @@ const OfficerApplications = ({ t }) => {
     fetchList(page);
   }, [page]);
 
-  const refreshList = () => fetchList(page);
+  const refreshList = async (applicationId) => {
+    await fetchList(page);
+    if (applicationId !== undefined) setDetailId(applicationId);
+  };
 
   const columns = useMemo(
     () => [

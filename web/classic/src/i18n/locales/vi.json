@@ -1564,6 +1564,7 @@
     "启动配置": "Startup Configuration",
     "启用": "Bật",
     "启用 AI 信贷员": "Bật chuyên viên tín dụng AI",
+    "启用 AI 信贷员时至少配置一个模型": "Khi bật nhân viên AI, hãy cấu hình ít nhất một mô hình",
     "启用 io.net 部署": "Enable io.net Deployment",
     "启用 io.net 部署开关": "Enable io.net Deployment Switch",
     "启用 io.net 部署时必须填写 API Key": "API Key is required when enabling io.net deployment",

@@ -242,14 +242,32 @@ export default function SettingsLoan(props) {
         return showError(t('上下文窗口必须为大于 0 的整数'));
       }
     }
+    if (inputs['loan_setting.ai_enabled'] && validRows.length === 0) {
+      return showError(t('启用 AI 信贷员时至少配置一个模型'));
+    }
 
-    const updateArray = compareObjects(inputs, inputsRow);
-    const requestQueue = updateArray.map((item) =>
-      API.put('/api/option/', {
+    const updateArray = compareObjects(inputs, inputsRow).sort((a, b) => {
+      if (
+        a.key === 'loan_setting.ai_models' &&
+        b.key !== 'loan_setting.ai_models'
+      ) {
+        return -1;
+      }
+      if (
+        b.key === 'loan_setting.ai_models' &&
+        a.key !== 'loan_setting.ai_models'
+      ) {
+        return 1;
+      }
+      return 0;
+    });
+    const requestQueue = updateArray.map((item) => ({
+      key: item.key,
+      request: API.put('/api/option/', {
         key: item.key,
         value: String(inputs[item.key]),
       }),
-    );
+    }));
 
     // USD 输入换算回 quota 后单独与原始值比较
     if (quotaPerUnit !== null) {
@@ -259,20 +277,29 @@ export default function SettingsLoan(props) {
           Math.round((Number(usdInputs[name]) || 0) * quotaPerUnit),
         );
         if (quota !== String(inputsRow[key])) {
-          requestQueue.push(API.put('/api/option/', { key, value: quota }));
+          requestQueue.push({
+            key,
+            request: API.put('/api/option/', { key, value: quota }),
+          });
         }
       });
     }
 
     if (!requestQueue.length) return showWarning(t('你似乎并没有修改什么'));
     setLoading(true);
-    Promise.all(requestQueue)
-      .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
-            return showError(t('部分保存失败，请重试'));
+    Promise.all(requestQueue.map((item) => item.request))
+      .then((responses) => {
+        const failedIndex = responses.findIndex(
+          (response) => !response?.data?.success,
+        );
+        if (failedIndex >= 0) {
+          const failedKey = requestQueue[failedIndex].key;
+          const message = responses[failedIndex]?.data?.message;
+          return showError(
+            message
+              ? `${failedKey}: ${message}`
+              : `${failedKey}: ${t('部分保存失败，请重试')}`,
+          );
         }
         showSuccess(t('保存成功'));
         props.refresh();

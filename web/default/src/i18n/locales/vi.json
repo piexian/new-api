@@ -496,6 +496,7 @@
     "Async task refund": "Hoàn tiền tác vụ bất đồng bộ",
     "At least one model regex pattern is required": "Cần ít nhất một mẫu regex mô hình",
     "At least one valid key source is required": "Cần ít nhất một nguồn khóa hợp lệ",
+    "At least one AI officer model is required when enabled": "Khi bật nhân viên AI, cần cấu hình ít nhất một mô hình",
     "At most 30 friend links": "Tối đa 30 liên kết đối tác",
     "Attach": "Đính kèm",
     "Audio": "Âm thanh",

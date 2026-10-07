@@ -496,6 +496,7 @@
     "Async task refund": "Remboursement de tâche asynchrone",
     "At least one model regex pattern is required": "Au moins un modèle de regex est requis",
     "At least one valid key source is required": "Au moins une source de clé valide est requise",
+    "At least one AI officer model is required when enabled": "Au moins un modèle d'agent IA est requis lorsqu'il est activé",
     "At most 30 friend links": "30 liens partenaires maximum",
     "Attach": "Joindre",
     "Audio": "Audio",
