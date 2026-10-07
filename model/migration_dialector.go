@@ -53,7 +53,13 @@ func (columnWithoutDefault) DefaultValue() (string, bool) { return "", false }
 type postgresMigrationDialector struct{ postgres.Dialector }
 
 func (d postgresMigrationDialector) Migrator(db *gorm.DB) gorm.Migrator {
-	return postgresSchemaMigrator{d.Dialector.Migrator(db).(postgres.Migrator)}
+	migrator := d.Dialector.Migrator(db).(postgres.Migrator)
+	// Keep the wrapper as the migrator dialector. The upstream GetRows helper
+	// type-asserts to postgres.Dialector before prepending its simple-protocol
+	// sentinel to Statement.Vars; leaving the embedded dialector in place would
+	// shift LIMIT/OFFSET placeholders from $1 to $2.
+	migrator.Dialector = d
+	return postgresSchemaMigrator{migrator}
 }
 
 type postgresSchemaMigrator struct{ postgres.Migrator }
