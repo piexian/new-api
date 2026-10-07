@@ -323,11 +323,13 @@ func TestBuildLoanStatusDataUsesPerFundingRates(t *testing.T) {
 			LoanUserId: user.Id, SourceType: model.LoanFundingPlatform,
 			PrincipalRemaining: 100, DebtQuota: 100, LastSettledDay: today - 1,
 			Rate: 0.01, RepayPlan: model.LoanRepayFull, Status: model.LoanFundingActive,
+			DueDay: today + 30,
 		},
 		{
 			LoanUserId: user.Id, SourceType: model.LoanFundingOrder,
 			PrincipalRemaining: 100, DebtQuota: 100, LastSettledDay: today - 1,
 			Rate: 0.001, RepayPlan: model.LoanRepayFull, Status: model.LoanFundingActive,
+			DueDay: today + 30,
 		},
 	}
 	if err := db.Create(&fundings).Error; err != nil {
