@@ -5182,7 +5182,8 @@
     "绑定域名": "Domaine associé",
     "选择 Passkey 域名": "Sélectionner le domaine Passkey",
     "填入当前网站": "Remplir avec le site actuel",
-    "网站域名与当前站点不匹配": "Le domaine du site ne correspond pas au site actuel"
+    "网站域名与当前站点不匹配": "Le domaine du site ne correspond pas au site actuel",
+    "CF-Ray": "CF-Ray"
   },
   "RPM/并发": "RPM / Concurrence",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

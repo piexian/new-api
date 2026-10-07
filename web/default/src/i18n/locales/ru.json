@@ -6651,7 +6651,8 @@
     "StartPlan Free Tier": "Бесплатный уровень StartPlan",
     "The RP ID does not match the current site.": "Идентификатор RP не соответствует текущему сайту.",
     "Unknown legacy credentials": "Неизвестные старые ключи",
-    "ZCode Mode": "Режим ZCode"
+    "ZCode Mode": "Режим ZCode",
+    "CF-Ray": "CF-Ray"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

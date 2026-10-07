@@ -110,7 +110,8 @@ const ColumnSelectorModal = ({
             !isAdminUser &&
             (column.key === COLUMN_KEYS.CHANNEL ||
               column.key === COLUMN_KEYS.USERNAME ||
-              column.key === COLUMN_KEYS.RETRY)
+              column.key === COLUMN_KEYS.RETRY ||
+              column.key === COLUMN_KEYS.CF_RAY)
           ) {
             return null;
           }

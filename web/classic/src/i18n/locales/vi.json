@@ -5689,7 +5689,8 @@
     "绑定域名": "Tên miền đã liên kết",
     "选择 Passkey 域名": "Chọn tên miền Passkey",
     "填入当前网站": "Điền trang hiện tại",
-    "网站域名与当前站点不匹配": "Tên miền trang web không khớp với trang hiện tại"
+    "网站域名与当前站点不匹配": "Tên miền trang web không khớp với trang hiện tại",
+    "CF-Ray": "CF-Ray"
   },
   "RPM/并发": "RPM / Đồng thời",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

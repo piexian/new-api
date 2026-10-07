@@ -926,6 +926,24 @@ export const getLogsColumns = ({
       },
     },
     {
+      key: COLUMN_KEYS.CF_RAY,
+      title: t('CF-Ray'),
+      render: (text, record) => {
+        const cfRay = getLogOther(record.other)?.admin_info?.cf_ray;
+        return isAdminUser && cfRay ? (
+          <Typography.Text
+            ellipsis={{ showTooltip: true }}
+            copyable={{ content: cfRay }}
+            style={{ width: 180, fontFamily: 'monospace', fontSize: '12px' }}
+          >
+            {cfRay}
+          </Typography.Text>
+        ) : (
+          <></>
+        );
+      },
+    },
+    {
       key: COLUMN_KEYS.RETRY,
       title: t('重试'),
       dataIndex: 'retry',

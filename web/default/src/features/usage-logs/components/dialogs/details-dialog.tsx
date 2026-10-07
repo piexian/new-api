@@ -675,6 +675,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
               mono
             />
           )}
+
+          {props.isAdmin && adminInfo?.cf_ray && (
+            <DetailRow label={t('CF-Ray')} value={adminInfo.cf_ray} mono />
+          )}
+
           {props.log.upstream_request_id && (
             <DetailRow
               label={t('Upstream Request ID')}

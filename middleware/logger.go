@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
@@ -32,7 +33,11 @@ func SetUpLogger(server *gin.Engine) {
 		if tag == "" {
 			tag = "web"
 		}
-		return fmt.Sprintf("[GIN] %s | %s | %s | %3d | %13v | %15s | %7s %s\n",
+		cfRay := ""
+		if param.Request != nil {
+			cfRay = strings.TrimSpace(param.Request.Header.Get(common.CloudflareRayHeader))
+		}
+		return fmt.Sprintf("[GIN] %s | %s | %s | %3d | %13v | %15s | %7s %s | cf-ray=%s\n",
 			param.TimeStamp.Format("2006/01/02 - 15:04:05"),
 			tag,
 			requestID,
@@ -41,6 +46,7 @@ func SetUpLogger(server *gin.Engine) {
 			param.ClientIP,
 			param.Method,
 			param.Path,
+			cfRay,
 		)
 	}))
 }

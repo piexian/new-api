@@ -62,6 +62,7 @@ export const useLogsData = () => {
     RETRY: 'retry',
     IP: 'ip',
     USER_AGENT: 'user_agent',
+    CF_RAY: 'cf_ray',
     DETAILS: 'details',
   };
 
@@ -128,6 +129,7 @@ export const useLogsData = () => {
       [COLUMN_KEYS.RETRY]: isAdminUser,
       [COLUMN_KEYS.IP]: true,
       [COLUMN_KEYS.USER_AGENT]: true,
+      [COLUMN_KEYS.CF_RAY]: isAdminUser,
       [COLUMN_KEYS.DETAILS]: true,
     };
   };
@@ -215,7 +217,8 @@ export const useLogsData = () => {
       if (
         (key === COLUMN_KEYS.CHANNEL ||
           key === COLUMN_KEYS.USERNAME ||
-          key === COLUMN_KEYS.RETRY) &&
+          key === COLUMN_KEYS.RETRY ||
+          key === COLUMN_KEYS.CF_RAY) &&
         !isAdminUser
       ) {
         updatedColumns[key] = false;

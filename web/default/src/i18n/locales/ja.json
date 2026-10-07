@@ -6651,7 +6651,8 @@
     "StartPlan Free Tier": "StartPlan 無料ティア",
     "The RP ID does not match the current site.": "RP ID が現在のサイトと一致しません。",
     "Unknown legacy credentials": "不明な旧資格情報",
-    "ZCode Mode": "ZCode モード"
+    "ZCode Mode": "ZCode モード",
+    "CF-Ray": "CF-Ray"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

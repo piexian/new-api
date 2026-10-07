@@ -6651,7 +6651,8 @@
     "StartPlan Free Tier": "Gói miễn phí StartPlan",
     "The RP ID does not match the current site.": "RP ID không khớp với trang hiện tại.",
     "Unknown legacy credentials": "Thông tin xác thực cũ chưa biết",
-    "ZCode Mode": "Chế độ ZCode"
+    "ZCode Mode": "Chế độ ZCode",
+    "CF-Ray": "CF-Ray"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

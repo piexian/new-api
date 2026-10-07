@@ -347,6 +347,7 @@ var CohereSafetySetting string
 const (
 	RequestIdKey         = "X-Oneapi-Request-Id"
 	UpstreamRequestIdKey = "X-Upstream-Request-Id"
+	CloudflareRayHeader  = "CF-Ray"
 )
 
 const (

@@ -6651,7 +6651,8 @@
     "StartPlan Free Tier": "StartPlan 免费套餐",
     "The RP ID does not match the current site.": "网站域名与当前站点不匹配",
     "Unknown legacy credentials": "未知旧凭证",
-    "ZCode Mode": "ZCode 模式"
+    "ZCode Mode": "ZCode 模式",
+    "CF-Ray": "CF-Ray"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

@@ -99,6 +99,34 @@ func ensureLogRequestId(log *Log) {
 	}
 }
 
+// attachCloudflareRay stores the edge request identifier with the other
+// administrator-only request diagnostics. Keeping it under admin_info lets
+// formatUserLogs strip it from self-service log responses.
+func attachCloudflareRay(c *gin.Context, other map[string]interface{}) map[string]interface{} {
+	if c == nil {
+		return other
+	}
+	ray := strings.TrimSpace(c.GetHeader(common.CloudflareRayHeader))
+	if ray == "" {
+		return other
+	}
+
+	enriched := make(map[string]interface{}, len(other)+1)
+	for key, value := range other {
+		enriched[key] = value
+	}
+
+	adminInfo := make(map[string]interface{})
+	if existing, ok := other["admin_info"].(map[string]interface{}); ok {
+		for key, value := range existing {
+			adminInfo[key] = value
+		}
+	}
+	adminInfo["cf_ray"] = ray
+	enriched["admin_info"] = adminInfo
+	return enriched
+}
+
 func createLog(log *Log) error {
 	ensureLogRequestId(log)
 	return LOG_DB.Create(log).Error
@@ -321,7 +349,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
-	otherStr := common.MapToJsonStr(other)
+	otherStr := common.MapToJsonStr(attachCloudflareRay(c, other))
 	// 判断是否需要记录 IP
 	needRecordIp := ShouldRecordRequestLogIP(userId)
 	log := &Log{
@@ -386,7 +414,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
-	otherStr := common.MapToJsonStr(params.Other)
+	otherStr := common.MapToJsonStr(attachCloudflareRay(c, params.Other))
 	// 判断是否需要记录 IP
 	needRecordIp := ShouldRecordRequestLogIP(userId)
 	log := &Log{

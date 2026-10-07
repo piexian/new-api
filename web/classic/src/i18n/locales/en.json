@@ -5285,7 +5285,8 @@
     "绑定域名": "Bound domain",
     "选择 Passkey 域名": "Select Passkey domain",
     "填入当前网站": "Fill current site",
-    "网站域名与当前站点不匹配": "The website domain does not match the current site"
+    "网站域名与当前站点不匹配": "The website domain does not match the current site",
+    "CF-Ray": "CF-Ray"
   },
   "RPM/并发": "RPM / Concurrency",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

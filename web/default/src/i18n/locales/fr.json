@@ -6651,7 +6651,8 @@
     "StartPlan Free Tier": "Niveau gratuit StartPlan",
     "The RP ID does not match the current site.": "L’identifiant RP ne correspond pas au site actuel.",
     "Unknown legacy credentials": "Anciens identifiants inconnus",
-    "ZCode Mode": "Mode ZCode"
+    "ZCode Mode": "Mode ZCode",
+    "CF-Ray": "CF-Ray"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

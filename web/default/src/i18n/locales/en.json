@@ -6651,7 +6651,8 @@
     "StartPlan Free Tier": "StartPlan Free Tier",
     "The RP ID does not match the current site.": "The RP ID does not match the current site.",
     "Unknown legacy credentials": "Unknown legacy credentials",
-    "ZCode Mode": "ZCode Mode"
+    "ZCode Mode": "ZCode Mode",
+    "CF-Ray": "CF-Ray"
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",
