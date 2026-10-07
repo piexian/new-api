@@ -250,19 +250,49 @@ func TestRunLoanOfficerRoundModelRedrawAfter3Failures(t *testing.T) {
 		// 上游错误细节不透出，调用方只见通用哨兵错误
 		require.ErrorIs(t, err, ErrLoanOfficerUnavailable)
 	}
-	assert.Equal(t, 3, callCount)
-	// 连续失败 3 次后重抽模型（候选排除当前 officer-a → 必为 officer-b）
-	assert.Equal(t, "officer-b", app.ModelUsed)
+	// 每轮先尝试当前模型，再立即尝试另一个候选，因此三轮共调用六次。
+	// 连续失败三轮后仍保留原有的计数重抽机制（此时从 officer-b 重抽为 officer-a）。
+	assert.Equal(t, 6, callCount)
+	assert.Equal(t, "officer-a", app.ModelUsed)
 
 	var updated model.TokenLoanApplication
 	require.NoError(t, model.DB.First(&updated, app.Id).Error)
-	assert.Equal(t, "officer-b", updated.ModelUsed)
+	assert.Equal(t, "officer-a", updated.ModelUsed)
 	assert.Equal(t, model.LoanAppStatusOpen, updated.Status)
 
 	// 失败轮不产生任何消息（用户消息也未入库）
 	msgs, err := model.GetLoanApplicationMessages(app.Id)
 	require.NoError(t, err)
 	assert.Empty(t, msgs)
+}
+
+func TestRunLoanOfficerRoundImmediateFallback(t *testing.T) {
+	withLoanOfficerSetting(t, func(s *operation_setting.LoanSetting) {
+		s.AiModels = []operation_setting.AiModelConfig{
+			{Model: "officer-a", ContextWindow: 128000},
+			{Model: "officer-b", ContextWindow: 128000},
+		}
+	})
+	callModels := make([]string, 0, 2)
+	withFakeOfficerModel(t, func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+		callModels = append(callModels, modelName)
+		if modelName == "officer-a" {
+			return "", errors.New("officer-a removed upstream")
+		}
+		return "已收到，我会继续处理。", nil
+	})
+	user, app := setupLoanOfficerApp(t)
+
+	reply, closed, err := RunLoanOfficerRound(user.Id, app, "你好")
+	require.NoError(t, err)
+	assert.False(t, closed)
+	assert.Equal(t, "已收到，我会继续处理。", reply)
+	assert.Equal(t, []string{"officer-a", "officer-b"}, callModels)
+	assert.Equal(t, "officer-b", app.ModelUsed)
+
+	var updated model.TokenLoanApplication
+	require.NoError(t, model.DB.First(&updated, app.Id).Error)
+	assert.Equal(t, "officer-b", updated.ModelUsed)
 }
 
 func TestRunLoanOfficerRoundContentTooLong(t *testing.T) {

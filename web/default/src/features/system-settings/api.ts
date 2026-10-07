@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 
 import type {
   ConfirmPaymentComplianceResponse,
@@ -46,8 +46,15 @@ export async function getSystemOptions() {
   return res.data
 }
 
-export async function updateSystemOption(request: UpdateOptionRequest) {
-  const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+export async function updateSystemOption(
+  request: UpdateOptionRequest,
+  config?: ApiRequestConfig
+) {
+  const res = await api.put<UpdateOptionResponse>(
+    '/api/option/',
+    request,
+    config
+  )
   return res.data
 }
 

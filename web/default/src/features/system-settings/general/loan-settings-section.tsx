@@ -275,6 +275,11 @@ export function LoanSettingsSection(props: {
     t('Saved as {{quota}} quota', { quota: toQuota(usd).toLocaleString() })
 
   async function onSubmit(values: Values) {
+    if (values.aiEnabled && values.aiModels.length === 0) {
+      toast.error(t('At least one AI officer model is required when enabled'))
+      return
+    }
+
     const updates: Array<{ key: string; value: string }> = []
 
     if (values.enabled !== defaults.enabled) {
@@ -335,16 +340,18 @@ export function LoanSettingsSection(props: {
       })
     }
 
+    const aiModels = serializeAiModels(values.aiModels)
+    if (aiModels !== serializeAiModels(parseAiModels(defaults.aiModels))) {
+      updates.push({ key: 'loan_setting.ai_models', value: aiModels })
+    }
+
+    // Persist the model list before enabling the officer so a transition from
+    // an empty configuration remains valid on the backend.
     if (values.aiEnabled !== defaults.aiEnabled) {
       updates.push({
         key: 'loan_setting.ai_enabled',
         value: String(values.aiEnabled),
       })
-    }
-
-    const aiModels = serializeAiModels(values.aiModels)
-    if (aiModels !== serializeAiModels(parseAiModels(defaults.aiModels))) {
-      updates.push({ key: 'loan_setting.ai_models', value: aiModels })
     }
 
     const creditTiers = serializeCreditTiers(values.creditTiers, quotaPerUnit)
@@ -431,8 +438,14 @@ export function LoanSettingsSection(props: {
       return
     }
 
-    for (const update of updates) {
-      await updateOption.mutateAsync(update)
+    try {
+      for (const update of updates) {
+        await updateOption.mutateAsync(update)
+      }
+    } catch {
+      // Keep the form dirty when one option failed so the administrator can
+      // retry without losing the remaining unsaved values.
+      return
     }
 
     form.reset(values)

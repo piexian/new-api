@@ -49,6 +49,17 @@ func callOfficerOneShot(setting *operation_setting.LoanSetting, sysPrompt, userC
 	}
 	raw, err := callOfficerModel(userId, modelCfg.Model, messages, setting.AiMaxOutput)
 	if err != nil {
+		// 定价与官方逾期处置没有工单可供持久化模型绑定，但同样应在
+		// 当前上游失效时尝试其它已配置模型，避免一次模型下线让整条
+		// 业务链路退化为固定兜底。
+		if fallback, ok := redrawLoanOfficerModel(setting, modelCfg.Model); ok && fallback.Model != modelCfg.Model {
+			common.SysLog(fmt.Sprintf("loan one-shot model fallback from %s to %s", modelCfg.Model, fallback.Model))
+			raw, fallbackErr := callOfficerModel(userId, fallback.Model, messages, setting.AiMaxOutput)
+			if fallbackErr == nil {
+				return StripLoanThinkContent(raw), nil
+			}
+			return "", fmt.Errorf("primary model: %w; fallback model: %v", err, fallbackErr)
+		}
 		return "", err
 	}
 	return StripLoanThinkContent(raw), nil

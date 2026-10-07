@@ -140,11 +140,14 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 		// system 角色的历史消息（强制关单提示等）只用于展示，不回传给模型
 	}
 
-	rawReply, callErr := callOfficerModel(userId, modelCfg.Model, messages, setting.AiMaxOutput)
+	// 模型配置可能在工单创建后被管理员替换，或者当前上游临时失效。首次
+	// 调用失败时立即尝试另一个已配置模型，让本轮请求自愈；只有所有候选
+	// 都失败才把通用不可用错误返回给客户端。
+	rawReply, usedModel, callErr := callLoanOfficerWithFallback(userId, app, setting, modelCfg, messages)
 	if callErr != nil {
 		noteLoanModelFailure(app, setting)
 		// 上游错误细节（含可能的响应体）只进服务端日志，对外只暴露通用哨兵错误
-		common.SysError(fmt.Sprintf("loan officer model call failed for application %d (model %s): %v", app.Id, modelCfg.Model, callErr))
+		common.SysError(fmt.Sprintf("loan officer model call failed for application %d (model %s): %v", app.Id, usedModel, callErr))
 		return "", false, ErrLoanOfficerUnavailable
 	}
 	clearLoanModelFailure(app.Id)
@@ -211,6 +214,33 @@ func RunLoanOfficerRound(userId int, app *model.TokenLoanApplication, userInput 
 		return displayText, true, nil
 	}
 	return displayText, false, nil
+}
+
+// callLoanOfficerWithFallback 调用当前工单绑定的模型；当前模型失败时，
+// 立即从配置中选择另一个模型重试一次。模型切换会回写工单，保证下一轮
+// 继续使用成功的候选；切换落库失败时仍更新当前请求的内存对象，避免
+// 因一次数据库写失败而重复调用已经失效的模型。
+func callLoanOfficerWithFallback(userId int, app *model.TokenLoanApplication, setting *operation_setting.LoanSetting, current operation_setting.AiModelConfig, messages []dto.Message) (string, string, error) {
+	reply, err := callOfficerModel(userId, current.Model, messages, setting.AiMaxOutput)
+	if err == nil {
+		return reply, current.Model, nil
+	}
+	firstErr := err
+
+	next, ok := redrawLoanOfficerModel(setting, current.Model)
+	if !ok || next.Model == current.Model {
+		return "", current.Model, firstErr
+	}
+	if updateErr := pinLoanOfficerModel(app, next.Model); updateErr != nil {
+		common.SysError(fmt.Sprintf("loan officer fallback model update failed for application %d: %v", app.Id, updateErr))
+	}
+	common.SysLog(fmt.Sprintf("loan officer application %d fallback from %s to %s after model failure", app.Id, current.Model, next.Model))
+
+	reply, retryErr := callOfficerModel(userId, next.Model, messages, setting.AiMaxOutput)
+	if retryErr == nil {
+		return reply, next.Model, nil
+	}
+	return "", next.Model, fmt.Errorf("primary model: %w; fallback model: %v", firstErr, retryErr)
 }
 
 // executeLoanDecision 钳制并单事务执行结案决定；执行失败时整体回滚、工单保持 open，
@@ -365,13 +395,19 @@ func resolveLoanOfficerModel(setting *operation_setting.LoanSetting, app *model.
 		}
 	}
 	picked := setting.AiModels[rand.Intn(len(setting.AiModels))]
-	if err := model.DB.Model(&model.TokenLoanApplication{}).
-		Where("id = ?", app.Id).Update("model_used", picked.Model).Error; err != nil {
+	if err := pinLoanOfficerModel(app, picked.Model); err != nil {
 		common.SysError(fmt.Sprintf("loan officer pin model update failed for application %d: %v", app.Id, err))
-	} else {
-		app.ModelUsed = picked.Model
 	}
 	return picked, true
+}
+
+// pinLoanOfficerModel 把模型绑定同时更新到当前对象和数据库。当前对象
+// 必须先更新，调用方才能在本轮 fallback 中使用新的模型，即使数据库暂时
+// 无法写入也不会再次命中已失败模型。
+func pinLoanOfficerModel(app *model.TokenLoanApplication, modelName string) error {
+	app.ModelUsed = modelName
+	return model.DB.Model(&model.TokenLoanApplication{}).
+		Where("id = ?", app.Id).Update("model_used", modelName).Error
 }
 
 // redrawLoanOfficerModel 连续失败后的模型重抽：优先排除当前模型

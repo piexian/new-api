@@ -229,8 +229,15 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		if err != nil || quota <= 0 {
 			return errors.New("无效的充值额度")
 		}
-		return tx.Model(&User{}).Where("id = ?", topUp.UserId).
-			Updates(map[string]interface{}{"stripe_customer": customerId, "quota": gorm.Expr("quota + ?", quota)}).Error
+		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).
+			Updates(map[string]interface{}{"stripe_customer": customerId, "quota": gorm.Expr("quota + ?", quota)})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
 	})
 
 	if err != nil {
@@ -469,8 +476,12 @@ func ManualCompleteTopUp(tradeNo string, callerIp string, userAgent string) erro
 		}
 
 		// 增加用户额度（立即写库，保持一致性）
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
-			return err
+		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
 		}
 
 		userId = topUp.UserId
@@ -561,7 +572,14 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			}
 		}
 
-		return tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(updateFields).Error
+		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(updateFields)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
 	})
 
 	if err != nil {
@@ -629,7 +647,14 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 			return err
 		}
 
-		return tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error
+		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
 	})
 
 	if err != nil {
@@ -699,7 +724,14 @@ func RechargeWaffoPancake(tradeNo string, callerIp string) (err error) {
 			return err
 		}
 
-		return tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error
+		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
 	})
 
 	if err != nil {

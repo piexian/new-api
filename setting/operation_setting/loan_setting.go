@@ -177,6 +177,9 @@ func ValidateLoanMarketSetting(s *LoanSetting) error {
 	if s == nil {
 		return errors.New("loan_setting 配置为空")
 	}
+	if s.AiEnabled && len(s.AiModels) == 0 {
+		return errors.New("启用 AI 业务员时至少配置一个模型")
+	}
 	const maxDailyRate = 0.1 // 10%/天上界：复利日复一日，再高必然溢出
 	if s.DailyRate <= 0 || s.DailyRate > maxDailyRate {
 		return errors.New("官方日利率必须在 (0, 10%] 之间")

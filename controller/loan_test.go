@@ -295,6 +295,58 @@ func TestBuildLoanStatusDataTierCapsEffectiveMax(t *testing.T) {
 	}
 }
 
+// TestBuildLoanStatusDataUsesPerFundingRates 状态投影必须分别使用平台与
+// P2P funding 的利率；账户级统一利率会把混合资金的利息算错。
+func TestBuildLoanStatusDataUsesPerFundingRates(t *testing.T) {
+	db := setupLoanControllerTestDB(t)
+	withControllerLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.DailyRate = 0.01
+		s.MaxTotal = 1000000
+	})
+	user := seedLoanUser(t, db)
+	now := time.Now()
+	today := model.LoanDayOf(now)
+	acc := &model.TokenLoanAccount{
+		UserId:         user.Id,
+		DebtQuota:      200,
+		PrincipalQuota: 200,
+		LastSettledDay: today,
+		CreatedAt:      now.Unix(),
+		UpdatedAt:      now.Unix(),
+	}
+	if err := db.Create(acc).Error; err != nil {
+		t.Fatalf("failed to create loan account: %v", err)
+	}
+	fundings := []model.TokenLoanFunding{
+		{
+			LoanUserId: user.Id, SourceType: model.LoanFundingPlatform,
+			PrincipalRemaining: 100, DebtQuota: 100, LastSettledDay: today - 1,
+			Rate: 0.01, RepayPlan: model.LoanRepayFull, Status: model.LoanFundingActive,
+		},
+		{
+			LoanUserId: user.Id, SourceType: model.LoanFundingOrder,
+			PrincipalRemaining: 100, DebtQuota: 100, LastSettledDay: today - 1,
+			Rate: 0.001, RepayPlan: model.LoanRepayFull, Status: model.LoanFundingActive,
+		},
+	}
+	if err := db.Create(&fundings).Error; err != nil {
+		t.Fatalf("failed to create loan fundings: %v", err)
+	}
+
+	data := buildLoanStatusData(operation_setting.GetLoanSetting(), acc, user.Id, now)
+	if got := data["principal"]; got != int64(200) {
+		t.Fatalf("expected principal 200, got %v", got)
+	}
+	// Platform: round(100*1.01)=101; P2P: round(100*1.001)=100.
+	if got := data["debt"]; got != int64(201) {
+		t.Fatalf("expected mixed funding debt 201, got %v", got)
+	}
+	if got := data["interest"]; got != int64(1) {
+		t.Fatalf("expected mixed funding interest 1, got %v", got)
+	}
+}
+
 // TestLoanRecordsPagination 台账分页（id 倒序 + 总数）
 func TestLoanRecordsPagination(t *testing.T) {
 	db := setupLoanControllerTestDB(t)
@@ -454,6 +506,43 @@ func TestCreateLoanApplicationHappyPath(t *testing.T) {
 	}
 	if len(msgs) != 2 {
 		t.Fatalf("expected 2 messages after first round, got %d", len(msgs))
+	}
+}
+
+func TestCreateLoanApplicationFailureReturnsExistingApplication(t *testing.T) {
+	db := setupLoanControllerTestDB(t)
+	withControllerLoanSetting(t, func(s *operation_setting.LoanSetting) {
+		s.Enabled = true
+		s.AiEnabled = true
+		s.TermsEnabled = false
+		s.AiModels = []operation_setting.AiModelConfig{{Model: "loan-test-model", ContextWindow: 8192}}
+		s.AiMaxOutput = 256
+		s.AiMaxRounds = 10
+		s.AiMaxActiveApplications = 1
+		s.AiDailyLimit = 3
+		s.AiPrompt = "你是 AI 业务员"
+	})
+	user := seedLoanUser(t, db)
+	service.RegisterLoanOfficerModelCaller(func(userId int, modelName string, messages []dto.Message, maxOutputTokens int) (string, error) {
+		return "", fmt.Errorf("upstream unavailable")
+	})
+	t.Cleanup(func() {
+		service.RegisterLoanOfficerModelCaller(callLoanOfficerUpstream)
+	})
+
+	ctx, recorder := newLoanContext(t, http.MethodPost, "/api/user/loan/applications",
+		map[string]any{"topic": "credit", "content": "想提额"}, user.Id, nil)
+	CreateLoanApplication(ctx)
+	resp := decodeLoanResponse(t, recorder)
+	if resp.Success {
+		t.Fatalf("expected first round failure")
+	}
+	app, ok := resp.Data["application"].(map[string]any)
+	if !ok || app["id"] == nil {
+		t.Fatalf("expected existing application in failed response: %v", resp.Data)
+	}
+	if _, err := model.GetLoanApplicationById(user.Id, int(app["id"].(float64))); err != nil {
+		t.Fatalf("failed response application should remain accessible: %v", err)
 	}
 }
 

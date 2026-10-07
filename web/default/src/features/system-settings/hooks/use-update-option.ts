@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import axios from 'axios'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 
@@ -43,7 +44,18 @@ export function useUpdateOption() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (request: UpdateOptionRequest) => updateSystemOption(request),
+    mutationFn: async (request: UpdateOptionRequest) => {
+      // HTTP 200 with success=false is a business failure. Reject the
+      // mutation so forms keep their unsaved values instead of resetting.
+      const data = await updateSystemOption(request, {
+        skipBusinessError: true,
+        skipErrorHandler: true,
+      })
+      if (!data.success) {
+        throw new Error(data.message || i18next.t('Failed to update setting'))
+      }
+      return data
+    },
     onSuccess: (data, variables) => {
       if (data.success) {
         // Always refresh system-options
@@ -64,8 +76,14 @@ export function useUpdateOption() {
         toast.error(data.message || i18next.t('Failed to update setting'))
       }
     },
-    onError: (error: Error) => {
-      toast.error(error.message || i18next.t('Failed to update setting'))
+    onError: (error: unknown, variables) => {
+      let message = i18next.t('Failed to update setting')
+      if (axios.isAxiosError(error)) {
+        message = error.response?.data?.message || error.message || message
+      } else if (error instanceof Error && error.message) {
+        message = error.message
+      }
+      toast.error(`${variables.key}: ${message}`)
     },
   })
 }

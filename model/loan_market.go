@@ -446,9 +446,13 @@ func CreateLoanOffer(lenderId int, mode string, amountUsd, rateFixed string, rat
 		}
 
 		// 扣 quota 与建 offer 同一事务，失败整体回滚
-		if err := tx.Model(&User{}).Where("id = ?", lenderId).
-			Update("quota", gorm.Expr("quota - ?", amount)).Error; err != nil {
-			return err
+		quotaResult := tx.Model(&User{}).Where("id = ?", lenderId).
+			Update("quota", gorm.Expr("quota - ?", amount))
+		if quotaResult.Error != nil {
+			return quotaResult.Error
+		}
+		if quotaResult.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
 		}
 		offer = &TokenLoanOffer{
 			LenderId:              lenderId,
@@ -551,9 +555,13 @@ func closeOrWithdrawOffer(lenderId int, offerId int, closing bool) (int64, error
 			if refund > LoanQuotaCeiling-int64(user.Quota) {
 				return ErrLoanQuotaOverflow
 			}
-			if err := tx.Model(&User{}).Where("id = ?", lenderId).
-				Update("quota", gorm.Expr("quota + ?", refund)).Error; err != nil {
-				return err
+			quotaResult := tx.Model(&User{}).Where("id = ?", lenderId).
+				Update("quota", gorm.Expr("quota + ?", refund))
+			if quotaResult.Error != nil {
+				return quotaResult.Error
+			}
+			if quotaResult.RowsAffected != 1 {
+				return gorm.ErrRecordNotFound
 			}
 		}
 		updates := map[string]interface{}{
@@ -654,6 +662,46 @@ const (
 	LoanDefaultActionPerpetual = "perpetual" // 永续：保持 overdue 继续计息，仅记录决策
 )
 
+// settleAndMarkFundingOverdueTx 在处置入口内补做惰性结算和自然逾期翻转。
+// 逾期状态通常由借款/还款写路径触发，但放贷人或官方可能在借款人没有任何
+// 操作的情况下直接处置，因此入口不能只相信持久化 status。
+func settleAndMarkFundingOverdueTx(tx *gorm.DB, f *TokenLoanFunding, now time.Time) (*TokenLoanAccount, error) {
+	acc, err := getOrCreateLoanAccountTx(tx, f.LoanUserId)
+	if err != nil {
+		return nil, err
+	}
+	before := *f
+	settleFunding(f, acc, now)
+	// PenaltyStartedDay 非零表示该 funding 曾经完成过一次逾期处置（例如 extend
+	// 后仍保留历史罚息起点）；这种 active 行不能因为旧的 DueDay 被重复翻回 overdue。
+	// 新建/迁移后从未翻转的 active funding 才由处置入口补做自然逾期转换。
+	if f.Status == LoanFundingActive && f.PenaltyStartedDay == 0 && loanDay(now) > f.DueDay && f.DebtQuota > 0 {
+		f.Status = LoanFundingOverdue
+		f.PenaltyStartedDay = loanDay(now)
+	}
+	if f.DebtQuota != before.DebtQuota || f.LastSettledDay != before.LastSettledDay ||
+		f.Status != before.Status || f.PenaltyStartedDay != before.PenaltyStartedDay {
+		f.UpdatedAt = now.Unix()
+		if err := tx.Save(f).Error; err != nil {
+			return nil, err
+		}
+	}
+	return acc, nil
+}
+
+// syncFundingAccountProjectionTx 将一个处置事务中已经结算的 funding 反映到账户行。
+// 调用方已经持有目标 funding 锁；这里按 id 顺序锁其余 funding，沿用借款/还款的
+// 锁序，避免账户投影滞后于处置结果。
+func syncFundingAccountProjectionTx(tx *gorm.DB, acc *TokenLoanAccount, now time.Time) error {
+	fundings, err := loadUserFundingsTx(tx, acc.UserId)
+	if err != nil {
+		return err
+	}
+	syncAccountFromFundings(acc, fundings)
+	acc.UpdatedAt = now.Unix()
+	return tx.Save(acc).Error
+}
+
 // ResolveOverdueFunding 放贷人对本人逾期债权三选一处置（spec §9）：
 //   - 仅 funding 的 lender 本人（LenderId == lenderId）可调用；platform funding
 //     （LenderId==0）归 Task 15 官方流程（AI 审批员），一律 ErrLoanNotFundingOwner；
@@ -677,33 +725,49 @@ func ResolveOverdueFunding(lenderId int, fundingId int64, action string, extendD
 			// 含 platform（LenderId==0）：官方债权归 Task 15 审批员流程，不放贷人自处
 			return ErrLoanNotFundingOwner
 		}
+		if f.Status == LoanFundingActive &&
+			(f.PenaltyStartedDay != 0 || loanDay(now) <= f.DueDay) {
+			return ErrLoanFundingNotOverdue
+		}
+		borrowerAcc, err := settleAndMarkFundingOverdueTx(tx, &f, now)
+		if err != nil {
+			return err
+		}
 		if f.Status != LoanFundingOverdue {
 			return ErrLoanFundingNotOverdue
 		}
 
 		switch action {
 		case LoanDefaultActionExtend:
-			if extendDays <= 0 || extendDays > loanSetting.LoanTermDays {
+			term := loanSetting.LoanTermDays
+			if term < 1 {
+				term = 1
+			}
+			if extendDays <= 0 || extendDays > term {
 				return ErrLoanInvalidDefaultAction
 			}
 			f.DueDay = loanDay(now) + extendDays
 			f.Status = LoanFundingActive
 			f.UpdatedAt = now.Unix()
-			return tx.Save(&f).Error
+			if err := tx.Save(&f).Error; err != nil {
+				return err
+			}
+			return syncFundingAccountProjectionTx(tx, borrowerAcc, now)
 		case LoanDefaultActionWriteoff:
 			return writeoffFundingTx(tx, &f, now)
 		case LoanDefaultActionPerpetual:
 			common.SysLog(fmt.Sprintf("loan default decision: funding %d marked perpetual (stays overdue, keeps accruing)", f.Id))
-			return nil
+			return syncFundingAccountProjectionTx(tx, borrowerAcc, now)
 		default:
 			return ErrLoanInvalidDefaultAction
 		}
 	})
 }
 
-// writeoffFundingTx 核销事务（f 为已锁定的 overdue P2P funding）：
-//  1. settleFunding(f, nil, now) 冻结最终债务——P2P 用自身利率，acc 仅 platform 分支
-//     使用故传 nil；冻结的债务留在 funding 行作历史记录，不在任何路径偿还；
+// writeoffFundingTx 核销事务（f 为已锁定的 overdue funding）：
+//  1. 锁借款人账户后 settleFunding(f, borrowerAcc, now) 冻结最终债务。P2P 分支仍
+//     使用自身利率，platform 分支使用账户有效利率与宽限期；冻结的债务留在 funding
+//     行作历史记录，不在任何路径偿还；
 //  2. funding → written_off 终态落盘；
 //  3. offer 侧（锁 offer 行，offer 可能已关闭，两态同处理）：amount_total -=
 //     principal_remaining（floor 0 防御）。钱在放款时已离开 offer 账面
@@ -725,7 +789,11 @@ func ResolveOverdueFunding(lenderId int, fundingId int64, action string, extendD
 func writeoffFundingTx(tx *gorm.DB, f *TokenLoanFunding, now time.Time) error {
 	loanSetting := operation_setting.GetLoanSetting()
 
-	settleFunding(f, nil, now) // 冻结最终债务（P2P 利率，无平台分支）
+	borrowerAcc, err := getOrCreateLoanAccountTx(tx, f.LoanUserId)
+	if err != nil {
+		return err
+	}
+	settleFunding(f, borrowerAcc, now) // P2P 忽略 acc；platform 使用账户利率/宽限
 	f.Status = LoanFundingWrittenOff
 	f.UpdatedAt = now.Unix()
 	if err := tx.Save(f).Error; err != nil {
@@ -751,10 +819,6 @@ func writeoffFundingTx(tx *gorm.DB, f *TokenLoanFunding, now time.Time) error {
 		}
 	}
 
-	borrowerAcc, err := getOrCreateLoanAccountTx(tx, f.LoanUserId)
-	if err != nil {
-		return err
-	}
 	if bl := loanDay(now) + loanSetting.BlacklistDaysOnDefault; bl > borrowerAcc.BlacklistedUntilDay {
 		borrowerAcc.BlacklistedUntilDay = bl
 	}
@@ -971,6 +1035,14 @@ func ResolvePlatformOverdueByOfficer(fundingId int64, action string, extendDays 
 		if f.SourceType != LoanFundingPlatform {
 			return ErrLoanNotFundingOwner // 官方处置仅限平台债权
 		}
+		if f.Status == LoanFundingActive &&
+			(f.PenaltyStartedDay != 0 || loanDay(now) <= f.DueDay) {
+			return nil // 尚未自然逾期，或已由历史处置标记过，保持异步入口幂等
+		}
+		borrowerAcc, err := settleAndMarkFundingOverdueTx(tx, &f, now)
+		if err != nil {
+			return err
+		}
 		if f.Status != LoanFundingOverdue {
 			return nil // 幂等：已处置（并发抢先）或非逾期，no-op
 		}
@@ -990,12 +1062,15 @@ func ResolvePlatformOverdueByOfficer(fundingId int64, action string, extendDays 
 			f.DueDay = loanDay(now) + days
 			f.Status = LoanFundingActive
 			f.UpdatedAt = now.Unix()
-			return tx.Save(&f).Error
+			if err := tx.Save(&f).Error; err != nil {
+				return err
+			}
+			return syncFundingAccountProjectionTx(tx, borrowerAcc, now)
 		case LoanDefaultActionWriteoff:
 			return writeoffFundingTx(tx, &f, now)
 		case LoanDefaultActionPerpetual:
 			common.SysLog(fmt.Sprintf("loan default decision: platform funding %d marked perpetual (stays overdue, keeps accruing)", f.Id))
-			return nil
+			return syncFundingAccountProjectionTx(tx, borrowerAcc, now)
 		default:
 			return ErrLoanInvalidDefaultAction
 		}

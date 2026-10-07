@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -142,8 +143,31 @@ func buildLoanStatusData(setting *operation_setting.LoanSetting, acc *model.Toke
 	effectiveMax := setting.MaxTotal
 	dailyRate := setting.DailyRate
 	if acc != nil {
-		debt, interest = model.ProjectLoanStatus(acc, now)
-		principal = acc.PrincipalQuota
+		// funding 是债务的事实来源。账户上的 DebtQuota/PrincipalQuota 是
+		// 写路径维护的投影，混合平台与 P2P 利率时不能用账户统一利率重新
+		// 计算，否则状态页会把每笔 P2P funding 按平台利率展示。
+		var fundings []model.TokenLoanFunding
+		fundingErr := model.DB.Where("loan_user_id = ? AND status IN ?", userId,
+			[]string{model.LoanFundingActive, model.LoanFundingOverdue}).Find(&fundings).Error
+		if fundingErr != nil {
+			common.SysError(fmt.Sprintf("loan status funding projection failed for user %d: %v", userId, fundingErr))
+		}
+		if fundingErr == nil && len(fundings) > 0 {
+			for i := range fundings {
+				principal += fundings[i].PrincipalRemaining
+				debt += model.ProjectFundingDebt(&fundings[i], acc, now)
+			}
+			interest = debt - principal
+			if interest < 0 {
+				// 数据修复或并发写入期间宁可展示零利息，也不向前端
+				// 返回违反 debt >= principal 不变式的负数。
+				interest = 0
+			}
+		} else {
+			// 兼容还没有 funding 明细的历史平台账户。
+			debt, interest = model.ProjectLoanStatus(acc, now)
+			principal = acc.PrincipalQuota
+		}
 		interestFreeUntil = acc.InterestFreeUntil
 		totalBorrowed = acc.TotalBorrowed
 		totalRepaid = acc.TotalRepaid
@@ -428,6 +452,19 @@ func CreateLoanApplication(c *gin.Context) {
 	// 首轮对话失败时工单已存在，用户可在详情页继续回复，这里只回报错误
 	reply, closed, err := service.RunLoanOfficerRound(userId, app, content)
 	if err != nil {
+		// 建单已经成功而首轮上游失败时保留工单 id，客户端可以直接打开
+		// 详情继续对话，避免用户重复提交产生第二个工单。application 的
+		// json 标签已隐藏 model_used/decision 等内部审计字段。
+		if errors.Is(err, service.ErrLoanOfficerUnavailable) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgLoanOfficerUnavailable),
+				"data": gin.H{
+					"application": app,
+				},
+			})
+			return
+		}
 		respondLoanError(c, err)
 		return
 	}

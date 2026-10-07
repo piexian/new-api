@@ -316,9 +316,13 @@ func settleRepayAllocations(tx *gorm.DB, userId int, allocs []RepayAllocation, s
 		if amt > LoanQuotaCeiling-int64(user.Quota) {
 			return nil, &LoanLenderOverflowError{LenderId: lid, Amount: amt}
 		}
-		if err := tx.Model(&User{}).Where("id = ?", lid).
-			Update("quota", gorm.Expr("quota + ?", amt)).Error; err != nil {
-			return nil, err
+		result := tx.Model(&User{}).Where("id = ?", lid).
+			Update("quota", gorm.Expr("quota + ?", amt))
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		if result.RowsAffected != 1 {
+			return nil, gorm.ErrRecordNotFound
 		}
 	}
 

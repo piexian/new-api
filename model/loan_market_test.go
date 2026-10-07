@@ -1570,6 +1570,87 @@ func TestResolvePlatformOverdueByOfficerPerpetual(t *testing.T) {
 	require.Equal(t, LoanFundingOverdue, got.Status)
 }
 
+// active funding 可以在借款人没有任何写操作时自然到期；官方处置入口应先翻转
+// overdue，再执行处置动作，避免处置队列永远等不到下一次借款/还款触发器。
+func TestResolvePlatformOverdueByOfficerFlipsExpiredActiveFunding(t *testing.T) {
+	borrower := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, 0)
+	now := time.Now()
+	day := loanDay(now)
+	amount := int64(100_000)
+	require.NoError(t, DB.Create(&TokenLoanAccount{
+		UserId:         borrower.Id,
+		PrincipalQuota: amount,
+		DebtQuota:      amount,
+		LastSettledDay: day,
+		CreatedAt:      now.Unix(),
+		UpdatedAt:      now.Unix(),
+	}).Error)
+	f := &TokenLoanFunding{
+		LoanUserId:         borrower.Id,
+		SourceType:         LoanFundingPlatform,
+		Amount:             amount,
+		PrincipalRemaining: amount,
+		DebtQuota:          amount,
+		LastSettledDay:     day,
+		Rate:               0.001,
+		RepayPlan:          LoanRepayFull,
+		Status:             LoanFundingActive,
+		DueDay:             day - 1,
+		PenaltyStartedDay:  0,
+		CreatedAt:          now.Unix(),
+		UpdatedAt:          now.Unix(),
+	}
+	require.NoError(t, DB.Create(f).Error)
+
+	require.NoError(t, ResolvePlatformOverdueByOfficer(f.Id, LoanDefaultActionPerpetual, 0))
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, LoanFundingOverdue, got.Status)
+	require.Equal(t, day, got.PenaltyStartedDay)
+}
+
+// 官方 platform 核销必须使用借款账户的宽限期/个人利率；funding 自身 Rate 只
+// 是 P2P 的结算输入。宽限期覆盖当前日期时，核销冻结债务不应被 funding Rate 推高。
+func TestResolvePlatformOverdueByOfficerWriteoffUsesAccountGrace(t *testing.T) {
+	withDailyRate(t, 0.001)
+	borrower := createLoanTestUser(t)
+	cleanupLoanBorrowData(t, borrower.Id, 0)
+	now := time.Now()
+	day := loanDay(now)
+	amount := int64(100_000)
+	require.NoError(t, DB.Create(&TokenLoanAccount{
+		UserId:            borrower.Id,
+		PrincipalQuota:    amount,
+		DebtQuota:         amount,
+		LastSettledDay:    day - 3,
+		InterestFreeUntil: day + 3,
+		CreatedAt:         now.Unix(),
+		UpdatedAt:         now.Unix(),
+	}).Error)
+	f := &TokenLoanFunding{
+		LoanUserId:         borrower.Id,
+		SourceType:         LoanFundingPlatform,
+		Amount:             amount,
+		PrincipalRemaining: amount,
+		DebtQuota:          amount,
+		LastSettledDay:     day - 3,
+		Rate:               0.01, // 若错误使用 funding Rate，结果会明显增加
+		RepayPlan:          LoanRepayFull,
+		Status:             LoanFundingOverdue,
+		DueDay:             day - 1,
+		PenaltyStartedDay:  day - 1,
+		CreatedAt:          now.Unix(),
+		UpdatedAt:          now.Unix(),
+	}
+	require.NoError(t, DB.Create(f).Error)
+
+	require.NoError(t, ResolvePlatformOverdueByOfficer(f.Id, LoanDefaultActionWriteoff, 0))
+	var got TokenLoanFunding
+	require.NoError(t, DB.First(&got, f.Id).Error)
+	require.Equal(t, amount, got.DebtQuota)
+}
+
 // ⑤ 幂等与边界：非 overdue 视为 no-op（并发处置抢先）；非 platform 拒绝；非法动作拒绝
 func TestResolvePlatformOverdueByOfficerIdempotentAndBoundary(t *testing.T) {
 	borrower := createLoanTestUser(t)
