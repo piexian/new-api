@@ -76,6 +76,7 @@ var OpenCodeZenChatModels = []string{
 	"deepseek-v4-pro",
 	"deepseek-v4-flash",
 	"deepseek-v4-flash-vision-exp",
+	"mistral-large-4",
 	"minimax-m3",
 	"minimax-m2.7",
 	"minimax-m2.5",
@@ -90,11 +91,14 @@ var OpenCodeZenChatModels = []string{
 	"kimi-k3",
 	"qwen3.8-max",
 	"big-pickle",
+	"exo-free",
+	"fledge-alpha-free",
 	"space-bunny-free",
 	"longcat-2.5-preview-free",
 	"mimo-v2.5-free",
 	"mimo-v2.6-flash-free",
 	"ling-3.0-flash-fin-free",
+	"ling-3.1-flash-free",
 	"nemotron-3-ultra-free",
 	"nemotron-3.5-lightning-free",
 	"deepseek-v4-flash-free",
@@ -142,6 +146,7 @@ var OpenCodeGoChatModels = []string{
 	"hy3-preview",
 	"hy3",
 	"omen-alpha",
+	"space-bunny",
 }
 
 // Go accepts this model on Chat, but does not list it in its public /v1/models inventory.

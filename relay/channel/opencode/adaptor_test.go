@@ -304,10 +304,10 @@ func TestOpenCodeNewModelRoutes(t *testing.T) {
 		{channelconstant.OpenCodeZenBaseURLAlias, []string{"gpt-6-astra", "gpt-6-sol", "grok-4.7", "muse-spark-1.3"}, requestModeResponses, "/v1/responses"},
 		{channelconstant.OpenCodeZenBaseURLAlias, []string{"claude-fable-5-1", "claude-opus-5-5", "qwen3.8-flash"}, requestModeClaude, "/v1/messages"},
 		{channelconstant.OpenCodeZenBaseURLAlias, []string{"gemini-3.8-flash"}, requestModeGemini, "/v1/models/gemini-3.8-flash:generateContent"},
-		{channelconstant.OpenCodeZenBaseURLAlias, []string{"deepseek-v4.1-flash", "deepseek-v4-flash-vision-exp", "glm-5.3-flash", "glm-5.3", "space-bunny-free"}, requestModeOpenAI, "/v1/chat/completions"},
-		{channelconstant.OpenCodeGoBaseURLAlias, []string{"grok-4.7", "grok-4.6", "muse-spark-1.3-contributor"}, requestModeResponses, "/v1/responses"},
+		{channelconstant.OpenCodeZenBaseURLAlias, []string{"deepseek-v4.1-flash", "deepseek-v4-flash-vision-exp", "glm-5.3-flash", "glm-5.3", "mistral-large-4", "exo-free", "fledge-alpha-free", "ling-3.1-flash-free", "space-bunny-free"}, requestModeOpenAI, "/v1/chat/completions"},
+		{channelconstant.OpenCodeGoBaseURLAlias, []string{"grok-4.7", "grok-4.6", "grok-4.5", "muse-spark-1.3-contributor", "muse-spark-1.2-contributor"}, requestModeResponses, "/v1/responses"},
 		{channelconstant.OpenCodeGoBaseURLAlias, []string{"qwen3.8-flash"}, requestModeClaude, "/v1/messages"},
-		{channelconstant.OpenCodeGoBaseURLAlias, []string{"glm-5.3-flash", "longcat-2.0", "deepseek-v4.1-flash", "deepseek-v4-flash-vision-exp", "mimo-v2.6-flash", "mimo-v2.6-pro", "hy4-preview"}, requestModeOpenAI, "/v1/chat/completions"},
+		{channelconstant.OpenCodeGoBaseURLAlias, []string{"glm-5.3-flash", "longcat-2.0", "deepseek-v4.1-flash", "deepseek-v4-flash-vision-exp", "mimo-v2.6-flash", "mimo-v2.6-pro", "hy4-preview", "space-bunny"}, requestModeOpenAI, "/v1/chat/completions"},
 	} {
 		for _, model := range group.models {
 			for _, incoming := range []struct {
@@ -666,6 +666,7 @@ func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
 		"hy3-preview",
 		"hy3",
 		"omen-alpha",
+		"space-bunny",
 	}, channelconstant.OpenCodeGoChatModels)
 	require.Contains(t, channelconstant.OpenCodeGoChatRouteOnlyModels, "space-bunny-free")
 	require.NotContains(t, StaticModelListForBase(channelconstant.OpenCodeGoBaseURLAlias), "space-bunny-free")
@@ -676,9 +677,14 @@ func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
 	require.Contains(t, channelconstant.OpenCodeZenClaudeModels, "claude-sonnet-5")
 	require.Contains(t, channelconstant.OpenCodeZenChatModels, "glm-5.2")
 	require.Contains(t, channelconstant.OpenCodeZenChatModels, "kimi-k2.7-code")
+	require.Contains(t, channelconstant.OpenCodeZenChatModels, "mistral-large-4")
+	require.Contains(t, channelconstant.OpenCodeZenChatModels, "exo-free")
+	require.Contains(t, channelconstant.OpenCodeZenChatModels, "fledge-alpha-free")
+	require.Contains(t, channelconstant.OpenCodeZenChatModels, "ling-3.1-flash-free")
 	require.Contains(t, channelconstant.OpenCodeZenResponsesModels, "grok-4.5")
 	require.Contains(t, channelconstant.OpenCodeGoResponsesModels, "gpt-5.6-luna")
 	require.Contains(t, channelconstant.OpenCodeGoChatModels, "glm-5")
+	require.Contains(t, channelconstant.OpenCodeGoChatModels, "space-bunny")
 	require.NotContains(t, channelconstant.OpenCodeZenClaudeModels, "claude-opus-4-1")
 }
 
