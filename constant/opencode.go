@@ -56,6 +56,7 @@ var OpenCodeZenClaudeModels = []string{
 	"claude-sonnet-4-6",
 	"claude-sonnet-4-5",
 	"claude-sonnet-4",
+	"claude-haiku-5-5",
 	"claude-haiku-4-5",
 	"qwen3.8-flash",
 	"qwen3.6-plus",
@@ -94,6 +95,7 @@ var OpenCodeZenChatModels = []string{
 	"exo-free",
 	"fledge-alpha-free",
 	"space-bunny-free",
+	"step-5-preview-free",
 	"longcat-2.5-preview-free",
 	"mimo-v2.5-free",
 	"mimo-v2.6-flash-free",
@@ -142,6 +144,7 @@ var OpenCodeGoChatModels = []string{
 	"mimo-v2.5-pro",
 	"mimo-v2-pro",
 	"mimo-v2-omni",
+	"step-5-preview-free",
 	"hy4-preview",
 	"hy3-preview",
 	"hy3",
@@ -155,6 +158,7 @@ var OpenCodeGoChatRouteOnlyModels = []string{
 }
 
 var OpenCodeGoClaudeModels = []string{
+	"claude-haiku-5-5",
 	"minimax-m3",
 	"minimax-m2.7",
 	"minimax-m2.5",

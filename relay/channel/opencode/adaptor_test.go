@@ -662,6 +662,7 @@ func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
 		"mimo-v2.5-pro",
 		"mimo-v2-pro",
 		"mimo-v2-omni",
+		"step-5-preview-free",
 		"hy4-preview",
 		"hy3-preview",
 		"hy3",
