@@ -6661,7 +6661,8 @@
     "Enable NodeLoc OAuth": "NodeLoc OAuthを有効にする",
     "Allow users to sign in with NodeLoc": "ユーザーがNodeLocでログインできるようにする",
     "Your NodeLoc OAuth Client ID": "NodeLoc OAuth クライアント ID",
-    "Your NodeLoc OAuth Client Secret": "NodeLoc OAuth クライアントシークレット"
+    "Your NodeLoc OAuth Client Secret": "NodeLoc OAuth クライアントシークレット",
+    "Upstream model: {{model}}": "上流モデル：{{model}}"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

@@ -6661,7 +6661,8 @@
     "Enable NodeLoc OAuth": "Включить NodeLoc OAuth",
     "Allow users to sign in with NodeLoc": "Разрешить пользователям входить через NodeLoc",
     "Your NodeLoc OAuth Client ID": "Ваш NodeLoc OAuth Client ID",
-    "Your NodeLoc OAuth Client Secret": "Ваш NodeLoc OAuth Client Secret"
+    "Your NodeLoc OAuth Client Secret": "Ваш NodeLoc OAuth Client Secret",
+    "Upstream model: {{model}}": "Модель провайдера: {{model}}"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

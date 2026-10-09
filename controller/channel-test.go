@@ -37,9 +37,10 @@ import (
 )
 
 type testResult struct {
-	context     *gin.Context
-	localErr    error
-	newAPIError *types.NewAPIError
+	context       *gin.Context
+	localErr      error
+	newAPIError   *types.NewAPIError
+	upstreamModel string
 }
 
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
@@ -574,6 +575,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			}
 		}
 	}
+	upstreamCapture := wrapTestUpstreamResponse(httpResp)
 	usageA, respErr := adaptor.DoResponse(c, httpResp, info)
 	if respErr != nil {
 		return testResult{
@@ -628,9 +630,10 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	})
 	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return testResult{
-		context:     c,
-		localErr:    nil,
-		newAPIError: nil,
+		context:       c,
+		localErr:      nil,
+		newAPIError:   nil,
+		upstreamModel: extractTestUpstreamModel(upstreamCapture.Bytes()),
 	}
 }
 
@@ -748,6 +751,7 @@ func testChannelVideoSubmit(c *gin.Context, channel *model.Channel, info *relayc
 		}
 	}
 
+	taskUpstreamCapture := wrapTestUpstreamResponse(resp)
 	taskID, taskData, taskErr := taskAdaptor.DoResponse(c, resp, info)
 	if taskErr != nil {
 		err := taskErrorAsError(taskErr)
@@ -767,9 +771,10 @@ func testChannelVideoSubmit(c *gin.Context, channel *model.Channel, info *relayc
 		time.Since(startedAt).Seconds(),
 	))
 	return testResult{
-		context:     c,
-		localErr:    nil,
-		newAPIError: nil,
+		context:       c,
+		localErr:      nil,
+		newAPIError:   nil,
+		upstreamModel: extractTestUpstreamModel(taskUpstreamCapture.Bytes()),
 	}
 }
 
@@ -1206,9 +1211,10 @@ func TestChannel(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"time":    consumedTime,
+		"success":        true,
+		"message":        "",
+		"time":           consumedTime,
+		"upstream_model": result.upstreamModel,
 	})
 }
 

@@ -6661,7 +6661,8 @@
     "Enable NodeLoc OAuth": "Bật NodeLoc OAuth",
     "Allow users to sign in with NodeLoc": "Cho phép người dùng đăng nhập bằng NodeLoc",
     "Your NodeLoc OAuth Client ID": "NodeLoc OAuth Client ID của bạn",
-    "Your NodeLoc OAuth Client Secret": "NodeLoc OAuth Client Secret của bạn"
+    "Your NodeLoc OAuth Client Secret": "NodeLoc OAuth Client Secret của bạn",
+    "Upstream model: {{model}}": "Mô hình thượng nguồn: {{model}}"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

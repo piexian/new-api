@@ -121,6 +121,7 @@ type TestResult = {
   completedAt?: number
   error?: string
   errorCode?: string
+  upstreamModel?: string
 }
 
 type BatchProgress = {
@@ -600,7 +601,7 @@ function ChannelTestDialogContent({
             stream: effectiveStreamTest || undefined,
             silent,
           },
-          (success, responseTime, error, errorCode) => {
+          (success, responseTime, error, errorCode, upstreamModel) => {
             const completedAt = Date.now()
             finalResult = {
               status: success ? 'success' : 'error',
@@ -608,6 +609,7 @@ function ChannelTestDialogContent({
               completedAt,
               error,
               errorCode,
+              upstreamModel,
             }
             updateTestResult(model, finalResult)
           }
@@ -1276,12 +1278,24 @@ function TestResultCell({
   }
 
   if (result.status === 'success') {
-    return typeof result.responseTime === 'number' ? (
-      <span className='text-muted-foreground text-sm'>
-        {formatResponseTime(result.responseTime, t)}
-      </span>
-    ) : (
-      <span className='text-muted-foreground text-sm'>-</span>
+    return (
+      <div className='flex min-w-0 flex-col gap-0.5'>
+        {typeof result.responseTime === 'number' ? (
+          <span className='text-muted-foreground text-sm'>
+            {formatResponseTime(result.responseTime, t)}
+          </span>
+        ) : (
+          <span className='text-muted-foreground text-sm'>-</span>
+        )}
+        {result.upstreamModel ? (
+          <span
+            className='text-muted-foreground max-w-60 truncate text-xs'
+            title={result.upstreamModel}
+          >
+            {t('Upstream model: {{model}}', { model: result.upstreamModel })}
+          </span>
+        ) : null}
+      </div>
     )
   }
 

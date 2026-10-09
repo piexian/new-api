@@ -4931,7 +4931,9 @@
     "允许通过 NodeLoc 账户登录": "允许通过 NodeLoc 账户登录",
     "配置 NodeLoc OAuth": "配置 NodeLoc OAuth",
     "NodeLoc 登录配置不完整，请联系管理员": "NodeLoc 登录配置不完整，请联系管理员",
-    "请在配置的正式站点使用 NodeLoc 登录：{{origin}}": "请在配置的正式站点使用 NodeLoc 登录：{{origin}}"
+    "请在配置的正式站点使用 NodeLoc 登录：{{origin}}": "请在配置的正式站点使用 NodeLoc 登录：{{origin}}",
+    "上游模型：{{model}}": "上游模型：{{model}}",
+    "上游未返回": "上游未返回"
   },
   "通道测试模式": "通道测试模式",
   "定时全量测试": "定时全量测试",

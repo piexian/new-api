@@ -281,7 +281,8 @@ export async function handleTestChannel(
     success: boolean,
     responseTime?: number,
     error?: string,
-    errorCode?: string
+    errorCode?: string,
+    upstreamModel?: string
   ) => void
 ): Promise<void> {
   const payload =
@@ -301,19 +302,20 @@ export async function handleTestChannel(
     const duration = formatChannelTestDuration(responseTime)
     const target = getChannelTestLabel(options)
     if (response.success) {
+      const upstreamModel = response.upstream_model || ''
       if (!options?.silent) {
         toast.success(
           i18next.t('{{target}} test succeeded', { target }),
           duration
             ? {
-                description: i18next.t('Response time: {{duration}}', {
-                  duration,
-                }),
+                description: upstreamModel
+                  ? `${i18next.t('Response time: {{duration}}', { duration })} · ${i18next.t('Upstream model: {{model}}', { model: upstreamModel })}`
+                  : i18next.t('Response time: {{duration}}', { duration }),
               }
             : undefined
         )
       }
-      onTestComplete?.(true, responseTime)
+      onTestComplete?.(true, responseTime, undefined, undefined, upstreamModel)
     } else {
       const errorMsg = response.message || i18next.t(ERROR_MESSAGES.TEST_FAILED)
       if (!options?.silent) {

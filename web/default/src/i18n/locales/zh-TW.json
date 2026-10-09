@@ -6661,7 +6661,8 @@
     "Enable NodeLoc OAuth": "啟用 NodeLoc OAuth",
     "Allow users to sign in with NodeLoc": "允許用戶使用 NodeLoc 登入",
     "Your NodeLoc OAuth Client ID": "您的 NodeLoc OAuth 用戶端 ID",
-    "Your NodeLoc OAuth Client Secret": "您的 NodeLoc OAuth 用戶端密鑰"
+    "Your NodeLoc OAuth Client Secret": "您的 NodeLoc OAuth 用戶端密鑰",
+    "Upstream model: {{model}}": "上游模型：{{model}}"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

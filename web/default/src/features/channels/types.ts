@@ -193,6 +193,7 @@ export interface ChannelTestResponse {
   message?: string
   error_code?: string
   time?: number
+  upstream_model?: string
   data?: {
     response_time?: number
     error?: string
