@@ -273,12 +273,23 @@ func TestSetupRequestHeaderUsesCookieOnly(t *testing.T) {
 	require.Equal(t, "application/json", headers.Get("Content-Type"))
 	require.Empty(t, headers.Get("Authorization"))
 	require.Equal(t, http.Header{
-		"Accept":       {"text/event-stream"},
-		"Content-Type": {"application/json"},
-		"Cookie":       {info.ApiKey},
-		"User-Agent":   {""},
+		"Accept":          {"text/event-stream"},
+		"Content-Type":    {"application/json"},
+		"Cookie":          {info.ApiKey},
+		"Internal-Source": {"playground"},
+		"X-Metadata":      {`{"call_type":"agent_playground"}`},
+		"Origin":          {"https://console.mistral.ai"},
+		"Referer":         {"https://console.mistral.ai/playground"},
+		"User-Agent":      {""},
 	}, headers)
 	require.NotContains(t, info.ToString(), info.ApiKey)
+
+	// Origin/Referer 跟随渠道 base URL（含尾部斜杠归一）。
+	info.ChannelBaseUrl = "https://mistral.internal.example/"
+	headers = http.Header{}
+	require.NoError(t, (&Adaptor{}).SetupRequestHeader(ctx, &headers, info))
+	require.Equal(t, "https://mistral.internal.example", headers.Get("Origin"))
+	require.Equal(t, "https://mistral.internal.example/playground", headers.Get("Referer"))
 }
 
 func TestSetupRequestHeaderRejectsInvalidCookie(t *testing.T) {

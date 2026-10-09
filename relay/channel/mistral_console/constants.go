@@ -1,7 +1,15 @@
 package mistralconsole
 
+// ModelList 为 Mistral Console（Bora）当前可用的模型目录。
 var ModelList = []string{
-	"glm-5-2",
+	"codestral-latest",
+	"ministral-14b-latest",
+	"ministral-3b-latest",
+	"ministral-8b-latest",
+	"mistral-medium-latest",
+	"mistral-small-latest",
+	"mistral-large-4",
+	"labs-leanstral-1.5",
 }
 
 const (

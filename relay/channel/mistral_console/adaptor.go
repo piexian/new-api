@@ -88,6 +88,15 @@ func (a *Adaptor) SetupRequestHeader(_ *gin.Context, req *http.Header, info *rel
 	req.Set("Accept", "text/event-stream")
 	req.Set("Content-Type", "application/json")
 	req.Set("Cookie", cookie)
+	// 对齐 Console Playground 的请求指纹，避免上游按非浏览器客户端拒绝。
+	req.Set("Internal-Source", "playground")
+	req.Set("X-Metadata", `{"call_type":"agent_playground"}`)
+	origin := strings.TrimRight(strings.TrimSpace(info.ChannelBaseUrl), "/")
+	if origin == "" {
+		origin = "https://console.mistral.ai"
+	}
+	req.Set("Origin", origin)
+	req.Set("Referer", origin+"/playground")
 	// An explicitly empty User-Agent suppresses net/http's default value.
 	req.Set("User-Agent", "")
 	return nil
