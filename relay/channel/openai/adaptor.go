@@ -394,6 +394,10 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+	// 讯飞星辰 MaaS 上游只返回 float，encoding_format=base64 不下发，由网关在响应侧转换
+	if info.ChannelType == constant.ChannelTypeXunfeiMaaS && request.EncodingFormat == "base64" {
+		request.EncodingFormat = ""
+	}
 	return request, nil
 }
 
@@ -673,6 +677,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		}
 	case relayconstant.RelayModeRerank:
 		usage, err = common_handler.RerankHandler(c, info, resp)
+	case relayconstant.RelayModeEmbeddings:
+		usage, err = OpenaiEmbeddingHandler(c, info, resp)
 	case relayconstant.RelayModeResponses:
 		if info.IsStream {
 			usage, err = OaiResponsesStreamHandler(c, info, resp)
