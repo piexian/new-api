@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { SiGithub, SiWechat, SiLinux, SiQq, SiSteam } from 'react-icons/si'
 import { toast } from 'sonner'
 
-import { IconDiscord } from '@/assets/brand-icons'
+import { IconDiscord, IconNodeLoc } from '@/assets/brand-icons'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,7 @@ import {
   handleOIDCOAuth,
   handleDiscordOAuth,
   handleLinuxDOOAuth,
+  handleNodeLocOAuth,
   handleQQOAuth,
   handleSteamOAuth,
   getOAuthState,
@@ -281,6 +282,36 @@ export function AccountBindingsTab({
         ),
         isEnabled: status?.telegram_oauth || false,
         onBind: () => dialogs.open('telegram'),
+      },
+      {
+        id: 'nodeloc',
+        label: t('NodeLoc'),
+        icon: IconNodeLoc as React.ComponentType<{ className?: string }>,
+        value: (profile as unknown as Record<string, unknown>).nodeloc_id as
+          | string
+          | undefined,
+        isBound: Boolean(
+          (profile as unknown as Record<string, unknown>).nodeloc_id
+        ),
+        isEnabled: status?.nodeloc_oauth || false,
+        onBind: () => {
+          if (status?.nodeloc_client_id && status?.nodeloc_redirect_uri) {
+            handleNodeLocOAuth(
+              status.nodeloc_client_id,
+              status.nodeloc_redirect_uri
+            ).catch((error) => {
+              const origin = (error as { origin?: string })?.origin
+              toast.error(
+                origin
+                  ? t(
+                      'Please sign in with NodeLoc on the configured site: {{origin}}',
+                      { origin }
+                    )
+                  : t('Failed to start NodeLoc login')
+              )
+            })
+          }
+        },
       },
       {
         id: 'linuxdo',

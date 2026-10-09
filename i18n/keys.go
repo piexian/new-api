@@ -354,6 +354,9 @@ const (
 // OAuth related messages
 const (
 	MsgOAuthInvalidCode                  = "oauth.invalid_code"
+	MsgOAuthAccessDenied                 = "oauth.access_denied"
+	MsgOAuthAuthorizationFailed          = "oauth.authorization_failed"
+	MsgNodeLocConfigInvalid              = "oauth.nodeloc_config_invalid"
 	MsgOAuthGetUserErr                   = "oauth.get_user_error"
 	MsgOAuthAccountUsed                  = "oauth.account_used"
 	MsgOAuthUnknownProvider              = "oauth.unknown_provider"

@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next'
 import { SiGithub, SiDiscord, SiQq, SiSteam } from 'react-icons/si'
 import { toast } from 'sonner'
 
+import { IconNodeLoc } from '@/assets/brand-icons'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
@@ -80,6 +81,7 @@ interface StatusInfo {
   wechat_login?: boolean
   telegram_oauth?: boolean
   linuxdo_oauth?: boolean
+  nodeloc_oauth?: boolean
   qq_oauth?: boolean
   steam_oauth?: boolean
   custom_oauth_providers?: Array<{
@@ -137,6 +139,13 @@ const BUILTIN_BINDINGS: ReadonlyArray<{
     label: 'Telegram',
     icon: <Send className='h-4 w-4' />,
     statusKey: 'telegram_oauth',
+  },
+  {
+    key: 'nodeloc',
+    field: 'nodeloc_id',
+    label: 'NodeLoc',
+    icon: <IconNodeLoc className='h-4 w-4' />,
+    statusKey: 'nodeloc_oauth',
   },
   {
     key: 'linuxdo',

@@ -397,3 +397,7 @@ payment.session_required: "This operation requires dashboard session authenticat
 # Channel affinity cache messages
 affinity.missing_rule_name: "Missing param: rule_name"
 affinity.missing_key_fp: "Missing param: key_fp"
+
+oauth.access_denied: "Authorization was denied. You can try signing in again."
+oauth.authorization_failed: "Authorization failed. Please try again."
+oauth.nodeloc_config_invalid: "To enable NodeLoc, configure the Client ID, Client Secret and a valid server address (http:// or https://, without a path)."

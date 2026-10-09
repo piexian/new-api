@@ -35,6 +35,7 @@ import {
   onDiscordOAuthClicked,
   onOIDCClicked,
   onLinuxDOOAuthClicked,
+  onNodeLocOAuthClicked,
   onQQOAuthClicked,
   onSteamOAuthClicked,
   onCustomOAuthClicked,
@@ -70,6 +71,7 @@ import {
 import OIDCIcon from '../common/logo/OIDCIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
+import NodeLocIcon from '../common/logo/NodeLocIcon';
 import TwoFAVerification from './TwoFAVerification';
 import { useTranslation } from 'react-i18next';
 import { FaQq } from 'react-icons/fa';
@@ -104,6 +106,7 @@ const LoginForm = () => {
   const [discordLoading, setDiscordLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
+  const [nodelocLoading, setNodelocLoading] = useState(false);
   const [qqLoading, setQqLoading] = useState(false);
   const [steamLoading, setSteamLoading] = useState(false);
   const [emailLoginLoading, setEmailLoginLoading] = useState(false);
@@ -163,14 +166,15 @@ const LoginForm = () => {
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthLoginOptions = Boolean(
     status.github_oauth ||
-    status.discord_oauth ||
-    status.oidc_enabled ||
-    status.wechat_login ||
-    status.linuxdo_oauth ||
-    status.qq_oauth ||
-    status.steam_oauth ||
-    status.telegram_oauth ||
-    hasCustomOAuthProviders,
+      status.discord_oauth ||
+      status.oidc_enabled ||
+      status.wechat_login ||
+      status.linuxdo_oauth ||
+      status.nodeloc_oauth ||
+      status.qq_oauth ||
+      status.steam_oauth ||
+      status.telegram_oauth ||
+      hasCustomOAuthProviders,
   );
   const hasRegistrationOptions =
     status.register_enabled !== false &&
@@ -455,6 +459,21 @@ const LoginForm = () => {
     }
   };
 
+  // 包装的NodeLoc登录点击处理
+  const handleNodeLocClick = async () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    setNodelocLoading(true);
+    try {
+      await onNodeLocOAuthClicked(status, { shouldLogout: true });
+    } finally {
+      // 由于重定向，这里不会执行到，但为了完整性添加
+      setTimeout(() => setNodelocLoading(false), 3000);
+    }
+  };
+
   const handleQQClick = () => {
     if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
       showInfo(t('请先阅读并同意用户协议和隐私政策'));
@@ -708,6 +727,27 @@ const LoginForm = () => {
                     loading={linuxdoLoading}
                   >
                     <span className='ml-3'>{t('使用 LinuxDO 继续')}</span>
+                  </Button>
+                )}
+
+                {status.nodeloc_oauth && (
+                  <Button
+                    theme='outline'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    type='tertiary'
+                    icon={
+                      <NodeLocIcon
+                        style={{
+                          color: 'currentColor',
+                          width: '20px',
+                          height: '20px',
+                        }}
+                      />
+                    }
+                    onClick={handleNodeLocClick}
+                    loading={nodelocLoading}
+                  >
+                    <span className='ml-3'>{t('使用 NodeLoc 继续')}</span>
                   </Button>
                 )}
 

@@ -29,6 +29,7 @@ import {
 } from '../../helpers';
 import { UserContext } from '../../context/User';
 import Loading from '../common/ui/Loading';
+import { getOAuthCallbackParams } from '../../helpers/oauthCallback';
 import { LOGIN_FEATURE_UPDATE_PROMPT_KEY } from '../../constants/common.constant';
 import { Button, Card, Input, Typography } from '@douyinfe/semi-ui';
 
@@ -153,7 +154,7 @@ const OAuthOwnershipTransferPanel = ({
 const OAuth2Callback = (props) => {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
-  const [, userDispatch] = useContext(UserContext);
+  const [userState, userDispatch] = useContext(UserContext);
   const navigate = useNavigate();
   const [ownershipTransfer, setOwnershipTransfer] = useState(null);
   const [ownershipError, setOwnershipError] = useState('');
@@ -166,14 +167,17 @@ const OAuth2Callback = (props) => {
   // 最大重试次数
   const MAX_RETRIES = 3;
 
-  const sendCode = async (code, state, isSteam = false, retry = 0) => {
+  // 已登录用户的失败回调返回个人设置页，未登录返回登录页
+  const failurePath = userState.user ? '/console/personal' : '/login';
+
+  const sendCode = async (params, isSteam = false, retry = 0) => {
     try {
       // Steam 使用 OpenID 2.0，回调不含 code，仅有 openid.* 参数，
       // 将原始 query string（含 state + openid.*）透传给后端校验。
       const url = isSteam
         ? `/api/oauth/${props.type}${window.location.search}`
-        : `/api/oauth/${props.type}?code=${code}&state=${state}`;
-      const { data: resData } = await API.get(url);
+        : `/api/oauth/${encodeURIComponent(props.type)}?${params.toString()}`;
+      const { data: resData } = await API.get(url, { skipErrorHandler: true });
 
       const { success, message, data } = resData;
 
@@ -185,6 +189,7 @@ const OAuth2Callback = (props) => {
         }
         // 业务错误不重试，直接显示错误
         showError(message || t('授权失败'));
+        navigate(failurePath, { replace: true });
         return;
       }
 
@@ -201,16 +206,18 @@ const OAuth2Callback = (props) => {
         navigate('/console/token');
       }
     } catch (error) {
-      // 网络错误等可重试
-      if (retry < MAX_RETRIES) {
+      // 网络错误等可重试；HTTP 错误与授权拒绝不重试
+      if (!error.response && retry < MAX_RETRIES && !params.has('error')) {
         // 递增的退避等待
         await new Promise((resolve) => setTimeout(resolve, (retry + 1) * 2000));
-        return sendCode(code, state, isSteam, retry + 1);
+        return sendCode(params, isSteam, retry + 1);
       }
 
       // 重试次数耗尽，提示错误并返回设置页面
-      showError(error.message || t('授权失败'));
-      navigate('/console/personal');
+      showError(
+        error.response?.data?.message || error.message || t('授权失败'),
+      );
+      navigate(failurePath, { replace: true });
     }
   };
 
@@ -236,17 +243,16 @@ const OAuth2Callback = (props) => {
       }
 
       const isSteam = props.type === 'steam';
-      const code = searchParams.get('code');
-      const state = searchParams.get('state');
+      const params = getOAuthCallbackParams(searchParams);
 
-      // 参数缺失直接返回（Steam 使用 OpenID，回调无 code）
-      if (!isSteam && !code) {
+      // 参数缺失直接返回（Steam 使用 OpenID，回调无 code；授权拒绝无 code 但有 error）
+      if (!isSteam && !params.get('code') && !params.get('error')) {
         showError(t('未获取到授权码'));
-        navigate('/console/personal');
+        navigate(failurePath, { replace: true });
         return;
       }
 
-      sendCode(code, state, isSteam);
+      sendCode(params, isSteam);
     };
 
     initialize();

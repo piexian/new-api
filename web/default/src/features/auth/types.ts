@@ -102,6 +102,9 @@ export interface SystemStatus {
     oidc_client_id?: string
     linuxdo_oauth?: boolean
     linuxdo_client_id?: string
+    nodeloc_oauth?: boolean
+    nodeloc_client_id?: string
+    nodeloc_redirect_uri?: string
     qq_oauth?: boolean
     qq_client_id?: string
     telegram_oauth?: boolean
@@ -155,6 +158,9 @@ export interface SystemStatus {
   oidc_client_id?: string
   linuxdo_oauth?: boolean
   linuxdo_client_id?: string
+  nodeloc_oauth?: boolean
+  nodeloc_client_id?: string
+  nodeloc_redirect_uri?: string
   qq_oauth?: boolean
   qq_client_id?: string
   telegram_oauth?: boolean
@@ -208,6 +214,7 @@ export interface OAuthProvider {
     | 'discord'
     | 'oidc'
     | 'linuxdo'
+    | 'nodeloc'
     | 'telegram'
     | 'qq'
     | 'wechat'

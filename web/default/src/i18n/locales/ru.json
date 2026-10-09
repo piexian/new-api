@@ -6653,7 +6653,15 @@
     "The RP ID does not match the current site.": "Идентификатор RP не соответствует текущему сайту.",
     "Unknown legacy credentials": "Неизвестные старые ключи",
     "ZCode Mode": "Режим ZCode",
-    "CF-Ray": "CF-Ray"
+    "CF-Ray": "CF-Ray",
+    "NodeLoc": "NodeLoc",
+    "Continue with NodeLoc": "Войти через NodeLoc",
+    "Failed to start NodeLoc login": "Не удалось начать вход через NodeLoc",
+    "Please sign in with NodeLoc on the configured site: {{origin}}": "Войдите через NodeLoc на настроенном сайте: {{origin}}",
+    "Enable NodeLoc OAuth": "Включить NodeLoc OAuth",
+    "Allow users to sign in with NodeLoc": "Разрешить пользователям входить через NodeLoc",
+    "Your NodeLoc OAuth Client ID": "Ваш NodeLoc OAuth Client ID",
+    "Your NodeLoc OAuth Client Secret": "Ваш NodeLoc OAuth Client Secret"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

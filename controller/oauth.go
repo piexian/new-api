@@ -181,27 +181,32 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
-	// 2. Check if user is already logged in (bind flow)
-	username := session.Get("username")
-	if username != nil {
-		handleOAuthBind(c, providerName, provider)
-		return
-	}
-
-	// 3. Check if provider is enabled
+	// 先做可用性与授权错误检查，再区分登录与绑定流程。
+	// 2. Check if provider is enabled
 	if !provider.IsEnabled() {
 		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName()))
 		return
 	}
 
-	// 4. Handle error from provider
+	// 3. Handle error from provider
 	errorCode := c.Query("error")
 	if errorCode != "" {
 		errorDescription := c.Query("error_description")
+		if errorCode == "access_denied" {
+			errorDescription = i18n.T(c, i18n.MsgOAuthAccessDenied)
+		} else if errorDescription == "" {
+			errorDescription = i18n.T(c, i18n.MsgOAuthAuthorizationFailed)
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": errorDescription,
 		})
+		return
+	}
+
+	// 4. Check if user is already logged in (bind flow)
+	if session.Get("username") != nil {
+		handleOAuthBind(c, providerName, provider)
 		return
 	}
 
@@ -481,11 +486,16 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 
 			// Set the provider user ID on the user model and update
 			provider.SetProviderUserID(user, oauthUser.ProviderUserID)
+			var nodeLocID any
+			if user.NodeLocId != "" {
+				nodeLocID = user.NodeLocId
+			}
 			if err := tx.Model(user).Updates(map[string]interface{}{
 				"github_id":   user.GitHubId,
 				"discord_id":  user.DiscordId,
 				"oidc_id":     user.OidcId,
 				"linux_do_id": user.LinuxDOId,
+				"nodeloc_id":  nodeLocID,
 				"wechat_id":   user.WeChatId,
 				"telegram_id": user.TelegramId,
 				"qq_id":       user.QQId,

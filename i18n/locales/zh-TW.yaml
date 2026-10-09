@@ -398,3 +398,7 @@ payment.session_required: "此操作需要控制台會話認證，不允許使�
 # Channel affinity cache messages
 affinity.missing_rule_name: "缺少參數：rule_name"
 affinity.missing_key_fp: "缺少參數：key_fp"
+
+oauth.access_denied: "授權被拒絕，可重新發起登入。"
+oauth.authorization_failed: "授權失敗，請重試。"
+oauth.nodeloc_config_invalid: "啟用 NodeLoc 前，請填寫 Client ID、Client Secret 和有效的伺服器位址（http:// 或 https://，不包含路徑）。"

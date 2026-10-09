@@ -70,6 +70,34 @@ export function buildLinuxDOOAuthUrl(clientId: string, state: string): string {
 }
 
 /**
+ * Build NodeLoc OAuth URL. The redirect URI must be the canonical one
+ * registered in the NodeLoc app (server address + /oauth/nodeloc); when the
+ * current origin differs, state and session cookies would be lost, so the
+ * caller must surface the returned error instead of redirecting.
+ */
+export function buildNodeLocOAuthUrl(
+  clientId: string,
+  redirectUri: string,
+  state: string
+): URL {
+  const callback = new URL(redirectUri)
+  if (callback.origin !== window.location.origin) {
+    const error = new Error(
+      'Please sign in with NodeLoc on the configured site: {{origin}}'
+    ) as Error & { origin?: string }
+    error.origin = callback.origin
+    throw error
+  }
+  const url = new URL('https://www.nodeloc.com/oauth-provider/authorize')
+  url.searchParams.set('client_id', clientId)
+  url.searchParams.set('redirect_uri', redirectUri)
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('scope', 'openid profile')
+  url.searchParams.set('state', state)
+  return url
+}
+
+/**
  * Build QQ OAuth URL
  */
 export function buildQQOAuthUrl(clientId: string, state: string): string {
@@ -173,6 +201,20 @@ export async function handleLinuxDOOAuth(clientId: string): Promise<void> {
 
   const url = buildLinuxDOOAuthUrl(clientId, state)
   window.open(url, '_blank')
+}
+
+/**
+ * Handle NodeLoc OAuth binding/login
+ */
+export async function handleNodeLocOAuth(
+  clientId: string,
+  redirectUri: string
+): Promise<void> {
+  const state = await getOAuthState()
+  if (!state) return
+
+  const url = buildNodeLocOAuthUrl(clientId, redirectUri, state)
+  window.open(url.toString(), '_blank')
 }
 
 /**

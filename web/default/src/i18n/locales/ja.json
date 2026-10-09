@@ -6653,7 +6653,15 @@
     "The RP ID does not match the current site.": "RP ID が現在のサイトと一致しません。",
     "Unknown legacy credentials": "不明な旧資格情報",
     "ZCode Mode": "ZCode モード",
-    "CF-Ray": "CF-Ray"
+    "CF-Ray": "CF-Ray",
+    "NodeLoc": "NodeLoc",
+    "Continue with NodeLoc": "NodeLoc で続行",
+    "Failed to start NodeLoc login": "NodeLoc ログインを開始できませんでした",
+    "Please sign in with NodeLoc on the configured site: {{origin}}": "設定されたサイトで NodeLoc にサインインしてください：{{origin}}",
+    "Enable NodeLoc OAuth": "NodeLoc OAuthを有効にする",
+    "Allow users to sign in with NodeLoc": "ユーザーがNodeLocでログインできるようにする",
+    "Your NodeLoc OAuth Client ID": "NodeLoc OAuth クライアント ID",
+    "Your NodeLoc OAuth Client Secret": "NodeLoc OAuth クライアントシークレット"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

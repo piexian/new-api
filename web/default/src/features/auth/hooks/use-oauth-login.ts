@@ -30,6 +30,7 @@ import {
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
+  buildNodeLocOAuthUrl,
   buildQQOAuthUrl,
 } from '../lib/oauth'
 import type { SystemStatus, CustomOAuthProviderInfo } from '../types'
@@ -188,6 +189,41 @@ export function useOAuthLogin(status: SystemStatus | null, affiliateCode = '') {
     }
   }
 
+  const handleNodeLocLogin = async () => {
+    if (!status?.nodeloc_client_id || !status?.nodeloc_redirect_uri) return
+
+    setIsLoading(true)
+    try {
+      // 回调地址必须是 NodeLoc 应用登记的正式站点，先校验再注销会话
+      const url = buildNodeLocOAuthUrl(
+        status.nodeloc_client_id,
+        status.nodeloc_redirect_uri,
+        ''
+      )
+      await resetSession()
+      const state = await getOAuthState(affiliateCode)
+      if (!state) {
+        toast.error(t('Failed to initialize OAuth'))
+        return
+      }
+      url.searchParams.set('state', state)
+      window.open(url.toString(), '_self')
+    } catch (error) {
+      const origin = (error as { origin?: string })?.origin
+      if (origin) {
+        toast.error(
+          t('Please sign in with NodeLoc on the configured site: {{origin}}', {
+            origin,
+          })
+        )
+      } else {
+        toast.error(t('Failed to start NodeLoc login'))
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleTelegramLogin = () => {
     toast.info(t('Telegram login requires widget integration; coming soon'))
   }
@@ -253,6 +289,7 @@ export function useOAuthLogin(status: SystemStatus | null, affiliateCode = '') {
     handleDiscordLogin,
     handleOIDCLogin,
     handleLinuxDOLogin,
+    handleNodeLocLogin,
     handleTelegramLogin,
     handleQQLogin,
     handleCustomOAuthLogin,

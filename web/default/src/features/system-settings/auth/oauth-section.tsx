@@ -91,6 +91,11 @@ const oauthSchema = z.object({
     token_endpoint: z.string(),
     user_info_endpoint: z.string(),
   }),
+  nodeloc: z.object({
+    enabled: z.boolean(),
+    client_id: z.string(),
+    client_secret: z.string(),
+  }),
   TelegramOAuthEnabled: z.boolean(),
   TelegramBotToken: z.string(),
   TelegramBotName: z.string(),
@@ -128,6 +133,9 @@ type FlatOAuthDefaults = {
   'oidc.authorization_endpoint': string
   'oidc.token_endpoint': string
   'oidc.user_info_endpoint': string
+  'nodeloc.enabled': boolean
+  'nodeloc.client_id': string
+  'nodeloc.client_secret': string
   TelegramOAuthEnabled: boolean
   TelegramBotToken: string
   TelegramBotName: string
@@ -219,6 +227,11 @@ const buildFormDefaults = (defaults: FlatOAuthDefaults): OAuthFormValues => ({
     token_endpoint: defaults['oidc.token_endpoint'] ?? '',
     user_info_endpoint: defaults['oidc.user_info_endpoint'] ?? '',
   },
+  nodeloc: {
+    enabled: defaults['nodeloc.enabled'],
+    client_id: defaults['nodeloc.client_id'] ?? '',
+    client_secret: defaults['nodeloc.client_secret'] ?? '',
+  },
   TelegramOAuthEnabled: defaults.TelegramOAuthEnabled,
   TelegramBotToken: defaults.TelegramBotToken ?? '',
   TelegramBotName: defaults.TelegramBotName ?? '',
@@ -254,6 +267,9 @@ const normalizeFormValues = (values: OAuthFormValues): FlatOAuthDefaults => ({
   'oidc.authorization_endpoint': values.oidc.authorization_endpoint,
   'oidc.token_endpoint': values.oidc.token_endpoint,
   'oidc.user_info_endpoint': values.oidc.user_info_endpoint,
+  'nodeloc.enabled': values.nodeloc.enabled,
+  'nodeloc.client_id': values.nodeloc.client_id,
+  'nodeloc.client_secret': values.nodeloc.client_secret,
   TelegramOAuthEnabled: values.TelegramOAuthEnabled,
   TelegramBotToken: values.TelegramBotToken ?? '',
   TelegramBotName: values.TelegramBotName ?? '',
@@ -298,6 +314,12 @@ export function OAuthSection(props: OAuthSectionProps) {
   const linuxDOCallbackUrl = buildOAuthCallbackUrl(
     props.serverAddress,
     'linuxdo',
+    t('Site URL')
+  )
+
+  const nodeLocCallbackUrl = buildOAuthCallbackUrl(
+    props.serverAddress,
+    'nodeloc',
     t('Site URL')
   )
 
@@ -435,12 +457,13 @@ export function OAuthSection(props: OAuthSectionProps) {
             />
 
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className='grid w-full grid-cols-8'>
+              <TabsList className='grid w-full grid-cols-9'>
                 <TabsTrigger value='github'>{t('GitHub')}</TabsTrigger>
                 <TabsTrigger value='discord'>{t('Discord')}</TabsTrigger>
                 <TabsTrigger value='oidc'>{t('OIDC')}</TabsTrigger>
                 <TabsTrigger value='telegram'>{t('Telegram')}</TabsTrigger>
                 <TabsTrigger value='linuxdo'>{t('LinuxDO')}</TabsTrigger>
+                <TabsTrigger value='nodeloc'>{t('NodeLoc')}</TabsTrigger>
                 <TabsTrigger value='qq'>{t('QQ')}</TabsTrigger>
                 <TabsTrigger value='wechat'>{t('WeChat')}</TabsTrigger>
                 <TabsTrigger value='steam'>{t('Steam')}</TabsTrigger>
@@ -1126,6 +1149,97 @@ export function OAuthSection(props: OAuthSectionProps) {
                       <FormDescription>
                         {t('Minimum LinuxDO trust level required')}
                       </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value='nodeloc' className={oauthTabContentClassName}>
+                <OAuthSetupGuide
+                  title={t('Setup guide')}
+                  description={t(
+                    'Set these values in the provider application before enabling login.'
+                  )}
+                  rows={[
+                    {
+                      label: t('Homepage URL'),
+                      value: siteUrl,
+                      copyLabel: t('Copy homepage URL'),
+                    },
+                    {
+                      label: t('Authorization callback URL'),
+                      value: nodeLocCallbackUrl,
+                      copyLabel: t('Copy callback URL'),
+                    },
+                  ]}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='nodeloc.enabled'
+                  render={({ field }) => (
+                    <SettingsSwitchItem>
+                      <SettingsSwitchContent>
+                        <FormLabel>{t('Enable NodeLoc OAuth')}</FormLabel>
+                        <FormDescription>
+                          {t('Allow users to sign in with NodeLoc')}
+                        </FormDescription>
+                      </SettingsSwitchContent>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                    </SettingsSwitchItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='nodeloc.client_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Client ID')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={t('Your NodeLoc OAuth Client ID')}
+                          autoComplete='off'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name='nodeloc.client_secret'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Client Secret')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='password'
+                          placeholder={t('Your NodeLoc OAuth Client Secret')}
+                          autoComplete='new-password'
+                          value={field.value ?? ''}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          ref={field.ref}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

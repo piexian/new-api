@@ -24,6 +24,8 @@ import {
   showAccountDisabledDialog,
 } from './utils';
 import axios from 'axios';
+import i18n from '../i18n/i18n';
+import { buildNodeLocAuthorizationURL } from './nodeloc';
 export { buildApiPayload } from './playground/request';
 import { normalizeModelOptions } from './playground/models';
 
@@ -270,6 +272,23 @@ export async function onLinuxDOOAuthClicked(
   redirectToOAuthUrl(
     `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${linuxdo_client_id}&state=${state}`,
   );
+}
+
+export async function onNodeLocOAuthClicked(status, options = {}) {
+  try {
+    // 先校验回调地址指向当前站点，再注销会话与创建 state
+    const url = buildNodeLocAuthorizationURL(
+      status,
+      window.location.origin,
+      '',
+    );
+    const state = await prepareOAuthState(options);
+    if (!state) return;
+    url.searchParams.set('state', state);
+    redirectToOAuthUrl(url, options);
+  } catch (error) {
+    showError(i18n.t(error.message || '授权失败', { origin: error.origin }));
+  }
 }
 
 export async function onQQOAuthClicked(qq_client_id, options = {}) {

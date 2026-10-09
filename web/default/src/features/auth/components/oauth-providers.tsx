@@ -24,6 +24,7 @@ import {
   IconDiscord,
   IconGithub,
   IconLinuxDo,
+  IconNodeLoc,
   IconWeChat,
 } from '@/assets/brand-icons'
 import { Button } from '@/components/ui/button'
@@ -73,6 +74,7 @@ export function OAuthProviders({
     handleDiscordLogin,
     handleOIDCLogin,
     handleLinuxDOLogin,
+    handleNodeLocLogin,
     handleTelegramLogin,
     handleQQLogin,
     handleCustomOAuthLogin,
@@ -130,6 +132,15 @@ export function OAuthProviders({
       label: t('Continue with LinuxDO'),
       onClick: guardInvitationCode(handleLinuxDOLogin),
       icon: <IconLinuxDo className='h-4 w-4' />,
+    })
+  }
+
+  if (status?.nodeloc_oauth) {
+    providerButtons.push({
+      key: 'nodeloc',
+      label: t('Continue with NodeLoc'),
+      onClick: guardInvitationCode(handleNodeLocLogin),
+      icon: <IconNodeLoc className='h-4 w-4' />,
     })
   }
 

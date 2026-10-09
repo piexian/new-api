@@ -6653,7 +6653,15 @@
     "The RP ID does not match the current site.": "网站域名与当前站点不匹配",
     "Unknown legacy credentials": "未知旧凭证",
     "ZCode Mode": "ZCode 模式",
-    "CF-Ray": "CF-Ray"
+    "CF-Ray": "CF-Ray",
+    "NodeLoc": "NodeLoc",
+    "Continue with NodeLoc": "使用 NodeLoc 继续",
+    "Failed to start NodeLoc login": "无法启动 NodeLoc 登录",
+    "Please sign in with NodeLoc on the configured site: {{origin}}": "请在配置的正式站点使用 NodeLoc 登录：{{origin}}",
+    "Enable NodeLoc OAuth": "启用 NodeLoc OAuth",
+    "Allow users to sign in with NodeLoc": "允许用户使用 NodeLoc 登录",
+    "Your NodeLoc OAuth Client ID": "您的 NodeLoc OAuth 客户端 ID",
+    "Your NodeLoc OAuth Client Secret": "您的 NodeLoc OAuth 客户端密钥"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

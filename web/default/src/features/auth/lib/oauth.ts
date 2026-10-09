@@ -23,6 +23,7 @@ export {
   buildDiscordOAuthUrl,
   buildOIDCOAuthUrl,
   buildLinuxDOOAuthUrl,
+  buildNodeLocOAuthUrl,
   buildQQOAuthUrl,
 } from '@/lib/oauth'
 
@@ -77,6 +78,15 @@ export function getAvailableOAuthProviders(
     })
   }
 
+  if (status.nodeloc_oauth) {
+    providers.push({
+      name: 'NodeLoc',
+      type: 'nodeloc',
+      enabled: true,
+      clientId: status.nodeloc_client_id,
+    })
+  }
+
   if (status.telegram_oauth) {
     providers.push({
       name: 'Telegram',
@@ -115,6 +125,7 @@ export function hasOAuthProviders(status: SystemStatus | null): boolean {
     status.discord_oauth ||
     status.oidc_enabled ||
     status.linuxdo_oauth ||
+    status.nodeloc_oauth ||
     status.telegram_oauth ||
     status.qq_oauth ||
     status.steam_oauth ||

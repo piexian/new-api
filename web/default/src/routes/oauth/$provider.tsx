@@ -50,6 +50,8 @@ function OAuthCallback() {
   const search = useSearch({ from: '/oauth/$provider' }) as {
     code?: string
     state?: string
+    error?: string
+    error_description?: string
     redirect?: string
   }
   const [mode, setMode] = useState<'login' | 'bind'>(() => {
@@ -93,7 +95,8 @@ function OAuthCallback() {
       }
 
       const isSteam = provider?.toLowerCase() === 'steam'
-      if (!isSteam && !search?.code) {
+      // 授权被拒绝等错误回调没有 code，转发给后端生成友好提示
+      if (!isSteam && !search?.code && !search?.error) {
         toast.error(i18next.t('Missing code'))
         safeNavigate('/sign-in')
         return
@@ -191,7 +194,12 @@ function OAuthCallback() {
         const config: OAuthRequestConfig = isSteam
           ? { skipBusinessError: true }
           : {
-              params: { code: search.code, state: search.state },
+              params: {
+                code: search.code,
+                state: search.state,
+                error: search.error,
+                error_description: search.error_description,
+              },
               skipBusinessError: true,
             }
         // Steam uses OpenID 2.0: forward the full openid.* query string verbatim so the

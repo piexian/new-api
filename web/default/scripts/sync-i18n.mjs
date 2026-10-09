@@ -78,6 +78,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'New API <noreply@example.com>',
   'New API &lt;noreply@example.com&gt;',
   'NewAPI',
+  'NodeLoc',
   'neko-api-key-tool',
   'OAuth Client Secret',
   'OhMyGPT',

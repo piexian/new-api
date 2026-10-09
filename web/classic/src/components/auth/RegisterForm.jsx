@@ -56,10 +56,12 @@ import {
   onGitHubOAuthClicked,
   onSteamOAuthClicked,
   onLinuxDOOAuthClicked,
+  onNodeLocOAuthClicked,
   onOIDCClicked,
 } from '../../helpers';
 import OIDCIcon from '../common/logo/OIDCIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
+import NodeLocIcon from '../common/logo/NodeLocIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import TelegramLoginButton from 'react-telegram-login/src';
 import { UserContext } from '../../context/User';
@@ -104,6 +106,7 @@ const RegisterForm = () => {
   const [discordLoading, setDiscordLoading] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
+  const [nodelocLoading, setNodelocLoading] = useState(false);
   const [qqLoading, setQqLoading] = useState(false);
   const [steamLoading, setSteamLoading] = useState(false);
   const [emailRegisterLoading, setEmailRegisterLoading] = useState(false);
@@ -158,6 +161,7 @@ const RegisterForm = () => {
       status.oidc_enabled ||
       status.wechat_login ||
       status.linuxdo_oauth ||
+      status.nodeloc_oauth ||
       status.qq_oauth ||
       status.steam_oauth ||
       status.telegram_oauth ||
@@ -486,6 +490,30 @@ const RegisterForm = () => {
     }
   };
 
+  const handleNodeLocClick = async () => {
+    const inviteCode = (
+      inputs.aff_code ||
+      localStorage.getItem('aff') ||
+      ''
+    ).trim();
+    if (inviteCodeRequired && !inviteCode) {
+      showInfo(t('请填写邀请码或注册码！'));
+      return;
+    }
+    if (inviteCode) {
+      localStorage.setItem('aff', inviteCode);
+    }
+    setNodelocLoading(true);
+    try {
+      await onNodeLocOAuthClicked(
+        status,
+        getOAuthRegistrationOptions(inviteCode),
+      );
+    } finally {
+      setTimeout(() => setNodelocLoading(false), 3000);
+    }
+  };
+
   const handleQQClick = () => {
     const inviteCode = (
       inputs.aff_code ||
@@ -718,6 +746,27 @@ const RegisterForm = () => {
                     loading={linuxdoLoading}
                   >
                     <span className='ml-3'>{t('使用 LinuxDO 继续')}</span>
+                  </Button>
+                )}
+
+                {status.nodeloc_oauth && (
+                  <Button
+                    theme='outline'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    type='tertiary'
+                    icon={
+                      <NodeLocIcon
+                        style={{
+                          color: 'currentColor',
+                          width: '20px',
+                          height: '20px',
+                        }}
+                      />
+                    }
+                    onClick={handleNodeLocClick}
+                    loading={nodelocLoading}
+                  >
+                    <span className='ml-3'>{t('使用 NodeLoc 继续')}</span>
                   </Button>
                 )}
 

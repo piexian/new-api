@@ -41,6 +41,8 @@ import {
   IconGithubLogo,
 } from '@douyinfe/semi-icons';
 import { SiDiscord, SiTelegram, SiWechat, SiLinux } from 'react-icons/si';
+
+import NodeLocIcon from '../../../common/logo/NodeLocIcon';
 import { FaQq } from 'react-icons/fa';
 
 const { Text } = Typography;
@@ -93,6 +95,7 @@ const UserBindingManagementModal = ({
           wechat_id: userData.wechat_id || '',
           telegram_id: userData.telegram_id || '',
           linux_do_id: userData.linux_do_id || '',
+          nodeloc_id: userData.nodeloc_id || '',
           qq_id: userData.qq_id || '',
           steam_id: userData.steam_id || '',
         });
@@ -273,6 +276,19 @@ const UserBindingManagementModal = ({
       value: getBuiltInBindingValue('linux_do_id'),
       icon: (
         <SiLinux size={20} className='text-slate-600 dark:text-slate-300' />
+      ),
+    },
+    {
+      key: 'nodeloc',
+      field: 'nodeloc_id',
+      name: 'NodeLoc',
+      enabled: Boolean(statusInfo.nodeloc_oauth),
+      value: getBuiltInBindingValue('nodeloc_id'),
+      icon: (
+        <NodeLocIcon
+          style={{ width: 20, height: 20 }}
+          className='text-slate-600 dark:text-slate-300'
+        />
       ),
     },
     {
