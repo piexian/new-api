@@ -50,6 +50,7 @@ import {
   saveAffiliateCode,
 } from '@/features/auth/lib/storage'
 import { useStatus } from '@/hooks/use-status'
+import { PASSWORD_POLICY_MESSAGE } from '@/lib/password'
 import { cn } from '@/lib/utils'
 
 export function SignUpForm({
@@ -303,10 +304,13 @@ export function SignUpForm({
                   <FormLabel>{t('Password')}</FormLabel>
                   <FormControl>
                     <PasswordInput
-                      placeholder={t('Enter password (8-20 characters)')}
+                      placeholder={t('Enter password')}
                       {...field}
                     />
                   </FormControl>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(PASSWORD_POLICY_MESSAGE)}
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}

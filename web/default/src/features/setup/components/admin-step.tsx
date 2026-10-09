@@ -86,7 +86,7 @@ export function AdminStep({ form, rootInitialized }: AdminStepProps) {
             <FormControl>
               <PasswordInput
                 {...field}
-                placeholder={t('Set a secure password (min. 8 characters)')}
+                placeholder={t('Set a secure password')}
                 autoComplete='new-password'
                 onChange={(event) => {
                   form.clearErrors('password')

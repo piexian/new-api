@@ -13,6 +13,8 @@ import (
 	newapii18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -694,6 +696,9 @@ func TestUpdateSelfUsernameResetsAfterWindowExpires(t *testing.T) {
 }
 
 func TestUpdateSelfPasswordRecordsSystemLog(t *testing.T) {
+	if err := newapii18n.Init(); err != nil {
+		t.Fatalf("failed to init i18n: %v", err)
+	}
 	db := setupUserSelfControllerTestDB(t)
 	hashedPassword, err := common.Password2Hash("password123")
 	if err != nil {
@@ -704,15 +709,18 @@ func TestUpdateSelfPasswordRecordsSystemLog(t *testing.T) {
 	ctx, recorder := newSelfJSONContext(
 		t,
 		http.MethodPut,
-		"/api/user/self",
+		"/api/user/self/password",
 		map[string]any{
 			"original_password": "password123",
-			"password":          "newpassword123",
+			"password":          "Newpassword123!",
 		},
 		user.Id,
 		user.Role,
 	)
-	UpdateSelf(ctx)
+	// UpdateSelfPassword 要求会话认证且会话 id 与上下文 id 一致
+	sessions.Sessions("session", cookie.NewStore([]byte("self-password-log-test")))(ctx)
+	sessions.Default(ctx).Set("id", user.Id)
+	UpdateSelfPassword(ctx)
 
 	response := decodeSelfResponse(t, recorder)
 	if !response.Success {
@@ -733,7 +741,7 @@ func TestUpdateSelfPasswordRecordsSystemLog(t *testing.T) {
 	if lastLog.Content != "用户自助修改密码" {
 		t.Fatalf("unexpected password update log content: %q", lastLog.Content)
 	}
-	if strings.Contains(lastLog.Content, "newpassword123") {
+	if strings.Contains(lastLog.Content, "Newpassword123!") {
 		t.Fatalf("password should never appear in log content: %q", lastLog.Content)
 	}
 }

@@ -300,6 +300,11 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("user_group", group)
 	c.Set("use_access_token", useAccessToken)
 
+	// 未设置登录密码的用户（第三方注册等）只能访问自身信息与设置密码接口
+	if !requireUserPassword(c, id) {
+		return
+	}
+
 	// 管理/root 写操作审计兜底：内聚在鉴权链路里，保证任何经过 AdminAuth/RootAuth
 	// 的写接口都会自动留痕（无需在路由上单独挂审计中间件，避免漏挂）。
 	// handler 内手动埋点者会设置 ContextKeyAuditLogged，finishAdminAudit 据此跳过。
@@ -396,6 +401,9 @@ func TokenOrUserAuth() func(c *gin.Context) {
 				c.Set("role", user.Role)
 				c.Set("group", user.Group)
 				c.Set("user_group", user.Group)
+				if !requireUserPassword(c, user.Id) {
+					return
+				}
 				c.Next()
 				return
 			}

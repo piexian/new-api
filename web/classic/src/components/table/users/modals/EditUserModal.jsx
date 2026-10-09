@@ -20,6 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  isValidLoginPassword,
+  PASSWORD_POLICY_MESSAGE,
+} from '../../../../helpers/password';
+import {
   API,
   showError,
   showSuccess,
@@ -148,6 +152,10 @@ const EditUserModal = (props) => {
 
   /* ----------------------- submit ----------------------- */
   const submit = async (values) => {
+    if (values.password && !isValidLoginPassword(values.password)) {
+      showError(t(PASSWORD_POLICY_MESSAGE));
+      return;
+    }
     setLoading(true);
     let payload = { ...values };
     delete payload.quota;
@@ -313,8 +321,9 @@ const EditUserModal = (props) => {
                     <Col span={24}>
                       <Form.Input
                         field='password'
+                        extraText={t(PASSWORD_POLICY_MESSAGE)}
                         label={t('密码')}
-                        placeholder={t('请输入新的密码，最短 8 位')}
+                        placeholder={t('请输入新密码')}
                         mode='password'
                         showClear
                       />

@@ -41,6 +41,17 @@ export async function getUserProfile(): Promise<ApiResponse<UserProfile>> {
 }
 
 /**
+ * Set or change the login password (dedicated endpoint, session-only)
+ */
+export async function updateSelfPassword(data: {
+  password: string
+  original_password?: string
+}): Promise<ApiResponse<{ has_password: boolean }>> {
+  const res = await api.put('/api/user/self/password', data)
+  return res.data
+}
+
+/**
  * Update user profile
  */
 export async function updateUserProfile(

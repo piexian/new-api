@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -85,10 +86,10 @@ func PostSetup(c *gin.Context) {
 			return
 		}
 
-		if len(req.Password) < 8 {
+		if err := common.ValidateLoginPassword(req.Password); err != nil {
 			c.JSON(200, gin.H{
 				"success": false,
-				"message": "密码长度至少为8个字符",
+				"message": i18n.T(c, i18n.MsgUserPasswordPolicy),
 			})
 			return
 		}

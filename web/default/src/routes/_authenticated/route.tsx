@@ -60,6 +60,14 @@ export const Route = createFileRoute('/_authenticated')({
       }
     }
 
+    // 未设置登录密码（第三方注册等）只能访问个人设置页完成密码设置
+    if (
+      useAuthStore.getState().auth.user?.has_password === false &&
+      location.pathname !== '/profile'
+    ) {
+      throw redirect({ to: '/profile' })
+    }
+
     if (!(await getFreshRouteEnabled(location.pathname))) {
       throw redirect({
         to: '/403',

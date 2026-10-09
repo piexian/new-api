@@ -158,6 +158,7 @@ func TestUserAuthAllowsGitHubSessionWithEmail(t *testing.T) {
 	recorder := performHeaderNavRequest(t, UserAuth(), true, model.User{
 		Id:       1,
 		Username: "tester",
+		Password: "password123",
 		Role:     common.RoleCommonUser,
 		Status:   common.UserStatusEnabled,
 		Group:    "default",

@@ -37,6 +37,7 @@ import {
 import { Form } from '@/components/ui/form'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { isValidLoginPassword, PASSWORD_POLICY_MESSAGE } from '@/lib/password'
 import { cn } from '@/lib/utils'
 
 import { buildSetupPayload, getSetupStatus, submitSetup } from './api'
@@ -220,12 +221,12 @@ export function SetupWizard() {
       return false
     }
 
-    if (!password || password.length < 8) {
+    if (!password || !isValidLoginPassword(password)) {
       form.setError('password', {
         type: 'manual',
-        message: t('Password must be at least 8 characters'),
+        message: t(PASSWORD_POLICY_MESSAGE),
       })
-      toast.error(t('Password must be at least 8 characters'))
+      toast.error(t(PASSWORD_POLICY_MESSAGE))
       return false
     }
 

@@ -344,7 +344,7 @@ func TestValidateAndFillRejectsPasswordlessUser(t *testing.T) {
 
 	loginUser := User{
 		Username: "passwordless-user",
-		Password: "NewPassword123",
+		Password: "NewPassword123!",
 	}
 	err := loginUser.ValidateAndFill()
 	require.ErrorIs(t, err, ErrInvalidCredentials)
@@ -372,7 +372,7 @@ func TestResetUserPasswordByEmailRequiresSingleActiveMatch(t *testing.T) {
 		Status:   common.UserStatusEnabled,
 	}).Error)
 
-	err := ResetUserPasswordByEmail("legacy@example.com", "NewPassword123")
+	err := ResetUserPasswordByEmail("legacy@example.com", "NewPassword123!")
 	require.ErrorIs(t, err, ErrEmailAmbiguous)
 
 	var duplicates []User
@@ -389,12 +389,12 @@ func TestResetUserPasswordByEmailRequiresSingleActiveMatch(t *testing.T) {
 		Status:   common.UserStatusEnabled,
 	}).Error)
 
-	require.NoError(t, ResetUserPasswordByEmail("UNIQUE@example.com", "NewPassword123"))
+	require.NoError(t, ResetUserPasswordByEmail("UNIQUE@example.com", "NewPassword123!"))
 
 	var unique User
 	require.NoError(t, DB.Where("username = ?", "unique").First(&unique).Error)
-	assert.True(t, common.ValidatePasswordAndHash("NewPassword123", unique.Password))
+	assert.True(t, common.ValidatePasswordAndHash("NewPassword123!", unique.Password))
 
-	err = ResetUserPasswordByEmail("missing@example.com", "NewPassword123")
+	err = ResetUserPasswordByEmail("missing@example.com", "NewPassword123!")
 	require.True(t, errors.Is(err, ErrEmailNotFound))
 }

@@ -34,10 +34,7 @@ type LoginRequest struct {
 	EncryptionKeyID   string `json:"encryption_key_id"`
 }
 
-var (
-	errUserPasswordUnset    = errors.New("user password is not set")
-	errOriginalPasswordFail = errors.New("original password is incorrect")
-)
+var ()
 
 // ensurePasswordEncryptionKey lazily loads the shared key on replicas that
 // enabled encryption through option sync before the key was loaded.
@@ -336,6 +333,11 @@ func setupLoginSession(user *model.User, c *gin.Context) {
 		return
 	}
 	recordLoginAudit(user, c)
+	hasPassword, err := model.HasUserPassword(user.Id)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
@@ -346,6 +348,7 @@ func setupLoginSession(user *model.User, c *gin.Context) {
 			"role":         user.Role,
 			"status":       user.Status,
 			"group":        user.Group,
+			"has_password": hasPassword,
 		},
 	})
 }
@@ -399,6 +402,10 @@ func Register(c *gin.Context) {
 	user.Email = model.NormalizeEmail(user.Email)
 	if user.Username == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if err := common.ValidateLoginPassword(user.Password); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserPasswordPolicy)
 		return
 	}
 	if err := common.Validate.Struct(&user); err != nil {
@@ -709,8 +716,12 @@ func GetSelf(c *gin.Context) {
 	userSettingJSON := model.UserSettingJSONForResponse(user.Setting)
 	usernameChangeStatus := getUsernameChangeQuotaStatus(userSetting, common.GetTimestamp())
 
-	// 判断用户是否设置了密码
-	hasPassword := user.Password != ""
+	// 判断用户是否设置了密码（直接读库，不走可能省略密码字段的缓存）
+	hasPassword, err := model.HasUserPassword(user.Id)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
 	user.Password = ""
 
 	// 构建响应数据，包含用户信息和权限
@@ -974,8 +985,11 @@ func UpdateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	if updatedUser.Password == "" {
-		updatedUser.Password = "$I_LOVE_U" // make Validator happy :)
+	if updatedUser.Password != "" {
+		if err := common.ValidateLoginPassword(updatedUser.Password); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUserPasswordPolicy)
+			return
+		}
 	}
 	if len(updatedUser.Username) > model.UserNameMaxLength {
 		common.ApiErrorI18n(c, i18n.MsgUserUsernameTooLong, map[string]any{"Max": model.UserNameMaxLength})
@@ -1009,9 +1023,6 @@ func UpdateUser(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserUsernameTaken)
 			return
 		}
-	}
-	if updatedUser.Password == "$I_LOVE_U" {
-		updatedUser.Password = "" // rollback to what it should be
 	}
 	updatePassword := updatedUser.Password != ""
 	authzTouched := false
@@ -1093,6 +1104,15 @@ func UpdateSelf(c *gin.Context) {
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
+	}
+
+	// 登录密码只能走 PUT /api/user/self/password。在处理偏好字段前拦截
+	// password（含 JSON 大小写别名），避免旧请求误报修改成功。
+	for field := range requestData {
+		if strings.EqualFold(field, "password") {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
 	}
 
 	// 检查是否是用户设置更新请求 (sidebar_modules 或 language)
@@ -1198,9 +1218,6 @@ func UpdateSelf(c *gin.Context) {
 		return
 	}
 
-	if user.Password == "" {
-		user.Password = "$I_LOVE_U" // make Validator happy :)
-	}
 	if len(user.Username) > model.UserNameMaxLength {
 		common.ApiErrorI18n(c, i18n.MsgUserUsernameTooLong, map[string]any{"Max": model.UserNameMaxLength})
 		return
@@ -1213,12 +1230,7 @@ func UpdateSelf(c *gin.Context) {
 	cleanUser := model.User{
 		Id:          c.GetInt("id"),
 		Username:    user.Username,
-		Password:    user.Password,
 		DisplayName: user.DisplayName,
-	}
-	if user.Password == "$I_LOVE_U" {
-		user.Password = "" // rollback to what it should be
-		cleanUser.Password = ""
 	}
 	// 检查用户名是否被占用（排除自身）
 	if cleanUser.Username != "" {
@@ -1235,8 +1247,7 @@ func UpdateSelf(c *gin.Context) {
 	}
 
 	isUsernameUpdate := cleanUser.Username != "" && cleanUser.Username != currentUser.Username
-	isPasswordUpdate := user.Password != ""
-	if isUsernameUpdate || isPasswordUpdate {
+	if isUsernameUpdate {
 		if !middleware.ValidateTurnstileForScope(c, middleware.TurnstileScopeSensitiveUpdate) {
 			return
 		}
@@ -1254,20 +1265,7 @@ func UpdateSelf(c *gin.Context) {
 		cleanUser.Setting = currentUser.Setting
 	}
 
-	updatePassword, err := checkUpdatePassword(user.OriginalPassword, user.Password, currentUser.Id)
-	if err != nil {
-		if errors.Is(err, errUserPasswordUnset) {
-			common.ApiErrorI18n(c, i18n.MsgUserPasswordUnset)
-			return
-		}
-		if errors.Is(err, errOriginalPasswordFail) {
-			common.ApiErrorI18n(c, i18n.MsgUserOriginalPasswordError)
-			return
-		}
-		common.ApiError(c, err)
-		return
-	}
-	if err := cleanUser.Update(updatePassword); err != nil {
+	if err := cleanUser.Update(false); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -1278,39 +1276,10 @@ func UpdateSelf(c *gin.Context) {
 			fmt.Sprintf("用户自助修改用户名: %s -> %s", currentUser.Username, cleanUser.Username),
 		)
 	}
-	if isPasswordUpdate {
-		passwordLogContent := "用户自助修改密码"
-		if currentUser.Password == "" {
-			passwordLogContent = "用户自助设置密码"
-		}
-		model.RecordLog(cleanUser.Id, model.LogTypeSystem, passwordLogContent)
-	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 	})
-	return
-}
-
-func checkUpdatePassword(originalPassword string, newPassword string, userId int) (updatePassword bool, err error) {
-	if newPassword == "" {
-		return
-	}
-	currentUser, err := model.GetUserById(userId, true)
-	if err != nil {
-		return false, err
-	}
-
-	// 密码不为空,需要验证原密码
-	if currentUser.Password == "" {
-		return false, errUserPasswordUnset
-	}
-	if !common.ValidatePasswordAndHash(originalPassword, currentUser.Password) {
-		err = errOriginalPasswordFail
-		return
-	}
-	updatePassword = true
 	return
 }
 
@@ -1373,6 +1342,10 @@ func CreateUser(c *gin.Context) {
 	user.Username = strings.TrimSpace(user.Username)
 	if err != nil || user.Username == "" || user.Password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if err := common.ValidateLoginPassword(user.Password); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserPasswordPolicy)
 		return
 	}
 	if err := common.Validate.Struct(&user); err != nil {

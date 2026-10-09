@@ -16,18 +16,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Loader2 } from 'lucide-react'
+
+import { Check, Circle, Loader2 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
-import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import {
+  getPasswordChecks,
+  isValidLoginPassword,
+  PASSWORD_POLICY_MESSAGE,
+} from '@/lib/password'
+import { useAuthStore } from '@/stores/auth-store'
 
-import { updateUserProfile } from '../../api'
+import { logout as logoutApi } from '../../../auth/api'
+import { updateSelfPassword } from '../../api'
 
 // ============================================================================
 // Change Password Dialog Component
@@ -38,8 +45,6 @@ interface ChangePasswordDialogProps {
   onOpenChange: (open: boolean) => void
   username: string
   hasPassword: boolean
-  turnstileEnabled: boolean
-  turnstileSiteKey: string
   onUpdated?: () => void
 }
 
@@ -48,45 +53,52 @@ export function ChangePasswordDialog({
   onOpenChange,
   username,
   hasPassword,
-  turnstileEnabled,
-  turnstileSiteKey,
   onUpdated,
 }: ChangePasswordDialogProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
-  const [turnstileToken, setTurnstileToken] = useState('')
-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
   const [formData, setFormData] = useState({
     originalPassword: '',
     newPassword: '',
     confirmPassword: '',
   })
 
+  // 未设置过密码（第三方注册等）时进入强制模式：不可关闭，必须完成设置
+  const required = !hasPassword
+
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const checks = getPasswordChecks(formData.newPassword)
+  const checkLabels: Record<string, string> = {
+    length: t('At least 8 characters'),
+    bytes: t('At most 72 UTF-8 bytes'),
+    digit: t('Contains a digit (0-9)'),
+    upper: t('Contains an uppercase letter (A-Z)'),
+    lower: t('Contains a lowercase letter (a-z)'),
+    symbol: t('Contains ASCII punctuation (e.g. !@#$%)'),
+  }
+
+  const handleLogout = async () => {
+    try {
+      await logoutApi()
+    } finally {
+      useAuthStore.getState().auth.reset()
+      window.location.assign('/sign-in')
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Validation
     if (hasPassword && !formData.originalPassword) {
       toast.error(t('Please enter your current password'))
       return
     }
 
-    if (!formData.newPassword) {
-      toast.error(t('Please enter a new password'))
-      return
-    }
-
-    if (formData.newPassword.length < 8) {
-      toast.error(t('Password must be at least 8 characters'))
-      return
-    }
-
-    if (hasPassword && formData.originalPassword === formData.newPassword) {
-      toast.error(t('New password must be different from current password'))
+    if (!isValidLoginPassword(formData.newPassword)) {
+      toast.error(t(PASSWORD_POLICY_MESSAGE))
       return
     }
 
@@ -95,22 +107,14 @@ export function ChangePasswordDialog({
       return
     }
 
-    if (turnstileEnabled && !turnstileToken) {
-      toast.error(t('Please complete Turnstile verification'))
-      return
-    }
-
     try {
       setLoading(true)
-      const response = await updateUserProfile(
-        {
-          ...(hasPassword
-            ? { original_password: formData.originalPassword }
-            : {}),
-          password: formData.newPassword,
-        },
-        turnstileToken
-      )
+      const response = await updateSelfPassword({
+        ...(hasPassword
+          ? { original_password: formData.originalPassword }
+          : {}),
+        password: formData.newPassword,
+      })
 
       if (response.success) {
         toast.success(
@@ -118,14 +122,17 @@ export function ChangePasswordDialog({
             ? t('Password changed successfully')
             : t('Password set successfully')
         )
+        // 立即更新全局用户状态，解除路由守卫
+        const { auth } = useAuthStore.getState()
+        if (auth.user) {
+          auth.setUser({ ...auth.user, has_password: true })
+        }
         onOpenChange(false)
         setFormData({
           originalPassword: '',
           newPassword: '',
           confirmPassword: '',
         })
-        setTurnstileToken('')
-        setTurnstileWidgetKey((value) => value + 1)
         onUpdated?.()
       } else {
         toast.error(
@@ -134,10 +141,6 @@ export function ChangePasswordDialog({
               ? t('Failed to change password')
               : t('Failed to set password'))
         )
-        if (turnstileEnabled) {
-          setTurnstileToken('')
-          setTurnstileWidgetKey((value) => value + 1)
-        }
       }
     } catch {
       toast.error(
@@ -145,10 +148,6 @@ export function ChangePasswordDialog({
           ? t('Failed to change password')
           : t('Failed to set password')
       )
-      if (turnstileEnabled) {
-        setTurnstileToken('')
-        setTurnstileWidgetKey((value) => value + 1)
-      }
     } finally {
       setLoading(false)
     }
@@ -162,30 +161,51 @@ export function ChangePasswordDialog({
 
   return (
     <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={hasPassword ? t('Change Password') : t('Set Password')}
+      open={open || required}
+      onOpenChange={(next) => {
+        if (required || loading) return
+        onOpenChange(next)
+      }}
+      title={hasPassword ? t('Change Password') : t('Set Login Password')}
       description={
-        <>
-          {hasPassword
-            ? t('Update your password for account:')
-            : t('Set a password for account:')}{' '}
-          <strong>{username}</strong>
-        </>
+        required ? (
+          t(
+            'This account was created through third-party sign-in or has no login password yet. For your account security, set a login password before continuing.'
+          )
+        ) : (
+          <>
+            {hasPassword
+              ? t('Update your password for account:')
+              : t('Set a password for account:')}{' '}
+            <strong>{username}</strong>
+          </>
+        )
       }
       contentClassName='sm:max-w-md'
       contentHeight='auto'
       bodyClassName='space-y-4'
+      showCloseButton={!required}
       footer={
         <>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
-            {t('Cancel')}
-          </Button>
+          {required ? (
+            <Button
+              type='button'
+              variant='outline'
+              onClick={handleLogout}
+              disabled={loading}
+            >
+              {t('Sign Out')}
+            </Button>
+          ) : (
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => onOpenChange(false)}
+              disabled={loading}
+            >
+              {t('Cancel')}
+            </Button>
+          )}
           <Button type='submit' form={formId} disabled={loading}>
             {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             {submitLabel}
@@ -216,12 +236,27 @@ export function ChangePasswordDialog({
             onChange={(e) => handleChange('newPassword', e.target.value)}
             disabled={loading}
             required
-            minLength={8}
             autoComplete='new-password'
           />
-          <p className='text-muted-foreground text-xs'>
-            {t('Must be at least 8 characters')}
-          </p>
+          <ul className='space-y-1 text-xs' aria-live='polite'>
+            {Object.entries(checks).map(([key, passed]) => (
+              <li
+                key={key}
+                className={
+                  passed
+                    ? 'flex items-center gap-1.5 text-green-600'
+                    : 'text-muted-foreground flex items-center gap-1.5'
+                }
+              >
+                {passed ? (
+                  <Check className='h-3 w-3' />
+                ) : (
+                  <Circle className='h-3 w-3' />
+                )}
+                {checkLabels[key]}
+              </li>
+            ))}
+          </ul>
         </div>
 
         <div className='space-y-2'>
@@ -234,18 +269,13 @@ export function ChangePasswordDialog({
             required
             autoComplete='new-password'
           />
+          {formData.confirmPassword &&
+            formData.newPassword !== formData.confirmPassword && (
+              <p className='text-destructive text-xs'>
+                {t('Passwords do not match')}
+              </p>
+            )}
         </div>
-
-        {turnstileEnabled && (
-          <div className='flex justify-center pt-2'>
-            <Turnstile
-              key={turnstileWidgetKey}
-              siteKey={turnstileSiteKey}
-              onVerify={setTurnstileToken}
-              onExpire={() => setTurnstileToken('')}
-            />
-          </div>
-        )}
       </form>
     </Dialog>
   )

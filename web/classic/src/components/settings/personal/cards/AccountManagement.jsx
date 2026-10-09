@@ -329,22 +329,64 @@ const AccountManagement = ({
     ? new Date(passkeyStatus.last_used_at).toLocaleString()
     : t('尚未使用');
 
-  return (
-    <Card className='!rounded-2xl'>
-      {/* 卡片头部 */}
-      <div className='flex items-center mb-4'>
-        <Avatar size='small' color='teal' className='mr-3 shadow-md'>
-          <UserPlus size={16} />
-        </Avatar>
-        <div>
-          <Typography.Text className='text-lg font-medium'>
-            {t('账户管理')}
-          </Typography.Text>
-          <div className='text-xs text-gray-600'>
-            {t('账户绑定、安全设置和身份验证')}
-          </div>
+  const accountHeader = (
+    <div className='flex items-center mb-4'>
+      <Avatar size='small' color='teal' className='mr-3 shadow-md'>
+        <UserPlus size={16} />
+      </Avatar>
+      <div>
+        <Typography.Text className='text-lg font-medium'>
+          {t('账户管理')}
+        </Typography.Text>
+        <div className='text-xs text-gray-600'>
+          {t('账户绑定、安全设置和身份验证')}
         </div>
       </div>
+    </div>
+  );
+  const passwordCard = (
+    <Card className='!rounded-xl w-full mb-4'>
+      <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
+        <div className='flex items-start w-full sm:w-auto'>
+          <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
+            <IconLock size='large' className='text-slate-600' />
+          </div>
+          <div>
+            <Typography.Title heading={6} className='mb-1'>
+              {t('登录密码')}
+            </Typography.Title>
+            <Typography.Text type='tertiary' className='text-sm'>
+              {userState?.user?.has_password
+                ? t('定期更改密码可以提高账户安全性')
+                : t('设置密码后可使用用户名密码登录')}
+            </Typography.Text>
+          </div>
+        </div>
+        <Button
+          type='primary'
+          theme='solid'
+          onClick={() => setShowChangePasswordModal(true)}
+          className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
+          icon={<IconLock />}
+        >
+          {userState?.user?.has_password ? t('修改密码') : t('设置登录密码')}
+        </Button>
+      </div>
+    </Card>
+  );
+  // 未设置登录密码时只显示密码卡片，其余账号操作被服务端门禁拦截
+  if (userState?.user?.has_password !== true) {
+    return (
+      <Card className='!rounded-2xl'>
+        {accountHeader}
+        {passwordCard}
+      </Card>
+    );
+  }
+  return (
+    <Card className='!rounded-2xl'>
+      {accountHeader}
+      {passwordCard}
 
       <Tabs type='card' defaultActiveKey='binding'>
         {/* 账户绑定 Tab */}
@@ -973,43 +1015,6 @@ const AccountManagement = ({
                       icon={<IconEdit />}
                     >
                       {t('修改用户名')}
-                    </Button>
-                  </div>
-                </Card>
-
-                {/* 密码管理 */}
-                <Card className='!rounded-xl w-full'>
-                  <div className='flex flex-col sm:flex-row items-start sm:justify-between gap-4'>
-                    <div className='flex items-start w-full sm:w-auto'>
-                      <div className='w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mr-4 flex-shrink-0'>
-                        <IconLock size='large' className='text-slate-600' />
-                      </div>
-                      <div>
-                        <Typography.Title heading={6} className='mb-1'>
-                          {t('密码管理')}
-                        </Typography.Title>
-                        <Typography.Text type='tertiary' className='text-sm'>
-                          {userState?.user?.has_password
-                            ? t('定期更改密码可以提高账户安全性')
-                            : t('设置密码后可使用用户名密码登录')}
-                        </Typography.Text>
-                      </div>
-                    </div>
-                    <Button
-                      type='primary'
-                      theme='solid'
-                      onClick={() => {
-                        if (turnstileEnabled) {
-                          setTurnstileToken('');
-                        }
-                        setShowChangePasswordModal(true);
-                      }}
-                      className='!bg-slate-600 hover:!bg-slate-700 w-full sm:w-auto'
-                      icon={<IconLock />}
-                    >
-                      {userState?.user?.has_password
-                        ? t('修改密码')
-                        : t('设置密码')}
                     </Button>
                   </div>
                 </Card>

@@ -43,6 +43,7 @@ import { DeleteAccountDialog } from './dialogs/delete-account-dialog'
 interface ProfileSecurityCardProps {
   profile: UserProfile | null
   loading: boolean
+  onRefresh?: () => void
 }
 
 type DialogKey = 'password' | 'token' | 'delete' | 'username'
@@ -50,6 +51,7 @@ type DialogKey = 'password' | 'token' | 'delete' | 'username'
 export function ProfileSecurityCard({
   profile,
   loading,
+  onRefresh,
 }: ProfileSecurityCardProps) {
   const { t } = useTranslation()
   const dialogs = useDialogs<DialogKey>()
@@ -81,13 +83,17 @@ export function ProfileSecurityCard({
   const hasPassword = profile.has_password ?? false
 
   const securityActions = [
-    {
-      icon: Edit3,
-      title: t('Change Username'),
-      description: t('Modify your display username'),
-      action: () => dialogs.open('username'),
-      variant: 'default' as const,
-    },
+    ...(hasPassword
+      ? [
+          {
+            icon: Edit3,
+            title: t('Change Username'),
+            description: t('Modify your display username'),
+            action: () => dialogs.open('username'),
+            variant: 'default' as const,
+          },
+        ]
+      : []),
     {
       icon: Shield,
       title: hasPassword ? t('Change Password') : t('Set Password'),
@@ -97,20 +103,24 @@ export function ProfileSecurityCard({
       action: () => dialogs.open('password'),
       variant: 'default' as const,
     },
-    {
-      icon: Key,
-      title: t('Access Token'),
-      description: t('Generate and manage your API access token'),
-      action: () => dialogs.open('token'),
-      variant: 'default' as const,
-    },
-    {
-      icon: Trash2,
-      title: t('Delete Account'),
-      description: t('Permanently delete your account and all data'),
-      action: () => dialogs.open('delete'),
-      variant: 'destructive' as const,
-    },
+    ...(hasPassword
+      ? [
+          {
+            icon: Key,
+            title: t('Access Token'),
+            description: t('Generate and manage your API access token'),
+            action: () => dialogs.open('token'),
+            variant: 'default' as const,
+          },
+          {
+            icon: Trash2,
+            title: t('Delete Account'),
+            description: t('Permanently delete your account and all data'),
+            action: () => dialogs.open('delete'),
+            variant: 'destructive' as const,
+          },
+        ]
+      : []),
   ]
 
   return (
@@ -158,14 +168,19 @@ export function ProfileSecurityCard({
       />
 
       <ChangePasswordDialog
-        open={dialogs.isOpen('password')}
-        onOpenChange={(open) =>
-          open ? dialogs.open('password') : dialogs.close('password')
-        }
+        open={dialogs.isOpen('password') || !hasPassword}
+        onOpenChange={(open) => {
+          // 未设置密码时强制保持打开
+          if (!hasPassword) return
+          if (open) {
+            dialogs.open('password')
+          } else {
+            dialogs.close('password')
+          }
+        }}
         username={profile.username}
-        hasPassword={profile.has_password ?? false}
-        turnstileEnabled={sensitiveUpdateTurnstileEnabled}
-        turnstileSiteKey={turnstileSiteKey}
+        hasPassword={hasPassword}
+        onUpdated={onRefresh}
       />
 
       <AccessTokenDialog

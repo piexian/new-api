@@ -29,6 +29,7 @@ import { StatusProvider } from './context/Status';
 import { ThemeProvider } from './context/Theme';
 import { restoreFrontendThemePreference } from './helpers/frontendTheme';
 import PageLayout from './components/layout/PageLayout';
+import PasswordSetupGuard from './components/auth/PasswordSetupGuard';
 import AccountDisabledDialog from './components/common/AccountDisabledDialog';
 import './i18n/i18n';
 import './index.css';
@@ -74,7 +75,9 @@ root.render(
         >
           <ThemeProvider>
             <SemiLocaleWrapper>
-              <PageLayout />
+              <PasswordSetupGuard>
+                <PageLayout />
+              </PasswordSetupGuard>
               <AccountDisabledDialog />
             </SemiLocaleWrapper>
           </ThemeProvider>

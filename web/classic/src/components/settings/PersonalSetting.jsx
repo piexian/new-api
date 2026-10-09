@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   API,
@@ -50,6 +50,10 @@ import ChangePasswordModal from './personal/modals/ChangePasswordModal';
 import SetupGuideModal from './personal/modals/SetupGuideModal';
 import SecureVerificationModal from '../common/modals/SecureVerificationModal';
 import { useSecureVerification } from '../../hooks/common/useSecureVerification';
+import {
+  isValidLoginPassword,
+  PASSWORD_POLICY_MESSAGE,
+} from '../../helpers/password';
 
 const PersonalSetting = () => {
   const [userState, userDispatch] = useContext(UserContext);
@@ -66,6 +70,11 @@ const PersonalSetting = () => {
     set_new_password: '',
     set_new_password_confirmation: '',
   });
+  // 第三方注册/从未设置过密码的用户必须先设置登录密码
+  const passwordRequired = userState.user?.has_password === false;
+  const passwordSubmitting = useRef(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
   const [status, setStatus] = useState({});
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [showWeChatBindModal, setShowWeChatBindModal] = useState(false);
@@ -470,37 +479,65 @@ const PersonalSetting = () => {
   };
 
   const changePassword = async () => {
-    if (inputs.set_new_password === '') {
-      showError(t('请输入新密码！'));
-      return;
-    }
-    const hasPassword = userState?.user?.has_password;
-    if (hasPassword && inputs.original_password === inputs.set_new_password) {
-      showError(t('新密码需要和原密码不一致！'));
+    if (passwordSubmitting.current) return;
+    setPasswordError('');
+    const hasPassword = userState?.user?.has_password ?? true;
+    if (!isValidLoginPassword(inputs.set_new_password)) {
+      setPasswordError(t(PASSWORD_POLICY_MESSAGE));
       return;
     }
     if (inputs.set_new_password !== inputs.set_new_password_confirmation) {
-      showError(t('两次输入的密码不一致！'));
+      setPasswordError(t('两次输入的密码不一致！'));
       return;
     }
-    const payload = {
-      password: inputs.set_new_password,
-    };
-    if (hasPassword) {
-      payload.original_password = inputs.original_password;
+    if (hasPassword && !inputs.original_password) {
+      setPasswordError(t('请输入原密码！'));
+      return;
     }
-    const url = turnstileToken
-      ? `/api/user/self?turnstile=${encodeURIComponent(turnstileToken)}`
-      : '/api/user/self';
-    const res = await API.put(url, payload);
-    const { success, message } = res.data;
-    if (success) {
-      showSuccess(t('密码修改成功！'));
-      await getUserData();
-    } else {
-      showError(message);
+    passwordSubmitting.current = true;
+    setPasswordLoading(true);
+    try {
+      const res = await API.put(
+        '/api/user/self/password',
+        {
+          original_password: inputs.original_password,
+          password: inputs.set_new_password,
+        },
+        { skipErrorHandler: true },
+      );
+      if (!res.data.success) {
+        setPasswordError(res.data.message);
+        return;
+      }
+      // 写入已确认后立即更新本地状态，刷新失败也不能把用户困在
+      // 已过时的首次设置弹窗里
+      const data = { ...userState.user, has_password: true };
+      setUserData(data);
+      userDispatch({ type: 'login', payload: data });
+      setInputs((previous) => ({
+        ...previous,
+        original_password: '',
+        set_new_password: '',
+        set_new_password_confirmation: '',
+      }));
+      setShowChangePasswordModal(false);
+      showSuccess(t('登录密码设置成功'));
+      getUserData().catch(() => {});
+    } catch (error) {
+      setPasswordError(
+        error.response?.data?.message || error.message || t('操作失败，请重试'),
+      );
+    } finally {
+      passwordSubmitting.current = false;
+      setPasswordLoading(false);
     }
-    setShowChangePasswordModal(false);
+  };
+
+  const logout = async () => {
+    await API.get('/api/user/logout');
+    localStorage.removeItem('user');
+    userDispatch({ type: 'logout' });
+    navigate('/login');
   };
 
   const sendVerificationCode = async () => {
@@ -622,7 +659,7 @@ const PersonalSetting = () => {
           <UserInfoHeader t={t} userState={userState} />
 
           {/* 签到日历 - 仅在启用时显示 */}
-          {status?.checkin_enabled && (
+          {!passwordRequired && status?.checkin_enabled && (
             <div className='mt-4 md:mt-6'>
               <CheckinCalendar
                 t={t}
@@ -662,17 +699,21 @@ const PersonalSetting = () => {
               />
 
               {/* 偏好设置（语言等） */}
-              <PreferencesSettings t={t} />
+              {!passwordRequired && <PreferencesSettings t={t} />}
             </div>
 
             {/* 右侧：其他设置 */}
-            <NotificationSettings
-              t={t}
-              notificationSettings={notificationSettings}
-              handleNotificationSettingChange={handleNotificationSettingChange}
-              saveNotificationSettings={saveNotificationSettings}
-              forceRecordIpLogEnabled={forceRecordIpLogEnabled}
-            />
+            {!passwordRequired && (
+              <NotificationSettings
+                t={t}
+                notificationSettings={notificationSettings}
+                handleNotificationSettingChange={
+                  handleNotificationSettingChange
+                }
+                saveNotificationSettings={saveNotificationSettings}
+                forceRecordIpLogEnabled={forceRecordIpLogEnabled}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -725,10 +766,10 @@ const PersonalSetting = () => {
         inputs={inputs}
         handleInputChange={handleInputChange}
         changePassword={changePassword}
-        turnstileEnabled={sensitiveUpdateTurnstileEnabled}
-        turnstileSiteKey={turnstileSiteKey}
-        setTurnstileToken={setTurnstileToken}
         hasPassword={userState?.user?.has_password ?? true}
+        loading={passwordLoading}
+        error={passwordError}
+        onLogout={logout}
       />
 
       <SetupGuideModal

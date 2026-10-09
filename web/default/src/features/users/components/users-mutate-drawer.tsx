@@ -71,6 +71,7 @@ import {
 } from '@/lib/admin-permissions'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
+import { isValidLoginPassword, PASSWORD_POLICY_MESSAGE } from '@/lib/password'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -164,14 +165,19 @@ export function UsersMutateDrawer({
 
   const onSubmit = async (data: UserFormValues) => {
     if (!isUpdate) {
-      const passwordLength = data.password?.length || 0
-      if (passwordLength < 8 || passwordLength > 20) {
+      if (!data.password || !isValidLoginPassword(data.password)) {
         form.setError('password', {
           type: 'manual',
-          message: t('Password must be between 8 and 20 characters'),
+          message: t(PASSWORD_POLICY_MESSAGE),
         })
         return
       }
+    } else if (data.password && !isValidLoginPassword(data.password)) {
+      form.setError('password', {
+        type: 'manual',
+        message: t(PASSWORD_POLICY_MESSAGE),
+      })
+      return
     }
 
     setIsSubmitting(true)
@@ -345,7 +351,7 @@ export function UsersMutateDrawer({
                           placeholder={
                             isUpdate
                               ? t('Leave empty to keep unchanged')
-                              : t('Enter password (8-20 characters)')
+                              : t('Enter password')
                           }
                         />
                       </FormControl>

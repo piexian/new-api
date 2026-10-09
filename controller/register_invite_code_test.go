@@ -243,7 +243,7 @@ func TestRegisterRequiresInviteCodeWhenEnabled(t *testing.T) {
 		"/api/user/register",
 		map[string]any{
 			"username": "invite-required-user",
-			"password": "password123",
+			"password": "Password123!",
 		},
 		0,
 		0,
@@ -273,7 +273,7 @@ func TestRegisterRejectsInvalidInviteCodeWhenRequired(t *testing.T) {
 		"/api/user/register",
 		map[string]any{
 			"username": "invalid-invite-user",
-			"password": "password123",
+			"password": "Password123!",
 			"aff_code": "missing",
 		},
 		0,
@@ -305,7 +305,7 @@ func TestRegisterAllowsValidInviteCodeWhenRequired(t *testing.T) {
 		"/api/user/register",
 		map[string]any{
 			"username": "valid-invite-user",
-			"password": "password123",
+			"password": "Password123!",
 			"aff_code": inviter.AffCode,
 		},
 		0,
@@ -354,7 +354,7 @@ func TestOneTimeInviteCodeCanOnlyRegisterOnce(t *testing.T) {
 		"/api/user/register",
 		map[string]any{
 			"username": "one-time-invite-user",
-			"password": "password123",
+			"password": "Password123!",
 			"aff_code": firstCode,
 		},
 		0,
@@ -388,7 +388,7 @@ func TestOneTimeInviteCodeCanOnlyRegisterOnce(t *testing.T) {
 		"/api/user/register",
 		map[string]any{
 			"username": "one-time-user-2",
-			"password": "password123",
+			"password": "Password123!",
 			"aff_code": firstCode,
 		},
 		0,
@@ -426,7 +426,7 @@ func TestRegistrationCodeHonorsLimitAndSnapshotsSourceName(t *testing.T) {
 			"/api/user/register",
 			map[string]any{
 				"username": username,
-				"password": "password123",
+				"password": "Password123!",
 				"aff_code": registrationCode.Key,
 			},
 			0,
@@ -471,7 +471,7 @@ func TestRegistrationCodeHonorsLimitAndSnapshotsSourceName(t *testing.T) {
 		"/api/user/register",
 		map[string]any{
 			"username": "reg-code-user-3",
-			"password": "password123",
+			"password": "Password123!",
 			"aff_code": registrationCode.Key,
 		},
 		0,

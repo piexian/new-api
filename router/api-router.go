@@ -42,18 +42,18 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheckForScope(middleware.TurnstileScopePasswordReset), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), controller.ResetPassword)
 		// OAuth routes - specific routes must come before :provider wildcard
-		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), controller.GenerateOAuthCode)
-		apiRouter.POST("/oauth/email/bind", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.EmailBind)
+		apiRouter.GET("/oauth/state", middleware.CriticalRateLimit(), middleware.PasswordSetupForSession(), controller.GenerateOAuthCode)
+		apiRouter.POST("/oauth/email/bind", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, middleware.PasswordSetupForSession(), controller.EmailBind)
 		apiRouter.GET("/oauth/ownership/status", middleware.CriticalRateLimit(), controller.GetOAuthOwnershipTransferStatus)
 		apiRouter.POST("/oauth/ownership/send", middleware.CriticalRateLimit(), controller.SendOAuthOwnershipTransferVerification)
 		apiRouter.POST("/oauth/ownership/confirm", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ConfirmOAuthOwnershipTransfer)
 		// Non-standard OAuth (WeChat, Telegram) - keep original routes
 		apiRouter.GET("/oauth/wechat", middleware.CriticalRateLimit(), controller.WeChatAuth)
-		apiRouter.POST("/oauth/wechat/bind", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.WeChatBind)
+		apiRouter.POST("/oauth/wechat/bind", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, middleware.PasswordSetupForSession(), controller.WeChatBind)
 		apiRouter.GET("/oauth/telegram/login", middleware.CriticalRateLimit(), controller.TelegramLogin)
-		apiRouter.GET("/oauth/telegram/bind", middleware.CriticalRateLimit(), controller.TelegramBind)
+		apiRouter.GET("/oauth/telegram/bind", middleware.CriticalRateLimit(), middleware.PasswordSetupForSession(), controller.TelegramBind)
 		// Standard OAuth providers (GitHub, Discord, OIDC, LinuxDO) - unified route
-		apiRouter.GET("/oauth/:provider", middleware.CriticalRateLimit(), controller.HandleOAuth)
+		apiRouter.GET("/oauth/:provider", middleware.CriticalRateLimit(), middleware.PasswordSetupForSession(), controller.HandleOAuth)
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
 
 		apiRouter.POST("/stripe/webhook", controller.StripeWebhook)
@@ -86,6 +86,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/models", controller.GetUserModels)
 				selfRoute.GET("/models-dev/catalog", controller.GetModelsDevCatalog)
 				selfRoute.PUT("/self", middleware.CriticalRateLimit(), controller.UpdateSelf)
+				selfRoute.PUT("/self/password", middleware.CriticalRateLimit(), controller.UpdateSelfPassword)
 				selfRoute.DELETE("/self", controller.DeleteSelf)
 				selfRoute.GET("/token", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), middleware.DisableCache(), controller.GenerateAccessToken)
 				selfRoute.GET("/passkey", controller.PasskeyStatus)

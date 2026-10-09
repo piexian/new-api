@@ -166,6 +166,18 @@ api.interceptors.response.use(
     const skip = error?.config?.skipErrorHandler
     const status = error?.response?.status
 
+    // 未设置登录密码的用户被服务端门禁拦截：标记状态并跳转个人设置页
+    if (error?.response?.data?.code === 'PASSWORD_SETUP_REQUIRED') {
+      const { auth } = useAuthStore.getState()
+      if (auth.user) {
+        auth.setUser({ ...auth.user, has_password: false })
+      }
+      if (window.location.pathname !== '/profile') {
+        window.location.assign('/profile')
+      }
+      return Promise.reject(error)
+    }
+
     if (status === 401) {
       try {
         useAuthStore.getState().auth.reset()
