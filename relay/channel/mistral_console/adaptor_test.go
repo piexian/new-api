@@ -209,6 +209,59 @@ func TestConvertOpenAIRequestEmptyToolParametersGetDefaultSchema(t *testing.T) {
 	require.Contains(t, string(raw), `"parameters":{`)
 }
 
+func TestConvertBoraToolsBuiltinGatingByModel(t *testing.T) {
+	newRequest := func() *dto.GeneralOpenAIRequest {
+		return &dto.GeneralOpenAIRequest{
+			Messages: []dto.Message{{Role: "user", Content: "hi"}},
+			Tools: []dto.ToolCallRequest{
+				{Type: "code_interpreter"},
+				{Type: "image_generation"},
+				{Type: "web_search"},
+				{Type: "function", Function: dto.FunctionRequest{Name: "get_time"}},
+			},
+		}
+	}
+	toolTypes := func(t *testing.T, model string) []string {
+		t.Helper()
+		info := testRelayInfo(false)
+		info.UpstreamModelName = model
+		converted, err := (&Adaptor{}).ConvertOpenAIRequest(nil, info, newRequest())
+		require.NoError(t, err)
+		payload := converted.(*boraConversationRequest)
+		types := make([]string, 0, len(payload.Tools))
+		for _, tool := range payload.Tools {
+			types = append(types, tool.Type)
+		}
+		return types
+	}
+
+	// 不支持内置连接器的模型：本地拦截报错而不是静默剥离，function 不受影响
+	for _, model := range []string{"codestral-latest", "ministral-14b-latest", "ministral-3b-latest", "ministral-8b-latest", "mistral-large-4", "labs-leanstral-1.5"} {
+		info := testRelayInfo(false)
+		info.UpstreamModelName = model
+		_, err := (&Adaptor{}).ConvertOpenAIRequest(nil, info, newRequest())
+		require.ErrorContains(t, err, "does not support built-in tool", model)
+		// 仅 function 工具的请求不受影响
+		infoOnlyFunc := testRelayInfo(false)
+		infoOnlyFunc.UpstreamModelName = model
+		req := newRequest()
+		req.Tools = []dto.ToolCallRequest{{Type: "function", Function: dto.FunctionRequest{Name: "get_time"}}}
+		_, err = (&Adaptor{}).ConvertOpenAIRequest(nil, infoOnlyFunc, req)
+		require.NoError(t, err, model)
+	}
+	// 支持的模型保持透传，web_search 归一为 web_search_premium
+	require.Equal(t,
+		[]string{"code_interpreter", "image_generation", "web_search_premium", "function"},
+		toolTypes(t, "mistral-medium-latest"))
+	require.Equal(t,
+		[]string{"code_interpreter", "image_generation", "web_search_premium", "function"},
+		toolTypes(t, "mistral-small-latest"))
+	// 未列出的自定义模型按支持处理
+	require.Equal(t,
+		[]string{"code_interpreter", "image_generation", "web_search_premium", "function"},
+		toolTypes(t, "glm-5-2"))
+}
+
 func TestConvertOpenAIRequestRejectsUnsupportedContent(t *testing.T) {
 	info := testRelayInfo(false)
 	tests := []struct {

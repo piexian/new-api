@@ -124,7 +124,7 @@ func (a *Adaptor) ConvertOpenAIRequest(_ *gin.Context, info *relaycommon.RelayIn
 		return nil, invalidRequestError("upstream requires at least one message or function result")
 	}
 
-	tools, toolInstruction, err := convertBoraTools(request.Tools, request.ToolChoice)
+	tools, toolInstruction, err := convertBoraTools(info.UpstreamModelName, request.Tools, request.ToolChoice)
 	if err != nil {
 		return nil, invalidRequestError(err.Error())
 	}
@@ -499,7 +499,8 @@ func convertAssistantToolCalls(raw []byte) ([]boraInput, error) {
 	return inputs, nil
 }
 
-func convertBoraTools(openAITools []dto.ToolCallRequest, toolChoice any) ([]boraTool, string, error) {
+func convertBoraTools(model string, openAITools []dto.ToolCallRequest, toolChoice any) ([]boraTool, string, error) {
+	builtinToolsSupported := supportsBoraBuiltinTools(model)
 	tools := make([]boraTool, 0, len(openAITools))
 	for index := range openAITools {
 		tool := &openAITools[index]
@@ -527,10 +528,16 @@ func convertBoraTools(openAITools []dto.ToolCallRequest, toolChoice any) ([]bora
 					Strict:      tool.Function.Strict,
 				},
 			})
-		case "code_interpreter", "image_generation", "web_search_premium":
-			tools = append(tools, boraTool{Type: tool.Type})
-		case "web_search", "web_search_preview":
-			tools = append(tools, boraTool{Type: "web_search_premium"})
+		case "code_interpreter", "image_generation", "web_search_premium", "web_search", "web_search_preview":
+			// 模型不支持内置连接器时本地拦截，避免上游 400（code 3004）
+			if !builtinToolsSupported {
+				return nil, "", fmt.Errorf("model %s does not support built-in tool %q", model, tool.Type)
+			}
+			if tool.Type == "web_search" || tool.Type == "web_search_preview" {
+				tools = append(tools, boraTool{Type: "web_search_premium"})
+			} else {
+				tools = append(tools, boraTool{Type: tool.Type})
+			}
 		default:
 			return nil, "", fmt.Errorf("tool %d has unsupported type %q", index, tool.Type)
 		}

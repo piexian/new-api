@@ -12,6 +12,19 @@ var ModelList = []string{
 	"labs-leanstral-1.5",
 }
 
+// supportsBoraBuiltinTools 返回模型是否接受内置连接器（code_interpreter /
+// image_generation / web_search_premium）。下列模型带内置工具会被上游
+// 400（code 3004），medium/small 及未列出的自定义模型放行。
+func supportsBoraBuiltinTools(model string) bool {
+	switch model {
+	case "codestral-latest", "ministral-14b-latest", "ministral-3b-latest",
+		"ministral-8b-latest", "mistral-large-4", "labs-leanstral-1.5":
+		return false
+	default:
+		return true
+	}
+}
+
 const (
 	ChannelName           = "mistral-console"
 	boraSessionCookieName = "ory_session_coolcurranf83m3srkfl"
