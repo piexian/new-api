@@ -31,6 +31,8 @@ ENV GOEXPERIMENT=greenteagc
 WORKDIR /build
 
 ADD go.mod go.sum ./
+# 根 go.mod 用 replace 指向嵌套模块 ./relaykit, 依赖解析阶段必须先拿到它的 go.mod/go.sum
+ADD relaykit/go.mod relaykit/go.sum ./relaykit/
 RUN go mod download
 
 COPY . .
