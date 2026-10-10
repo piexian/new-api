@@ -3,7 +3,7 @@ package cohere
 import (
 	"encoding/json"
 
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 type CohereChatRequest struct {

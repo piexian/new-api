@@ -8,14 +8,15 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	"github.com/QuantumNous/new-api/relay/channel/stepfun"
 	"github.com/QuantumNous/new-api/relay/channel/xai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
@@ -93,6 +94,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
+	if err := helper.ApplyReasoningModelSuffix(c, info, request); err != nil {
+		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
 	if newAPIError = minimax.ValidateEndpointForModel(info); newAPIError != nil {
 		return newAPIError
 	}
@@ -111,6 +115,20 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
+
+	// 渠道声明不支持的入站路径直接拦截：能力缺失不是配置问题，开关开着也不兜底。
+	if blocker, ok := adaptor.(channel.InboundRouteBlocker); ok {
+		for _, route := range blocker.BlockedInboundRoutes() {
+			if c.Request.URL.Path == route {
+				return types.NewErrorWithStatusCode(
+					fmt.Errorf("unsupported endpoint %q", info.RequestURLPath),
+					types.ErrorCodeInvalidRequest,
+					http.StatusNotFound,
+					types.ErrOptionWithSkipRetry(),
+				)
+			}
+		}
+	}
 	knownOpenCodeRoute := isKnownOpenCodeRoute(info)
 	var requestBody io.Reader
 	if shouldPassThroughModelRequest(info) {
@@ -122,6 +140,10 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
+			// 开关关闭时不降级, 直接返回渠道的原始转换错误
+			if responsesViaChatFallbackDisabled(info) {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
 			// 渠道不支持原生 Responses 协议时, 渠道级自动降级为 Chat Completions 协议
 			fallbackUsage, fallbackErr := responsesViaChatCompletions(c, info, adaptor, request)
 			if fallbackErr != nil {

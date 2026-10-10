@@ -5,17 +5,17 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	openaichannel "github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/service/responsescompat"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
+	kitTypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// 渠道级自动降级的核心: RelayMode 切到 ChatCompletions 后,
-// 原本拒绝 Responses 的渠道(如 Cerebras)其 chat 转换应放行并完成协议清洗
+// 渠道级自动降级的核心: 不支持原生 Responses 的渠道(如 Cerebras)应在
+// ConvertOpenAIResponsesRequest 内自行降级为 chat 协议并完成清洗
 func TestResponsesViaChatCompletionsUnlocksChatOnlyChannels(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode:      relayconstant.RelayModeResponses,
@@ -35,25 +35,10 @@ func TestResponsesViaChatCompletionsUnlocksChatOnlyChannels(t *testing.T) {
 		},
 	}
 
-	// 原生 Responses 转换在该渠道会失败
-	_, nativeErr := adaptor.ConvertOpenAIResponsesRequest(nil, info, responsesReq)
-	require.Error(t, nativeErr)
-
-	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(responsesReq)
+	// 该渠道不再直接报错, 而是自行降级为 chat 协议
+	converted, err := adaptor.ConvertOpenAIResponsesRequest(nil, info, responsesReq)
 	require.NoError(t, err)
-	assert.Equal(t, "high", chatRequest.ReasoningEffort)
-
-	savedRelayMode := info.RelayMode
-	savedRequestURLPath := info.RequestURLPath
-	info.RelayMode = relayconstant.RelayModeChatCompletions
-	info.RequestURLPath = "/v1/chat/completions"
-	defer func() {
-		info.RelayMode = savedRelayMode
-		info.RequestURLPath = savedRequestURLPath
-	}()
-
-	converted, err := adaptor.ConvertOpenAIRequest(nil, info, chatRequest)
-	require.NoError(t, err)
+	assert.Equal(t, kitTypes.RelayFormatOpenAI, info.GetFinalRequestRelayFormat())
 	payload, ok := converted.(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "qwen-3.8-27b", payload["model"])

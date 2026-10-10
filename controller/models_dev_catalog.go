@@ -14,21 +14,21 @@ import (
 
 // models.dev catalog 缓存：精简字段，TTL 24h
 const (
-	modelsDevCatalogURL    = "https://models.dev/api.json"
-	modelsDevCatalogTTL    = 24 * time.Hour
-	modelsDevFetchTimeout  = 30 * time.Second
+	modelsDevCatalogURL   = "https://models.dev/api.json"
+	modelsDevCatalogTTL   = 24 * time.Hour
+	modelsDevFetchTimeout = 30 * time.Second
 )
 
 // ModelsDevCatalogEntry 精简的模型条目
 type ModelsDevCatalogEntry struct {
-	ID              string                 `json:"id"`
-	Name            string                 `json:"name"`
-	Family          string                 `json:"family,omitempty"`
-	Reasoning       bool                   `json:"reasoning"`
-	ReasoningOptions []map[string]any      `json:"reasoning_options,omitempty"`
-	ToolCall        bool                   `json:"tool_call"`
-	Attachment      bool                   `json:"attachment"`
-	Modalities      ModelsDevModalities    `json:"modalities"`
+	ID               string              `json:"id"`
+	Name             string              `json:"name"`
+	Family           string              `json:"family,omitempty"`
+	Reasoning        bool                `json:"reasoning"`
+	ReasoningOptions []map[string]any    `json:"reasoning_options,omitempty"`
+	ToolCall         bool                `json:"tool_call"`
+	Attachment       bool                `json:"attachment"`
+	Modalities       ModelsDevModalities `json:"modalities"`
 }
 
 type ModelsDevModalities struct {
@@ -37,18 +37,18 @@ type ModelsDevModalities struct {
 }
 
 type ModelsDevCatalogResponse struct {
-	Success   bool                              `json:"success"`
-	Message   string                            `json:"message"`
-	Data      map[string]ModelsDevCatalogEntry  `json:"data"`
-	FetchedAt int64                              `json:"fetched_at"`
+	Success   bool                             `json:"success"`
+	Message   string                           `json:"message"`
+	Data      map[string]ModelsDevCatalogEntry `json:"data"`
+	FetchedAt int64                            `json:"fetched_at"`
 }
 
 // 内存缓存
 var (
 	modelsDevCatalogCache     map[string]ModelsDevCatalogEntry
 	modelsDevCatalogCacheTime time.Time
-	modelsDevCatalogMutex      sync.RWMutex
-	modelsDevFetching          bool
+	modelsDevCatalogMutex     sync.RWMutex
+	modelsDevFetching         bool
 )
 
 // GetModelsDevCatalog 获取 models.dev 精简分类目录（带内存缓存）
@@ -164,13 +164,13 @@ func fetchModelsDevCatalog() (map[string]ModelsDevCatalogEntry, error) {
 
 		for _, modelRaw := range provider.Models {
 			var m struct {
-				ID               string            `json:"id"`
-				Name             string            `json:"name"`
-				Family           string            `json:"family"`
-				Reasoning         bool              `json:"reasoning"`
-				ReasoningOptions []map[string]any  `json:"reasoning_options"`
-				ToolCall         bool              `json:"tool_call"`
-				Attachment       bool              `json:"attachment"`
+				ID               string              `json:"id"`
+				Name             string              `json:"name"`
+				Family           string              `json:"family"`
+				Reasoning        bool                `json:"reasoning"`
+				ReasoningOptions []map[string]any    `json:"reasoning_options"`
+				ToolCall         bool                `json:"tool_call"`
+				Attachment       bool                `json:"attachment"`
 				Modalities       ModelsDevModalities `json:"modalities"`
 			}
 			if err := common.Unmarshal(modelRaw, &m); err != nil {
@@ -182,9 +182,9 @@ func fetchModelsDevCatalog() (map[string]ModelsDevCatalogEntry, error) {
 				ID:               m.ID,
 				Name:             m.Name,
 				Family:           m.Family,
-				Reasoning:         m.Reasoning,
+				Reasoning:        m.Reasoning,
 				ReasoningOptions: m.ReasoningOptions,
-				ToolCall:          m.ToolCall,
+				ToolCall:         m.ToolCall,
 				Attachment:       m.Attachment,
 				Modalities:       m.Modalities,
 			}

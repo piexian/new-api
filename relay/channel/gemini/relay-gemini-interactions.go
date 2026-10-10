@@ -8,10 +8,11 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	rootconstant "github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
@@ -67,7 +68,7 @@ func geminiInteractionRequestBackground(info *relaycommon.RelayInfo) bool {
 }
 
 // GeminiInteractionsHandler 非流式透传:解析 usage 与 id,原样回写响应体
-func GeminiInteractionsHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+func GeminiInteractionsHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*kitdto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 
 	responseBody, err := io.ReadAll(resp.Body)
@@ -81,13 +82,13 @@ func GeminiInteractionsHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
-	var usage *dto.Usage
+	var usage *kitdto.Usage
 	billed := false
 	if interaction.Usage != nil && interaction.Usage.HasTokens() {
 		usage = interaction.Usage.ToUsage(info.GetEstimatePromptTokens())
 		billed = true
 	} else {
-		usage = &dto.Usage{}
+		usage = &kitdto.Usage{}
 	}
 	saveGeminiInteractionState(info, &interaction, geminiInteractionRequestBackground(info), billed)
 
@@ -97,10 +98,10 @@ func GeminiInteractionsHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 // GeminiInteractionsStreamHandler 流式透传:逐事件回写 SSE(保留 event 行),
 // 从 interaction.completed 提取 usage;断流时按已累积文本估算
-func GeminiInteractionsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+func GeminiInteractionsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*kitdto.Usage, *types.NewAPIError) {
 	helper.SetEventStreamHeaders(c)
 
-	var usage *dto.Usage
+	var usage *kitdto.Usage
 	var interactionID string
 	var responseText strings.Builder
 	background := geminiInteractionRequestBackground(info)
@@ -143,7 +144,7 @@ func GeminiInteractionsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			usage = service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 			common.SetContextKey(c, rootconstant.ContextKeyLocalCountTokens, true)
 		} else {
-			usage = &dto.Usage{}
+			usage = &kitdto.Usage{}
 		}
 	}
 	// 已按 completed usage 计费的流,更新映射为已计费,避免后续 GET 重复结算

@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 // StepFun Messages 官方仅承诺支持 docs 中列出的字段（"未在本文出现的字段请不要传入"），

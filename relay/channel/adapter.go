@@ -4,9 +4,10 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -17,18 +18,25 @@ type Adaptor interface {
 	Init(info *relaycommon.RelayInfo)
 	GetRequestURL(info *relaycommon.RelayInfo) (string, error)
 	SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error
-	ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error)
-	ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error)
-	ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error)
-	ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error)
-	ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error)
-	ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error)
+	ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *kitdto.GeneralOpenAIRequest) (any, error)
+	ConvertRerankRequest(c *gin.Context, relayMode int, request kitdto.RerankRequest) (any, error)
+	ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.EmbeddingRequest) (any, error)
+	ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.AudioRequest) (io.Reader, error)
+	ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.ImageRequest) (any, error)
+	ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.OpenAIResponsesRequest) (any, error)
 	DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error)
 	DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError)
 	GetModelList() []string
 	GetChannelName() string
-	ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error)
-	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
+	ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *kitdto.ClaudeRequest) (any, error)
+	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *kitdto.GeminiChatRequest) (any, error)
+}
+
+// BlockedInboundRoutes 声明该渠道不支持的入站路径，命中即在入口拦截并返回 404。
+// 用于能力缺失的渠道（如仅支持 rerank/embedding/生图的专用渠道），
+// 避免请求被降级后发到不支持的上游端点。
+type InboundRouteBlocker interface {
+	BlockedInboundRoutes() []string
 }
 
 type TaskAdaptor interface {

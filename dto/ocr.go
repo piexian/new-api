@@ -2,10 +2,9 @@ package dto
 
 import (
 	"encoding/json"
+	"net/http"
 
 	"github.com/QuantumNous/new-api/types"
-
-	"github.com/gin-gonic/gin"
 )
 
 // OCRRequest 对应 POST /v1/ocr 的 Mistral 原生请求。
@@ -15,7 +14,7 @@ type OCRRequest struct {
 	Document json.RawMessage `json:"document"`
 }
 
-func (r *OCRRequest) IsStream(c *gin.Context) bool {
+func (r *OCRRequest) IsStream(c *http.Request) bool {
 	return false
 }
 

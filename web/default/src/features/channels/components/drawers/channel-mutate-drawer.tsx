@@ -307,6 +307,7 @@ const SENSITIVE_FORM_FIELDS = [
   'azure_responses_version',
   'use_responses_api',
   'chat_completions_to_responses_mode',
+  'responses_via_chat_fallback_mode',
   'chat_completions_to_responses_models',
   'force_format',
   'xai_codex_compatibility_enabled',
@@ -371,6 +372,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.system_prompt?.trim() ||
     values.use_responses_api ||
     values.chat_completions_to_responses_mode !== 'inherit' ||
+    values.responses_via_chat_fallback_mode !== 'inherit' ||
     (values.chat_completions_to_responses_models?.length ?? 0) > 0 ||
     values.force_format ||
     values.xai_codex_compatibility_enabled ||
@@ -4962,6 +4964,63 @@ export function ChannelMutateDrawer({
                                     <FormDescription>
                                       {t(
                                         'Leave empty to inherit the global model rules; entries here replace them for this channel.'
+                                      )}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+
+                              <FormField
+                                control={form.control}
+                                name='responses_via_chat_fallback_mode'
+                                render={({ field }) => (
+                                  <FormItem className='space-y-2 px-4 py-3'>
+                                    <FormLabel>
+                                      {t('Responses to Chat fallback')}
+                                    </FormLabel>
+                                    <Select
+                                      items={[
+                                        {
+                                          value: 'inherit',
+                                          label: t('Inherit global setting'),
+                                        },
+                                        {
+                                          value: 'enabled',
+                                          label: t('Enable for this channel'),
+                                        },
+                                        {
+                                          value: 'disabled',
+                                          label: t('Disable for this channel'),
+                                        },
+                                      ]}
+                                      value={field.value}
+                                      onValueChange={field.onChange}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent
+                                        alignItemWithTrigger={false}
+                                      >
+                                        <SelectGroup>
+                                          <SelectItem value='inherit'>
+                                            {t('Inherit global setting')}
+                                          </SelectItem>
+                                          <SelectItem value='enabled'>
+                                            {t('Enable for this channel')}
+                                          </SelectItem>
+                                          <SelectItem value='disabled'>
+                                            {t('Disable for this channel')}
+                                          </SelectItem>
+                                        </SelectGroup>
+                                      </SelectContent>
+                                    </Select>
+                                    <FormDescription>
+                                      {t(
+                                        'Automatically fall back to Chat Completions when the channel does not support native /v1/responses. Enabled by default (inherit); when disabled, conversion failures return the error directly.'
                                       )}
                                     </FormDescription>
                                     <FormMessage />

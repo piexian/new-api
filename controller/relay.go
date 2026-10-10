@@ -11,7 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
@@ -22,6 +22,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -238,7 +239,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		// 判定取 gin context（SetupContextForSelectedChannel 写入）：getChannel 在
 		// ChannelMeta==nil 时返回的轻量渠道不含 Setting/BaseURL，直接用会静默放行。
 		if relayFormat != types.RelayFormatClaude {
-			channelSetting, _ := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+			channelSetting, _ := common.GetContextKeyType[kitdto.ChannelSettings](c, constant.ContextKeyChannelSetting)
 			if zhipu_4v.IsZCodeModeChannel(
 				common.GetContextKeyInt(c, constant.ContextKeyChannelType),
 				common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl),
@@ -341,7 +342,7 @@ func addUsedChannel(c *gin.Context, channelId int) {
 	c.Set("use_channel", useChannel)
 }
 
-func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
+func fastTokenCountMetaForPricing(request kitdto.Request) *types.TokenCountMeta {
 	if request == nil {
 		return &types.TokenCountMeta{}
 	}
@@ -349,7 +350,7 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 		TokenType: types.TokenTypeTokenizer,
 	}
 	switch r := request.(type) {
-	case *dto.GeneralOpenAIRequest:
+	case *kitdto.GeneralOpenAIRequest:
 		maxCompletionTokens := lo.FromPtrOr(r.MaxCompletionTokens, uint(0))
 		maxTokens := lo.FromPtrOr(r.MaxTokens, uint(0))
 		if maxCompletionTokens > maxTokens {
@@ -357,13 +358,13 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 		} else {
 			meta.MaxTokens = int(maxTokens)
 		}
-	case *dto.OpenAIResponsesRequest:
+	case *kitdto.OpenAIResponsesRequest:
 		meta.MaxTokens = int(lo.FromPtrOr(r.MaxOutputTokens, uint(0)))
-	case *dto.ClaudeRequest:
+	case *kitdto.ClaudeRequest:
 		meta.MaxTokens = int(lo.FromPtr(r.MaxTokens))
 	case *dto.CohereNativeRequest:
 		meta.MaxTokens = int(lo.FromPtrOr(r.MaxTokens, uint(0)))
-	case *dto.ImageRequest:
+	case *kitdto.ImageRequest:
 		// Pricing for image requests depends on ImagePriceRatio; safe to compute even when CountToken is disabled.
 		return r.GetTokenCountMeta()
 	default:
@@ -461,7 +462,7 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	planQuotaCooldownApplied := false
 	if err.StatusCode == http.StatusTooManyRequests {
-		channelSetting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
+		channelSetting, ok := common.GetContextKeyType[kitdto.ChannelSettings](c, constant.ContextKeyChannelSetting)
 		if ok && channelSetting.PlanQuotaCooldownEnabled {
 			if isMiniMaxTokenPlanLimitError(channelError, err) {
 				planQuotaCooldownApplied = true

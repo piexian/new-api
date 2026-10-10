@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"testing"
 
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/require"
 )
 
-func geminiReqFromJSON(t *testing.T, body string) *GeminiChatRequest {
+func geminiReqFromJSON(t *testing.T, body string) *kitdto.GeminiChatRequest {
 	t.Helper()
-	req := &GeminiChatRequest{}
+	req := &kitdto.GeminiChatRequest{}
 	require.NoError(t, json.Unmarshal([]byte(body), req))
 	return req
 }

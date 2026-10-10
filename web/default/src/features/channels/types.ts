@@ -84,6 +84,7 @@ export interface ChannelSettings {
   use_responses_api?: boolean
   chat_completions_to_responses_enabled?: boolean
   chat_completions_to_responses_models?: string[]
+  responses_via_chat_fallback_enabled?: boolean
   thinking_to_content?: boolean
   proxy?: string
   pass_through_body_enabled?: boolean

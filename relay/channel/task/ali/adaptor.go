@@ -9,12 +9,13 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/samber/lo"
 
@@ -87,9 +88,9 @@ type AliVideoOutput struct {
 
 // AliUsage 使用统计
 type AliUsage struct {
-	Duration   dto.IntValue `json:"duration,omitempty"`
-	VideoCount dto.IntValue `json:"video_count,omitempty"`
-	SR         dto.IntValue `json:"SR,omitempty"`
+	Duration   kitdto.IntValue `json:"duration,omitempty"`
+	VideoCount kitdto.IntValue `json:"video_count,omitempty"`
+	SR         kitdto.IntValue `json:"SR,omitempty"`
 }
 
 type AliMetadata struct {
@@ -504,7 +505,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 
 	// 转换为 OpenAI 格式响应
-	openAIResp := dto.NewOpenAIVideo()
+	openAIResp := kitdto.NewOpenAIVideo()
 	openAIResp.ID = info.PublicTaskID
 	openAIResp.TaskID = info.PublicTaskID
 	openAIResp.Model = c.GetString("model")
@@ -594,7 +595,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 		return nil, errors.Wrap(err, "unmarshal ali response failed")
 	}
 
-	openAIResp := dto.NewOpenAIVideo()
+	openAIResp := kitdto.NewOpenAIVideo()
 	openAIResp.ID = task.TaskID
 	openAIResp.Status = convertAliStatus(aliResp.Output.TaskStatus)
 	openAIResp.Model = task.Properties.OriginModelName
@@ -607,12 +608,12 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 
 	// 错误处理
 	if aliResp.Code != "" {
-		openAIResp.Error = &dto.OpenAIVideoError{
+		openAIResp.Error = &kitdto.OpenAIVideoError{
 			Code:    aliResp.Code,
 			Message: aliResp.Message,
 		}
 	} else if aliResp.Output.Code != "" {
-		openAIResp.Error = &dto.OpenAIVideoError{
+		openAIResp.Error = &kitdto.OpenAIVideoError{
 			Code:    aliResp.Output.Code,
 			Message: aliResp.Output.Message,
 		}
@@ -624,14 +625,14 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 func convertAliStatus(aliStatus string) string {
 	switch aliStatus {
 	case "PENDING":
-		return dto.VideoStatusQueued
+		return kitdto.VideoStatusQueued
 	case "RUNNING":
-		return dto.VideoStatusInProgress
+		return kitdto.VideoStatusInProgress
 	case "SUCCEEDED":
-		return dto.VideoStatusCompleted
+		return kitdto.VideoStatusCompleted
 	case "FAILED", "CANCELED", "UNKNOWN":
-		return dto.VideoStatusFailed
+		return kitdto.VideoStatusFailed
 	default:
-		return dto.VideoStatusUnknown
+		return kitdto.VideoStatusUnknown
 	}
 }

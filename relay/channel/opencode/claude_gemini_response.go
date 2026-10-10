@@ -7,11 +7,11 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/service/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -31,7 +31,7 @@ func claudeToGeminiResponse(c *gin.Context, resp *http.Response, info *relaycomm
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
 	}
 	if upstreamErr := message.GetClaudeError(); upstreamErr != nil && upstreamErr.Type != "" {
-		return nil, types.WithClaudeError(*upstreamErr, resp.StatusCode)
+		return nil, types.WithKitClaudeError(upstreamErr, resp.StatusCode)
 	}
 	converted, err := relayconvert.ConvertResponse(c, info, types.RelayFormatGemini, &message)
 	if err != nil {
@@ -107,7 +107,7 @@ func claudeToConvertedStream(c *gin.Context, resp *http.Response, info *relaycom
 			return
 		}
 		if upstreamErr := message.GetClaudeError(); upstreamErr != nil && upstreamErr.Type != "" {
-			streamErr = types.WithClaudeError(*upstreamErr, resp.StatusCode)
+			streamErr = types.WithKitClaudeError(upstreamErr, resp.StatusCode)
 			sr.Stop(streamErr)
 			return
 		}

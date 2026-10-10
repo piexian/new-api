@@ -6,8 +6,9 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 func cerebrasInfo(model string) *common.RelayInfo {
@@ -23,32 +24,32 @@ func TestValidateCerebrasImageInputRejectsTextModel(t *testing.T) {
 	cases := []struct {
 		name    string
 		model   string
-		request dto.Request
+		request kitdto.Request
 	}{
 		{
 			name:    "gpt-oss png data uri",
 			model:   "gpt-oss-120b",
-			request: &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: []dto.MediaContent{{Type: dto.ContentTypeImageURL, ImageUrl: &dto.MessageImageUrl{Url: "data:image/png;base64,AAAA"}}}}}},
+			request: &kitdto.GeneralOpenAIRequest{Messages: []kitdto.Message{{Role: "user", Content: []kitdto.MediaContent{{Type: kitdto.ContentTypeImageURL, ImageUrl: &kitdto.MessageImageUrl{Url: "data:image/png;base64,AAAA"}}}}}},
 		},
 		{
 			name:    "qwen remote jpeg url",
 			model:   "qwen3.8-27b",
-			request: &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: []dto.MediaContent{{Type: dto.ContentTypeImageURL, ImageUrl: &dto.MessageImageUrl{Url: "https://example.com/a.jpg"}}}}}},
+			request: &kitdto.GeneralOpenAIRequest{Messages: []kitdto.Message{{Role: "user", Content: []kitdto.MediaContent{{Type: kitdto.ContentTypeImageURL, ImageUrl: &kitdto.MessageImageUrl{Url: "https://example.com/a.jpg"}}}}}},
 		},
 		{
 			name:    "qwen gemini inline data",
 			model:   "qwen-3.8-27b",
-			request: &dto.GeminiChatRequest{Contents: []dto.GeminiChatContent{{Parts: []dto.GeminiPart{{InlineData: &dto.GeminiInlineData{MimeType: "image/png", Data: "AAAA"}}}}}},
+			request: &kitdto.GeminiChatRequest{Contents: []kitdto.GeminiChatContent{{Parts: []kitdto.GeminiPart{{InlineData: &kitdto.GeminiInlineData{MimeType: "image/png", Data: "AAAA"}}}}}},
 		},
 		{
 			name:    "gpt-oss claude image block",
 			model:   "gpt-oss-120b",
-			request: &dto.ClaudeRequest{Messages: []dto.ClaudeMessage{{Role: "user", Content: []dto.ClaudeMediaMessage{{Type: "image", Source: &dto.ClaudeMessageSource{Type: "base64", MediaType: "image/png", Data: "AAAA"}}}}}},
+			request: &kitdto.ClaudeRequest{Messages: []kitdto.ClaudeMessage{{Role: "user", Content: []kitdto.ClaudeMediaMessage{{Type: "image", Source: &kitdto.ClaudeMessageSource{Type: "base64", MediaType: "image/png", Data: "AAAA"}}}}}},
 		},
 		{
 			name:  "gpt-oss responses input image",
 			model: "gpt-oss-120b",
-			request: &dto.OpenAIResponsesRequest{
+			request: &kitdto.OpenAIResponsesRequest{
 				Model: "gpt-oss-120b",
 				Input: json.RawMessage(`[{"type":"input_image","image_url":"data:image/png;base64,AAAA"}]`),
 			},
@@ -76,31 +77,31 @@ func TestValidateCerebrasImageInputGemmaRules(t *testing.T) {
 	cases := []struct {
 		name    string
 		model   string
-		request dto.Request
+		request kitdto.Request
 		wantErr string
 	}{
 		{
 			name:    "gif data uri rejected",
 			model:   "gemma-4-31b-it",
-			request: &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: []dto.MediaContent{{Type: dto.ContentTypeImageURL, ImageUrl: &dto.MessageImageUrl{Url: "data:image/gif;base64,AAAA"}}}}}},
+			request: &kitdto.GeneralOpenAIRequest{Messages: []kitdto.Message{{Role: "user", Content: []kitdto.MediaContent{{Type: kitdto.ContentTypeImageURL, ImageUrl: &kitdto.MessageImageUrl{Url: "data:image/gif;base64,AAAA"}}}}}},
 			wantErr: "only accepts PNG and JPEG",
 		},
 		{
 			name:    "webp data uri rejected",
 			model:   "gemma-4-31b-it",
-			request: &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: []dto.MediaContent{{Type: dto.ContentTypeImageURL, ImageUrl: &dto.MessageImageUrl{Url: "data:image/webp;base64,AAAA"}}}}}},
+			request: &kitdto.GeneralOpenAIRequest{Messages: []kitdto.Message{{Role: "user", Content: []kitdto.MediaContent{{Type: kitdto.ContentTypeImageURL, ImageUrl: &kitdto.MessageImageUrl{Url: "data:image/webp;base64,AAAA"}}}}}},
 			wantErr: "only accepts PNG and JPEG",
 		},
 		{
 			name:    "external url rejected even when extension is png",
 			model:   "gemma-4-31b-it",
-			request: &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: []dto.MediaContent{{Type: dto.ContentTypeImageURL, ImageUrl: &dto.MessageImageUrl{Url: "https://example.com/a.png"}}}}}},
+			request: &kitdto.GeneralOpenAIRequest{Messages: []kitdto.Message{{Role: "user", Content: []kitdto.MediaContent{{Type: kitdto.ContentTypeImageURL, ImageUrl: &kitdto.MessageImageUrl{Url: "https://example.com/a.png"}}}}}},
 			wantErr: "external image URLs are not supported",
 		},
 		{
 			name:    "gemini inline webp rejected",
 			model:   "gemma-4-31b-it",
-			request: &dto.GeminiChatRequest{Contents: []dto.GeminiChatContent{{Parts: []dto.GeminiPart{{InlineData: &dto.GeminiInlineData{MimeType: "image/webp", Data: "AAAA"}}}}}},
+			request: &kitdto.GeminiChatRequest{Contents: []kitdto.GeminiChatContent{{Parts: []kitdto.GeminiPart{{InlineData: &kitdto.GeminiInlineData{MimeType: "image/webp", Data: "AAAA"}}}}}},
 			wantErr: "only accepts PNG and JPEG",
 		},
 		{
@@ -128,34 +129,34 @@ func TestValidateCerebrasImageInputGemmaAllowedAndRejected(t *testing.T) {
 	cases := []struct {
 		name    string
 		model   string
-		request dto.Request
+		request kitdto.Request
 		wantErr string
 	}{
 		{
 			name:    "gemma png data uri",
 			model:   "gemma-4-31b-it",
-			request: &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: []dto.MediaContent{{Type: dto.ContentTypeImageURL, ImageUrl: &dto.MessageImageUrl{Url: "data:image/png;base64,AAAA"}}}}}},
+			request: &kitdto.GeneralOpenAIRequest{Messages: []kitdto.Message{{Role: "user", Content: []kitdto.MediaContent{{Type: kitdto.ContentTypeImageURL, ImageUrl: &kitdto.MessageImageUrl{Url: "data:image/png;base64,AAAA"}}}}}},
 		},
 		{
 			name:    "gemma jpeg data uri",
 			model:   "gemma-4-31b-it",
-			request: &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: []dto.MediaContent{{Type: dto.ContentTypeImageURL, ImageUrl: &dto.MessageImageUrl{Url: "data:image/jpeg;base64,AAAA"}}}}}},
+			request: &kitdto.GeneralOpenAIRequest{Messages: []kitdto.Message{{Role: "user", Content: []kitdto.MediaContent{{Type: kitdto.ContentTypeImageURL, ImageUrl: &kitdto.MessageImageUrl{Url: "data:image/jpeg;base64,AAAA"}}}}}},
 		},
 		{
 			name:    "gemma remote url always rejected, unknown mime does not rescue it",
 			model:   "gemma-4-31b-it",
-			request: &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: []dto.MediaContent{{Type: dto.ContentTypeImageURL, ImageUrl: &dto.MessageImageUrl{Url: "https://example.com/noext"}}}}}},
+			request: &kitdto.GeneralOpenAIRequest{Messages: []kitdto.Message{{Role: "user", Content: []kitdto.MediaContent{{Type: kitdto.ContentTypeImageURL, ImageUrl: &kitdto.MessageImageUrl{Url: "https://example.com/noext"}}}}}},
 			wantErr: "external image URLs are not supported",
 		},
 		{
 			name:    "gemma bare base64 without declared mime passes through",
 			model:   "gemma-4-31b-it",
-			request: &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: []dto.MediaContent{{Type: dto.ContentTypeImageURL, ImageUrl: &dto.MessageImageUrl{Url: "AAAA"}}}}}},
+			request: &kitdto.GeneralOpenAIRequest{Messages: []kitdto.Message{{Role: "user", Content: []kitdto.MediaContent{{Type: kitdto.ContentTypeImageURL, ImageUrl: &kitdto.MessageImageUrl{Url: "AAAA"}}}}}},
 		},
 		{
 			name:    "text model without image",
 			model:   "gpt-oss-120b",
-			request: &dto.GeneralOpenAIRequest{Messages: []dto.Message{{Role: "user", Content: "plain text"}}},
+			request: &kitdto.GeneralOpenAIRequest{Messages: []kitdto.Message{{Role: "user", Content: "plain text"}}},
 		},
 	}
 
@@ -180,8 +181,8 @@ func TestValidateCerebrasImageInputSkipsOtherChannels(t *testing.T) {
 		OriginModelName: "gpt-oss-120b",
 		ChannelMeta:     &common.ChannelMeta{ChannelType: constant.ChannelTypeGemini, UpstreamModelName: "gpt-oss-120b"},
 	}
-	request := &dto.GeminiChatRequest{Contents: []dto.GeminiChatContent{{Parts: []dto.GeminiPart{{
-		InlineData: &dto.GeminiInlineData{MimeType: "image/webp", Data: "AAAA"},
+	request := &kitdto.GeminiChatRequest{Contents: []kitdto.GeminiChatContent{{Parts: []kitdto.GeminiPart{{
+		InlineData: &kitdto.GeminiInlineData{MimeType: "image/webp", Data: "AAAA"},
 	}}}}}
 	if err := ValidateCerebrasImageInput(nil, info, request); err != nil {
 		t.Fatalf("non-cerebras channel must not be filtered, got %v", err)

@@ -20,10 +20,11 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 )
 
@@ -205,7 +206,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("%s", kResp.Message), "task_failed", http.StatusBadRequest)
 		return
 	}
-	ov := dto.NewOpenAIVideo()
+	ov := kitdto.NewOpenAIVideo()
 	ov.ID = info.PublicTaskID
 	ov.TaskID = info.PublicTaskID
 	ov.CreatedAt = time.Now().Unix()
@@ -383,7 +384,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		return nil, errors.Wrap(err, "unmarshal kling task data failed")
 	}
 
-	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo := kitdto.NewOpenAIVideo()
 	openAIVideo.ID = originTask.TaskID
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
@@ -401,7 +402,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	}
 
 	if klingResp.Code != 0 && klingResp.Message != "" {
-		openAIVideo.Error = &dto.OpenAIVideoError{
+		openAIVideo.Error = &kitdto.OpenAIVideoError{
 			Message: klingResp.Message,
 			Code:    fmt.Sprintf("%d", klingResp.Code),
 		}
@@ -409,7 +410,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 
 	// https://app.klingai.com/cn/dev/document-api/apiReference/model/textToVideo
 	if data := klingResp.Data; data.TaskStatus == "failed" {
-		openAIVideo.Error = &dto.OpenAIVideoError{
+		openAIVideo.Error = &kitdto.OpenAIVideoError{
 			Message: data.TaskStatusMsg,
 		}
 	}

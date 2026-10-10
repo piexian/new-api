@@ -6,8 +6,9 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -55,7 +56,7 @@ type requestImage struct {
 //   - gemma 视觉模型携带非 PNG/JPEG 图片, 或携带外部 URL 图片
 //
 // 判定只依赖请求体本身(显式声明 / data URI 前缀 / URL 扩展名), 不做网络探测。
-func ValidateCerebrasImageInput(c *gin.Context, info *common.RelayInfo, request dto.Request) *types.NewAPIError {
+func ValidateCerebrasImageInput(c *gin.Context, info *common.RelayInfo, request kitdto.Request) *types.NewAPIError {
 	if info == nil || info.ChannelMeta == nil || request == nil {
 		return nil
 	}
@@ -117,15 +118,15 @@ func cerebrasImageError(message string) *types.NewAPIError {
 }
 
 // requestImages 提取请求中所有输入图片
-func requestImages(request dto.Request) []requestImage {
+func requestImages(request kitdto.Request) []requestImage {
 	switch req := request.(type) {
-	case *dto.GeneralOpenAIRequest:
+	case *kitdto.GeneralOpenAIRequest:
 		var images []requestImage
 		for i := range req.Messages {
 			images = append(images, messageImages(req.Messages[i])...)
 		}
 		return images
-	case *dto.ClaudeRequest:
+	case *kitdto.ClaudeRequest:
 		var images []requestImage
 		for i := range req.Messages {
 			parts, err := req.Messages[i].ParseContent()
@@ -146,7 +147,7 @@ func requestImages(request dto.Request) []requestImage {
 			}
 		}
 		return images
-	case *dto.GeminiChatRequest:
+	case *kitdto.GeminiChatRequest:
 		var images []requestImage
 		contents := req.Contents
 		if len(contents) == 0 {
@@ -166,7 +167,7 @@ func requestImages(request dto.Request) []requestImage {
 			}
 		}
 		return images
-	case *dto.OpenAIResponsesRequest:
+	case *kitdto.OpenAIResponsesRequest:
 		var images []requestImage
 		for _, input := range req.ParseInput() {
 			if input.Type != "input_image" {
@@ -181,19 +182,19 @@ func requestImages(request dto.Request) []requestImage {
 	return nil
 }
 
-func messageImages(message dto.Message) []requestImage {
+func messageImages(message kitdto.Message) []requestImage {
 	if message.Content == nil {
 		return nil
 	}
-	var parts []dto.MediaContent
-	if typed, ok := message.Content.([]dto.MediaContent); ok {
+	var parts []kitdto.MediaContent
+	if typed, ok := message.Content.([]kitdto.MediaContent); ok {
 		parts = typed
 	} else {
 		parts = message.ParseContent()
 	}
 	var images []requestImage
 	for i := range parts {
-		if parts[i].Type != dto.ContentTypeImageURL {
+		if parts[i].Type != kitdto.ContentTypeImageURL {
 			continue
 		}
 		image := parts[i].GetImageMedia()

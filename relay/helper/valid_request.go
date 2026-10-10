@@ -9,16 +9,17 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 )
 
-func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dto.Request, err error) {
+func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request kitdto.Request, err error) {
 	relayMode := relayconstant.Path2RelayMode(c.Request.URL.Path)
 
 	switch format {
@@ -52,15 +53,15 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 	case types.RelayFormatOpenAIAudio:
 		request, err = GetAndValidAudioRequest(c, relayMode)
 	case types.RelayFormatOpenAIRealtime:
-		request = &dto.BaseRequest{}
+		request = &kitdto.BaseRequest{}
 	case types.RelayFormatMiniMax:
 		request, err = GetAndValidateMiniMaxRequest(c, relayMode)
 	case types.RelayFormatXAI, types.RelayFormatXAIRealtime:
-		request = &dto.BaseRequest{}
+		request = &kitdto.BaseRequest{}
 	case types.RelayFormatMoarkNative:
-		request = &dto.BaseRequest{}
+		request = &kitdto.BaseRequest{}
 	case types.RelayFormatStepFunNative:
-		request = &dto.BaseRequest{}
+		request = &kitdto.BaseRequest{}
 	case types.RelayFormatCohereNative:
 		request = &dto.CohereNativeRequest{}
 		if err = common.UnmarshalBodyReusable(c, request); err == nil && request.(*dto.CohereNativeRequest).Model == "" {
@@ -69,7 +70,7 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 	case types.RelayFormatTypeSafe:
 		request, err = GetAndValidateSystemOneRequest(c)
 	case types.RelayFormatStepFunWss:
-		request = &dto.BaseRequest{}
+		request = &kitdto.BaseRequest{}
 	default:
 		return nil, fmt.Errorf("unsupported relay format: %s", format)
 	}
@@ -90,7 +91,7 @@ func GetAndValidateOCRRequest(c *gin.Context) (*dto.OCRRequest, error) {
 	return request, nil
 }
 
-func GetAndValidateMiniMaxRequest(c *gin.Context, relayMode int) (dto.Request, error) {
+func GetAndValidateMiniMaxRequest(c *gin.Context, relayMode int) (kitdto.Request, error) {
 	switch relayMode {
 	case relayconstant.RelayModeMiniMaxMusicGeneration:
 		request := &dto.MiniMaxMusicGenerationRequest{}
@@ -127,8 +128,8 @@ func GetAndValidateMiniMaxRequest(c *gin.Context, relayMode int) (dto.Request, e
 	}
 }
 
-func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, error) {
-	audioRequest := &dto.AudioRequest{}
+func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*kitdto.AudioRequest, error) {
+	audioRequest := &kitdto.AudioRequest{}
 	err := common.UnmarshalBodyReusable(c, audioRequest)
 	if err != nil {
 		return nil, err
@@ -149,8 +150,8 @@ func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, 
 	return audioRequest, nil
 }
 
-func GetAndValidateRerankRequest(c *gin.Context) (*dto.RerankRequest, error) {
-	var rerankRequest *dto.RerankRequest
+func GetAndValidateRerankRequest(c *gin.Context) (*kitdto.RerankRequest, error) {
+	var rerankRequest *kitdto.RerankRequest
 	err := common.UnmarshalBodyReusable(c, &rerankRequest)
 	if err != nil {
 		logger.LogError(c, fmt.Sprintf("getAndValidateTextRequest failed: %s", err.Error()))
@@ -166,8 +167,8 @@ func GetAndValidateRerankRequest(c *gin.Context) (*dto.RerankRequest, error) {
 	return rerankRequest, nil
 }
 
-func GetAndValidateEmbeddingRequest(c *gin.Context, relayMode int) (*dto.EmbeddingRequest, error) {
-	var embeddingRequest *dto.EmbeddingRequest
+func GetAndValidateEmbeddingRequest(c *gin.Context, relayMode int) (*kitdto.EmbeddingRequest, error) {
+	var embeddingRequest *kitdto.EmbeddingRequest
 	err := common.UnmarshalBodyReusable(c, &embeddingRequest)
 	if err != nil {
 		logger.LogError(c, fmt.Sprintf("getAndValidateTextRequest failed: %s", err.Error()))
@@ -200,8 +201,8 @@ func exceedsMaxTokensLimit(values ...*uint) bool {
 	return false
 }
 
-func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest, error) {
-	request := &dto.OpenAIResponsesRequest{}
+func GetAndValidateResponsesRequest(c *gin.Context) (*kitdto.OpenAIResponsesRequest, error) {
+	request := &kitdto.OpenAIResponsesRequest{}
 	err := common.UnmarshalBodyReusable(c, request)
 	if err != nil {
 		return nil, err
@@ -221,8 +222,8 @@ func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest
 	return request, nil
 }
 
-func GetAndValidateResponsesCompactionRequest(c *gin.Context) (*dto.OpenAIResponsesCompactionRequest, error) {
-	request := &dto.OpenAIResponsesCompactionRequest{}
+func GetAndValidateResponsesCompactionRequest(c *gin.Context) (*kitdto.OpenAIResponsesCompactionRequest, error) {
+	request := &kitdto.OpenAIResponsesCompactionRequest{}
 	if err := common.UnmarshalBodyReusable(c, request); err != nil {
 		return nil, err
 	}
@@ -232,8 +233,8 @@ func GetAndValidateResponsesCompactionRequest(c *gin.Context) (*dto.OpenAIRespon
 	return request, nil
 }
 
-func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageRequest, error) {
-	imageRequest := &dto.ImageRequest{}
+func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*kitdto.ImageRequest, error) {
+	imageRequest := &kitdto.ImageRequest{}
 
 	switch relayMode {
 	case relayconstant.RelayModeImagesEdits:
@@ -249,8 +250,8 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			imageRequest.Model = formData.Get("model")
 			if nValue := strings.TrimSpace(formData.Get("n")); nValue != "" {
 				n, err := strconv.Atoi(nValue)
-				if err != nil || n < 0 || n > dto.MaxImageN {
-					return nil, fmt.Errorf("n must be an integer between 1 and %d", dto.MaxImageN)
+				if err != nil || n < 0 || n > kitdto.MaxImageN {
+					return nil, fmt.Errorf("n must be an integer between 1 and %d", kitdto.MaxImageN)
 				}
 				imageRequest.N = common.GetPointer(uint(n))
 			}
@@ -299,8 +300,8 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			return nil, errors.New("size an unexpected error occurred in the parameter, please use 'x' instead of the multiplication sign '×'")
 		}
 
-		if imageRequest.N != nil && *imageRequest.N > dto.MaxImageN {
-			return nil, fmt.Errorf("n must be an integer between 1 and %d", dto.MaxImageN)
+		if imageRequest.N != nil && *imageRequest.N > kitdto.MaxImageN {
+			return nil, fmt.Errorf("n must be an integer between 1 and %d", kitdto.MaxImageN)
 		}
 
 		// Not "256x256", "512x512", or "1024x1024"
@@ -339,8 +340,8 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 	return imageRequest, nil
 }
 
-func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest, err error) {
-	textRequest = &dto.ClaudeRequest{}
+func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *kitdto.ClaudeRequest, err error) {
+	textRequest = &kitdto.ClaudeRequest{}
 	err = common.UnmarshalBodyReusable(c, textRequest)
 	if err != nil {
 		return nil, err
@@ -363,8 +364,8 @@ func GetAndValidateClaudeRequest(c *gin.Context) (textRequest *dto.ClaudeRequest
 	return textRequest, nil
 }
 
-func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenAIRequest, error) {
-	textRequest := &dto.GeneralOpenAIRequest{}
+func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*kitdto.GeneralOpenAIRequest, error) {
+	textRequest := &kitdto.GeneralOpenAIRequest{}
 	err := common.UnmarshalBodyReusable(c, textRequest)
 	if err != nil {
 		return nil, err
@@ -424,8 +425,8 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 	return textRequest, nil
 }
 
-func GetAndValidateGeminiRequest(c *gin.Context) (*dto.GeminiChatRequest, error) {
-	request := &dto.GeminiChatRequest{}
+func GetAndValidateGeminiRequest(c *gin.Context) (*kitdto.GeminiChatRequest, error) {
+	request := &kitdto.GeminiChatRequest{}
 	err := common.UnmarshalBodyReusable(c, request)
 	if err != nil {
 		return nil, err
@@ -458,8 +459,8 @@ func GetAndValidateGeminiInteractionsRequest(c *gin.Context) (*dto.GeminiInterac
 	return request, nil
 }
 
-func GetAndValidateGeminiEmbeddingRequest(c *gin.Context) (*dto.GeminiEmbeddingRequest, error) {
-	request := &dto.GeminiEmbeddingRequest{}
+func GetAndValidateGeminiEmbeddingRequest(c *gin.Context) (*kitdto.GeminiEmbeddingRequest, error) {
+	request := &kitdto.GeminiEmbeddingRequest{}
 	err := common.UnmarshalBodyReusable(c, request)
 	if err != nil {
 		return nil, err
@@ -467,8 +468,8 @@ func GetAndValidateGeminiEmbeddingRequest(c *gin.Context) (*dto.GeminiEmbeddingR
 	return request, nil
 }
 
-func GetAndValidateGeminiBatchEmbeddingRequest(c *gin.Context) (*dto.GeminiBatchEmbeddingRequest, error) {
-	request := &dto.GeminiBatchEmbeddingRequest{}
+func GetAndValidateGeminiBatchEmbeddingRequest(c *gin.Context) (*kitdto.GeminiBatchEmbeddingRequest, error) {
+	request := &kitdto.GeminiBatchEmbeddingRequest{}
 	err := common.UnmarshalBodyReusable(c, request)
 	if err != nil {
 		return nil, err

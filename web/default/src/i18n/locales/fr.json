@@ -6721,5 +6721,7 @@
   "Start a playground chat": "Start a playground chat",
   "Stop": "Stop",
   "Unsaved changes": "Unsaved changes",
-  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?"
+  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?",
+  "Responses to Chat fallback": "Repli Responses vers Chat",
+  "Automatically fall back to Chat Completions when the channel does not support native /v1/responses. Enabled by default (inherit); when disabled, conversion failures return the error directly.": "Repli automatique vers Chat Completions lorsque le canal ne prend pas en charge /v1/responses nativement. Activé par défaut (hériter) ; une fois désactivé, les échecs de conversion renvoient directement l'erreur."
 }

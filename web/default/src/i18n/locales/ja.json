@@ -6721,5 +6721,7 @@
   "Start a playground chat": "Start a playground chat",
   "Stop": "Stop",
   "Unsaved changes": "Unsaved changes",
-  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?"
+  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?",
+  "Responses to Chat fallback": "Responses から Chat へのフォールバック",
+  "Automatically fall back to Chat Completions when the channel does not support native /v1/responses. Enabled by default (inherit); when disabled, conversion failures return the error directly.": "チャネルがネイティブの /v1/responses に対応していない場合、自動的に Chat Completions へフォールバックします。デフォルト（継承）は有効。無効にすると変換失敗時にエラーを直接返します。"
 }

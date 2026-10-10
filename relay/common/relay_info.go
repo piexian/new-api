@@ -4,15 +4,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	kittypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -28,23 +31,14 @@ type ThinkingContentInfo struct {
 }
 
 const (
-	LastMessageTypeNone     = "none"
-	LastMessageTypeText     = "text"
-	LastMessageTypeTools    = "tools"
-	LastMessageTypeThinking = "thinking"
+	LastMessageTypeNone     = convmeta.LastMessageTypeNone
+	LastMessageTypeText     = convmeta.LastMessageTypeText
+	LastMessageTypeTools    = convmeta.LastMessageTypeTools
+	LastMessageTypeThinking = convmeta.LastMessageTypeThinking
 )
 
-type ClaudeConvertInfo struct {
-	PendingContent   []dto.ClaudeMediaMessage
-	LastMessagesType string
-	Index            int
-	Usage            *dto.Usage
-	FinishReason     string
-	Done             bool
-
-	ToolCallBaseIndex      int
-	ToolCallMaxIndexOffset int
-}
+// ClaudeConvertInfo 已随转换器迁入 convmeta；别名保持宿主与适配层编译不变。
+type ClaudeConvertInfo = convmeta.ClaudeConvertInfo
 
 type RerankerInfo struct {
 	Documents       []any
@@ -84,6 +78,20 @@ type ChannelMeta struct {
 type TokenCountMeta struct {
 	//promptTokens int
 	estimatePromptTokens int
+	// convOptions 缓存转换器设置快照（见 ConvOptions）。
+	convOptions *convmeta.Options
+	// responsesToolState 请求转换写入、响应转换读取（见 ResponsesToolState）。
+	responsesToolState *convmeta.ResponsesToolState
+	// 转换损耗诊断：消费日志与请求级告警使用，见 conversion_diagnostics.go。
+	conversionDiagnostics          []kittypes.ConversionDiagnostic
+	conversionDiagnosticKeys       map[conversionDiagnosticKey]struct{}
+	conversionDiagnosticsTruncated bool
+	// VendorToolUsage 从上游原始响应读取其自报的计费工具次数；渠道适配器按需注入，nil 表示不适用。
+	VendorToolUsage func(raw []byte) map[string]int
+	// WebSearchBillingKey 覆盖 Claude handler 对 usage.server_tool_use.web_search_requests 的计价键；空为默认 web_search。
+	WebSearchBillingKey string
+	// requestInferredToolKey 记录当前渠道尝试按请求推断计费的工具键。
+	requestInferredToolKey string
 }
 
 type RelayInfo struct {
@@ -104,6 +112,8 @@ type RelayInfo struct {
 	UsePrice               bool
 	RelayMode              int
 	OriginModelName        string
+	// BillingModelName 计费身份，独立于客户端可见模型与上游路由模型。
+	BillingModelName string
 	RequestURLPath         string
 	RequestHeaders         map[string]string
 	ShouldIncludeUsage     bool
@@ -115,7 +125,11 @@ type RelayInfo struct {
 	RealtimeTools          []dto.RealTimeTool
 	IsFirstRequest         bool
 	AudioUsage             bool
-	ReasoningEffort        string
+	ReasoningEffort    string
+	// ReasoningConversion 记录模型后缀推导的推理意图，转换器经 ReasoningState() 读取。
+	ReasoningConversion *dto.ReasoningConversionState
+	// ResponseModel 保留上游声明的模型名，仅用于诊断，不参与路由与计费。
+	ResponseModel *ResponseModel
 	// ReasoningEffortOrigin 记录入站请求的原始推理等级, 与 ReasoningEffort 不同时在日志中输出映射
 	ReasoningEffortOrigin string
 	UserSetting           dto.UserSetting
@@ -553,7 +567,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 	isStream := false
 
 	if request != nil {
-		isStream = request.IsStream(c)
+		isStream = request.IsStream(c.Request)
 	}
 	c.Set(string(constant.ContextKeyIsStream), isStream)
 
@@ -803,9 +817,160 @@ func (info *RelayInfo) SetEstimatePromptTokens(promptTokens int) {
 }
 
 func (info *RelayInfo) GetEstimatePromptTokens() int {
+	if info == nil {
+		return 0
+	}
 	return info.estimatePromptTokens
 }
 
+// ---------------------------------------------------------------------------
+// convmeta.Meta 实现——转换器可见的会话视图；只暴露协议状态，不暴露计费/用户字段。
+// ---------------------------------------------------------------------------
+
+var _ convmeta.Meta = (*RelayInfo)(nil)
+
+func (info *RelayInfo) GetOriginModelName() string {
+	if info == nil {
+		return ""
+	}
+	return info.OriginModelName
+}
+
+// GetUpstreamModelName 在 InitChannelMeta 之前返回空（ChannelMeta 为 nil，见 #749/#750）。
+func (info *RelayInfo) GetUpstreamModelName() string {
+	if info == nil || info.ChannelMeta == nil {
+		return ""
+	}
+	return info.UpstreamModelName
+}
+
+func (info *RelayInfo) HasChannelMeta() bool { return info != nil && info.ChannelMeta != nil }
+
+func (info *RelayInfo) GetChannelID() int {
+	if info == nil || info.ChannelMeta == nil {
+		return 0
+	}
+	return info.ChannelId
+}
+
+func (info *RelayInfo) GetChannelType() int {
+	if info == nil || info.ChannelMeta == nil {
+		return 0
+	}
+	return info.ChannelType
+}
+
+func (info *RelayInfo) GetIsStream() bool {
+	return info != nil && info.IsStream
+}
+
+func (info *RelayInfo) GetReasoningEffort() string {
+	if info == nil {
+		return ""
+	}
+	return info.ReasoningEffort
+}
+
+func (info *RelayInfo) SetReasoningEffort(effort string) {
+	if info == nil {
+		return
+	}
+	info.ReasoningEffort = strings.TrimSpace(effort)
+}
+
+func (info *RelayInfo) ReasoningState() *dto.ReasoningConversionState {
+	if info == nil {
+		return nil
+	}
+	return info.ReasoningConversion
+}
+
+func (info *RelayInfo) EnsureClaudeConvertInfo() *convmeta.ClaudeConvertInfo {
+	if info == nil {
+		return &convmeta.ClaudeConvertInfo{
+			LastMessagesType: convmeta.LastMessageTypeNone,
+		}
+	}
+	if info.ClaudeConvertInfo == nil {
+		info.ClaudeConvertInfo = &convmeta.ClaudeConvertInfo{
+			LastMessagesType: convmeta.LastMessageTypeNone,
+		}
+	}
+	return info.ClaudeConvertInfo
+}
+
+func (info *RelayInfo) ResponsesToolState() *convmeta.ResponsesToolState {
+	if info == nil {
+		return nil
+	}
+	return info.responsesToolState
+}
+
+func (info *RelayInfo) SetResponsesToolState(state *convmeta.ResponsesToolState) {
+	if info != nil {
+		info.responsesToolState = state
+	}
+}
+
+func (info *RelayInfo) GetSendResponseCount() int {
+	if info == nil {
+		return 0
+	}
+	return info.SendResponseCount
+}
+
+func (info *RelayInfo) IncrSendResponseCount() {
+	if info == nil {
+		return
+	}
+	info.SendResponseCount++
+}
+
+// GetBillingModelName 返回计费身份；为空时回退 OriginModelName。
+func (info *RelayInfo) GetBillingModelName() string {
+	if info == nil {
+		return ""
+	}
+	if info.BillingModelName != "" {
+		return info.BillingModelName
+	}
+	return info.OriginModelName
+}
+
+
+// ConvOptions 为转换器快照宿主设置；一个请求会话只构建一次并缓存。
+func (info *RelayInfo) ConvOptions() *convmeta.Options {
+	if info != nil && info.convOptions != nil {
+		return info.convOptions
+	}
+
+	claudeSettings := model_setting.GetClaudeSettings()
+	geminiSettings := model_setting.GetGeminiSettings()
+	options := &convmeta.Options{
+		Claude: convmeta.ClaudeOptions{
+			ThinkingAdapterEnabled:                claudeSettings.ThinkingAdapterEnabled,
+			ThinkingAdapterBudgetTokensPercentage: claudeSettings.ThinkingAdapterBudgetTokensPercentage,
+			DefaultMaxTokens:                      claudeSettings.GetDefaultMaxTokens,
+		},
+		Gemini: convmeta.GeminiOptions{
+			ThinkingAdapterEnabled:              geminiSettings.ThinkingAdapterEnabled,
+			ThinkingAdapterBudgetTokensPercentage: geminiSettings.ThinkingAdapterBudgetTokensPercentage,
+			FunctionCallThoughtSignatureEnabled: geminiSettings.FunctionCallThoughtSignatureEnabled,
+			SupportsImagine:                     model_setting.IsGeminiModelSupportImagine,
+			SafetySetting:                       model_setting.GetGeminiSafetySetting,
+		},
+		OpenRouterDialect:      info != nil && info.GetChannelType() == constant.ChannelTypeOpenRouter,
+		PreserveThinkingSuffix: model_setting.ShouldPreserveThinkingSuffix,
+		PreserveEffortTail:     model_setting.ShouldPreserveEffortTail,
+	}
+	if info != nil {
+		if info.ChannelMeta != nil {
+			options.ToolLossPolicy = kittypes.ConversionLossPolicy(info.ChannelOtherSettings.ToolLossPolicy)
+		}
+		info.convOptions = options
+	}
+	return options
+}
 func (info *RelayInfo) SetFirstResponseTime() {
 	if info.isFirstResponse {
 		info.FirstResponseTime = time.Now()
@@ -852,7 +1017,7 @@ func (t *TaskSubmitReq) GetTokenCountMeta() *types.TokenCountMeta {
 	}
 }
 
-func (t *TaskSubmitReq) IsStream(*gin.Context) bool {
+func (t *TaskSubmitReq) IsStream(*http.Request) bool {
 	return false
 }
 

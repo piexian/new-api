@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	kittypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -393,6 +394,31 @@ func NewErrorWithStatusCode(err error, errorCode ErrorCode, statusCode int, ops 
 	return e
 }
 
+
+// WithKitOpenAIError 桥接 relaykit 的 OpenAIError（宿主结构多一个 NewAPIError 标记字段）。
+func WithKitOpenAIError(openAIError *kittypes.OpenAIError, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
+	if openAIError == nil {
+		return WithOpenAIError(OpenAIError{}, statusCode, ops...)
+	}
+	return WithOpenAIError(OpenAIError{
+		Message:  openAIError.Message,
+		Type:     openAIError.Type,
+		Param:    openAIError.Param,
+		Code:     openAIError.Code,
+		Metadata: openAIError.Metadata,
+	}, statusCode, ops...)
+}
+
+// WithKitClaudeError 桥接 relaykit 的 ClaudeError。
+func WithKitClaudeError(claudeError *kittypes.ClaudeError, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
+	if claudeError == nil {
+		return WithClaudeError(ClaudeError{}, statusCode, ops...)
+	}
+	return WithClaudeError(ClaudeError{
+		Type:    claudeError.Type,
+		Message: claudeError.Message,
+	}, statusCode, ops...)
+}
 func WithOpenAIError(openAIError OpenAIError, statusCode int, ops ...NewAPIErrorOptions) *NewAPIError {
 	code, ok := openAIError.Code.(string)
 	if !ok {

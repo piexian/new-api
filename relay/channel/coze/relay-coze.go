@@ -10,10 +10,11 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
 
@@ -146,6 +147,159 @@ func cozeChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 		usage = service.ResponseText2Usage(c, responseText, info.UpstreamModelName, c.GetInt("coze_input_count"))
 	}
 
+	return usage, nil
+}
+
+// cozeResponsesChatStreamHandler 在 Responses 自降级路径下把 coze 流式事件转回 Responses 协议输出
+func cozeResponsesChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	scanner := helper.NewStreamScanner(resp.Body)
+	scanner.Split(bufio.ScanLines)
+	id := helper.GetResponseID(c)
+
+	var currentEvent string
+	var currentData string
+	emitter := responsescompat.NewStreamEmitter(c, info)
+	emitter.SetResponseID(id)
+	emitter.SetModel(info.UpstreamModelName)
+	emitter.SetCreatedAt(common.GetTimestamp())
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if line == "" {
+			if currentEvent != "" && currentData != "" {
+				// handle last event
+				handleCozeResponsesEvent(c, currentEvent, currentData, emitter)
+				currentEvent = ""
+				currentData = ""
+			}
+			continue
+		}
+
+		if strings.HasPrefix(line, "event:") {
+			currentEvent = strings.TrimSpace(line[6:])
+			continue
+		}
+
+		if strings.HasPrefix(line, "data:") {
+			currentData = strings.TrimSpace(line[5:])
+			continue
+		}
+	}
+
+	// Last event
+	if currentEvent != "" && currentData != "" {
+		handleCozeResponsesEvent(c, currentEvent, currentData, emitter)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	if !emitter.Complete() {
+		return nil, emitter.Err()
+	}
+	return emitter.Usage(), nil
+}
+
+// handleCozeResponsesEvent 解析单个 coze SSE 事件并经 StreamEmitter 转为 Responses 事件
+func handleCozeResponsesEvent(c *gin.Context, event string, data string, emitter *responsescompat.StreamEmitter) {
+	switch event {
+	case "conversation.chat.completed":
+		// 将 data 解析为 CozeChatResponseData
+		var chatData CozeChatResponseData
+		err := json.Unmarshal([]byte(data), &chatData)
+		if err != nil {
+			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
+			return
+		}
+		emitter.SetUsage(&dto.Usage{
+			PromptTokens:     chatData.Usage.InputCount,
+			CompletionTokens: chatData.Usage.OutputCount,
+			TotalTokens:      chatData.Usage.TokenCount,
+		})
+
+	case "conversation.message.delta":
+		// 将 data 解析为 CozeChatV3MessageDetail
+		var messageData CozeChatV3MessageDetail
+		err := json.Unmarshal([]byte(data), &messageData)
+		if err != nil {
+			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
+			return
+		}
+
+		var content string
+		err = json.Unmarshal(messageData.Content, &content)
+		if err != nil {
+			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
+			return
+		}
+
+		if !emitter.SendTextDelta(content) && emitter.Err() != nil {
+			common.SysLog("error sending stream response: " + emitter.Err().Error())
+		}
+
+	case "error":
+		var errorData CozeError
+		err := json.Unmarshal([]byte(data), &errorData)
+		if err != nil {
+			common.SysLog("error_unmarshalling_stream_response: " + err.Error())
+			return
+		}
+
+		common.SysLog(fmt.Sprintf("stream event error: %v %v", errorData.Code, errorData.Message))
+	}
+}
+
+// cozeResponsesChatHandler 在 Responses 自降级路径下把 coze 响应转回 Responses 协议输出
+func cozeResponsesChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	service.CloseResponseBodyGracefully(resp)
+	var cozeResponse CozeChatDetailResponse
+	err = json.Unmarshal(responseBody, &cozeResponse)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	if cozeResponse.Code != 0 {
+		return nil, types.NewError(errors.New(cozeResponse.Msg), types.ErrorCodeBadResponseBody, types.ErrOptionWithUpstreamError())
+	}
+
+	var responseContent json.RawMessage
+	var createdAt int64
+	for _, data := range cozeResponse.Data {
+		if data.Type == "answer" {
+			responseContent = data.Content
+			createdAt = data.CreatedAt
+		}
+	}
+	chatResp := &dto.OpenAITextResponse{
+		Id:      helper.GetResponseID(c),
+		Object:  "chat.completion",
+		Created: createdAt,
+		Model:   info.UpstreamModelName,
+		Choices: []dto.OpenAITextResponseChoice{
+			{
+				Index:        0,
+				Message:      dto.Message{Role: "assistant", Content: responseContent},
+				FinishReason: "stop",
+			},
+		},
+		Usage: dto.Usage{
+			PromptTokens:     c.GetInt("coze_input_count"),
+			CompletionTokens: c.GetInt("coze_output_count"),
+			TotalTokens:      c.GetInt("coze_token_count"),
+		},
+	}
+	responsesResp, usage := responsescompat.ChatCompletionToResponse(c, info, chatResp)
+	responseJson, err := common.Marshal(responsesResp)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	c.Writer.Header().Set("Content-Type", "application/json")
+	c.Writer.WriteHeader(resp.StatusCode)
+	_, _ = c.Writer.Write(responseJson)
 	return usage, nil
 }
 

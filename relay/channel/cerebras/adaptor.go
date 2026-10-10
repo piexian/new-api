@@ -8,11 +8,12 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relaymode "github.com/QuantumNous/new-api/relay/constant"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -76,7 +77,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if info != nil && info.RelayMode != relaymode.RelayModeUnknown && info.RelayMode != relaymode.RelayModeChatCompletions {
 		return nil, errors.New("only /v1/chat/completions is supported on this channel")
 	}
+	return convertCerebrasChatRequest(c, info, request)
+}
 
+// convertCerebrasChatRequest 是 chat 载荷清洗的核心逻辑, 供 chat 入站与 Responses 自降级共用
+func convertCerebrasChatRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	normalizeCerebrasRequest(info, request)
 
 	payload := request.ToMap()
@@ -292,10 +297,33 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("/v1/responses is not supported on this channel")
+	// 渠道无原生 Responses 端点, 自行降级为 Chat Completions
+	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+	}
+	return convertCerebrasChatRequest(c, info, chatRequest)
+}
+
+func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	// Responses 自降级后 RelayMode 仍是 Responses, 需显式路由到 chat 端点
+	if info.RelayMode == relaymode.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/chat/completions", info.ChannelType), nil
+	}
+	return a.Adaptor.GetRequestURL(info)
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	// Responses 自降级后上游回的是 chat 协议, 转回 Responses 格式
+	if info.RelayMode == relaymode.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
+		if info.IsStream {
+			return openai.ChatCompletionResponsesStreamHandler(c, info, resp)
+		}
+		return openai.ChatCompletionResponsesHandler(c, info, resp)
+	}
 	return a.Adaptor.DoResponse(c, resp, info)
 }
 

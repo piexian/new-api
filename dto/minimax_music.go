@@ -2,10 +2,10 @@ package dto
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/types"
-	"github.com/gin-gonic/gin"
 )
 
 type MiniMaxMusicGenerationRequest struct {
@@ -26,7 +26,7 @@ func (r *MiniMaxMusicGenerationRequest) GetTokenCountMeta() *types.TokenCountMet
 	}
 }
 
-func (r *MiniMaxMusicGenerationRequest) IsStream(c *gin.Context) bool {
+func (r *MiniMaxMusicGenerationRequest) IsStream(c *http.Request) bool {
 	return r.Stream
 }
 
@@ -63,7 +63,7 @@ func (r *MiniMaxMusicCoverPreprocessRequest) GetTokenCountMeta() *types.TokenCou
 	}
 }
 
-func (r *MiniMaxMusicCoverPreprocessRequest) IsStream(c *gin.Context) bool {
+func (r *MiniMaxMusicCoverPreprocessRequest) IsStream(c *http.Request) bool {
 	return false
 }
 
@@ -91,7 +91,7 @@ func (r *MiniMaxLyricsGenerationRequest) GetTokenCountMeta() *types.TokenCountMe
 	}
 }
 
-func (r *MiniMaxLyricsGenerationRequest) IsStream(c *gin.Context) bool {
+func (r *MiniMaxLyricsGenerationRequest) IsStream(c *http.Request) bool {
 	return false
 }
 

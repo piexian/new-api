@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/service/relayconvert"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
 )
@@ -26,11 +26,14 @@ func TestClaudeConvertersPreserveImageContent(t *testing.T) {
 					if typed {
 						req.Messages[0].SetMediaContent(req.Messages[0].ParseContent())
 					}
+					// kit 转换器要求 max_tokens（Claude API 强制），与生产请求一致。
+					maxTokens := uint(1024)
+					req.MaxTokens = &maxTokens
 					copied, err := common.DeepCopy(&req)
 					require.NoError(t, err)
 					var converted *dto.ClaudeRequest
 					if legacy {
-						converted, err = RequestOpenAI2ClaudeMessage(nil, *copied)
+						converted, err = RequestOpenAI2ClaudeMessage(nil, nil, *copied)
 					} else {
 						var result *relayconvert.RequestResult
 						result, err = relayconvert.ConvertRequest(nil, nil, types.RelayFormatClaude, copied)

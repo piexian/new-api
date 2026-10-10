@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -54,7 +56,15 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *common.RelayInfo, r
 
 // ConvertOpenAIResponsesRequest implements channel.Adaptor.
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *common.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	// 渠道无原生 Responses 端点, 自行降级为 Chat Completions
+	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
+	if err != nil {
+		return nil, err
+	}
+	if info != nil {
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+	}
+	return convertCozeChatRequest(c, *chatRequest), nil
 }
 
 // ConvertRerankRequest implements channel.Adaptor.
@@ -103,6 +113,13 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *common.RelayInfo, requestBody 
 
 // DoResponse implements channel.Adaptor.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *common.RelayInfo) (usage any, err *types.NewAPIError) {
+	// Responses 自降级后上游回的是 coze 格式, 转回 Responses 协议输出
+	if info.RelayMode == relayconstant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
+		if info.IsStream {
+			return cozeResponsesChatStreamHandler(c, info, resp)
+		}
+		return cozeResponsesChatHandler(c, info, resp)
+	}
 	if info.IsStream {
 		usage, err = cozeChatStreamHandler(c, info, resp)
 	} else {

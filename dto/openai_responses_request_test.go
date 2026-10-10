@@ -4,13 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/types"
 )
 
 func TestOpenAIResponsesRequestParseInputSupportsMiniMaxM3Media(t *testing.T) {
 	t.Parallel()
 
-	req := OpenAIResponsesRequest{
+	req := kitdto.OpenAIResponsesRequest{
 		Model: "MiniMax-M3",
 		Input: []byte(`[
 			{

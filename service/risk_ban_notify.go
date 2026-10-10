@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 // 风控通知类型，作为独立的通知限流 key，避免封禁风暴期间挤占普通通知配额。

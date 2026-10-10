@@ -4,8 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/service/relayconvert"
+	"github.com/QuantumNous/new-api/relay/helper"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -336,7 +338,13 @@ func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48HighUsesAdaptiveThinking(
 		},
 	}
 
-	claudeRequest, err := relayconvert.OpenAIChatRequestToClaudeMessages(nil, request)
+	// kit 转换器经 Meta 读后缀意图并派生 max_tokens；模拟生产入口的后缀挂载。
+	info := &relaycommon.RelayInfo{OriginModelName: request.Model}
+	info.ChannelMeta = &relaycommon.ChannelMeta{}
+	info.UpstreamModelName = request.Model
+	require.NoError(t, helper.ApplyReasoningModelSuffix(nil, info))
+	request.SetModelName(info.UpstreamModelName)
+	claudeRequest, err := relayconvert.OpenAIChatRequestToClaudeMessages(nil, info, request)
 	require.NoError(t, err)
 	require.Equal(t, "claude-opus-4-8", claudeRequest.Model)
 	require.NotNil(t, claudeRequest.Thinking)
@@ -362,7 +370,13 @@ func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48ThinkingUsesAdaptiveHighE
 		},
 	}
 
-	claudeRequest, err := relayconvert.OpenAIChatRequestToClaudeMessages(nil, request)
+	// kit 转换器经 Meta 读后缀意图并派生 max_tokens；模拟生产入口的后缀挂载。
+	info := &relaycommon.RelayInfo{OriginModelName: request.Model}
+	info.ChannelMeta = &relaycommon.ChannelMeta{}
+	info.UpstreamModelName = request.Model
+	require.NoError(t, helper.ApplyReasoningModelSuffix(nil, info))
+	request.SetModelName(info.UpstreamModelName)
+	claudeRequest, err := relayconvert.OpenAIChatRequestToClaudeMessages(nil, info, request)
 	require.NoError(t, err)
 	require.Equal(t, "claude-opus-4-8", claudeRequest.Model)
 	require.NotNil(t, claudeRequest.Thinking)

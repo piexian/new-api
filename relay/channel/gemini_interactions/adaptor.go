@@ -13,13 +13,14 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/service/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	forkrelayconvert "github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/types"
 
 	gemini "github.com/QuantumNous/new-api/relay/channel/gemini"
@@ -55,7 +56,7 @@ type Adaptor struct {
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	// 注入桥接查找,使统一转换器能做工具调用续链
-	relayconvert.SetGeminiInteractionsBridgeLookup(interactionsBridgeLookup)
+	forkrelayconvert.SetGeminiInteractionsBridgeLookup(interactionsBridgeLookup)
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
@@ -159,7 +160,7 @@ func isEmbeddingModelName(name string) bool {
 }
 
 // interactionsBridgeLookup 工具调用桥接查找:校验归属,命中锁定原上游 key
-func interactionsBridgeLookup(info *relaycommon.RelayInfo) relayconvert.BridgeLookup {
+func interactionsBridgeLookup(info *relaycommon.RelayInfo) forkrelayconvert.BridgeLookup {
 	return func(callID string) (string, bool) {
 		bridge := service.GetGeminiInteractionToolCallBridge(callID)
 		if bridge == nil || bridge.UserID != info.UserId || bridge.ChannelID != info.ChannelId {

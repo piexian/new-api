@@ -2,10 +2,11 @@ package dto
 
 import (
 	"encoding/json"
+	"net/http"
 	"strings"
 
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/types"
-	"github.com/gin-gonic/gin"
 )
 
 // CohereNativeRequest retains routing and billing fields while its original JSON body is forwarded unchanged.
@@ -13,14 +14,14 @@ type CohereNativeRequest struct {
 	Model     string            `json:"model"`
 	Stream    bool              `json:"stream"`
 	MaxTokens *uint             `json:"max_tokens,omitempty"`
-	Messages  []Message         `json:"messages,omitempty"`
+	Messages  []kitdto.Message  `json:"messages,omitempty"`
 	Texts     []string          `json:"texts,omitempty"`
 	Query     string            `json:"query,omitempty"`
 	Documents []json.RawMessage `json:"documents,omitempty"`
 }
 
-func (r *CohereNativeRequest) SetModelName(name string)     { r.Model = name }
-func (r *CohereNativeRequest) IsStream(_ *gin.Context) bool { return r.Stream }
+func (r *CohereNativeRequest) SetModelName(name string)    { r.Model = name }
+func (r *CohereNativeRequest) IsStream(*http.Request) bool { return r.Stream }
 func (r *CohereNativeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	parts := make([]string, 0, len(r.Texts)+len(r.Documents)+len(r.Messages)+1)
 	parts = append(parts, r.Query)

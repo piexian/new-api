@@ -6,12 +6,12 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
 	openaichannel "github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
@@ -20,7 +20,9 @@ import (
 )
 
 // responsesViaChatCompletions 渠道不支持原生 /v1/responses 协议时的自动降级:
-// 请求转 Chat Completions(复用渠道自身的 chat 转换/清洗), 响应再转回 Responses 协议
+// 请求转 Chat Completions(复用渠道自身的 chat 转换/清洗), 响应再转回 Responses 协议。
+// 约定: 新渠道不支持原生 Responses 时应在自身 ConvertOpenAIResponsesRequest 内自行降级
+// (参考 mistral), 不要依赖本全局兜底; 它仅为兼容存量配置保留, 受渠道级开关控制。
 func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request *dto.OpenAIResponsesRequest) (*dto.Usage, *types.NewAPIError) {
 	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(*request)
 	if err != nil {
@@ -108,4 +110,13 @@ func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, newAPIError
 	}
 	return usage, nil
+}
+
+// responsesViaChatFallbackDisabled 渠道级开关: false=关闭降级。
+// ChannelSetting 是 ChannelMeta 的提升字段, InitChannelMeta 前恒为 nil, 先判空再读。
+func responsesViaChatFallbackDisabled(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil || info.ChannelSetting.ResponsesViaChatFallbackEnabled == nil {
+		return false
+	}
+	return !*info.ChannelSetting.ResponsesViaChatFallbackEnabled
 }

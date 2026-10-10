@@ -254,6 +254,7 @@ const EditChannelModal = (props) => {
     zcode_mode_enabled: false,
     use_responses_api: false,
     chat_completions_to_responses_mode: 'inherit',
+    responses_via_chat_fallback_mode: 'inherit',
     chat_completions_to_responses_models: [],
     system_prompt: '',
     system_prompt_override: false,
@@ -598,6 +599,7 @@ const EditChannelModal = (props) => {
     zcode_mode_enabled: false,
     use_responses_api: false,
     chat_completions_to_responses_mode: 'inherit',
+    responses_via_chat_fallback_mode: 'inherit',
     chat_completions_to_responses_models: [],
     system_prompt: '',
     plan_quota_cooldown_enabled: false,
@@ -1121,6 +1123,13 @@ const EditChannelModal = (props) => {
             : parsedSettings.use_responses_api === true
               ? ['.*']
               : [];
+          data.responses_via_chat_fallback_mode =
+            typeof parsedSettings.responses_via_chat_fallback_enabled ===
+            'boolean'
+              ? parsedSettings.responses_via_chat_fallback_enabled
+                ? 'enabled'
+                : 'disabled'
+              : 'inherit';
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
             parsedSettings.system_prompt_override || false;
@@ -1138,6 +1147,7 @@ const EditChannelModal = (props) => {
           data.upstream_openai_compat_enabled = false;
           data.zcode_mode_enabled = false;
           data.chat_completions_to_responses_mode = 'inherit';
+          data.responses_via_chat_fallback_mode = 'inherit';
           data.chat_completions_to_responses_models = [];
           data.system_prompt = '';
           data.system_prompt_override = false;
@@ -1154,6 +1164,7 @@ const EditChannelModal = (props) => {
         data.upstream_openai_compat_enabled = false;
         data.zcode_mode_enabled = false;
         data.chat_completions_to_responses_mode = 'inherit';
+        data.responses_via_chat_fallback_mode = 'inherit';
         data.chat_completions_to_responses_models = [];
         data.system_prompt = '';
         data.system_prompt_override = false;
@@ -1291,6 +1302,8 @@ const EditChannelModal = (props) => {
         use_responses_api: data.use_responses_api || false,
         chat_completions_to_responses_mode:
           data.chat_completions_to_responses_mode || 'inherit',
+        responses_via_chat_fallback_mode:
+          data.responses_via_chat_fallback_mode || 'inherit',
         chat_completions_to_responses_models:
           data.chat_completions_to_responses_models || [],
         system_prompt: data.system_prompt,
@@ -1696,6 +1709,7 @@ const EditChannelModal = (props) => {
       zcode_mode_enabled: false,
       use_responses_api: false,
       chat_completions_to_responses_mode: 'inherit',
+      responses_via_chat_fallback_mode: 'inherit',
       chat_completions_to_responses_models: [],
       system_prompt: '',
       system_prompt_override: false,
@@ -2142,6 +2156,10 @@ const EditChannelModal = (props) => {
     if (localInputs.chat_completions_to_responses_mode !== 'inherit') {
       channelExtraSettings.chat_completions_to_responses_enabled =
         localInputs.chat_completions_to_responses_mode === 'enabled';
+    }
+    if (localInputs.responses_via_chat_fallback_mode !== 'inherit') {
+      channelExtraSettings.responses_via_chat_fallback_enabled =
+        localInputs.responses_via_chat_fallback_mode === 'enabled';
     }
     const chatToResponsesModels = Array.from(
       new Set(
@@ -3166,6 +3184,26 @@ const EditChannelModal = (props) => {
                     }
                     extraText={t(
                       '留空时继承全局模型规则；填写后将覆盖此渠道的全局规则',
+                    )}
+                  />
+
+                  <Form.Select
+                    field='responses_via_chat_fallback_mode'
+                    label={t('Responses 转 Chat 兜底')}
+                    optionList={[
+                      { value: 'inherit', label: t('继承全局配置') },
+                      { value: 'enabled', label: t('为此渠道启用') },
+                      { value: 'disabled', label: t('为此渠道禁用') },
+                    ]}
+                    style={{ width: '100%' }}
+                    onChange={(value) =>
+                      handleChannelSettingsChange(
+                        'responses_via_chat_fallback_mode',
+                        value,
+                      )
+                    }
+                    extraText={t(
+                      '渠道不支持原生 /v1/responses 时自动降级为 Chat Completions。默认（继承）开启；关闭后转换失败将直接返回错误。',
                     )}
                   />
 
