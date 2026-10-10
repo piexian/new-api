@@ -6,11 +6,11 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/service/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -74,7 +74,7 @@ func zhipuClaudeResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayIn
 			return
 		}
 		if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
-			streamErr = types.WithClaudeError(*claudeError, http.StatusInternalServerError)
+			streamErr = types.WithKitClaudeError(claudeError, http.StatusInternalServerError)
 			sr.Stop(streamErr)
 			return
 		}

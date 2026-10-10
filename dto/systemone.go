@@ -2,20 +2,21 @@ package dto
 
 import (
 	"encoding/json"
+	"net/http"
 
-	"github.com/gin-gonic/gin"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 // SystemOneRequest 是 TypeSafe System One (/v1/systemone) 的原生请求体,
 // state/questions 用 RawMessage 保真透传
 type SystemOneRequest struct {
-	BaseRequest
+	kitdto.BaseRequest
 	Model     string          `json:"model"`
 	State     json.RawMessage `json:"state,omitempty"`
 	Questions json.RawMessage `json:"questions,omitempty"`
 }
 
-func (r *SystemOneRequest) IsStream(c *gin.Context) bool {
+func (r *SystemOneRequest) IsStream(c *http.Request) bool {
 	return false
 }
 

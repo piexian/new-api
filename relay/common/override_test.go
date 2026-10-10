@@ -9,7 +9,7 @@ import (
 	common2 "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/types"
 
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"

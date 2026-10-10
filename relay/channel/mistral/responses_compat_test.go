@@ -9,9 +9,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	globalconstant "github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -334,8 +334,18 @@ func TestMistralMessagesHandlerReturnsClaudeResponse(t *testing.T) {
 	if err := common.Unmarshal(recorder.Body.Bytes(), &claudeResponse); err != nil {
 		t.Fatalf("response is not Claude format: %v", err)
 	}
-	if claudeResponse.Type != "message" || len(claudeResponse.Content) == 0 || claudeResponse.Content[0].GetText() != "answer" {
+	if claudeResponse.Type != "message" || len(claudeResponse.Content) == 0 {
 		t.Fatalf("Claude response = %#v, want assistant answer", claudeResponse)
+	}
+	foundText := false
+	for _, block := range claudeResponse.Content {
+		if block.Type == "text" && block.GetText() == "answer" {
+			foundText = true
+			break
+		}
+	}
+	if !foundText {
+		t.Fatalf("Claude response = %#v, want text block with answer", claudeResponse)
 	}
 }
 

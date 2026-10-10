@@ -12,9 +12,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
@@ -91,6 +91,35 @@ func streamResponseBaidu2OpenAI(baiduResponse *BaiduChatStreamResponse) *dto.Cha
 		Choices: []dto.ChatCompletionsStreamResponseChoice{choice},
 	}
 	return &response
+}
+
+// responsesStreamData2Chat 把百度流式 chunk 转为 OpenAI chat chunk JSON, 供 Responses 自降级转回协议用
+func responsesStreamData2Chat(data string) (string, error) {
+	var baiduResponse BaiduChatStreamResponse
+	if err := common.Unmarshal([]byte(data), &baiduResponse); err != nil {
+		return "", err
+	}
+	response := streamResponseBaidu2OpenAI(&baiduResponse)
+	if baiduResponse.Usage.TotalTokens != 0 {
+		response.Usage = &baiduResponse.Usage
+	}
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonData), nil
+}
+
+// responsesBody2Chat 把百度响应体转为 OpenAI chat 响应 JSON, 供 Responses 自降级转回协议用
+func responsesBody2Chat(body []byte) ([]byte, error) {
+	var baiduResponse BaiduChatResponse
+	if err := common.Unmarshal(body, &baiduResponse); err != nil {
+		return nil, err
+	}
+	if baiduResponse.ErrorMsg != "" {
+		return nil, fmt.Errorf("%s", baiduResponse.ErrorMsg)
+	}
+	return json.Marshal(responseBaidu2OpenAI(&baiduResponse))
 }
 
 func embeddingRequestOpenAI2Baidu(request dto.EmbeddingRequest) *BaiduEmbeddingRequest {

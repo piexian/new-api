@@ -6721,5 +6721,7 @@
   "Start a playground chat": "Start a playground chat",
   "Stop": "Stop",
   "Unsaved changes": "Unsaved changes",
-  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?"
+  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?",
+  "Responses to Chat fallback": "Резервный переход Responses в Chat",
+  "Automatically fall back to Chat Completions when the channel does not support native /v1/responses. Enabled by default (inherit); when disabled, conversion failures return the error directly.": "Автоматический переход на Chat Completions, если канал не поддерживает нативный /v1/responses. По умолчанию включено (наследование); при отключении ошибка конвертации возвращается напрямую."
 }

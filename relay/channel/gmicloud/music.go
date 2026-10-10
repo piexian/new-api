@@ -9,8 +9,9 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
@@ -100,7 +101,7 @@ type miniMaxBaseResp struct {
 }
 
 // handleMiniMaxMusicResponse translates a GMI task result to the MiniMax native response.
-func handleMiniMaxMusicResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
+func handleMiniMaxMusicResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*kitdto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewErrorWithStatusCode(
 			fmt.Errorf("gmicloud: empty music submit response"),
@@ -183,7 +184,7 @@ func handleMiniMaxMusicResponse(c *gin.Context, resp *http.Response, info *relay
 	if promptTokens <= 0 {
 		promptTokens = 1
 	}
-	return &dto.Usage{PromptTokens: promptTokens, TotalTokens: promptTokens}, nil
+	return &kitdto.Usage{PromptTokens: promptTokens, TotalTokens: promptTokens}, nil
 }
 
 func miniMaxMusicOutput(c *gin.Context, info *relaycommon.RelayInfo, audioURL string) (string, int64, *types.NewAPIError) {

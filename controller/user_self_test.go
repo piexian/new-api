@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	newapii18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"

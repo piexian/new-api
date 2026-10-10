@@ -13,9 +13,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
@@ -221,6 +221,51 @@ func streamResponseDify2OpenAI(difyResponse DifyChunkChatCompletionResponse) *dt
 	}
 	response.Choices = append(response.Choices, choice)
 	return &response
+}
+
+// responsesStreamData2Chat 把 dify 流式事件转为 OpenAI chat chunk JSON, 供 Responses 自降级转回协议用
+func responsesStreamData2Chat(data string) (string, error) {
+	var difyResponse DifyChunkChatCompletionResponse
+	if err := json.Unmarshal([]byte(data), &difyResponse); err != nil {
+		return "", err
+	}
+	if difyResponse.Event == "error" {
+		return "", fmt.Errorf("dify error event")
+	}
+	response := *streamResponseDify2OpenAI(difyResponse)
+	if difyResponse.Event == "message_end" {
+		response.Usage = &difyResponse.MetaData.Usage
+	}
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonData), nil
+}
+
+// responsesBody2Chat 把 dify 响应体转为 OpenAI chat 响应 JSON, 供 Responses 自降级转回协议用
+func responsesBody2Chat(body []byte) ([]byte, error) {
+	var difyResponse DifyChatCompletionResponse
+	if err := json.Unmarshal(body, &difyResponse); err != nil {
+		return nil, err
+	}
+	response := dto.OpenAITextResponse{
+		Id:      difyResponse.ConversationId,
+		Object:  "chat.completion",
+		Created: common.GetTimestamp(),
+		Usage:   difyResponse.MetaData.Usage,
+		Choices: []dto.OpenAITextResponseChoice{
+			{
+				Index: 0,
+				Message: dto.Message{
+					Role:    "assistant",
+					Content: difyResponse.Answer,
+				},
+				FinishReason: "stop",
+			},
+		},
+	}
+	return json.Marshal(response)
 }
 
 func difyStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {

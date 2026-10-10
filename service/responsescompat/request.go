@@ -7,10 +7,14 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/samber/lo"
 )
 
+// ConvertToOpenAIChatRequest 把 /v1/responses 请求转为 Chat Completions 请求。
+// 约定: 渠道不支持原生 Responses 协议时, 应在自身 ConvertOpenAIResponsesRequest 内
+// 调用本函数自行降级 (参考 mistral); relay 包的全局兜底仅为兼容存量配置保留,
+// 新渠道不要依赖它。
 func ConvertToOpenAIChatRequest(req dto.OpenAIResponsesRequest) (*dto.GeneralOpenAIRequest, error) {
 	messages, err := responsesInputToMessages(req)
 	if err != nil {

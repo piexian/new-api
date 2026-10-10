@@ -9,14 +9,16 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/service/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	forkrelayconvert "github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
@@ -28,7 +30,7 @@ import (
 type Adaptor struct {
 }
 
-func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *kitdto.GeminiChatRequest) (any, error) {
 	if len(request.Contents) > 0 {
 		for i, content := range request.Contents {
 			if i == 0 {
@@ -48,12 +50,12 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	return request, nil
 }
 
-func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
+func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *kitdto.ClaudeRequest) (any, error) {
 	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, req)
 	if err != nil {
 		return nil, err
 	}
-	geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
+	geminiRequest, ok := result.Value.(*kitdto.GeminiChatRequest)
 	if !ok {
 		return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
 	}
@@ -63,12 +65,12 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	return geminiRequest, nil
 }
 
-func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
+func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.AudioRequest) (io.Reader, error) {
 	//TODO implement me
 	return nil, errors.New("not implemented")
 }
 
-func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.ImageRequest) (any, error) {
 	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return nil, errors.New("not supported model for image generation, only imagen models are supported")
 	}
@@ -96,13 +98,13 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	// build gemini imagen request
-	geminiRequest := dto.GeminiImageRequest{
-		Instances: []dto.GeminiImageInstance{
+	geminiRequest := kitdto.GeminiImageRequest{
+		Instances: []kitdto.GeminiImageInstance{
 			{
 				Prompt: request.Prompt,
 			},
 		},
-		Parameters: dto.GeminiImageParameters{
+		Parameters: kitdto.GeminiImageParameters{
 			SampleCount:      int(lo.FromPtrOr(request.N, uint(1))),
 			AspectRatio:      aspectRatio,
 			PersonGeneration: "allow_adult", // default allow adult
@@ -216,14 +218,14 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
-func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *kitdto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
 	if info.UpstreamOpenAICompatChat() {
 		// 直传上游兼容层:请求保持 OpenAI 形状;流式必须显式索要 usage 供计费
 		if request.Stream != nil && *request.Stream && request.StreamOptions == nil {
-			request.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+			request.StreamOptions = &kitdto.StreamOptions{IncludeUsage: true}
 		}
 		return request, nil
 	}
@@ -234,11 +236,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	return result.Value, nil
 }
 
-func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
+func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request kitdto.RerankRequest) (any, error) {
 	return nil, nil
 }
 
-func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.EmbeddingRequest) (any, error) {
 	if request.Input == nil {
 		return nil, errors.New("input is required")
 	}
@@ -252,7 +254,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	if strings.Contains(info.RequestURLPath, ":embedContent") && !strings.Contains(info.RequestURLPath, ":batchEmbedContents") {
 		return map[string]interface{}{
 			"model":   fmt.Sprintf("models/%s", info.UpstreamModelName),
-			"content": dto.GeminiChatContent{Parts: []dto.GeminiPart{{Text: inputs[0]}}},
+			"content": kitdto.GeminiChatContent{Parts: []kitdto.GeminiPart{{Text: inputs[0]}}},
 		}, nil
 	}
 	info.IsGeminiBatchEmbedding = true
@@ -261,8 +263,8 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	for _, input := range inputs {
 		geminiRequest := map[string]interface{}{
 			"model": fmt.Sprintf("models/%s", info.UpstreamModelName),
-			"content": dto.GeminiChatContent{
-				Parts: []dto.GeminiPart{
+			"content": kitdto.GeminiChatContent{
+				Parts: []kitdto.GeminiPart{
 					{
 						Text: input,
 					},
@@ -288,12 +290,12 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	}, nil
 }
 
-func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.OpenAIResponsesRequest) (any, error) {
 	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, &request)
 	if err != nil {
 		return nil, err
 	}
-	geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
+	geminiRequest, ok := result.Value.(*kitdto.GeminiChatRequest)
 	if !ok {
 		return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
 	}
@@ -378,7 +380,7 @@ func ConvertInteractionsUpstreamResponse(c *gin.Context, info *relaycommon.Relay
 	}
 	if strings.HasPrefix(resp.Header.Get("Content-Type"), "text/event-stream") {
 		streamInfo := info
-		resp.Body = io.NopCloser(relayconvert.NewInteractionsSSETranslatorWithCallback(resp.Body, func(interactionID string, callIDs []string) {
+		resp.Body = io.NopCloser(forkrelayconvert.NewInteractionsSSETranslatorWithCallback(resp.Body, func(interactionID string, callIDs []string) {
 			saveGeminiInteractionToolCallBridges(streamInfo, interactionID, callIDs)
 		}))
 		return resp
@@ -402,11 +404,11 @@ func ConvertInteractionsUpstreamResponse(c *gin.Context, info *relaycommon.Relay
 		}
 		saveGeminiInteractionToolCallBridges(info, interaction.ID, callIDs)
 	}
-	geminiResp := relayconvert.InteractionToGeminiChatResponse(&interaction, 0)
+	geminiResp := forkrelayconvert.InteractionToGeminiChatResponse(&interaction, 0)
 	data, err := common.Marshal(geminiResp)
 	if err != nil {
 		interaction = dto.GeminiInteraction{Status: "failed"}
-		geminiResp = relayconvert.InteractionToGeminiChatResponse(&interaction, 0)
+		geminiResp = forkrelayconvert.InteractionToGeminiChatResponse(&interaction, 0)
 		data, _ = common.Marshal(geminiResp)
 	}
 	resp.Body = io.NopCloser(bytes.NewReader(data))

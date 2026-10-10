@@ -7,11 +7,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel/gmicloud"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -104,9 +105,9 @@ func MiniMaxNativeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErr
 	}
 	restoreBillingModel()
 
-	usageDto, ok := usage.(*dto.Usage)
+	usageDto, ok := usage.(*kitdto.Usage)
 	if !ok || usageDto == nil {
-		usageDto = &dto.Usage{PromptTokens: 1, TotalTokens: 1}
+		usageDto = &kitdto.Usage{PromptTokens: 1, TotalTokens: 1}
 	}
 	if usageDto.PromptTokens <= 0 {
 		usageDto.PromptTokens = 1

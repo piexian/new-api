@@ -6721,5 +6721,7 @@
   "Start a playground chat": "开始对话",
   "Stop": "停止",
   "Unsaved changes": "有未保存的更改",
-  "You have unsaved changes. Are you sure you want to leave?": "有未保存的更改，确定要离开吗？"
+  "You have unsaved changes. Are you sure you want to leave?": "有未保存的更改，确定要离开吗？",
+  "Responses to Chat fallback": "Responses 转 Chat 兜底",
+  "Automatically fall back to Chat Completions when the channel does not support native /v1/responses. Enabled by default (inherit); when disabled, conversion failures return the error directly.": "渠道不支持原生 /v1/responses 时自动降级为 Chat Completions。默认（继承）开启；关闭后转换失败将直接返回错误。"
 }

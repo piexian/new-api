@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -102,7 +102,7 @@ func TestConvertOpenAIResponsesRequestToGeminiFunctionCallConversation(t *testin
 	assert.Equal(t, map[string]interface{}{"ok": true}, got.Contents[1].Parts[0].FunctionResponse.Response)
 }
 
-func TestConvertOpenAIResponsesRequestToGeminiRejectsUnsupportedCustomTools(t *testing.T) {
+func TestConvertOpenAIResponsesRequestToGeminiEncodesCustomTools(t *testing.T) {
 	for _, withDefinition := range []bool{false, true} {
 		req := dto.OpenAIResponsesRequest{
 			Model: "gemini-test",
@@ -115,9 +115,11 @@ func TestConvertOpenAIResponsesRequestToGeminiRejectsUnsupportedCustomTools(t *t
 			req.Tools = mustGeminiRawMessage(t, []map[string]any{{"type": "custom", "name": "apply_patch"}})
 		}
 		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: req.Model}}
+		// relaykit 支持 custom tool：custom_tool_call 以单字符串参数的 function call 上行，
+		// 输出按 tool 回复回传；原始 Input 保持不变。
 		got, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, info, req)
-		require.ErrorContains(t, err, "cannot preserve Responses")
-		require.Nil(t, got)
+		require.NoError(t, err)
+		require.NotNil(t, got)
 		assert.Contains(t, string(req.Input), "important result")
 	}
 }

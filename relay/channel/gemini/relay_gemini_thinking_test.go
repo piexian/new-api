@@ -3,8 +3,8 @@ package gemini
 import (
 	"testing"
 
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/stretchr/testify/require"

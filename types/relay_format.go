@@ -1,29 +1,36 @@
 package types
 
-type RelayFormat string
+// relaykit 迁移：RelayFormat 统一到 relaykit/types，此处保留别名与 fork 专属格式常量。
+import (
+	kit_types "github.com/QuantumNous/new-api/relaykit/types"
+)
+
+type RelayFormat = kit_types.RelayFormat
 
 const (
-	RelayFormatOpenAI                    RelayFormat = "openai"
-	RelayFormatClaude                                = "claude"
-	RelayFormatGemini                                = "gemini"
-	RelayFormatGeminiInteractions                    = "gemini_interactions"
-	RelayFormatOpenAIResponses                       = "openai_responses"
-	RelayFormatOpenAIResponsesCompaction             = "openai_responses_compaction"
-	RelayFormatOpenAIAudio                           = "openai_audio"
-	RelayFormatOpenAIImage                           = "openai_image"
-	RelayFormatOpenAIRealtime                        = "openai_realtime"
-	RelayFormatRerank                                = "rerank"
-	RelayFormatEmbedding                             = "embedding"
-	RelayFormatMiniMax                               = "minimax"
-	RelayFormatXAI                                   = "xai"
-	RelayFormatXAIRealtime                           = "xai_realtime"
-	RelayFormatMoarkNative                           = "moark_native"
-	RelayFormatStepFunNative                         = "stepfun_native"
-	RelayFormatCohereNative                          = "cohere_native"
-	RelayFormatStepFunWss                            = "stepfun_wss"
-	RelayFormatOCR                                   = "ocr"
-	RelayFormatTypeSafe                              = "typesafe"
+	RelayFormatOpenAI                       = kit_types.RelayFormatOpenAI
+	RelayFormatClaude                       = kit_types.RelayFormatClaude
+	RelayFormatGemini                       = kit_types.RelayFormatGemini
+	RelayFormatOpenAIResponses              = kit_types.RelayFormatOpenAIResponses
+	RelayFormatOpenAIResponsesCompaction    = kit_types.RelayFormatOpenAIResponsesCompaction
+	RelayFormatOpenAIAudio                  = kit_types.RelayFormatOpenAIAudio
+	RelayFormatOpenAIImage                  = kit_types.RelayFormatOpenAIImage
+	RelayFormatOpenAIRealtime               = kit_types.RelayFormatOpenAIRealtime
+	RelayFormatRerank                       = kit_types.RelayFormatRerank
+	RelayFormatEmbedding                    = kit_types.RelayFormatEmbedding
+	RelayFormatTask                         = kit_types.RelayFormatTask
+	RelayFormatMjProxy                      = kit_types.RelayFormatMjProxy
+	RelayFormatOpenAIAlphaSearch            = kit_types.RelayFormatOpenAIAlphaSearch
 
-	RelayFormatTask    = "task"
-	RelayFormatMjProxy = "mj_proxy"
+	// 以下为 fork 专属协议格式（kit 内无对应转换路由）。
+	RelayFormatGeminiInteractions RelayFormat = "gemini_interactions"
+	RelayFormatMiniMax            RelayFormat = "minimax"
+	RelayFormatXAI                RelayFormat = "xai"
+	RelayFormatXAIRealtime        RelayFormat = "xai_realtime"
+	RelayFormatMoarkNative        RelayFormat = "moark_native"
+	RelayFormatStepFunNative      RelayFormat = "stepfun_native"
+	RelayFormatCohereNative       RelayFormat = "cohere_native"
+	RelayFormatStepFunWss         RelayFormat = "stepfun_wss"
+	RelayFormatOCR                RelayFormat = "ocr"
+	RelayFormatTypeSafe           RelayFormat = "typesafe"
 )

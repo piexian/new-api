@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGeneralErrorResponseDetailObjectMessage(t *testing.T) {
-	var resp GeneralErrorResponse
+	var resp kitdto.GeneralErrorResponse
 	err := common.Unmarshal([]byte(`{"detail":{"error":"Content violates usage guidelines"}}`), &resp)
 	require.NoError(t, err)
 
@@ -16,7 +17,7 @@ func TestGeneralErrorResponseDetailObjectMessage(t *testing.T) {
 }
 
 func TestGeneralErrorResponseDetailOpenAIError(t *testing.T) {
-	var resp GeneralErrorResponse
+	var resp kitdto.GeneralErrorResponse
 	err := common.Unmarshal([]byte(`{"detail":{"message":"Failed check: SAFETY_CHECK_TYPE","type":"invalid_request_error","code":"bad_request"}}`), &resp)
 	require.NoError(t, err)
 

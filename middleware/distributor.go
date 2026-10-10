@@ -12,7 +12,8 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
@@ -96,7 +97,7 @@ func Distribute() func(c *gin.Context) {
 					var selectGroup string
 					usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 					if isPlaygroundChatPath(c.Request.URL.Path) {
-						playgroundRequest := &dto.PlayGroundRequest{}
+						playgroundRequest := &kitdto.PlayGroundRequest{}
 						err = common.UnmarshalBodyReusable(c, playgroundRequest)
 						if err != nil {
 							abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidPlayground, map[string]any{"Error": err.Error()}))

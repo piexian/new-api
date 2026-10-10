@@ -3,7 +3,7 @@ package xai
 import (
 	"encoding/json"
 
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 // ChatCompletionResponse represents the response from XAI chat completion API

@@ -12,9 +12,11 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kittypes "github.com/QuantumNous/new-api/relaykit/types"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -60,7 +62,7 @@ func MidjourneyErrorWithStatusCodeWrapper(code int, desc string, statusCode int)
 //	return openaiErr
 //}
 
-func ClaudeErrorWrapper(err error, code string, statusCode int) *dto.ClaudeErrorWithStatusCode {
+func ClaudeErrorWrapper(err error, code string, statusCode int) *kitdto.ClaudeErrorWithStatusCode {
 	text := err.Error()
 	lowerText := strings.ToLower(text)
 	if !strings.HasPrefix(lowerText, "get file base64 from url") {
@@ -69,20 +71,34 @@ func ClaudeErrorWrapper(err error, code string, statusCode int) *dto.ClaudeError
 			text = "请求上游地址失败"
 		}
 	}
-	claudeError := types.ClaudeError{
+	claudeError := kittypes.ClaudeError{
 		Message: text,
 		Type:    "new_api_error",
 	}
-	return &dto.ClaudeErrorWithStatusCode{
+	return &kitdto.ClaudeErrorWithStatusCode{
 		Error:      claudeError,
 		StatusCode: statusCode,
 	}
 }
 
-func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *dto.ClaudeErrorWithStatusCode {
+func ClaudeErrorWrapperLocal(err error, code string, statusCode int) *kitdto.ClaudeErrorWithStatusCode {
 	claudeErr := ClaudeErrorWrapper(err, code, statusCode)
 	claudeErr.LocalError = true
 	return claudeErr
+}
+
+// kitOpenAIErrorToHost 把 kit 的 OpenAIError 转为宿主错误类型（宿主结构多一个 NewAPIError 标记字段）。
+func kitOpenAIErrorToHost(src *kittypes.OpenAIError) types.OpenAIError {
+	if src == nil {
+		return types.OpenAIError{}
+	}
+	return types.OpenAIError{
+		Message:  src.Message,
+		Type:     src.Type,
+		Param:    src.Param,
+		Code:     src.Code,
+		Metadata: src.Metadata,
+	}
 }
 
 func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFail bool) (newApiErr *types.NewAPIError) {
@@ -109,7 +125,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		}
 		attachRelayErrorMetadata(newApiErr, responseBody)
 	}()
-	var errResponse dto.GeneralErrorResponse
+	var errResponse kitdto.GeneralErrorResponse
 	responseBodyText := string(responseBody)
 	responseBodyPreview := common.LocalLogPreview(responseBodyText)
 	buildErrWithBody := func(message string) error {
@@ -134,7 +150,7 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 		// General format error (OpenAI, Anthropic, Gemini, etc.)
 		oaiError := errResponse.TryToOpenAIError()
 		if oaiError != nil {
-			newApiErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
+			newApiErr = types.WithOpenAIError(kitOpenAIErrorToHost(oaiError), resp.StatusCode)
 			if showBodyWhenFail {
 				newApiErr.Err = buildErrWithBody(newApiErr.Error())
 			}

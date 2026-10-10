@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,14 +14,14 @@ func TestClaudeRequestRemoveAnthropicBillingHeaderSystemBlockFromMedia(t *testin
 	billingHeader := "x-anthropic-billing-header: cc_version=2.1.177; cc_entrypoint=sdk-cli; cch=nonce;"
 	systemPrompt := "You are a helpful assistant."
 	cacheControl := json.RawMessage(`{"type":"ephemeral"}`)
-	req := ClaudeRequest{
-		System: []ClaudeMediaMessage{
+	req := kitdto.ClaudeRequest{
+		System: []kitdto.ClaudeMediaMessage{
 			{
-				Type: ContentTypeText,
+				Type: kitdto.ContentTypeText,
 				Text: &billingHeader,
 			},
 			{
-				Type:         ContentTypeText,
+				Type:         kitdto.ContentTypeText,
 				Text:         &systemPrompt,
 				CacheControl: cacheControl,
 			},
@@ -38,7 +39,7 @@ func TestClaudeRequestRemoveAnthropicBillingHeaderSystemBlockFromMedia(t *testin
 func TestClaudeRequestRemoveAnthropicBillingHeaderLineFromStringSystem(t *testing.T) {
 	t.Parallel()
 
-	req := ClaudeRequest{
+	req := kitdto.ClaudeRequest{
 		System: " X-Anthropic-Billing-Header: cc_version=2.1.177; cch=nonce;\nKeep this system prompt.",
 	}
 
@@ -49,7 +50,7 @@ func TestClaudeRequestRemoveAnthropicBillingHeaderLineFromStringSystem(t *testin
 func TestClaudeRequestRemoveAnthropicBillingHeaderClearsOnlyHeaderSystem(t *testing.T) {
 	t.Parallel()
 
-	req := ClaudeRequest{
+	req := kitdto.ClaudeRequest{
 		System: "x-anthropic-billing-header: cc_version=2.1.177; cch=nonce;",
 	}
 
@@ -60,11 +61,11 @@ func TestClaudeRequestRemoveAnthropicBillingHeaderClearsOnlyHeaderSystem(t *test
 func TestThinkingKeepRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	data, err := json.Marshal(Thinking{Type: "enabled", Keep: "all"})
+	data, err := json.Marshal(kitdto.Thinking{Type: "enabled", Keep: "all"})
 	require.NoError(t, err)
 	require.JSONEq(t, `{"type":"enabled","keep":"all"}`, string(data))
 
-	var thinking Thinking
+	var thinking kitdto.Thinking
 	require.NoError(t, json.Unmarshal(data, &thinking))
 	require.Equal(t, "enabled", thinking.Type)
 	require.Equal(t, "all", thinking.Keep)

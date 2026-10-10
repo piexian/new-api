@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 // ZCode 请求体指纹补全与过滤。

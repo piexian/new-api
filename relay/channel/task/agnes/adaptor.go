@@ -13,12 +13,13 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
@@ -208,11 +209,11 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		}
 	}
 
-	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo := kitdto.NewOpenAIVideo()
 	openAIVideo.ID = publicTaskID
 	openAIVideo.TaskID = publicTaskID
 	openAIVideo.Model = originModelName
-	openAIVideo.Status = toOpenAIVideoStatus(agnesResp.Status, dto.VideoStatusQueued)
+	openAIVideo.Status = toOpenAIVideoStatus(agnesResp.Status, kitdto.VideoStatusQueued)
 	openAIVideo.CreatedAt = firstNonZero(agnesResp.CreatedAt, time.Now().Unix())
 	openAIVideo.Seconds = agnesResp.Seconds
 	openAIVideo.Size = agnesResp.Size
@@ -326,7 +327,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	var agnesResp agnesVideoResponse
 	_ = common.Unmarshal(originTask.Data, &agnesResp)
 
-	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo := kitdto.NewOpenAIVideo()
 	openAIVideo.ID = originTask.TaskID
 	openAIVideo.TaskID = originTask.TaskID
 	openAIVideo.Model = firstNonEmpty(originTask.Properties.OriginModelName, agnesResp.Model, ModelVideoV20)
@@ -344,7 +345,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	if originTask.Status == model.TaskStatusFailure {
 		message := firstNonEmpty(originTask.FailReason, agnesResp.errorMessage())
 		if message != "" {
-			openAIVideo.Error = &dto.OpenAIVideoError{
+			openAIVideo.Error = &kitdto.OpenAIVideoError{
 				Message: message,
 				Code:    agnesResp.errorCode(),
 			}
@@ -716,13 +717,13 @@ func mapAgnesStatus(status string) model.TaskStatus {
 func toOpenAIVideoStatus(status string, fallback string) string {
 	switch mapAgnesStatus(status) {
 	case model.TaskStatusQueued:
-		return dto.VideoStatusQueued
+		return kitdto.VideoStatusQueued
 	case model.TaskStatusInProgress:
-		return dto.VideoStatusInProgress
+		return kitdto.VideoStatusInProgress
 	case model.TaskStatusSuccess:
-		return dto.VideoStatusCompleted
+		return kitdto.VideoStatusCompleted
 	case model.TaskStatusFailure:
-		return dto.VideoStatusFailed
+		return kitdto.VideoStatusFailed
 	default:
 		return fallback
 	}

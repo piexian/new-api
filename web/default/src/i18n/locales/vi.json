@@ -6721,5 +6721,7 @@
   "Start a playground chat": "Start a playground chat",
   "Stop": "Stop",
   "Unsaved changes": "Unsaved changes",
-  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?"
+  "You have unsaved changes. Are you sure you want to leave?": "You have unsaved changes. Are you sure you want to leave?",
+  "Responses to Chat fallback": "Dự phòng Responses sang Chat",
+  "Automatically fall back to Chat Completions when the channel does not support native /v1/responses. Enabled by default (inherit); when disabled, conversion failures return the error directly.": "Tự động chuyển xuống Chat Completions khi kênh không hỗ trợ /v1/responses gốc. Mặc định (kế thừa) đang bật; khi tắt, lỗi chuyển đổi sẽ được trả về trực tiếp."
 }

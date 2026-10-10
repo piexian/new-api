@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
@@ -55,7 +55,7 @@ func ChatCompletionToResponse(c *gin.Context, info *relaycommon.RelayInfo, chatR
 	response := &dto.OpenAIResponsesResponse{
 		ID:        responseID,
 		Object:    "response",
-		CreatedAt: int(createdAt),
+		CreatedAt: dto.IntValue(createdAt),
 		Status:    []byte(`"completed"`),
 		Model:     model,
 		Output:    chatChoicesToResponsesOutput(chatResp.Choices),
@@ -302,7 +302,7 @@ func (e *StreamEmitter) responseSnapshot(status string, contentText string) *dto
 	return &dto.OpenAIResponsesResponse{
 		ID:        e.responseID,
 		Object:    "response",
-		CreatedAt: e.createdAt,
+		CreatedAt: dto.IntValue(e.createdAt),
 		Status:    []byte(fmt.Sprintf("%q", status)),
 		Model:     e.model,
 		Output:    output,

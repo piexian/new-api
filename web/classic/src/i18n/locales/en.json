@@ -455,6 +455,7 @@
     "Request ID": "Request ID",
     "Responses API": "Responses API",
     "Responses API 模式": "Responses API Mode",
+    "Responses 转 Chat 兜底": "Responses to Chat fallback",
     "Restore default": "Restore default",
     "Restored email template {{event}} ({{locale}})": "Restored email template {{event}} ({{locale}})",
     "Review": "Review",
@@ -1966,6 +1967,7 @@
     "密码已重置并已复制到剪贴板：": "Password has been reset and copied to clipboard: ",
     "密码注册校验": "Password registration check",
     "密码管理": "Password Management",
+    "密码至少 8 个字符，最多 72 个 UTF-8 字节，且必须包含数字、大写字母、小写字母和英文标点符号。": "Password must contain at least 8 characters, at most 72 UTF-8 bytes, and include a digit, an uppercase letter, a lowercase letter and an ASCII punctuation symbol.",
     "密码设置成功": "Password set successfully",
     "密码重置": "Password Reset",
     "密码重置完成": "Password reset completed",
@@ -3450,6 +3452,7 @@
     "渠道 ID": "Channel ID",
     "渠道：": "Channel: ",
     "渠道ID，名称，密钥，API地址": "Channel ID, name, key, Base URL",
+    "渠道不支持原生 /v1/responses 时自动降级为 Chat Completions。默认（继承）开启；关闭后转换失败将直接返回错误。": "Automatically fall back to Chat Completions when the channel does not support native /v1/responses. Enabled by default (inherit); when disabled, conversion failures return the error directly.",
     "渠道与系统通知": "Channel and system notifications",
     "渠道亲和性": "Channel affinity",
     "渠道亲和性：上游缓存命中": "Channel Affinity: Upstream Cache Hit",
@@ -5312,8 +5315,7 @@
     "默认智谱地址": "Default Zhipu Address",
     "默认测试模型": "Default Test Model",
     "默认用户消息": "Default User Message",
-    "默认补全倍率": "Default completion ratio",
-    "密码至少 8 个字符，最多 72 个 UTF-8 字节，且必须包含数字、大写字母、小写字母和英文标点符号。": "Password must contain at least 8 characters, at most 72 UTF-8 bytes, and include a digit, an uppercase letter, a lowercase letter and an ASCII punctuation symbol."
+    "默认补全倍率": "Default completion ratio"
   },
   "RPM/并发": "RPM / Concurrency",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

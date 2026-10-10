@@ -1,0 +1,346 @@
+package dto
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"reflect"
+	"strings"
+
+	"github.com/QuantumNous/new-api/relaykit/types"
+
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+)
+
+// MaxImageN caps the image generation count. Without this bound a huge or
+// wrapped-negative n overflows quota calculation into a negative charge.
+const MaxImageN = 128
+
+// ImageBillingParameters contains only the provider scalars parsed by request
+// interceptors; they must not be forwarded upstream.
+type ImageBillingParameters struct {
+	N            *uint `json:"n,omitempty"`
+	PromptExtend *bool `json:"prompt_extend,omitempty"`
+}
+
+type ImageRequest struct {
+	Model             string          `json:"model"`
+	Prompt            string          `json:"prompt" binding:"required"`
+	N                 *uint           `json:"n,omitempty"`
+	Size              string          `json:"size,omitempty"`
+	Quality           string          `json:"quality,omitempty"`
+	ResponseFormat    string          `json:"response_format,omitempty"`
+	Style             json.RawMessage `json:"style,omitempty"`
+	User              json.RawMessage `json:"user,omitempty"`
+	ExtraFields       json.RawMessage `json:"extra_fields,omitempty"`
+	Background        json.RawMessage `json:"background,omitempty"`
+	Moderation        json.RawMessage `json:"moderation,omitempty"`
+	OutputFormat      json.RawMessage `json:"output_format,omitempty"`
+	OutputCompression json.RawMessage `json:"output_compression,omitempty"`
+	PartialImages     json.RawMessage `json:"partial_images,omitempty"`
+	Stream            *bool           `json:"stream,omitempty"`
+	Images            json.RawMessage `json:"images,omitempty"`
+	Mask              json.RawMessage `json:"mask,omitempty"`
+	InputFidelity     json.RawMessage `json:"input_fidelity,omitempty"`
+	Watermark         *bool           `json:"watermark,omitempty"`
+	// zhipu 4v
+	WatermarkEnabled json.RawMessage `json:"watermark_enabled,omitempty"`
+	UserId           json.RawMessage `json:"user_id,omitempty"`
+	Image            json.RawMessage `json:"image,omitempty"`
+	// 用匿名参数接收额外参数
+	Extra             map[string]json.RawMessage `json:"-"`
+	BillingParameters *ImageBillingParameters    `json:"-"`
+}
+
+func (i *ImageRequest) UnmarshalJSON(data []byte) error {
+	// 先解析成 map[string]interface{}
+	var rawMap map[string]json.RawMessage
+	if err := kitutil.Unmarshal(data, &rawMap); err != nil {
+		return err
+	}
+
+	// 用 struct tag 获取所有已定义字段名
+	knownFields := GetJSONFieldNames(reflect.TypeFor[ImageRequest]())
+
+	// 再正常解析已定义字段
+	type Alias ImageRequest
+	var known Alias
+	if err := kitutil.Unmarshal(data, &known); err != nil {
+		return err
+	}
+	*i = ImageRequest(known)
+
+	// 提取多余字段
+	i.Extra = make(map[string]json.RawMessage)
+	for k, v := range rawMap {
+		if _, ok := knownFields[k]; !ok {
+			i.Extra[k] = v
+		}
+	}
+	return nil
+}
+
+// 序列化时需要重新把字段平铺
+func (r ImageRequest) MarshalJSON() ([]byte, error) {
+	// 将已定义字段转为 map
+	type Alias ImageRequest
+	alias := Alias(r)
+	base, err := kitutil.Marshal(alias)
+	if err != nil {
+		return nil, err
+	}
+
+	var baseMap map[string]json.RawMessage
+	if err := kitutil.Unmarshal(base, &baseMap); err != nil {
+		return nil, err
+	}
+
+	// 不能合并ExtraFields！！！！！！！！
+	// 合并 ExtraFields
+	//for k, v := range r.Extra {
+	//	if _, exists := baseMap[k]; !exists {
+	//		baseMap[k] = v
+	//	}
+	//}
+
+	return kitutil.Marshal(baseMap)
+}
+
+// ImageCount resolves the validated request quantity. Top-level zero retains
+// its legacy default of one; an explicit provider count must be positive.
+func (i *ImageRequest) ImageCount(useProviderParameters bool) (int, error) {
+	n := uint(1)
+	if i.N != nil && *i.N != 0 {
+		n = *i.N
+	}
+	if n > MaxImageN {
+		return 0, fmt.Errorf("n must be an integer between 1 and %d", MaxImageN)
+	}
+	if parameters := i.BillingParameters; parameters != nil && parameters.N != nil {
+		if *parameters.N > MaxImageN || useProviderParameters && *parameters.N == 0 {
+			return 0, fmt.Errorf("parameters.n must be an integer between 1 and %d", MaxImageN)
+		}
+		if useProviderParameters {
+			n = *parameters.N
+		}
+	}
+	return int(n), nil
+}
+
+func GetJSONFieldNames(t reflect.Type) map[string]struct{} {
+	fields := make(map[string]struct{})
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+
+		// 跳过匿名字段（例如 ExtraFields）
+		if field.Anonymous {
+			continue
+		}
+
+		tag := field.Tag.Get("json")
+		if tag == "-" || tag == "" {
+			continue
+		}
+
+		// 取逗号前字段名（排除 omitempty 等）
+		name := tag
+		if commaIdx := indexComma(tag); commaIdx != -1 {
+			name = tag[:commaIdx]
+		}
+		fields[name] = struct{}{}
+	}
+	return fields
+}
+
+func indexComma(s string) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == ',' {
+			return i
+		}
+	}
+	return -1
+}
+
+func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
+	var sizeRatio = 1.0
+	var qualityRatio = 1.0
+
+	if strings.HasPrefix(i.Model, "dall-e") {
+		// Size
+		if i.Size == "256x256" {
+			sizeRatio = 0.4
+		} else if i.Size == "512x512" {
+			sizeRatio = 0.45
+		} else if i.Size == "1024x1024" {
+			sizeRatio = 1
+		} else if i.Size == "1024x1792" || i.Size == "1792x1024" {
+			sizeRatio = 2
+		}
+
+		if i.Model == "dall-e-3" && i.Quality == "hd" {
+			qualityRatio = 2.0
+			if i.Size == "1024x1792" || i.Size == "1792x1024" {
+				qualityRatio = 1.5
+			}
+		}
+	}
+
+	imageN := uint(1)
+	if i.N != nil && *i.N > 0 {
+		imageN = *i.N
+	}
+
+	// Keep n separate from ImagePriceRatio so size/quality and count remain
+	// independent billing dimensions. Fixed-price pre-consume stores this on
+	// PriceData, and image settlement reuses or replaces the same "n" ratio.
+	return &types.TokenCountMeta{
+		CombineText:     i.Prompt,
+		MaxTokens:       1584,
+		ImagePriceRatio: sizeRatio * qualityRatio,
+		BillingRatios:   map[string]float64{"n": float64(imageN)},
+	}
+}
+
+func (i *ImageRequest) GetLogDetails() map[string]interface{} {
+	details := make(map[string]interface{})
+
+	size := strings.TrimSpace(i.Size)
+	if size == "" && isGPTImageModel(i.Model) {
+		size = "auto"
+	}
+	if size != "" {
+		details["size"] = size
+	}
+
+	quality := strings.TrimSpace(i.Quality)
+	if quality == "" && isGPTImageModel(i.Model) {
+		quality = "auto"
+	}
+	if quality != "" {
+		details["quality"] = quality
+	}
+
+	background := rawJSONLogValue(i.Background)
+	if background == nil && isGPTImageModel(i.Model) {
+		background = "auto"
+	}
+	if background != nil {
+		details["background"] = background
+	}
+
+	if outputFormat := rawJSONLogValue(i.OutputFormat); outputFormat != nil {
+		details["output_format"] = outputFormat
+	}
+	if outputCompression := rawJSONLogValue(i.OutputCompression); outputCompression != nil {
+		details["output_compression"] = outputCompression
+	}
+	if moderation := rawJSONLogValue(i.Moderation); moderation != nil {
+		details["moderation"] = moderation
+	}
+	if partialImages := rawJSONLogValue(i.PartialImages); partialImages != nil {
+		details["partial_images"] = partialImages
+	}
+
+	if responseFormat := strings.TrimSpace(i.ResponseFormat); responseFormat != "" {
+		details["response_format"] = responseFormat
+	}
+	if i.N != nil && *i.N > 0 {
+		details["n"] = int(*i.N)
+	}
+	if i.Watermark != nil {
+		details["watermark"] = *i.Watermark
+	}
+
+	return details
+}
+
+func (i *ImageRequest) GetLogContent() []string {
+	details := i.GetLogDetails()
+	logContent := make([]string, 0, len(details))
+
+	appendImageLogLine := func(key, label string) {
+		value, ok := details[key]
+		if !ok {
+			return
+		}
+		if valueStr := imageLogValueString(value); valueStr != "" {
+			logContent = append(logContent, fmt.Sprintf("%s %s", label, valueStr))
+		}
+	}
+
+	appendImageLogLine("size", "大小")
+	appendImageLogLine("quality", "品质")
+	appendImageLogLine("background", "背景")
+	appendImageLogLine("output_format", "输出格式")
+	appendImageLogLine("output_compression", "输出压缩")
+	appendImageLogLine("moderation", "审核")
+	appendImageLogLine("partial_images", "局部图")
+	appendImageLogLine("response_format", "响应格式")
+	appendImageLogLine("n", "生成数量")
+	appendImageLogLine("watermark", "水印")
+
+	return logContent
+}
+
+func isGPTImageModel(model string) bool {
+	normalized := strings.TrimSpace(strings.ToLower(model))
+	return strings.HasPrefix(normalized, "gpt-image-")
+}
+
+func rawJSONLogValue(raw json.RawMessage) interface{} {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+
+	var value interface{}
+	if err := kitutil.Unmarshal(trimmed, &value); err != nil {
+		return strings.Trim(string(trimmed), "\"")
+	}
+
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case string, bool, float64:
+		return v
+	default:
+		data, err := kitutil.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("%v", v)
+		}
+		return string(data)
+	}
+}
+
+func imageLogValueString(value interface{}) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(v)
+	default:
+		return kitutil.Interface2String(v)
+	}
+}
+
+func (i *ImageRequest) IsStream(c *http.Request) bool {
+	return i.Stream != nil && *i.Stream
+}
+
+func (i *ImageRequest) SetModelName(modelName string) {
+	if modelName != "" {
+		i.Model = modelName
+	}
+}
+
+type ImageResponse struct {
+	Data     []ImageData     `json:"data"`
+	Created  int64           `json:"created"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+type ImageData struct {
+	Url           string `json:"url"`
+	B64Json       string `json:"b64_json"`
+	RevisedPrompt string `json:"revised_prompt"`
+}

@@ -22,10 +22,11 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 )
 
@@ -202,7 +203,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return
 	}
 
-	ov := dto.NewOpenAIVideo()
+	ov := kitdto.NewOpenAIVideo()
 	ov.ID = info.PublicTaskID
 	ov.TaskID = info.PublicTaskID
 	ov.CreatedAt = time.Now().Unix()
@@ -457,7 +458,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		return nil, errors.Wrap(err, "unmarshal jimeng task data failed")
 	}
 
-	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo := kitdto.NewOpenAIVideo()
 	openAIVideo.ID = originTask.TaskID
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
@@ -466,7 +467,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.CompletedAt = originTask.UpdatedAt
 
 	if jimengResp.Code != 10000 {
-		openAIVideo.Error = &dto.OpenAIVideoError{
+		openAIVideo.Error = &kitdto.OpenAIVideoError{
 			Message: jimengResp.Message,
 			Code:    fmt.Sprintf("%d", jimengResp.Code),
 		}

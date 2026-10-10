@@ -4,15 +4,16 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/require"
 )
 
 func TestToolCallRequestMarshalJSON(t *testing.T) {
 	t.Run("function tool keeps function field", func(t *testing.T) {
-		data, err := common.Marshal(ToolCallRequest{
+		data, err := common.Marshal(kitdto.ToolCallRequest{
 			ID:   "call_1",
 			Type: "function",
-			Function: FunctionRequest{
+			Function: kitdto.FunctionRequest{
 				Name:      "lookup",
 				Arguments: `{"q":"x"}`,
 			},
@@ -22,19 +23,19 @@ func TestToolCallRequestMarshalJSON(t *testing.T) {
 	})
 
 	t.Run("builtin web_search omits empty function", func(t *testing.T) {
-		data, err := common.Marshal(ToolCallRequest{Type: "web_search"})
+		data, err := common.Marshal(kitdto.ToolCallRequest{Type: "web_search"})
 		require.NoError(t, err)
 		require.JSONEq(t, `{"type":"web_search"}`, string(data))
 	})
 
 	t.Run("builtin code_interpreter omits empty function", func(t *testing.T) {
-		data, err := common.Marshal(ToolCallRequest{Type: "code_interpreter"})
+		data, err := common.Marshal(kitdto.ToolCallRequest{Type: "code_interpreter"})
 		require.NoError(t, err)
 		require.JSONEq(t, `{"type":"code_interpreter"}`, string(data))
 	})
 
 	t.Run("custom type keeps custom payload", func(t *testing.T) {
-		data, err := common.Marshal(ToolCallRequest{
+		data, err := common.Marshal(kitdto.ToolCallRequest{
 			Type:   "custom",
 			Custom: []byte(`{"name":"my_tool"}`),
 		})
@@ -44,10 +45,10 @@ func TestToolCallRequestMarshalJSON(t *testing.T) {
 
 	t.Run("custom tool call keeps non-empty function", func(t *testing.T) {
 		// responses 的 custom_tool_call 转成 chat 后把 name/input 放在 function 里，不能丢
-		data, err := common.Marshal(ToolCallRequest{
+		data, err := common.Marshal(kitdto.ToolCallRequest{
 			ID:   "call_custom",
-			Type: CustomType,
-			Function: FunctionRequest{
+			Type: kitdto.CustomType,
+			Function: kitdto.FunctionRequest{
 				Name:      "apply_patch",
 				Arguments: "patch body",
 			},
@@ -60,7 +61,7 @@ func TestToolCallRequestMarshalJSON(t *testing.T) {
 
 func TestToolCallRequestRoundTripBuiltinTool(t *testing.T) {
 	// 客户端原样下发内置工具定义，经解析→再序列化后不得携带幽灵 function 字段
-	var req GeneralOpenAIRequest
+	var req kitdto.GeneralOpenAIRequest
 	err := common.Unmarshal([]byte(`{
 		"model":"mistral-large-latest",
 		"messages":[{"role":"user","content":"hi"}],

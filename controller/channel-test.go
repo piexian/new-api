@@ -17,7 +17,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -25,6 +25,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -393,7 +394,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	switch info.RelayMode {
 	case relayconstant.RelayModeEmbeddings:
 		// Embedding 请求 - request 已经是正确的类型
-		if embeddingReq, ok := request.(*dto.EmbeddingRequest); ok {
+		if embeddingReq, ok := request.(*kitdto.EmbeddingRequest); ok {
 			convertedRequest, err = adaptor.ConvertEmbeddingRequest(c, info, *embeddingReq)
 		} else {
 			return testResult{
@@ -404,7 +405,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
 		// 图像生成请求 - request 已经是正确的类型
-		if imageReq, ok := request.(*dto.ImageRequest); ok {
+		if imageReq, ok := request.(*kitdto.ImageRequest); ok {
 			convertedRequest, err = adaptor.ConvertImageRequest(c, info, *imageReq)
 		} else {
 			return testResult{
@@ -415,7 +416,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	case relayconstant.RelayModeRerank:
 		// Rerank 请求 - request 已经是正确的类型
-		if rerankReq, ok := request.(*dto.RerankRequest); ok {
+		if rerankReq, ok := request.(*kitdto.RerankRequest); ok {
 			convertedRequest, err = adaptor.ConvertRerankRequest(c, info.RelayMode, *rerankReq)
 		} else {
 			return testResult{
@@ -425,7 +426,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			}
 		}
 	case relayconstant.RelayModeAudioSpeech, relayconstant.RelayModeAudioTranscription, relayconstant.RelayModeAudioTranslation:
-		if audioReq, ok := request.(*dto.AudioRequest); ok {
+		if audioReq, ok := request.(*kitdto.AudioRequest); ok {
 			convertedRequest, err = adaptor.ConvertAudioRequest(c, info, *audioReq)
 		} else {
 			return testResult{
@@ -436,7 +437,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	case relayconstant.RelayModeResponses:
 		// Response 请求 - request 已经是正确的类型
-		if responseReq, ok := request.(*dto.OpenAIResponsesRequest); ok {
+		if responseReq, ok := request.(*kitdto.OpenAIResponsesRequest); ok {
 			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *responseReq)
 		} else {
 			return testResult{
@@ -448,14 +449,14 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	case relayconstant.RelayModeResponsesCompact:
 		// Response compaction request - convert to OpenAIResponsesRequest before adapting
 		switch req := request.(type) {
-		case *dto.OpenAIResponsesCompactionRequest:
-			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+		case *kitdto.OpenAIResponsesCompactionRequest:
+			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, kitdto.OpenAIResponsesRequest{
 				Model:              req.Model,
 				Input:              req.Input,
 				Instructions:       req.Instructions,
 				PreviousResponseID: req.PreviousResponseID,
 			})
-		case *dto.OpenAIResponsesRequest:
+		case *kitdto.OpenAIResponsesRequest:
 			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *req)
 		default:
 			return testResult{
@@ -489,9 +490,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	case relayconstant.RelayModeGemini:
 		// gemini / gemini-embeddings 端点测试路径为 /v1beta/models/...,RelayMode 同为 Gemini
 		switch req := request.(type) {
-		case *dto.EmbeddingRequest:
+		case *kitdto.EmbeddingRequest:
 			convertedRequest, err = adaptor.ConvertEmbeddingRequest(c, info, *req)
-		case *dto.GeneralOpenAIRequest:
+		case *kitdto.GeneralOpenAIRequest:
 			convertedRequest, err = adaptor.ConvertOpenAIRequest(c, info, req)
 		default:
 			return testResult{
@@ -502,7 +503,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	default:
 		// Chat/Completion 等其他请求类型
-		if generalReq, ok := request.(*dto.GeneralOpenAIRequest); ok {
+		if generalReq, ok := request.(*kitdto.GeneralOpenAIRequest); ok {
 			convertedRequest, err = adaptor.ConvertOpenAIRequest(c, info, generalReq)
 		} else {
 			return testResult{
@@ -637,7 +638,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 }
 
-func attachTestBillingRequestInput(info *relaycommon.RelayInfo, request dto.Request) error {
+func attachTestBillingRequestInput(info *relaycommon.RelayInfo, request kitdto.Request) error {
 	if info == nil {
 		return nil
 	}
@@ -650,7 +651,7 @@ func attachTestBillingRequestInput(info *relaycommon.RelayInfo, request dto.Requ
 	return nil
 }
 
-func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage) (int, *billingexpr.TieredResult) {
+func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usage *kitdto.Usage) (int, *billingexpr.TieredResult) {
 	if usage != nil && info != nil && info.TieredBillingSnapshot != nil {
 		isClaudeUsageSemantic := usage.UsageSemantic == "anthropic" || info.GetFinalRequestRelayFormat() == types.RelayFormatClaude
 		usedVars := billingexpr.UsedVars(info.TieredBillingSnapshot.ExprString)
@@ -672,7 +673,7 @@ func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usa
 	return int(priceData.ModelPrice * common.QuotaPerUnit), nil
 }
 
-func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {
+func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData types.PriceData, usage *kitdto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {
@@ -681,7 +682,7 @@ func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData ty
 	return other
 }
 
-func testChannelVideoSubmit(c *gin.Context, channel *model.Channel, info *relaycommon.RelayInfo, request dto.Request, startedAt time.Time) testResult {
+func testChannelVideoSubmit(c *gin.Context, channel *model.Channel, info *relaycommon.RelayInfo, request kitdto.Request, startedAt time.Time) testResult {
 	taskAdaptor := relay.GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(channel.Type)))
 	if taskAdaptor == nil {
 		err := fmt.Errorf("invalid task api platform: %d", channel.Type)
@@ -802,17 +803,17 @@ func taskErrorAsNewAPIError(taskErr *dto.TaskError) *types.NewAPIError {
 	return types.NewOpenAIError(taskErrorAsError(taskErr), types.ErrorCodeInvalidRequest, statusCode)
 }
 
-func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dto.Usage, error) {
+func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*kitdto.Usage, error) {
 	switch u := usageAny.(type) {
-	case *dto.Usage:
+	case *kitdto.Usage:
 		return u, nil
-	case dto.Usage:
+	case kitdto.Usage:
 		return &u, nil
 	case nil:
 		if !isStream {
 			return nil, errors.New("usage is nil")
 		}
-		usage := &dto.Usage{
+		usage := &kitdto.Usage{
 			PromptTokens: estimatePromptTokens,
 		}
 		usage.TotalTokens = usage.PromptTokens
@@ -821,7 +822,7 @@ func coerceTestUsage(usageAny any, isStream bool, estimatePromptTokens int) (*dt
 		if !isStream {
 			return nil, fmt.Errorf("invalid usage type: %T", usageAny)
 		}
-		usage := &dto.Usage{
+		usage := &kitdto.Usage{
 			PromptTokens: estimatePromptTokens,
 		}
 		usage.TotalTokens = usage.PromptTokens
@@ -948,7 +949,7 @@ func buildTestAudioRequest(ctx context.Context, path, model string) *http.Reques
 	return request
 }
 
-func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
+func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) kitdto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
 
 	// 根据端点类型构建不同的测试请求
@@ -956,13 +957,13 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		switch constant.EndpointType(endpointType) {
 		case constant.EndpointTypeEmbeddings, constant.EndpointTypeCohereEmbeddings:
 			// 返回 EmbeddingRequest
-			return &dto.EmbeddingRequest{
+			return &kitdto.EmbeddingRequest{
 				Model: model,
 				Input: []any{"hello world"},
 			}
 		case constant.EndpointTypeImageGeneration:
 			// 返回 ImageRequest
-			imageRequest := &dto.ImageRequest{
+			imageRequest := &kitdto.ImageRequest{
 				Model:  model,
 				Prompt: "a cute cat",
 				N:      lo.ToPtr(uint(1)),
@@ -976,13 +977,13 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			}
 			return imageRequest
 		case constant.EndpointTypeImageEdit:
-			return &dto.ImageRequest{
+			return &kitdto.ImageRequest{
 				Model:  model,
 				Prompt: "make the image brighter",
 				Images: json.RawMessage(`["https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/JPEG_example_flower.jpg/320px-JPEG_example_flower.jpg"]`),
 			}
 		case constant.EndpointTypeGeminiEmbeddings:
-			return &dto.EmbeddingRequest{Model: model, Input: []any{"hello world"}}
+			return &kitdto.EmbeddingRequest{Model: model, Input: []any{"hello world"}}
 		case constant.EndpointTypeGeminiInteractions:
 			return &dto.GeminiInteractionsRequest{Model: model, Input: json.RawMessage(`"Hi"`)}
 		case constant.EndpointTypeOpenAIVideo:
@@ -995,14 +996,14 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Seconds:        "5",
 			}
 		case constant.EndpointTypeAudioSpeech:
-			return &dto.AudioRequest{Model: model, Input: "This is a channel test.", Voice: "alloy", ResponseFormat: "mp3"}
+			return &kitdto.AudioRequest{Model: model, Input: "This is a channel test.", Voice: "alloy", ResponseFormat: "mp3"}
 		case constant.EndpointTypeAudioTranscription, constant.EndpointTypeAudioTranslation:
-			return &dto.AudioRequest{Model: model, ResponseFormat: "json"}
+			return &kitdto.AudioRequest{Model: model, ResponseFormat: "json"}
 		case constant.EndpointTypeModerations:
-			return &dto.GeneralOpenAIRequest{Model: model, Input: json.RawMessage(`"This is a harmless channel test."`)}
+			return &kitdto.GeneralOpenAIRequest{Model: model, Input: json.RawMessage(`"This is a harmless channel test."`)}
 		case constant.EndpointTypeJinaRerank, constant.EndpointTypeCohereRerank:
 			// 返回 RerankRequest
-			return &dto.RerankRequest{
+			return &kitdto.RerankRequest{
 				Model:     model,
 				Query:     "What is Deep Learning?",
 				Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
@@ -1010,14 +1011,14 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			}
 		case constant.EndpointTypeOpenAIResponse:
 			// 返回 OpenAIResponsesRequest
-			return &dto.OpenAIResponsesRequest{
+			return &kitdto.OpenAIResponsesRequest{
 				Model:  model,
 				Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
 				Stream: lo.ToPtr(isStream),
 			}
 		case constant.EndpointTypeOpenAIResponseCompact:
 			// 返回 OpenAIResponsesCompactionRequest
-			return &dto.OpenAIResponsesCompactionRequest{
+			return &kitdto.OpenAIResponsesCompactionRequest{
 				Model: model,
 				Input: testResponsesInput,
 			}
@@ -1027,10 +1028,10 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
 				maxTokens = 3000
 			}
-			req := &dto.GeneralOpenAIRequest{
+			req := &kitdto.GeneralOpenAIRequest{
 				Model:  model,
 				Stream: lo.ToPtr(isStream),
-				Messages: []dto.Message{
+				Messages: []kitdto.Message{
 					{
 						Role:    "user",
 						Content: "hi",
@@ -1039,7 +1040,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				MaxTokens: lo.ToPtr(maxTokens),
 			}
 			if isStream {
-				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+				req.StreamOptions = &kitdto.StreamOptions{IncludeUsage: true}
 			}
 			return req
 		case constant.EndpointTypeTypeSafe:
@@ -1054,7 +1055,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 
 	// 自动检测逻辑（保持原有行为）
 	if strings.Contains(strings.ToLower(model), "rerank") {
-		return &dto.RerankRequest{
+		return &kitdto.RerankRequest{
 			Model:     model,
 			Query:     "What is Deep Learning?",
 			Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
@@ -1067,7 +1068,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		strings.HasPrefix(model, "m3e") ||
 		strings.Contains(model, "bge-") {
 		// 返回 EmbeddingRequest
-		return &dto.EmbeddingRequest{
+		return &kitdto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
 		}
@@ -1079,7 +1080,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 
 	// Responses compaction models (must use /v1/responses/compact)
 	if strings.HasSuffix(model, ratio_setting.CompactModelSuffix) {
-		return &dto.OpenAIResponsesCompactionRequest{
+		return &kitdto.OpenAIResponsesCompactionRequest{
 			Model: model,
 			Input: testResponsesInput,
 		}
@@ -1087,7 +1088,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 
 	// Responses-only models (e.g. codex series)
 	if strings.Contains(strings.ToLower(model), "codex") {
-		return &dto.OpenAIResponsesRequest{
+		return &kitdto.OpenAIResponsesRequest{
 			Model:  model,
 			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
 			Stream: lo.ToPtr(isStream),
@@ -1095,10 +1096,10 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	}
 
 	// Chat/Completion 请求 - 返回 GeneralOpenAIRequest
-	testRequest := &dto.GeneralOpenAIRequest{
+	testRequest := &kitdto.GeneralOpenAIRequest{
 		Model:  model,
 		Stream: lo.ToPtr(isStream),
-		Messages: []dto.Message{
+		Messages: []kitdto.Message{
 			{
 				Role:    "user",
 				Content: "hi",
@@ -1106,10 +1107,10 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		},
 	}
 	if isStream {
-		testRequest.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+		testRequest.StreamOptions = &kitdto.StreamOptions{IncludeUsage: true}
 	}
 
-	if dto.IsOpenAIReasoningOModel(model) {
+	if kitdto.IsOpenAIReasoningOModel(model) {
 		testRequest.MaxCompletionTokens = lo.ToPtr(uint(16))
 	} else if strings.Contains(model, "thinking") {
 		if !strings.Contains(model, "claude") {
@@ -1124,7 +1125,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	return testRequest
 }
 
-func buildTestVideoRequest(modelName string, channel *model.Channel) dto.Request {
+func buildTestVideoRequest(modelName string, channel *model.Channel) kitdto.Request {
 	req := &relaycommon.TaskSubmitReq{
 		Model:    modelName,
 		Prompt:   "Create a short test video.",
@@ -1340,7 +1341,7 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 	// notify 由触发方式决定（手动=是/计划=否），开关再给管理员一道总闸
 	if notify && operation_setting.GetNotifySetting().ChannelTestResult && (ctx == nil || ctx.Err() == nil) {
 		service.NotifyRootUserWithEmailTemplate(
-			dto.NotifyTypeChannelTest,
+			kitdto.NotifyTypeChannelTest,
 			"通道测试完成",
 			"所有通道测试已完成",
 			service.EmailTemplateEventChannelTestResult,

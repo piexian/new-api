@@ -1,29 +1,30 @@
 package common
 
 import (
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/types"
 )
 
 func GuessRelayFormatFromRequest(req any) (types.RelayFormat, bool) {
 	switch req.(type) {
-	case *dto.GeneralOpenAIRequest, dto.GeneralOpenAIRequest:
+	case *kitdto.GeneralOpenAIRequest, kitdto.GeneralOpenAIRequest:
 		return types.RelayFormatOpenAI, true
-	case *dto.OpenAIResponsesRequest, dto.OpenAIResponsesRequest:
+	case *kitdto.OpenAIResponsesRequest, kitdto.OpenAIResponsesRequest:
 		return types.RelayFormatOpenAIResponses, true
-	case *dto.ClaudeRequest, dto.ClaudeRequest:
+	case *kitdto.ClaudeRequest, kitdto.ClaudeRequest:
 		return types.RelayFormatClaude, true
-	case *dto.GeminiChatRequest, dto.GeminiChatRequest:
+	case *kitdto.GeminiChatRequest, kitdto.GeminiChatRequest:
 		return types.RelayFormatGemini, true
 	case *dto.GeminiInteractionsRequest, dto.GeminiInteractionsRequest:
 		return types.RelayFormatGeminiInteractions, true
-	case *dto.EmbeddingRequest, dto.EmbeddingRequest:
+	case *kitdto.EmbeddingRequest, kitdto.EmbeddingRequest:
 		return types.RelayFormatEmbedding, true
-	case *dto.RerankRequest, dto.RerankRequest:
+	case *kitdto.RerankRequest, kitdto.RerankRequest:
 		return types.RelayFormatRerank, true
-	case *dto.ImageRequest, dto.ImageRequest:
+	case *kitdto.ImageRequest, kitdto.ImageRequest:
 		return types.RelayFormatOpenAIImage, true
-	case *dto.AudioRequest, dto.AudioRequest:
+	case *kitdto.AudioRequest, kitdto.AudioRequest:
 		return types.RelayFormatOpenAIAudio, true
 	default:
 		return "", false

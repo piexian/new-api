@@ -8,10 +8,10 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 
@@ -34,7 +34,7 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
-		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+		return nil, types.WithKitOpenAIError(oaiError, resp.StatusCode)
 	}
 
 	responseBody = rewriteSGLangResponsesCreatedAt(info, responseBody, "created_at", int64(responsesResponse.CreatedAt))
@@ -47,6 +47,11 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		if len(imageLogDetails) > 0 {
 			c.Set("image_generation_call_detail", imageLogDetails)
 		}
+	}
+
+	imageCounter := &relaycommon.ImageGenerationCallCounter{}
+	for i := range responsesResponse.Output {
+		imageCounter.Observe(&responsesResponse.Output[i], &i)
 	}
 
 	// 写入新的 response body
@@ -76,6 +81,8 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 		buildToolinfo.CallCount++
 	}
+	imageCounter.Commit(info)
+
 	return &usage, nil
 }
 
@@ -131,6 +138,12 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 						c.Set("image_generation_call_detail", imageLogDetails)
 					}
 				}
+
+				imageCounter := &relaycommon.ImageGenerationCallCounter{}
+				for i := range streamResponse.Response.Output {
+					imageCounter.Observe(&streamResponse.Response.Output[i], &i)
+				}
+				imageCounter.Commit(info)
 			}
 		case "response.output_text.delta":
 			// 处理输出文本

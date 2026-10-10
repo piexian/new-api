@@ -5,9 +5,10 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -31,35 +32,35 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
-func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
+func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *kitdto.GeneralOpenAIRequest) (any, error) {
 	return nil, errNativeOnly
 }
 
-func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
+func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request kitdto.RerankRequest) (any, error) {
 	return nil, errNativeOnly
 }
 
-func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.EmbeddingRequest) (any, error) {
 	return nil, errNativeOnly
 }
 
-func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
+func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.AudioRequest) (io.Reader, error) {
 	return nil, errNativeOnly
 }
 
-func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.ImageRequest) (any, error) {
 	return nil, errNativeOnly
 }
 
-func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request kitdto.OpenAIResponsesRequest) (any, error) {
 	return nil, errNativeOnly
 }
 
-func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *kitdto.ClaudeRequest) (any, error) {
 	return nil, errNativeOnly
 }
 
-func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *kitdto.GeminiChatRequest) (any, error) {
 	return nil, errNativeOnly
 }
 
@@ -80,7 +81,7 @@ func (a *Adaptor) GetChannelName() string {
 }
 
 // extractUsage 从原生响应中提取 usage 供计费, 解析失败返回 nil 由上层按"上游无计费信息"处理
-func extractUsage(responseBody []byte) *dto.Usage {
+func extractUsage(responseBody []byte) *kitdto.Usage {
 	if len(responseBody) == 0 {
 		return nil
 	}
@@ -91,7 +92,7 @@ func extractUsage(responseBody []byte) *dto.Usage {
 	if parsed.Usage == nil {
 		return nil
 	}
-	usage := &dto.Usage{
+	usage := &kitdto.Usage{
 		PromptTokens:     parsed.Usage.InputTokens,
 		CompletionTokens: parsed.Usage.OutputTokens,
 	}

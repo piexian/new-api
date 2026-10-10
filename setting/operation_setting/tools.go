@@ -53,6 +53,26 @@ var toolPriceSetting = ToolPriceSetting{
 	}(),
 }
 
+// builtInToolNames 是内置价格种子覆盖的工具名（键中冒号前缀），永不含运维配置价格。
+var builtInToolNames = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(defaultToolPrices)+len(defaultToolPriceOverrides))
+	for k := range defaultToolPrices {
+		name, _, _ := strings.Cut(k, ":")
+		m[name] = struct{}{}
+	}
+	for k := range defaultToolPriceOverrides {
+		name, _, _ := strings.Cut(k, ":")
+		m[name] = struct{}{}
+	}
+	return m
+}()
+
+// IsBuiltInToolPriceKey 报告内置价格种子是否覆盖该工具名。
+func IsBuiltInToolPriceKey(name string) bool {
+	_, ok := builtInToolNames[name]
+	return ok
+}
+
 func init() {
 	config.GlobalConfig.Register("tool_price_setting", &toolPriceSetting)
 	RebuildToolPriceIndex()

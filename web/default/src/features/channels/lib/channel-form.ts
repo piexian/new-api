@@ -272,6 +272,9 @@ export const channelFormSchema = z
     chat_completions_to_responses_mode: z
       .enum(['inherit', 'enabled', 'disabled'])
       .optional(),
+    responses_via_chat_fallback_mode: z
+      .enum(['inherit', 'enabled', 'disabled'])
+      .optional(),
     chat_completions_to_responses_models: z.array(z.string()).optional(),
     thinking_to_content: z.boolean().optional(),
     proxy: z
@@ -458,6 +461,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   force_format: false,
   use_responses_api: false,
   chat_completions_to_responses_mode: 'inherit',
+  responses_via_chat_fallback_mode: 'inherit',
   chat_completions_to_responses_models: [],
   thinking_to_content: false,
   proxy: '',
@@ -508,6 +512,10 @@ export function transformChannelToFormDefaults(
       | 'inherit'
       | 'enabled'
       | 'disabled',
+    responses_via_chat_fallback_mode: 'inherit' as
+      | 'inherit'
+      | 'enabled'
+      | 'disabled',
     chat_completions_to_responses_models: [] as string[],
     thinking_to_content: false,
     proxy: '',
@@ -543,6 +551,13 @@ export function transformChannelToFormDefaults(
         chatToResponsesModels = ['.*']
       }
 
+      let responsesViaChatMode: 'inherit' | 'enabled' | 'disabled' = 'inherit'
+      if (typeof parsed.responses_via_chat_fallback_enabled === 'boolean') {
+        responsesViaChatMode = parsed.responses_via_chat_fallback_enabled
+          ? 'enabled'
+          : 'disabled'
+      }
+
       const protocol = normalizeHttpProtocol(parsed.http_protocol)
       const shards = normalizeHttp2ConnectionShards(
         parsed.http2_connection_shards
@@ -553,6 +568,7 @@ export function transformChannelToFormDefaults(
         use_responses_api: parsed.use_responses_api === true,
         chat_completions_to_responses_mode: chatToResponsesMode,
         chat_completions_to_responses_models: chatToResponsesModels,
+        responses_via_chat_fallback_mode: responsesViaChatMode,
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
         http_protocol: protocol,
@@ -735,6 +751,12 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
   } else {
     settingObj.chat_completions_to_responses_enabled =
       formData.chat_completions_to_responses_mode === 'enabled'
+  }
+  if (formData.responses_via_chat_fallback_mode === 'inherit') {
+    delete settingObj.responses_via_chat_fallback_enabled
+  } else {
+    settingObj.responses_via_chat_fallback_enabled =
+      formData.responses_via_chat_fallback_mode === 'enabled'
   }
   if (patterns.length > 0) {
     settingObj.chat_completions_to_responses_models = patterns

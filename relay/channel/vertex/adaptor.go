@@ -8,13 +8,13 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -340,7 +340,7 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		if info != nil {
 			info.FinalRequestRelayFormat = types.RelayFormatClaude
 		}
-		claudeReq, err := claude.RequestOpenAI2ClaudeMessage(c, *chatRequest)
+		claudeReq, err := claude.RequestOpenAI2ClaudeMessage(c, info, *chatRequest)
 		if err != nil {
 			return nil, err
 		}

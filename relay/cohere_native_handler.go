@@ -11,9 +11,10 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -83,7 +84,7 @@ func CohereNativeHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 			c.Writer.Header().Set(key, value)
 		}
 	}
-	var usage *dto.Usage
+	var usage *kitdto.Usage
 	if strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "text/event-stream") {
 		c.Writer.WriteHeader(resp.StatusCode)
 		usage, err = copyCohereNativeStream(c, resp.Body)
@@ -110,14 +111,14 @@ func CohereNativeHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 		if prompt < 1 {
 			prompt = 1
 		}
-		usage = &dto.Usage{PromptTokens: prompt, InputTokens: prompt, TotalTokens: prompt}
+		usage = &kitdto.Usage{PromptTokens: prompt, InputTokens: prompt, TotalTokens: prompt}
 		common.SysLog("native response missing usage; input estimated for billing")
 	}
 	service.PostTextConsumeQuota(c, info, usage, nil)
 	return nil
 }
 
-func cohereNativeUsage(raw []byte, path string) *dto.Usage {
+func cohereNativeUsage(raw []byte, path string) *kitdto.Usage {
 	var parsed struct {
 		Usage struct {
 			Tokens struct {
@@ -154,12 +155,12 @@ func cohereNativeUsage(raw []byte, path string) *dto.Usage {
 			input, output = parsed.Meta.BilledUnits.InputTokens, parsed.Meta.BilledUnits.OutputTokens
 		}
 	}
-	return &dto.Usage{PromptTokens: input, CompletionTokens: output, TotalTokens: input + output, InputTokens: input, OutputTokens: output}
+	return &kitdto.Usage{PromptTokens: input, CompletionTokens: output, TotalTokens: input + output, InputTokens: input, OutputTokens: output}
 }
 
-func copyCohereNativeStream(c *gin.Context, body io.Reader) (*dto.Usage, error) {
+func copyCohereNativeStream(c *gin.Context, body io.Reader) (*kitdto.Usage, error) {
 	reader := bufio.NewReader(body)
-	var usage *dto.Usage
+	var usage *kitdto.Usage
 	for {
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
@@ -185,7 +186,7 @@ func copyCohereNativeStream(c *gin.Context, body io.Reader) (*dto.Usage, error) 
 					if input == 0 && output == 0 {
 						input, output = event.Delta.Usage.BilledUnits.InputTokens, event.Delta.Usage.BilledUnits.OutputTokens
 					}
-					usage = &dto.Usage{PromptTokens: input, CompletionTokens: output, TotalTokens: input + output, InputTokens: input, OutputTokens: output}
+					usage = &kitdto.Usage{PromptTokens: input, CompletionTokens: output, TotalTokens: input + output, InputTokens: input, OutputTokens: output}
 				}
 			}
 			if _, writeErr := c.Writer.Write(line); writeErr != nil {

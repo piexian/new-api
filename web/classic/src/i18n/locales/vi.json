@@ -444,6 +444,7 @@
     "Request ID": "Request ID",
     "Responses API": "Responses API",
     "Responses API 模式": "Chế độ Responses API",
+    "Responses 转 Chat 兜底": "Dự phòng Responses sang Chat",
     "Restore default": "Khôi phục mặc định",
     "Restored email template {{event}} ({{locale}})": "Đã khôi phục mẫu email {{event}} ({{locale}})",
     "Review": "Xét duyệt",
@@ -1930,6 +1931,7 @@
     "密码已重置并已复制到剪贴板：": "Mật khẩu đã được đặt lại và sao chép vào khay nhớ tạm: ",
     "密码注册校验": "Xác minh đăng ký bằng mật khẩu",
     "密码管理": "Quản lý mật khẩu",
+    "密码至少 8 个字符，最多 72 个 UTF-8 字节，且必须包含数字、大写字母、小写字母和英文标点符号。": "Mật khẩu phải có ít nhất 8 ký tự, tối đa 72 byte UTF-8 và chứa chữ số, chữ hoa, chữ thường và dấu câu ASCII.",
     "密码设置成功": "Đặt mật khẩu thành công",
     "密码重置": "Đặt lại mật khẩu",
     "密码重置完成": "Hoàn tất đặt lại mật khẩu",
@@ -3476,6 +3478,7 @@
     "渠道：": "Kênh: ",
     "渠道ID": "ID kênh",
     "渠道ID，名称，密钥，API地址": "ID kênh, tên, khóa, Base URL",
+    "渠道不支持原生 /v1/responses 时自动降级为 Chat Completions。默认（继承）开启；关闭后转换失败将直接返回错误。": "Tự động chuyển xuống Chat Completions khi kênh không hỗ trợ /v1/responses gốc. Mặc định (kế thừa) đang bật; khi tắt, lỗi chuyển đổi sẽ được trả về trực tiếp.",
     "渠道与系统通知": "Thông báo kênh và hệ thống",
     "渠道亲和性": "Độ ưu tiên kênh",
     "渠道亲和性：上游缓存命中": "Ưu ái kênh: Trúng bộ nhớ đệm upstream",
@@ -5715,8 +5718,7 @@
     "默认智谱地址": "Địa chỉ Zhipu mặc định",
     "默认测试模型": "Mô hình kiểm tra mặc định",
     "默认用户消息": "Xin chào",
-    "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
-    "密码至少 8 个字符，最多 72 个 UTF-8 字节，且必须包含数字、大写字母、小写字母和英文标点符号。": "Mật khẩu phải có ít nhất 8 ký tự, tối đa 72 byte UTF-8 và chứa chữ số, chữ hoa, chữ thường và dấu câu ASCII."
+    "默认补全倍率": "Tỷ lệ hoàn thành mặc định"
   },
   "RPM/并发": "RPM / Đồng thời",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

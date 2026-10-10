@@ -6,8 +6,9 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	dto "github.com/QuantumNous/new-api/relaykit/dto"
+	kittypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -166,7 +167,13 @@ func WssError(c *gin.Context, ws *websocket.Conn, openaiError types.OpenAIError)
 	errorObj := &dto.RealtimeEvent{
 		Type:    "error",
 		EventId: GetLocalRealtimeID(c),
-		Error:   &openaiError,
+		Error: &kittypes.OpenAIError{
+			Message:  openaiError.Message,
+			Type:     openaiError.Type,
+			Param:    openaiError.Param,
+			Code:     openaiError.Code,
+			Metadata: openaiError.Metadata,
+		},
 	}
 	_ = WssObject(c, ws, errorObj)
 }

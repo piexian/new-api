@@ -13,12 +13,13 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	dto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	imagexai "github.com/QuantumNous/new-api/relay/channel/xai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -662,7 +663,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return "", nil, service.TaskErrorWrapper(fmt.Errorf("request_id is empty"), "invalid_response", http.StatusInternalServerError)
 	}
 
-	ov := dto.NewOpenAIVideo()
+	ov := kitdto.NewOpenAIVideo()
 	ov.ID = info.PublicTaskID
 	ov.TaskID = info.PublicTaskID
 	ov.CreatedAt = time.Now().Unix()
@@ -757,7 +758,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 		}
 	}
 	if result.Error != nil {
-		openAIVideo.Error = &dto.OpenAIVideoError{
+		openAIVideo.Error = &kitdto.OpenAIVideoError{
 			Message: result.Error.Message,
 			Code:    result.Error.Code,
 		}
