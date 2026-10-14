@@ -189,6 +189,8 @@ export function buildApiParams(config: {
   }
   const ip = toTrimmedString(searchParams.ip)
   const userAgent = toTrimmedString(searchParams.userAgent)
+  const sessionId = toTrimmedString(searchParams.sessionId)
+  const cacheKey = toTrimmedString(searchParams.cacheKey)
 
   // Build base params from search params
   const params: GetLogsParams = {
@@ -212,6 +214,8 @@ export function buildApiParams(config: {
       : {}),
     ...(ip ? { ip } : {}),
     ...(userAgent ? { user_agent: `%${userAgent}%` } : {}),
+    ...(sessionId ? { session_id: sessionId } : {}),
+    ...(cacheKey ? { cache_key: cacheKey } : {}),
     ...buildTimeRangeParams(searchParams, false),
   }
 

@@ -59,7 +59,7 @@ func sanitizeClickHouseLikePattern(input string) (string, error) {
 type Log struct {
 	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:1;index:idx_user_id_id,priority:2"`
 	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
-	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:2;index:idx_created_at_type;index:idx_logs_session_time,priority:2;index:idx_logs_cache_time,priority:2"`
 	Type              int    `json:"type" gorm:"index:idx_created_at_type"`
 	Content           string `json:"content"`
 	Username          string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
@@ -78,6 +78,13 @@ type Log struct {
 	UserAgent         string `json:"user_agent" gorm:"type:text;default:''"`
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
+	SessionId         string `json:"session_id,omitempty" gorm:"type:text"`
+	SessionSource     string `json:"session_source,omitempty" gorm:"type:varchar(64);default:''"`
+	SessionHash       string `json:"-" gorm:"type:varchar(64);default:'';index:idx_logs_session_time,priority:1"`
+	CacheKey          string `json:"cache_key,omitempty" gorm:"type:text"`
+	CacheSource       string `json:"cache_source,omitempty" gorm:"type:varchar(64);default:''"`
+	CacheHash         string `json:"-" gorm:"type:varchar(64);default:'';index:idx_logs_cache_time,priority:1"`
+	SessionRecorded   bool   `json:"session_recorded" gorm:"default:false"`
 	Other             string `json:"other"`
 }
 
@@ -384,6 +391,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
+	recordSessionIdentity(c, log)
 	err := createLog(log)
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
@@ -449,6 +457,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
+	recordSessionIdentity(c, log)
 	err := createLog(log)
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
@@ -531,7 +540,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, userAgent string, ip string, logLanguage ...string) (logs []*Log, total int64, err error) {
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, userAgent string, ip string, sessionFilter LogSessionFilter, logLanguage ...string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
@@ -560,6 +569,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if upstreamRequestId != "" {
 		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
 	}
+	tx = applyLogSessionFilters(tx, []LogSessionFilter{sessionFilter})
 	if startTimestamp != 0 {
 		tx = tx.Where("logs.created_at >= ?", startTimestamp)
 	}
@@ -636,7 +646,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, userAgent string, ip string, logLanguage ...string) (logs []*Log, total int64, err error) {
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, userAgent string, ip string, sessionFilter LogSessionFilter, logLanguage ...string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.user_id = ?", userId)
@@ -662,6 +672,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	if upstreamRequestId != "" {
 		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
 	}
+	tx = applyLogSessionFilters(tx, []LogSessionFilter{sessionFilter})
 	if startTimestamp != 0 {
 		tx = tx.Where("logs.created_at >= ?", startTimestamp)
 	}

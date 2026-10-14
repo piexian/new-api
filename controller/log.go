@@ -40,7 +40,7 @@ func GetAllLogs(c *gin.Context) {
 	upstreamRequestId := c.Query("upstream_request_id")
 	userAgent := c.Query("user_agent")
 	ip := c.Query("ip")
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId, userAgent, ip, resolveRequestLogLanguage(c))
+	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId, userAgent, ip, model.LogSessionFilter{SessionID: c.Query("session_id"), CacheKey: c.Query("cache_key")}, resolveRequestLogLanguage(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -64,7 +64,7 @@ func GetUserLogs(c *gin.Context) {
 	upstreamRequestId := c.Query("upstream_request_id")
 	userAgent := c.Query("user_agent")
 	ip := c.Query("ip")
-	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId, userAgent, ip, resolveRequestLogLanguage(c))
+	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId, userAgent, ip, model.LogSessionFilter{SessionID: c.Query("session_id"), CacheKey: c.Query("cache_key")}, resolveRequestLogLanguage(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return

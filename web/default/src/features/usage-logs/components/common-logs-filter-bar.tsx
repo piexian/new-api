@@ -400,6 +400,22 @@ export function CommonLogsFilterBar<TData>(
           onKeyDown={handleKeyDown}
         />
       </LogsFilterField>
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('Session ID')}
+          value={filters.sessionId || ''}
+          onChange={(e) => handleChange('sessionId', e.target.value.trim())}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
+      <LogsFilterField>
+        <LogsFilterInput
+          placeholder={t('Cache Key')}
+          value={filters.cacheKey || ''}
+          onChange={(e) => handleChange('cacheKey', e.target.value.trim())}
+          onKeyDown={handleKeyDown}
+        />
+      </LogsFilterField>
       {isAdmin && (
         <LogsFilterField>
           <LogsFilterInput

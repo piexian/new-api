@@ -20,6 +20,7 @@ import type { TFunction } from 'i18next'
 import {
   Activity,
   CalendarCheck,
+  Fingerprint,
   Gauge,
   Gavel,
   ListChecks,
@@ -65,6 +66,11 @@ function getRiskCenterNavGroups(t: TFunction): NavGroup[] {
           title: t('Multi-account Detection'),
           icon: UsersRound,
           url: '/risk/multi-account',
+        },
+        {
+          title: t('Session Risk'),
+          icon: Fingerprint,
+          url: '/risk/session',
         },
         {
           title: t('Ban Logs'),

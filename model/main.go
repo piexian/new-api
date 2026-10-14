@@ -359,6 +359,20 @@ func migrateClickHouseLogDB() error {
 	if err := LOG_DB.Exec(clickHouseLogCreateTableSQL(ttlDays)).Error; err != nil {
 		return err
 	}
+	// CREATE TABLE IF NOT EXISTS 不会给存量表加列，逐列幂等补齐。
+	for _, column := range []struct{ name, ddl string }{
+		{"session_id", "String DEFAULT ''"},
+		{"session_source", "String DEFAULT ''"},
+		{"session_hash", "String DEFAULT ''"},
+		{"cache_key", "String DEFAULT ''"},
+		{"cache_source", "String DEFAULT ''"},
+		{"cache_hash", "String DEFAULT ''"},
+		{"session_recorded", "UInt8 DEFAULT 0"},
+	} {
+		if err := LOG_DB.Exec("ALTER TABLE logs ADD COLUMN IF NOT EXISTS " + column.name + " " + column.ddl).Error; err != nil {
+			return err
+		}
+	}
 	return syncClickHouseLogTTL(ttlDays)
 }
 
@@ -408,6 +422,13 @@ CREATE TABLE IF NOT EXISTS logs (
 	user_agent String DEFAULT '',
 	request_id String DEFAULT '',
 	upstream_request_id String DEFAULT '',
+	session_id String DEFAULT '',
+	session_source String DEFAULT '',
+	session_hash String DEFAULT '',
+	cache_key String DEFAULT '',
+	cache_source String DEFAULT '',
+	cache_hash String DEFAULT '',
+	session_recorded UInt8 DEFAULT 0,
 	other String DEFAULT ''
 )
 ENGINE = MergeTree()

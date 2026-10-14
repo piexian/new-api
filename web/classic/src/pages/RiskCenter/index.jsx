@@ -25,6 +25,7 @@ import {
   Activity,
   Ban,
   CalendarCheck,
+  Fingerprint,
   Gauge,
   ScrollText,
   ShieldAlert,
@@ -38,6 +39,7 @@ import BanLogsTab from './BanLogsTab';
 import LiveProgressTab from './LiveProgressTab';
 import MultiAccountTab from './MultiAccountTab';
 import CheckinRiskTab from './CheckinRiskTab';
+import SessionRiskTab from './SessionRiskTab';
 
 const RiskCenter = () => {
   const { t } = useTranslation();
@@ -57,6 +59,16 @@ const RiskCenter = () => {
       ),
       content: <MultiAccountTab />,
       itemKey: 'multi-account',
+    },
+    {
+      tab: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <Fingerprint size={18} />
+          {t('Session Risk')}
+        </span>
+      ),
+      content: <SessionRiskTab />,
+      itemKey: 'session-risk',
     },
     {
       tab: (

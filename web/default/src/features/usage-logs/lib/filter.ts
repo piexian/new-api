@@ -61,6 +61,8 @@ export function buildSearchParams(
         }),
         ...(commonFilters.ip && { ip: commonFilters.ip }),
         ...(commonFilters.userAgent && { userAgent: commonFilters.userAgent }),
+        ...(commonFilters.sessionId && { sessionId: commonFilters.sessionId }),
+        ...(commonFilters.cacheKey && { cacheKey: commonFilters.cacheKey }),
       }
     }
     case 'drawing': {

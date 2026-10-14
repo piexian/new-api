@@ -846,3 +846,144 @@ export async function releaseCheckinRiskWatch(
   )
   return res.data
 }
+
+// ============================================================================
+// Session Risk API
+// ============================================================================
+
+export type SessionRiskKind = 'session' | 'cache'
+
+export type SessionRiskConfig = {
+  notify_ip_collateral_user: boolean
+  notify_ip_collateral_admin: boolean
+  session_recording_enabled: boolean
+}
+
+export type SessionRiskUserRef = {
+  user_id: number
+  username: string
+  request_count: number
+}
+
+export type SessionRiskTokenRef = {
+  token_id: number
+  token_name: string
+  user_id: number
+  username: string
+  request_count: number
+}
+
+export type SessionRiskItem = {
+  kind: string
+  identifier: string
+  sources: string[]
+  user_count: number
+  token_count: number
+  request_count: number
+  error_count: number
+  quota: number
+  first_seen_at: number
+  last_seen_at: number
+  users: SessionRiskUserRef[]
+  tokens: SessionRiskTokenRef[]
+  ips: string[]
+}
+
+export type SessionRiskPageData = {
+  page: number
+  page_size: number
+  total: number
+  items: SessionRiskItem[]
+  start: number
+  end: number
+}
+
+function normalizeSessionRiskItem(item: SessionRiskItem): SessionRiskItem {
+  return {
+    ...item,
+    sources: item.sources ?? [],
+    users: item.users ?? [],
+    tokens: item.tokens ?? [],
+    ips: item.ips ?? [],
+  }
+}
+
+export async function getSessionRiskConfig(): Promise<
+  ApiResponse<SessionRiskConfig>
+> {
+  const res = await api.get('/api/risk/session/config')
+  return res.data
+}
+
+export async function updateSessionRiskRecording(
+  enabled: boolean
+): Promise<ApiResponse<SessionRiskConfig>> {
+  const res = await api.put(
+    '/api/risk/session/config',
+    { session_recording_enabled: enabled },
+    skipBusinessErrorConfig
+  )
+  return res.data
+}
+
+export async function getSharedSessions(
+  params: {
+    kind?: SessionRiskKind
+    p?: number
+    page_size?: number
+    keyword?: string
+    start_timestamp?: number
+    end_timestamp?: number
+  } = {}
+): Promise<ApiResponse<SessionRiskPageData>> {
+  const {
+    kind = 'session',
+    p = 1,
+    page_size = 10,
+    keyword = '',
+    start_timestamp,
+    end_timestamp,
+  } = params
+  const res = await api.get('/api/risk/session/shared', {
+    params: {
+      kind,
+      p,
+      page_size,
+      keyword: keyword || undefined,
+      start_timestamp: start_timestamp || undefined,
+      end_timestamp: end_timestamp || undefined,
+    },
+  })
+  const response = res.data as ApiResponse<SessionRiskPageData>
+  if (!response.data) return response
+  return {
+    ...response,
+    data: {
+      ...response.data,
+      items: (response.data.items ?? []).map(normalizeSessionRiskItem),
+    },
+  }
+}
+
+export async function banSharedSessionUsers(data: {
+  kind: SessionRiskKind
+  identifier: string
+  start: number
+  end: number
+  user_ids: number[]
+  reason: string
+  duration_minutes: number
+}): Promise<
+  ApiResponse<{
+    total_users: number
+    success: number
+    failures: Array<{ id: number; message: string }>
+  }>
+> {
+  const res = await api.post(
+    '/api/risk/session/shared/ban-users',
+    data,
+    skipBusinessErrorConfig
+  )
+  return res.data
+}

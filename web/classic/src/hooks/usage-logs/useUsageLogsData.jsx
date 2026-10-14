@@ -105,6 +105,8 @@ export const useLogsData = () => {
     request_id: '',
     ip: '',
     user_agent: '',
+    session_id: '',
+    cache_key: '',
     dateRange: [
       timestamp2string(getTodayStartTimestamp()),
       timestamp2string(now.getTime() / 1000 + 3600),
@@ -268,6 +270,8 @@ export const useLogsData = () => {
       request_id: formValues.request_id || '',
       ip: formValues.ip || '',
       user_agent: formValues.user_agent || '',
+      session_id: formValues.session_id || '',
+      cache_key: formValues.cache_key || '',
       logType: formValues.logType ? parseInt(formValues.logType) : 0,
     };
   };
@@ -853,6 +857,8 @@ export const useLogsData = () => {
       request_id,
       ip,
       user_agent,
+      session_id,
+      cache_key,
       logType: formLogType,
     } = getFormValues();
 
@@ -868,11 +874,13 @@ export const useLogsData = () => {
 
     const ipParam = ip ? ip.trim() : '';
     const userAgentParam = user_agent ? `%${user_agent.trim()}%` : '';
+    const sessionIdParam = session_id ? session_id.trim() : '';
+    const cacheKeyParam = cache_key ? cache_key.trim() : '';
 
     if (isAdminUser) {
-      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}&ip=${ipParam}&user_agent=${userAgentParam}`;
+      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}&ip=${ipParam}&user_agent=${userAgentParam}&session_id=${sessionIdParam}&cache_key=${cacheKeyParam}`;
     } else {
-      url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}&ip=${ipParam}&user_agent=${userAgentParam}`;
+      url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}&ip=${ipParam}&user_agent=${userAgentParam}&session_id=${sessionIdParam}&cache_key=${cacheKeyParam}`;
     }
     url = encodeURI(url);
     const res = await API.get(url);

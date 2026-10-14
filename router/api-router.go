@@ -411,6 +411,11 @@ func SetApiRouter(router *gin.Engine) {
 			// 多开账号证据排行与管理员人工封禁
 			riskGroup.GET("/multi-account", controller.ListMultiAccountClusters)
 			riskGroup.POST("/multi-account/users/:id/ban", controller.BanMultiAccountUser)
+			// 共用会话标识风控
+			riskGroup.GET("/session/config", controller.GetSessionRiskConfig)
+			riskGroup.PUT("/session/config", controller.UpdateSessionRiskConfig)
+			riskGroup.GET("/session/shared", controller.ListSharedSessions)
+			riskGroup.POST("/session/shared/ban-users", controller.BanSharedSessionUsers)
 		}
 
 		prefillGroupRoute := apiRouter.Group("/prefill_group")

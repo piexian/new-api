@@ -16,6 +16,8 @@ const (
 	MultiAccountEvidenceGitHubEmailConflict = "github_email_conflict"
 	MultiAccountRuleID                      = "multi_account_review"
 	MultiAccountRuleName                    = "Multi-account review"
+	SessionRiskRuleID                       = "session_risk_review"
+	SessionRiskRuleName                     = "Shared session review"
 )
 
 // MultiAccountEvidence stores explicit account-link evidence that cannot be
@@ -181,6 +183,15 @@ func ListRecentLoginEnvironmentSignals(since int64, limit int) ([]LoginEnvironme
 }
 
 func DisableUserByMultiAccountReview(id int, reason string, durationMinutes int, operatorId int, bannedAt int64) (*User, error) {
+	return disableUserByRiskReview(id, reason, durationMinutes, operatorId, bannedAt, MultiAccountRuleID, MultiAccountRuleName)
+}
+
+// DisableUserBySessionRiskReview 封禁共用会话风控关联用户，封禁日志按会话风控规则归类。
+func DisableUserBySessionRiskReview(id int, reason string, durationMinutes int, operatorId int, bannedAt int64) (*User, error) {
+	return disableUserByRiskReview(id, reason, durationMinutes, operatorId, bannedAt, SessionRiskRuleID, SessionRiskRuleName)
+}
+
+func disableUserByRiskReview(id int, reason string, durationMinutes int, operatorId int, bannedAt int64, ruleID string, ruleName string) (*User, error) {
 	reason = strings.TrimSpace(reason)
 	if id <= 0 {
 		return nil, errors.New("无效的用户 ID")
@@ -225,8 +236,8 @@ func DisableUserByMultiAccountReview(id int, reason string, durationMinutes int,
 			UserId:          user.Id,
 			Username:        user.Username,
 			Source:          RiskBanSourceManual,
-			RuleId:          MultiAccountRuleID,
-			RuleName:        MultiAccountRuleName,
+			RuleId:          ruleID,
+			RuleName:        ruleName,
 			Action:          "disable_user",
 			DurationMinutes: durationMinutes,
 			IsPermanent:     durationMinutes == 0,

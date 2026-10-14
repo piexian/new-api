@@ -37,6 +37,7 @@ func TestGetAllLogsUsesExactIpAndChannelFilters(t *testing.T) {
 		"",
 		"",
 		"10.0.0.1",
+		LogSessionFilter{},
 	)
 
 	require.NoError(t, err)
@@ -69,6 +70,7 @@ func TestGetUserLogsUsesExactIpFilter(t *testing.T) {
 		"",
 		"",
 		"10.0.0.1",
+		LogSessionFilter{},
 	)
 
 	require.NoError(t, err)

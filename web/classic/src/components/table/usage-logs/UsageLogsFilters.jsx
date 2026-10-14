@@ -120,6 +120,24 @@ const LogsFilters = ({
             size='small'
           />
 
+          <Form.Input
+            field='session_id'
+            prefix={<IconSearch />}
+            placeholder={t('Session ID')}
+            showClear
+            pure
+            size='small'
+          />
+
+          <Form.Input
+            field='cache_key'
+            prefix={<IconSearch />}
+            placeholder={t('Cache Key')}
+            showClear
+            pure
+            size='small'
+          />
+
           {isAdminUser && (
             <>
               <Form.Input
