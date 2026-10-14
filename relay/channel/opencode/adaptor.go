@@ -92,10 +92,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if err := a.validateRequest(info); err != nil {
 		return "", err
 	}
-	if info != nil && IsGoBase(info.ChannelBaseUrl) {
-		if a.RequestMode == requestModeGemini {
-			return "", errors.New("opencode go does not support Gemini endpoint")
-		}
+	if info != nil && IsGoBase(info.ChannelBaseUrl) && a.RequestMode == requestModeGemini && !a.RouteByModel {
+		return "", errors.New("opencode go does not support Gemini endpoint")
 	}
 
 	switch a.RequestMode {
@@ -126,10 +124,22 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		}
 		req.Set("anthropic-version", anthropicVersion)
 		claude.CommonClaudeHeadersOperation(c, req, info)
+	case requestModeGemini:
+		// The upstream Gemini endpoint authenticates via x-goog-api-key and
+		// rejects requests that only carry Authorization: Bearer.
+		req.Set("Authorization", "Bearer "+info.ApiKey)
+		req.Set("x-goog-api-key", info.ApiKey)
 	default:
 		req.Set("Authorization", "Bearer "+info.ApiKey)
 	}
-	return setupOpenCodeHeaders(c, req)
+	// Go forwards client headers by default to maximize upstream cache affinity;
+	// Zen forces the CLI fingerprint because its free tier only accepts the
+	// official OpenCode client.
+	forceFingerprint := !IsGoBase(info.ChannelBaseUrl)
+	if !forceFingerprint {
+		passthroughClientHeaders(c, req)
+	}
+	return setupOpenCodeHeaders(c, req, forceFingerprint)
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {

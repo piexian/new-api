@@ -3,8 +3,8 @@ package constant
 const (
 	OpenCodeZenBaseURLAlias = "opencode-zen"
 	OpenCodeGoBaseURLAlias  = "opencode-go"
-	OpenCodeZenBaseURL      = "https://opencode.ai/zen"
-	OpenCodeGoBaseURL       = "https://opencode.ai/zen/go"
+	OpenCodeZenBaseURL      = "https://opencode.ai/inference"
+	OpenCodeGoBaseURL       = "https://opencode.ai/inference/go"
 )
 
 var OpenCodeZenResponsesModels = []string{
@@ -45,6 +45,7 @@ var OpenCodeZenResponsesModels = []string{
 var OpenCodeZenClaudeModels = []string{
 	"claude-fable-5-1",
 	"claude-fable-5",
+	"claude-opus-5-5-backup",
 	"claude-opus-5-5",
 	"claude-opus-5",
 	"claude-opus-4-8",
@@ -55,7 +56,6 @@ var OpenCodeZenClaudeModels = []string{
 	"claude-sonnet-5",
 	"claude-sonnet-4-6",
 	"claude-sonnet-4-5",
-	"claude-sonnet-4",
 	"claude-haiku-5-5",
 	"claude-haiku-4-5",
 	"qwen3.8-flash",
@@ -63,6 +63,7 @@ var OpenCodeZenClaudeModels = []string{
 	"qwen3.5-plus",
 }
 var OpenCodeZenGeminiModels = []string{
+	"gemini-4-argon",
 	"gemini-3.8-flash",
 	"gemini-3.7-flash",
 	"gemini-3.6-flash",
@@ -92,18 +93,12 @@ var OpenCodeZenChatModels = []string{
 	"kimi-k3",
 	"qwen3.8-max",
 	"big-pickle",
-	"exo-free",
-	"fledge-alpha-free",
 	"space-bunny-free",
+	"cat-jam-free",
 	"step-5-preview-free",
 	"longcat-2.5-preview-free",
-	"mimo-v2.5-free",
 	"mimo-v2.6-flash-free",
-	"ling-3.0-flash-fin-free",
-	"ling-3.1-flash-free",
-	"nemotron-3-ultra-free",
 	"nemotron-3.5-lightning-free",
-	"deepseek-v4-flash-free",
 }
 
 var OpenCodeZenSystemOneModels = []string{
@@ -114,7 +109,6 @@ var OpenCodeZenSystemOneModels = []string{
 var OpenCodeGoResponsesModels = []string{
 	"grok-4.7",
 	"grok-4.6",
-	"grok-4.5",
 	"gpt-6-luna",
 	"gpt-5.6-luna",
 	"muse-spark-1.3-contributor",
@@ -126,11 +120,9 @@ var OpenCodeGoChatModels = []string{
 	"glm-5.3",
 	"glm-5.2",
 	"glm-5.1",
-	"glm-5",
 	"kimi-k3",
 	"kimi-k2.7-code",
 	"kimi-k2.6",
-	"kimi-k2.5",
 	"longcat-2.0",
 	"longcat-2.5-preview-free",
 	"deepseek-v4.1-flash",
@@ -142,12 +134,10 @@ var OpenCodeGoChatModels = []string{
 	"mimo-v2.6-pro",
 	"mimo-v2.5",
 	"mimo-v2.5-pro",
-	"mimo-v2-pro",
-	"mimo-v2-omni",
 	"step-5-preview-free",
 	"hy4-preview",
-	"hy3-preview",
 	"hy3",
+	"cat-jam-free",
 	"omen-alpha",
 	"space-bunny",
 }
@@ -167,12 +157,15 @@ var OpenCodeGoClaudeModels = []string{
 	"qwen3.7-max",
 	"qwen3.7-plus",
 	"qwen3.6-plus",
-	"qwen3.5-plus",
+}
+var OpenCodeGoGeminiModels = []string{
+	"gemini-4-argon-contributor",
 }
 var OpenCodeGoModels = uniqueStringList(
 	OpenCodeGoResponsesModels,
 	OpenCodeGoChatModels,
 	OpenCodeGoClaudeModels,
+	OpenCodeGoGeminiModels,
 )
 var OpenCodeModelList = uniqueStringList(
 	OpenCodeZenResponsesModels,
@@ -183,6 +176,7 @@ var OpenCodeModelList = uniqueStringList(
 	OpenCodeGoResponsesModels,
 	OpenCodeGoChatModels,
 	OpenCodeGoClaudeModels,
+	OpenCodeGoGeminiModels,
 )
 
 func uniqueStringList(lists ...[]string) []string {

@@ -52,7 +52,7 @@ func TestFreeStreamFailureDoesNotEmitSuccessTerminator(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-		info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatOpenAI, RelayMode: relayconstant.RelayModeUnknown, IsStream: true, DisablePing: true, ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenCode, UpstreamModelName: "mimo-v2.5-free"}}
+		info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatOpenAI, RelayMode: relayconstant.RelayModeUnknown, IsStream: true, DisablePing: true, ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenCode, UpstreamModelName: "mimo-v2.6-flash-free"}}
 		stream := newFreeStream(context.Background(), io.NopCloser(strings.NewReader(fixture)), requestModeOpenAI, map[string]bool{"bash": true}, time.Second)
 		adaptor := &Adaptor{RequestMode: requestModeOpenAI, freeResponseStream: stream}
 		_, apiErr := adaptor.DoResponse(c, &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: stream}, info)
@@ -94,7 +94,7 @@ func TestFreePassThroughOnlyForUnknownModels(t *testing.T) {
 		model string
 		want  bool
 	}{
-		{"mimo-v2.5-free", true},
+		{"mimo-v2.6-flash-free", true},
 		{"space-bunny-free", false},
 		{"unlisted-free", false},
 	} {
@@ -122,12 +122,12 @@ func TestFreeRequestCancellationBeforeUpstreamHeaders(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(ctx)
 	c.Request.Header.Set("Content-Type", "application/json")
-	info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatOpenAI, RelayMode: relayconstant.RelayModeUnknown, ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenCode, ChannelBaseUrl: server.URL, UpstreamModelName: "mimo-v2.5-free", ApiKey: "test"}}
+	info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatOpenAI, RelayMode: relayconstant.RelayModeUnknown, ChannelMeta: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenCode, ChannelBaseUrl: server.URL, UpstreamModelName: "mimo-v2.6-flash-free", ApiKey: "test"}}
 	a := &Adaptor{}
 	a.Init(info)
 	result := make(chan error, 1)
 	go func() {
-		_, err := a.DoRequest(c, info, strings.NewReader(`{"model":"mimo-v2.5-free","messages":[]}`))
+		_, err := a.DoRequest(c, info, strings.NewReader(`{"model":"mimo-v2.6-flash-free","messages":[]}`))
 		result <- err
 	}()
 	select {

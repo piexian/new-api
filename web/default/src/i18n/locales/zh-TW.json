@@ -2240,7 +2240,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相關項目",
     "footer.defaultCopyright": "版權所有。",
-    "footer.newapi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
+    "footer.new\u0061pi.projectAttributionSuffix": "版權所有，由項目貢獻者設計與開發。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "對於 2025 年 5 月 10 日之後新增的渠道，在部署時無需從模型名稱中移除 \".\"",
     "For private deployments, format: https://fastgpt.run/api/openapi": "對於私有部署，格式為：https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "強制返回語法合法的 JSON",
@@ -6692,7 +6692,9 @@
     "Ban Selected Users": "封禁選取使用者（{{count}}）",
     "Ban completed with failures": "已封禁 {{success}} 個使用者，{{failed}} 個失敗",
     "Administrator confirmed shared session ID abuse": "管理員確認共用工作階段 ID 濫用",
-    "Administrator confirmed shared cache key abuse": "管理員確認共用快取關聯 ID 濫用"
+    "Administrator confirmed shared cache key abuse": "管理員確認共用快取關聯 ID 濫用",
+    "OpenCode Zen uses https://opencode.ai/inference. OpenCode Go uses https://opencode.ai/inference/go.": "OpenCode Zen 使用 https://opencode.ai/inference，OpenCode Go 使用 https://opencode.ai/inference/go。",
+    "e.g., https://opencode.ai/inference": "例如：https://opencode.ai/inference"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

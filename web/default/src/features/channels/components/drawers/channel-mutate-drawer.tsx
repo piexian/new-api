@@ -3302,7 +3302,7 @@ export function ChannelMutateDrawer({
                                     </Select>
                                     <FormDescription>
                                       {t(
-                                        'OpenCode Zen uses https://opencode.ai/zen. OpenCode Go uses https://opencode.ai/zen/go.'
+                                        'OpenCode Zen uses https://opencode.ai/inference. OpenCode Go uses https://opencode.ai/inference/go.'
                                       )}
                                       <br />
                                       {t(
@@ -3326,7 +3326,7 @@ export function ChannelMutateDrawer({
                                     <FormControl>
                                       <Input
                                         placeholder={t(
-                                          'e.g., https://opencode.ai/zen'
+                                          'e.g., https://opencode.ai/inference'
                                         )}
                                         {...field}
                                       />

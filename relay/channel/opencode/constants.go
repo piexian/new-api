@@ -62,7 +62,7 @@ func trimOpenCodeEndpointPath(value string) string {
 
 func IsGoBase(baseURL string) bool {
 	root := NormalizeRoot(baseURL)
-	return root == channelconstant.OpenCodeGoBaseURL || strings.HasSuffix(root, "/zen/go")
+	return root == channelconstant.OpenCodeGoBaseURL || strings.HasSuffix(root, "/zen/go") || strings.HasSuffix(root, "/inference/go")
 }
 
 func ModelsURL(baseURL string) (string, bool) {
@@ -87,6 +87,8 @@ func requestModeForModel(baseURL string, model string) (int, bool) {
 			return requestModeResponses, true
 		case stringListContains(channelconstant.OpenCodeGoClaudeModels, model):
 			return requestModeClaude, true
+		case stringListContains(channelconstant.OpenCodeGoGeminiModels, model):
+			return requestModeGemini, true
 		case stringListContains(channelconstant.OpenCodeGoChatModels, model) || stringListContains(channelconstant.OpenCodeGoChatRouteOnlyModels, model):
 			return requestModeOpenAI, true
 		default:

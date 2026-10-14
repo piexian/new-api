@@ -10,10 +10,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/gin-gonic/gin"
 )
 
-const openCodeUserAgent = "opencode/1.18.31 ai-sdk/provider-utils/4.0.40 runtime/bun/1.3.14"
+const openCodeUserAgent = "opencode/1.19.0 ai-sdk/provider-utils/4.0.51 runtime/bun/1.3.14"
 const openCodeIDAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
 var openCodeSessionIDPattern = regexp.MustCompile(`^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$`)
@@ -26,7 +27,7 @@ type openCodeIDGenerator struct {
 	counter       uint64
 }
 
-// next matches OpenCode v1.18.31 packages/schema/src/identifier.ts.
+// next matches OpenCode v1.19.0 packages/schema/src/identifier.ts.
 func (g *openCodeIDGenerator) next(prefix string, descending bool, timestamp int64, random io.Reader) (string, error) {
 	g.mu.Lock()
 	if timestamp != g.lastTimestamp {
@@ -70,7 +71,31 @@ func openCodeRequestIdentifier(c *gin.Context, header, prefix string, descending
 	return value, nil
 }
 
-func setupOpenCodeHeaders(c *gin.Context, headers *http.Header) error {
+// passthroughClientHeaders forwards safe client headers verbatim. Go channels
+// use it by default so upstream prompt-cache affinity (session, betas, client
+// identity headers) survives the gateway.
+func passthroughClientHeaders(c *gin.Context, headers *http.Header) {
+	if c == nil || c.Request == nil || headers == nil {
+		return
+	}
+	for name, values := range c.Request.Header {
+		if channel.ShouldSkipPassthroughHeader(name) || len(values) == 0 {
+			continue
+		}
+		if strings.TrimSpace(values[0]) == "" || headers.Get(name) != "" {
+			continue
+		}
+		for _, value := range values {
+			headers.Add(name, value)
+		}
+	}
+}
+
+// setupOpenCodeHeaders installs the OpenCode session/request identifiers and,
+// when forceFingerprint is set (Zen), normalizes client/project/UA to the CLI
+// fingerprint — Zen free models are restricted to the OpenCode client, so the
+// gateway must present the official fingerprint regardless of the caller.
+func setupOpenCodeHeaders(c *gin.Context, headers *http.Header, forceFingerprint bool) error {
 	session, err := openCodeRequestIdentifier(c, "x-opencode-session", "ses", true, openCodeSessionIDPattern)
 	if err != nil {
 		return err
@@ -92,10 +117,12 @@ func setupOpenCodeHeaders(c *gin.Context, headers *http.Header) error {
 		headers.Set(name, value)
 	}
 	userAgent := strings.TrimSpace(c.Request.Header.Get("User-Agent"))
-	if !strings.HasPrefix(userAgent, "opencode/") {
+	if userAgent == "" || (forceFingerprint && !strings.HasPrefix(userAgent, "opencode/")) {
 		userAgent = openCodeUserAgent
 	}
 	headers.Set("User-Agent", userAgent)
-	headers.Set("Content-Type", "application/json")
+	if headers.Get("Content-Type") == "" {
+		headers.Set("Content-Type", "application/json")
+	}
 	return nil
 }

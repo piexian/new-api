@@ -1,15 +1,16 @@
 # OpenCode Zen / Go
 
-选择 OpenCode 渠道（type 65）：`opencode-zen` 对应 `https://opencode.ai/zen`，`opencode-go` 对应 `https://opencode.ai/zen/go`。
+选择 OpenCode 渠道（type 65）：`opencode-zen` 对应 `https://opencode.ai/inference`，`opencode-go` 对应 `https://opencode.ai/inference/go`（上游已迁移至 `/inference`，旧 `/zen` 路径仍可用但待下线；存量渠道 base 以 `/zen/go` 结尾仍识别为 Go）。
 
 ## 请求头
 
-自动补齐 `User-Agent`、`x-opencode-client`、`x-opencode-project`、`x-opencode-session` 和 `x-opencode-request`，兼容 OpenCode CLI 1.18.31。默认客户端为 `cli`，项目为 `global`。
+自动补齐 `User-Agent`、`x-opencode-client`、`x-opencode-project`、`x-opencode-session` 和 `x-opencode-request`，兼容 OpenCode CLI 1.19.0。默认客户端为 `cli`，项目为 `global`。
 
 - 保留有效的客户端 `ses_...` / `msg_...`、项目、客户端标识及 OpenCode User-Agent。
 - 缺失或格式无效的 ID 按官方算法生成：时间戳与共享计数编码为 12 位十六进制，再拼接 14 位加密随机 Base62；session 使用倒序编码。
 - 生成的 ID 仅在当前请求及其重试中复用。跨请求会话亲和需要客户端持续传入同一 `x-opencode-session`，不会按用户或令牌合并全部对话。
 - 渠道请求头覆盖仍具有最终优先级；固定或无效的 ID 覆盖值可能导致上游拒绝。
+- Go 渠道默认透传客户端请求头（排除 hop-by-hop、鉴权、Content-Length 等），以保留上游会话与提示缓存亲和；Zen 渠道不透传，强制使用官方 CLI 指纹，因为 Zen 的 free 模型仅限 OpenCode 客户端使用。
 
 ## 模型与端点
 
@@ -24,15 +25,18 @@
 | 渠道 | 上游端点 | 模型 ID |
 | --- | --- | --- |
 | Zen | `/v1/responses` | `gpt-6-astra`、`gpt-6.1-sol`、`gpt-6-sol`、`gpt-6-luna`、`grok-4.7`、`muse-spark-1.3` |
-| Zen | `/v1/messages` | `claude-fable-5-1`、`claude-opus-5-5`、`claude-sonnet-5-5`、`claude-sonnet-4`、`qwen3.8-flash` |
-| Zen | `/v1/models/{model}:generateContent` | `gemini-3.8-flash` |
-| Zen | `/v1/chat/completions` | `deepseek-v4.1-flash`、`deepseek-v4-flash-vision-exp`、`glm-5.3-flash`、`glm-5.3`、`mistral-large-4`、`exo-free`、`fledge-alpha-free`、`ling-3.1-flash-free`、`qwen3.8-max`、`space-bunny-free`、`longcat-2.5-preview-free` |
-| Go | `/v1/responses` | `grok-4.7`、`grok-4.6`、`grok-4.5`、`gpt-6-luna`、`muse-spark-1.3-contributor`、`muse-spark-1.2-contributor` |
-| Go | `/v1/messages` | `qwen3.8-flash`、`qwen3.5-plus` |
-| Go | `/v1/chat/completions` | `glm-5.3-flash`、`glm-5`、`kimi-k2.5`、`longcat-2.0`、`longcat-2.5-preview-free`、`deepseek-v4.1-flash`、`deepseek-v4-flash-vision-exp`、`deepseek-flash`、`mimo-v2.6-flash`、`mimo-v2.6-pro`、`mimo-v2-pro`、`mimo-v2-omni`、`hy4-preview`、`hy3-preview`、`omen-alpha`、`space-bunny` |
+| Zen | `/v1/messages` | `claude-fable-5-1`、`claude-opus-5-5-backup`、`claude-opus-5-5`、`claude-sonnet-5-5`、`qwen3.8-flash` |
+| Zen | `/v1/models/{model}:generateContent` | `gemini-4-argon`、`gemini-3.8-flash` |
+| Zen | `/v1/chat/completions` | `deepseek-v4.1-flash`、`deepseek-v4-flash-vision-exp`、`glm-5.3-flash`、`glm-5.3`、`mistral-large-4`、`cat-jam-free`、`qwen3.8-max`、`space-bunny-free`、`longcat-2.5-preview-free` |
+| Go | `/v1/responses` | `grok-4.7`、`grok-4.6`、`gpt-6-luna`、`muse-spark-1.3-contributor`、`muse-spark-1.2-contributor` |
+| Go | `/v1/messages` | `qwen3.8-flash` |
+| Go | `/v1/models/{model}:generateContent` | `gemini-4-argon-contributor` |
+| Go | `/v1/chat/completions` | `glm-5.3-flash`、`longcat-2.0`、`longcat-2.5-preview-free`、`deepseek-v4.1-flash`、`deepseek-v4-flash-vision-exp`、`deepseek-flash`、`mimo-v2.6-flash`、`mimo-v2.6-pro`、`cat-jam-free`、`hy4-preview`、`omen-alpha`、`space-bunny` |
 
-Zen 已下架 `qwen3.7-max`、`qwen3.7-plus`、`hy3-free`、`x-preview-f-free`（上游返回 Model is unavailable），本站路由表同步移除；Go 仍保留 qwen3.7 系列。
+Zen 已下架 `qwen3.7-max`、`qwen3.7-plus`、`hy3-free`、`x-preview-f-free`、`claude-sonnet-4`、`exo-free`、`fledge-alpha-free`、`mimo-v2.5-free`、`ling-3.0-flash-fin-free`、`ling-3.1-flash-free`、`nemotron-3-ultra-free`、`deepseek-v4-flash-free`（上游返回 Model is unavailable 或 ModelDeprecated），本站路由表同步移除；Go 仍保留 qwen3.7 系列。
+Go 已下架 `glm-5`、`kimi-k2.5`、`grok-4.5`、`hy3-preview`、`mimo-v2-pro`、`mimo-v2-omni`、`qwen3.5-plus`，本站路由表同步移除。
 Go 渠道的 `space-bunny-free` 经渠道实测仅支持 Chat；作为 RouteOnly 例外保留 Chat 路由，不加入 Go 静态模型回退列表。
+`gemini-4-argon-contributor` 走原生 Gemini 端点（generateContent），该路由只在 `/inference/go` 网关上存在，旧 `/zen/go` base 未挂载（实测 404）；存量 `/zen/go` 渠道需把 base 换到 `/inference/go`。Zen 的 Gemini 端点要求 `x-goog-api-key` 鉴权，仅 Bearer 会被拒绝。
 
 Chat、Responses、Claude Messages 和 Gemini generateContent 入站均按 Zen/Go 的模型协议表选上游端点：同协议保持原生格式，异协议双向转换，优先于全局或渠道请求体透传；未登记模型保留原透传规则。模型映射后按实际上游模型名匹配。count_tokens、Responses compact 等非文本生成端点不自动转换。
 
@@ -66,4 +70,4 @@ JEV 只接受原生 `POST /v1/systemone`，不支持 Chat/Responses 转换或流
 
 `state`、`questions`、附加字段及上游响应原样传递；模型映射只改写 `model`，渠道参数覆盖按原有规则应用。用量从 `usage.input_tokens/output_tokens` 提取。
 
-参考：[Zen 文档](https://opencode.ai/docs/zen/) · [Go 文档](https://opencode.ai/docs/go/) · [CLI 请求头](https://github.com/anomalyco/opencode/blob/v1.18.31/packages/opencode/src/session/llm/request.ts) · [ID 算法](https://github.com/anomalyco/opencode/blob/v1.18.31/packages/schema/src/identifier.ts)
+参考：[Zen 文档](https://opencode.ai/docs/zen/) · [Go 文档](https://opencode.ai/docs/go/) · [CLI 请求头](https://github.com/anomalyco/opencode/blob/v1.19.0/packages/opencode/src/session/llm/request.ts) · [ID 算法](https://github.com/anomalyco/opencode/blob/v1.19.0/packages/schema/src/identifier.ts)

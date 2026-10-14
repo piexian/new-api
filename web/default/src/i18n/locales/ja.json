@@ -2240,7 +2240,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
     "For private deployments, format: https://fastgpt.run/api/openapi": "プライベートデプロイメントの場合、形式: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "構文的に有効な JSON 応答を強制",
@@ -6692,7 +6692,9 @@
     "Ban Selected Users": "選択したユーザーをBAN（{{count}}）",
     "Ban completed with failures": "{{success}} 人をBAN、{{failed}} 件失敗",
     "Administrator confirmed shared session ID abuse": "管理者がセッション ID の共有悪用を確認",
-    "Administrator confirmed shared cache key abuse": "管理者がキャッシュキーの共有悪用を確認"
+    "Administrator confirmed shared cache key abuse": "管理者がキャッシュキーの共有悪用を確認",
+    "OpenCode Zen uses https://opencode.ai/inference. OpenCode Go uses https://opencode.ai/inference/go.": "OpenCode Zen は https://opencode.ai/inference、OpenCode Go は https://opencode.ai/inference/go を使用します。",
+    "e.g., https://opencode.ai/inference": "例：https://opencode.ai/inference"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

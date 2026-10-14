@@ -22,7 +22,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-const freeChatFixture = "data: {\"id\":\"chat_test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"mimo-v2.5-free\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"reasoning_content\":\"think\",\"content\":\"O\"},\"finish_reason\":null}]}\n\n" +
+const freeChatFixture = "data: {\"id\":\"chat_test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"mimo-v2.6-flash-free\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"reasoning_content\":\"think\",\"content\":\"O\"},\"finish_reason\":null}]}\n\n" +
 	"data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"K\"},\"finish_reason\":\"stop\"}]}\n\n" +
 	"data: {\"choices\":[],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":2,\"total_tokens\":7,\"prompt_tokens_details\":{\"cached_tokens\":1}}}\n\n" + "data: [DONE]\n\n"
 
@@ -79,7 +79,7 @@ func TestFreeCompatibilityScope(t *testing.T) {
 		mode   int
 		want   bool
 	}{
-		{"mimo-v2.5-free", types.RelayFormatOpenAI, relayconstant.RelayModeUnknown, true},
+		{"mimo-v2.6-flash-free", types.RelayFormatOpenAI, relayconstant.RelayModeUnknown, true},
 		{"muse-spark-1.3-contributor-free", types.RelayFormatOpenAIResponses, relayconstant.RelayModeResponses, true},
 		{"big-pickle", types.RelayFormatOpenAI, relayconstant.RelayModeUnknown, true},
 		{"space-bunny-free", types.RelayFormatOpenAI, relayconstant.RelayModeUnknown, false},
@@ -119,7 +119,7 @@ func TestFreeFullAdaptorPaths(t *testing.T) {
 						}
 					}))
 					defer server.Close()
-					model := "mimo-v2.5-free"
+					model := "mimo-v2.6-flash-free"
 					if upstreamResponses {
 						model = "muse-spark-1.3-contributor-free"
 					}

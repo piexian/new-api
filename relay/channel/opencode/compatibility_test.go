@@ -26,9 +26,8 @@ func TestFreeAndAlphaModelsUseTheirNativeRoutes(t *testing.T) {
 		path  string
 		mode  int
 	}{
-		{"mimo-v2.5-free", "/v1/chat/completions", requestModeOpenAI},
 		{"mimo-v2.6-flash-free", "/v1/chat/completions", requestModeOpenAI},
-		{"ling-3.0-flash-fin-free", "/v1/chat/completions", requestModeOpenAI},
+		{"step-5-preview-free", "/v1/chat/completions", requestModeOpenAI},
 		{"muse-spark-1.3-contributor-free", "/v1/responses", requestModeResponses},
 		{"omen-alpha", "/v1/chat/completions", requestModeOpenAI},
 		{"custom-alpha", "/v1/chat/completions", requestModeOpenAI},

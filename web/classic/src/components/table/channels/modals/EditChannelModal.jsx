@@ -4538,12 +4538,12 @@ const EditChannelModal = (props) => {
                                     {
                                       value: OPENCODE_ZEN_BASE_URL,
                                       label:
-                                        'OpenCode Zen (https://opencode.ai/zen)',
+                                        'OpenCode Zen (https://opencode.ai/inference)',
                                     },
                                     {
                                       value: OPENCODE_GO_BASE_URL,
                                       label:
-                                        'OpenCode Go (https://opencode.ai/zen/go)',
+                                        'OpenCode Go (https://opencode.ai/inference/go)',
                                     },
                                   ]}
                                   defaultValue={OPENCODE_ZEN_BASE_URL}

@@ -2240,7 +2240,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
     "For private deployments, format: https://fastgpt.run/api/openapi": "Для частных развертываний, формат: https://fastgpt.run/api/openapi",
     "Force a syntactically valid JSON response": "Принудительно возвращать синтаксически корректный JSON",
@@ -6692,7 +6692,9 @@
     "Ban Selected Users": "Забанить выбранных ({{count}})",
     "Ban completed with failures": "Забанено: {{success}}, ошибок: {{failed}}",
     "Administrator confirmed shared session ID abuse": "Администратор подтвердил злоупотребление общим ID сессии",
-    "Administrator confirmed shared cache key abuse": "Администратор подтвердил злоупотребление общим ключом кэша"
+    "Administrator confirmed shared cache key abuse": "Администратор подтвердил злоупотребление общим ключом кэша",
+    "OpenCode Zen uses https://opencode.ai/inference. OpenCode Go uses https://opencode.ai/inference/go.": "OpenCode Zen использует https://opencode.ai/inference, OpenCode Go использует https://opencode.ai/inference/go.",
+    "e.g., https://opencode.ai/inference": "напр., https://opencode.ai/inference"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

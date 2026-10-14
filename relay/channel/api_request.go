@@ -121,6 +121,13 @@ func getHeaderPassthroughRegex(pattern string) (*regexp.Regexp, error) {
 func IsHeaderPassthroughRuleKey(key string) bool {
 	return isHeaderPassthroughRuleKey(key)
 }
+
+// ShouldSkipPassthroughHeader reports whether a client header must not be
+// forwarded upstream by name-matching passthrough (hop-by-hop, credentials,
+// transport-controlled headers). Exported for adaptors that passthrough by default.
+func ShouldSkipPassthroughHeader(name string) bool {
+	return shouldSkipPassthroughHeader(name)
+}
 func isHeaderPassthroughRuleKey(key string) bool {
 	key = strings.TrimSpace(key)
 	if key == "" {
