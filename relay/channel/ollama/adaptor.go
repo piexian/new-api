@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/relay/channel"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -16,7 +17,31 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ollamaAnthropicVersion is the only Anthropic version Ollama Cloud accepts.
+const ollamaAnthropicVersion = "2023-06-01"
+
 type Adaptor struct {
+}
+
+// NormalizeBaseURL accepts the client base URLs documented for Ollama Cloud
+// (https://ollama.com, https://ollama.com/v1, https://ollama.com/api) and the
+// local server form, and returns the root that the native /api and /v1 routes
+// are appended to.
+func NormalizeBaseURL(baseURL string) string {
+	base := strings.TrimSpace(baseURL)
+	for {
+		trimmed := strings.TrimSuffix(base, "/")
+		switch {
+		case strings.HasSuffix(trimmed, "/v1"):
+			trimmed = strings.TrimSuffix(trimmed, "/v1")
+		case strings.HasSuffix(trimmed, "/api"):
+			trimmed = strings.TrimSuffix(trimmed, "/api")
+		}
+		if trimmed == base {
+			return base
+		}
+		base = trimmed
+	}
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
@@ -24,16 +49,12 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
-	openaiAdaptor := openai.Adaptor{}
-	openaiRequest, err := openaiAdaptor.ConvertClaudeRequest(c, info, request)
-	if err != nil {
-		return nil, err
+	if request == nil {
+		return nil, errors.New("request is nil")
 	}
-	openaiRequest.(*dto.GeneralOpenAIRequest).StreamOptions = &dto.StreamOptions{
-		IncludeUsage: true,
-	}
-	// map to ollama chat request (Claude -> OpenAI -> Ollama chat)
-	return openAIChatToOllamaChat(c, openaiRequest.(*dto.GeneralOpenAIRequest))
+	// Ollama Cloud serves the native Anthropic Messages endpoint, so Claude
+	// requests stay untouched instead of dropping through the chat protocol.
+	return request, nil
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -48,21 +69,38 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.RelayMode == relayconstant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAIResponses {
-		return info.ChannelBaseUrl + "/v1/responses", nil
+	base := NormalizeBaseURL(info.ChannelBaseUrl)
+	switch info.RelayMode {
+	case relayconstant.RelayModeClaudeCountTokens:
+		return base + "/v1/messages/count_tokens", nil
+	case relayconstant.RelayModeEmbeddings:
+		return base + "/api/embed", nil
+	case relayconstant.RelayModeResponses:
+		return base + "/v1/responses", nil
+	case relayconstant.RelayModeResponsesCompact:
+		return base + "/v1/responses/compact", nil
+	case relayconstant.RelayModeResponsesInputTokens:
+		return base + "/v1/responses/input_tokens", nil
+	case relayconstant.RelayModeCompletions:
+		return base + "/api/generate", nil
 	}
-	if info.RelayMode == relayconstant.RelayModeEmbeddings {
-		return info.ChannelBaseUrl + "/api/embed", nil
+	if info.RelayFormat == types.RelayFormatClaude {
+		return base + "/v1/messages", nil
 	}
-	if strings.Contains(info.RequestURLPath, "/v1/completions") || info.RelayMode == relayconstant.RelayModeCompletions {
-		return info.ChannelBaseUrl + "/api/generate", nil
+	if strings.Contains(info.RequestURLPath, "/v1/completions") {
+		return base + "/api/generate", nil
 	}
-	return info.ChannelBaseUrl + "/api/chat", nil
+	return base + "/api/chat", nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
+	// Ollama Cloud requires bearer auth on every route and rejects x-api-key.
 	req.Set("Authorization", "Bearer "+info.ApiKey)
+	if info.RelayMode == relayconstant.RelayModeClaudeCountTokens ||
+		(info.RelayFormat == types.RelayFormatClaude && info.RelayMode == relayconstant.RelayModeUnknown) {
+		req.Set("anthropic-version", ollamaAnthropicVersion)
+	}
 	return nil
 }
 
@@ -70,8 +108,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	// decide generate or chat
-	if strings.Contains(info.RequestURLPath, "/v1/completions") || info.RelayMode == relayconstant.RelayModeCompletions {
+	if info.RelayMode == relayconstant.RelayModeCompletions || strings.Contains(info.RequestURLPath, "/v1/completions") {
 		return openAIToGenerate(c, request)
 	}
 	return openAIChatToOllamaChat(c, request)
@@ -86,10 +123,14 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	converted, err := (&openai.Adaptor{}).ConvertOpenAIResponsesRequest(c, info, request)
+	if err != nil {
+		return nil, err
+	}
 	if info != nil {
 		info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
 	}
-	return request, nil
+	return converted, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -97,21 +138,22 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if info != nil && info.RelayMode == relayconstant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAIResponses {
+	switch info.RelayMode {
+	case relayconstant.RelayModeEmbeddings:
+		return ollamaEmbeddingHandler(c, info, resp)
+	case relayconstant.RelayModeResponses:
 		if info.IsStream {
 			return openai.OaiResponsesStreamHandler(c, info, resp)
 		}
 		return openai.OaiResponsesHandler(c, info, resp)
 	}
-	switch info.RelayMode {
-	case relayconstant.RelayModeEmbeddings:
-		return ollamaEmbeddingHandler(c, info, resp)
-	default:
-		if info.IsStream {
-			return ollamaStreamHandler(c, info, resp)
-		}
-		return ollamaChatHandler(c, info, resp)
+	if info != nil && info.RelayFormat == types.RelayFormatClaude {
+		return (&claude.Adaptor{}).DoResponse(c, resp, info)
 	}
+	if info.IsStream {
+		return ollamaStreamHandler(c, info, resp)
+	}
+	return ollamaChatHandler(c, info, resp)
 }
 
 func (a *Adaptor) GetModelList() []string {

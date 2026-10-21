@@ -332,7 +332,7 @@ func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 }
 
 func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
-	url := fmt.Sprintf("%s/api/tags", baseURL)
+	url := fmt.Sprintf("%s/api/tags", NormalizeBaseURL(baseURL))
 
 	client := &http.Client{}
 	request, err := http.NewRequest("GET", url, nil)
@@ -372,7 +372,7 @@ func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
 
 // 拉取 Ollama 模型 (非流式)
 func PullOllamaModel(baseURL, apiKey, modelName string) error {
-	url := fmt.Sprintf("%s/api/pull", baseURL)
+	url := fmt.Sprintf("%s/api/pull", NormalizeBaseURL(baseURL))
 
 	pullRequest := OllamaPullRequest{
 		Name:   modelName,
@@ -413,7 +413,7 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 
 // 流式拉取 Ollama 模型 (支持进度回调)
 func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback func(OllamaPullResponse)) error {
-	url := fmt.Sprintf("%s/api/pull", baseURL)
+	url := fmt.Sprintf("%s/api/pull", NormalizeBaseURL(baseURL))
 
 	pullRequest := OllamaPullRequest{
 		Name:   modelName,
@@ -490,7 +490,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 
 // 删除 Ollama 模型
 func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
-	url := fmt.Sprintf("%s/api/delete", baseURL)
+	url := fmt.Sprintf("%s/api/delete", NormalizeBaseURL(baseURL))
 
 	deleteRequest := OllamaDeleteRequest{
 		Name: modelName,
@@ -527,7 +527,7 @@ func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
 }
 
 func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
-	trimmedBase := strings.TrimRight(baseURL, "/")
+	trimmedBase := NormalizeBaseURL(baseURL)
 	if trimmedBase == "" {
 		return "", fmt.Errorf("baseURL 为空")
 	}
