@@ -1437,24 +1437,34 @@ func FetchModels(c *gin.Context) {
 		return
 	}
 	if req.Type == constant.ChannelTypeOpenCode {
+		modelsURLs := []string{}
 		if modelsURL, ok := opencode.ModelsURL(baseURL); ok {
+			modelsURLs = append(modelsURLs, modelsURL)
+		}
+		if fallbackURL, ok := opencode.ModelsURLFallback(baseURL); ok {
+			modelsURLs = append(modelsURLs, fallbackURL)
+		}
+		for _, modelsURL := range modelsURLs {
 			request, err := http.NewRequest("GET", modelsURL, nil)
-			if err == nil {
-				request.Header.Set("Authorization", "Bearer "+key)
-				response, err := client.Do(request)
-				if err == nil {
-					body, readErr := io.ReadAll(response.Body)
-					response.Body.Close()
-					if readErr == nil && response.StatusCode == http.StatusOK {
-						if models, parseErr := opencode.ParseModelsResponse(body); parseErr == nil && len(models) > 0 {
-							c.JSON(http.StatusOK, gin.H{
-								"success": true,
-								"data":    models,
-							})
-							return
-						}
-					}
-				}
+			if err != nil {
+				continue
+			}
+			request.Header.Set("Authorization", "Bearer "+key)
+			response, err := client.Do(request)
+			if err != nil {
+				continue
+			}
+			body, readErr := io.ReadAll(response.Body)
+			response.Body.Close()
+			if readErr != nil || response.StatusCode != http.StatusOK {
+				continue
+			}
+			if models, parseErr := opencode.ParseModelsResponse(body); parseErr == nil && len(models) > 0 {
+				c.JSON(http.StatusOK, gin.H{
+					"success": true,
+					"data":    models,
+				})
+				return
 			}
 		}
 		if staticModels := opencode.StaticModelListForBase(baseURL); len(staticModels) > 0 {

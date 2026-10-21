@@ -13,7 +13,12 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-var freeCoreTools = []string{"bash", "edit", "glob", "grep", "read"}
+// freeCoreTools are the tool names the free tier expects on an agent-shaped
+// request; at minimum "shell" and "read" must be present with genuine
+// definitions. "shell" is the name OpenCode 2.x ships; the pre-2.x "bash"
+// spelling is deliberately not injected because the gate validates the
+// definition of every tool it recognises byte-for-byte.
+var freeCoreTools = []string{"shell", "edit", "glob", "grep", "read"}
 
 func (a *Adaptor) needsFreeCompatibility(info *relaycommon.RelayInfo) bool {
 	if info == nil || info.ChannelMeta == nil || (relaycommon.IsRequestPassThroughEnabled(info) && !a.RouteByModel) {
@@ -47,28 +52,35 @@ func (a *Adaptor) shapeFreeRequest(body []byte) ([]byte, map[string]bool, error)
 		}
 	}
 	originalCount := len(tools)
+	namePath := "name"
+	if a.RequestMode == requestModeOpenAI {
+		namePath = "function.name"
+	}
 	existing := map[string]bool{}
-	for _, tool := range tools {
-		path := "name"
-		if a.RequestMode == requestModeOpenAI {
-			path = "function.name"
+	for index, tool := range tools {
+		if gjson.GetBytes(tool, "type").String() != "function" {
+			continue
 		}
-		if gjson.GetBytes(tool, "type").String() == "function" {
-			existing[gjson.GetBytes(tool, path).String()] = true
+		name := gjson.GetBytes(tool, namePath).String()
+		existing[name] = true
+		// A caller-declared definition for a recognised tool name is replaced
+		// with the genuine one: the free tier rejects any other schema, and a
+		// caller that happens to reuse the name would otherwise fail the request.
+		if _, known := knownOpenCodeTool(name); !known {
+			continue
 		}
+		encoded, err := common.Marshal(openCodeToolWire(a.RequestMode, name))
+		if err != nil {
+			return nil, nil, err
+		}
+		tools[index] = encoded
 	}
 	injected := map[string]bool{}
 	for _, name := range freeCoreTools {
 		if existing[name] {
 			continue
 		}
-		function := map[string]any{"name": name, "description": name, "parameters": map[string]any{"type": "object", "properties": map[string]any{}}}
-		var tool any = map[string]any{"type": "function", "function": function}
-		if a.RequestMode == requestModeResponses {
-			function["type"] = "function"
-			tool = function
-		}
-		encoded, err := common.Marshal(tool)
+		encoded, err := common.Marshal(openCodeToolWire(a.RequestMode, name))
 		if err != nil {
 			return nil, nil, err
 		}

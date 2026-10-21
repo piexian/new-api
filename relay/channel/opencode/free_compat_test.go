@@ -48,9 +48,12 @@ func TestFreeShapePreservesToolsAndZeroFields(t *testing.T) {
 		shaped, injected, err := a.shapeFreeRequest(body)
 		require.NoError(t, err)
 		require.True(t, gjson.GetBytes(shaped, "stream").Bool())
+		// "bash" is not an OpenCode 2.x tool name, so the caller's definition
+		// passes through untouched; the five core tools are appended.
 		require.Equal(t, gjson.Parse(tools).Array()[0].Raw, gjson.GetBytes(shaped, "tools.0").Raw)
-		require.Len(t, gjson.GetBytes(shaped, "tools").Array(), 5)
+		require.Len(t, gjson.GetBytes(shaped, "tools").Array(), 6)
 		require.False(t, injected["bash"])
+		require.True(t, injected["shell"])
 		require.True(t, injected["read"])
 		require.Equal(t, "9007199254740993", gjson.GetBytes(shaped, "large").Raw)
 		require.Equal(t, "false", gjson.GetBytes(shaped, "store").Raw)
@@ -68,6 +71,45 @@ func TestFreeShapePreservesToolsAndZeroFields(t *testing.T) {
 		} else {
 			require.False(t, gjson.GetBytes(body, "tool_choice").Exists())
 			require.False(t, gjson.GetBytes(body, "stream_options").Exists())
+		}
+	}
+}
+
+func TestFreeShapeUsesGenuineToolDefinitions(t *testing.T) {
+	genuine, ok := knownOpenCodeTool("shell")
+	require.True(t, ok)
+	require.NotEmpty(t, genuine.Description)
+	require.NotEmpty(t, genuine.Parameters)
+	for _, mode := range []int{requestModeOpenAI, requestModeResponses} {
+		a := &Adaptor{RequestMode: mode}
+		// A caller-declared stub for a recognised tool name is replaced with
+		// the genuine definition and stays caller-owned (not injected).
+		tools := `[{"type":"function","function":{"name":"read","description":"stub","parameters":{"type":"object","properties":{}}}}]`
+		namePath := "tools.0.function"
+		if mode == requestModeResponses {
+			tools = `[{"type":"function","name":"read","description":"stub","parameters":{"type":"object","properties":{}}}]`
+			namePath = "tools.0"
+		}
+		shaped, injected, err := a.shapeFreeRequest([]byte(`{"tools":` + tools + `}`))
+		require.NoError(t, err)
+		require.Len(t, gjson.GetBytes(shaped, "tools").Array(), 5)
+		require.False(t, injected["read"])
+		require.True(t, injected["shell"])
+		require.Equal(t, "read", gjson.GetBytes(shaped, namePath+".name").String())
+		genuineRead, ok := knownOpenCodeTool("read")
+		require.True(t, ok)
+		require.Equal(t, genuineRead.Description, gjson.GetBytes(shaped, namePath+".description").String())
+		require.NotEqual(t, "stub", gjson.GetBytes(shaped, namePath+".description").String())
+		// Injected core tools carry the genuine definitions too.
+		for index, name := range []string{"shell", "edit", "glob", "grep"} {
+			definition, ok := knownOpenCodeTool(name)
+			require.True(t, ok)
+			path := "tools." + string(rune('1'+index)) + ".function"
+			if mode == requestModeResponses {
+				path = "tools." + string(rune('1'+index))
+			}
+			require.Equal(t, name, gjson.GetBytes(shaped, path+".name").String())
+			require.Equal(t, definition.Description, gjson.GetBytes(shaped, path+".description").String())
 		}
 	}
 }

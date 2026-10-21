@@ -15,6 +15,13 @@ var (
 
 var ChannelName = "opencode"
 
+const (
+	protocolOpenAI    = "openai"
+	protocolAnthropic = "anthropic"
+	protocolGoogle    = "google"
+	protocolSystemOne = "systemone"
+)
+
 func NormalizeRoot(baseURL string) string {
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {
@@ -40,8 +47,10 @@ func NormalizeRoot(baseURL string) string {
 }
 
 func trimOpenCodeEndpointPath(value string) string {
-	if index := strings.Index(value, "/v1/models/"); index >= 0 {
-		return strings.TrimRight(value[:index], "/")
+	for _, marker := range []string{"/v1/models/", "/v1beta/models/"} {
+		if index := strings.Index(value, marker); index >= 0 {
+			return trimProtocolPrefix(strings.TrimRight(value[:index], "/"))
+		}
 	}
 	for _, suffix := range []string{
 		"/v1/chat/completions",
@@ -51,10 +60,24 @@ func trimOpenCodeEndpointPath(value string) string {
 		"/v1/responses/compact",
 		"/v1/responses",
 		"/v1/models",
+		"/v1beta",
 		"/v1",
 	} {
 		if strings.HasSuffix(value, suffix) {
-			return strings.TrimSuffix(value, suffix)
+			return trimProtocolPrefix(strings.TrimSuffix(value, suffix))
+		}
+	}
+	return trimProtocolPrefix(value)
+}
+
+// trimProtocolPrefix drops the per-protocol segment of the /inference gateways
+// so a pasted endpoint URL still normalizes to the gateway root.
+func trimProtocolPrefix(value string) string {
+	for _, protocol := range []string{protocolOpenAI, protocolAnthropic, protocolGoogle, protocolSystemOne} {
+		for _, gateway := range []string{"/inference/go/", "/inference/"} {
+			if strings.HasSuffix(value, gateway+protocol) {
+				return strings.TrimSuffix(value, "/"+protocol)
+			}
 		}
 	}
 	return value
@@ -65,8 +88,25 @@ func IsGoBase(baseURL string) bool {
 	return root == channelconstant.OpenCodeGoBaseURL || strings.HasSuffix(root, "/zen/go") || strings.HasSuffix(root, "/inference/go")
 }
 
+// hasProtocolPrefix reports whether the base is an /inference gateway (Zen or Go),
+// which serves each protocol under its own prefix. The legacy /zen and /zen/go keep flat /v1 routes.
+func hasProtocolPrefix(baseURL string) bool {
+	root := NormalizeRoot(baseURL)
+	return strings.HasSuffix(root, "/inference") || strings.HasSuffix(root, "/inference/go")
+}
+
 func ModelsURL(baseURL string) (string, bool) {
 	return NormalizeRoot(baseURL) + "/v1/models", true
+}
+
+// ModelsURLFallback returns the legacy Zen console models listing for the
+// official Zen base. The inference backend no longer exposes a models route
+// (404), while the legacy console origin still serves the anonymous catalog.
+func ModelsURLFallback(baseURL string) (string, bool) {
+	if NormalizeRoot(baseURL) != channelconstant.OpenCodeZenBaseURL {
+		return "", false
+	}
+	return channelconstant.OpenCodeZenLegacyBaseURL + "/v1/models", true
 }
 
 func StaticModelListForBase(baseURL string) []string {

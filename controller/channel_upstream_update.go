@@ -375,6 +375,11 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	}
 
 	body, err := GetResponseBody(http.MethodGet, url, channel, headers)
+	if err != nil && channel.Type == constant.ChannelTypeOpenCode {
+		if fallbackURL, ok := opencode.ModelsURLFallback(baseURL); ok && fallbackURL != url {
+			body, err = GetResponseBody(http.MethodGet, fallbackURL, channel, headers)
+		}
+	}
 	if err != nil {
 		if channel.Type == constant.ChannelTypeOpenCode {
 			if staticModels := opencode.StaticModelListForBase(baseURL); len(staticModels) > 0 {

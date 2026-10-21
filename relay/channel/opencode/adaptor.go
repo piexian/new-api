@@ -98,7 +98,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 	switch a.RequestMode {
 	case requestModeSystemOne:
-		return openCodeRoot(info) + "/v1/systemone", nil
+		return openCodeProtocolRoot(info, protocolSystemOne) + "/v1/systemone", nil
 	case requestModeResponses:
 		return openCodeResponsesURL(info), nil
 	case requestModeClaude:
@@ -107,7 +107,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return openCodeGeminiURL(info)
 	default:
 		if a.RouteByModel {
-			return openCodeRoot(info) + "/v1/chat/completions", nil
+			return openCodeProtocolRoot(info, protocolOpenAI) + "/v1/chat/completions", nil
 		}
 		return openCodeOpenAIURL(info), nil
 	}
@@ -124,6 +124,10 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		}
 		req.Set("anthropic-version", anthropicVersion)
 		claude.CommonClaudeHeadersOperation(c, req, info)
+		if openCodeLaneFor(info.ChannelBaseUrl) == openCodeLaneV2 {
+			req.Set("anthropic-beta", openCodeAnthropicBeta)
+			req.Set("anthropic-version", "2023-06-01")
+		}
 	case requestModeGemini:
 		// The upstream Gemini endpoint authenticates via x-goog-api-key and
 		// rejects requests that only carry Authorization: Bearer.
@@ -135,11 +139,11 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	// Go forwards client headers by default to maximize upstream cache affinity;
 	// Zen forces the CLI fingerprint because its free tier only accepts the
 	// official OpenCode client.
-	forceFingerprint := !IsGoBase(info.ChannelBaseUrl)
+	forceFingerprint := openCodeLaneFor(info.ChannelBaseUrl) != openCodeLaneGo
 	if !forceFingerprint {
 		passthroughClientHeaders(c, req)
 	}
-	return setupOpenCodeHeaders(c, req, forceFingerprint)
+	return setupOpenCodeHeaders(c, req, info)
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
@@ -286,15 +290,26 @@ func openCodeRoot(info *relaycommon.RelayInfo) string {
 	return NormalizeRoot(baseURL)
 }
 
+// openCodeProtocolRoot returns the root for one upstream protocol: the
+// /inference gateways (Zen and Go) nest each protocol under its own prefix.
+func openCodeProtocolRoot(info *relaycommon.RelayInfo, protocol string) string {
+	root := openCodeRoot(info)
+	if info != nil && hasProtocolPrefix(info.ChannelBaseUrl) {
+		return root + "/" + protocol
+	}
+	return root
+}
+
 func openCodeOpenAIURL(info *relaycommon.RelayInfo) string {
+	root := openCodeProtocolRoot(info, protocolOpenAI)
 	if info == nil || info.RequestURLPath == "" {
-		return openCodeRoot(info) + "/v1/chat/completions"
+		return root + "/v1/chat/completions"
 	}
 	requestPath := info.RequestURLPath
 	if requestPath == "/v1" {
 		requestPath = ""
 	}
-	return openCodeRoot(info) + requestPath
+	return root + requestPath
 }
 
 func openCodeResponsesURL(info *relaycommon.RelayInfo) string {
@@ -305,7 +320,7 @@ func openCodeResponsesURL(info *relaycommon.RelayInfo) string {
 	if info != nil && info.RelayMode == relayconstant.RelayModeResponsesInputTokens {
 		requestPath = "/v1/responses/input_tokens"
 	}
-	return openCodeRoot(info) + requestPath
+	return openCodeProtocolRoot(info, protocolOpenAI) + requestPath
 }
 
 func openCodeClaudeURL(info *relaycommon.RelayInfo) (string, error) {
@@ -313,8 +328,12 @@ func openCodeClaudeURL(info *relaycommon.RelayInfo) (string, error) {
 	if info != nil && info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
 		requestPath = "/v1/messages/count_tokens"
 	}
-	requestURL := openCodeRoot(info) + requestPath
-	if info == nil || (!info.IsClaudeBetaQuery && !info.ChannelOtherSettings.ClaudeBetaQuery) {
+	requestURL := openCodeProtocolRoot(info, protocolAnthropic) + requestPath
+	// The 2.x client marks every Messages request on the /inference gateway as
+	// beta; the legacy v1 gateway keeps the 1.x shape.
+	beta := info != nil && (info.IsClaudeBetaQuery || info.ChannelOtherSettings.ClaudeBetaQuery ||
+		openCodeLaneFor(info.ChannelBaseUrl) == openCodeLaneV2)
+	if !beta {
 		return requestURL, nil
 	}
 
@@ -334,7 +353,11 @@ func openCodeGeminiURL(info *relaycommon.RelayInfo) (string, error) {
 		return "", errors.New("opencode gemini model is required")
 	}
 	action := openCodeGeminiAction(info)
-	return fmt.Sprintf("%s/v1/models/%s:%s", openCodeRoot(info), modelName, action), nil
+	version := "v1"
+	if hasProtocolPrefix(info.ChannelBaseUrl) {
+		version = "v1beta"
+	}
+	return fmt.Sprintf("%s/%s/models/%s:%s", openCodeProtocolRoot(info, protocolGoogle), version, modelName, action), nil
 }
 
 func openCodeGeminiModelName(info *relaycommon.RelayInfo) string {

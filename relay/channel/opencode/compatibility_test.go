@@ -26,11 +26,11 @@ func TestFreeAndAlphaModelsUseTheirNativeRoutes(t *testing.T) {
 		path  string
 		mode  int
 	}{
-		{"mimo-v2.6-flash-free", "/v1/chat/completions", requestModeOpenAI},
-		{"step-5-preview-free", "/v1/chat/completions", requestModeOpenAI},
-		{"muse-spark-1.3-contributor-free", "/v1/responses", requestModeResponses},
-		{"omen-alpha", "/v1/chat/completions", requestModeOpenAI},
-		{"custom-alpha", "/v1/chat/completions", requestModeOpenAI},
+		{"mimo-v2.6-flash-free", "/openai/v1/chat/completions", requestModeOpenAI},
+		{"glm-5.3-flash-free", "/openai/v1/chat/completions", requestModeOpenAI},
+		{"muse-spark-1.3-contributor-free", "/openai/v1/responses", requestModeResponses},
+		{"omen-alpha", "/openai/v1/chat/completions", requestModeOpenAI},
+		{"custom-alpha", "/openai/v1/chat/completions", requestModeOpenAI},
 	} {
 		t.Run(tt.model, func(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -102,6 +102,22 @@ func TestSystemOneRejectsChatAndGo(t *testing.T) {
 	require.Equal(t, constant.OpenCodeZenBaseURL, NormalizeRoot(constant.OpenCodeZenBaseURL+"/v1/systemone"))
 }
 
+func TestSystemOneURLFollowsGatewayPrefix(t *testing.T) {
+	for baseURL, want := range map[string]string{
+		constant.OpenCodeZenBaseURLAlias:                        constant.OpenCodeZenBaseURL + "/systemone/v1/systemone",
+		"https://opencode.ai/zen":                               "https://opencode.ai/zen/v1/systemone",
+		constant.OpenCodeZenBaseURL + "/v1":                     constant.OpenCodeZenBaseURL + "/systemone/v1/systemone",
+		constant.OpenCodeZenBaseURL + "/systemone/v1/systemone": constant.OpenCodeZenBaseURL + "/systemone/v1/systemone",
+	} {
+		info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatTypeSafe, ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: baseURL}}
+		a := &Adaptor{}
+		a.Init(info)
+		got, err := a.GetRequestURL(info)
+		require.NoError(t, err, baseURL)
+		require.Equal(t, want, got, baseURL)
+	}
+}
+
 func TestSystemOneRoundTripPreservesBodyUsageAndHeaderOverrides(t *testing.T) {
 	service.InitHttpClient()
 	payload := `{"model":"jev-1.13-free","state":{"n":0,"flag":false},"questions":{"q":{"type":"noul","instructions":"ok?"}},"extra":null}`
@@ -145,7 +161,8 @@ func TestSystemOneRoundTripPreservesBodyUsageAndHeaderOverrides(t *testing.T) {
 	require.Equal(t, "custom-agent", request.headers.Get("User-Agent"))
 	require.Equal(t, "custom-project", request.headers.Get("x-opencode-project"))
 	require.Regexp(t, openCodeSessionIDPattern, request.headers.Get("x-opencode-session"))
-	require.Regexp(t, openCodeRequestIDPattern, request.headers.Get("x-opencode-request"))
+	require.Equal(t, request.headers.Get("x-opencode-session"), request.headers.Get("x-opencode-session-id"))
+	require.Empty(t, request.headers.Get("x-opencode-request"))
 	usage, apiErr := a.DoResponse(c, result.(*http.Response), info)
 	require.Nil(t, apiErr)
 	require.Equal(t, &dto.Usage{PromptTokens: 7, TotalTokens: 7}, usage)

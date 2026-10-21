@@ -39,8 +39,27 @@ func (a *Adaptor) doFreeRequest(c *gin.Context, info *relaycommon.RelayInfo, rea
 		return nil, err
 	}
 	info.UpstreamRequestBodySize = int64(len(body))
-	resp, err := channel.DoApiRequestWithContext(c.Request.Context(), a, c, info, bytes.NewReader(body))
+	exit := freeExitFor(info)
+	if err := exit.available(time.Now()); err != nil {
+		return nil, err
+	}
+	client, err := freeLaneClient(info)
 	if err != nil {
+		return nil, err
+	}
+	var resp *http.Response
+	if client == nil {
+		resp, err = channel.DoApiRequestWithContext(c.Request.Context(), a, c, info, bytes.NewReader(body))
+	} else {
+		resp, err = channel.DoApiRequestWithClient(c.Request.Context(), a, c, info, bytes.NewReader(body), client)
+	}
+	if err != nil {
+		if c.Request.Context().Err() != nil {
+			return nil, err
+		}
+		return nil, noteFreeExitResult(exit, nil, err)
+	}
+	if err := noteFreeExitResult(exit, resp, nil); err != nil {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

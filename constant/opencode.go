@@ -5,6 +5,9 @@ const (
 	OpenCodeGoBaseURLAlias  = "opencode-go"
 	OpenCodeZenBaseURL      = "https://opencode.ai/inference"
 	OpenCodeGoBaseURL       = "https://opencode.ai/inference/go"
+	// OpenCodeZenLegacyBaseURL is the console origin that still serves the
+	// anonymous models listing after chat traffic moved to /inference.
+	OpenCodeZenLegacyBaseURL = "https://opencode.ai/zen"
 )
 
 var OpenCodeZenResponsesModels = []string{
@@ -36,6 +39,7 @@ var OpenCodeZenResponsesModels = []string{
 	"grok-4.6",
 	"grok-4.5",
 	"grok-build-0.1",
+	"muse-wonder-1.0",
 	"muse-spark-1.3",
 	"muse-spark-1.2",
 	"muse-spark-1.2-contributor-free",
@@ -74,10 +78,10 @@ var OpenCodeZenGeminiModels = []string{
 }
 
 var OpenCodeZenChatModels = []string{
+	"deepseek-v4.1-flash-free",
 	"deepseek-v4.1-flash",
 	"deepseek-v4-pro",
 	"deepseek-v4-flash",
-	"deepseek-v4-flash-vision-exp",
 	"mistral-large-4",
 	"minimax-m3",
 	"minimax-m2.7",
@@ -95,10 +99,12 @@ var OpenCodeZenChatModels = []string{
 	"big-pickle",
 	"space-bunny-free",
 	"cat-jam-free",
-	"step-5-preview-free",
 	"longcat-2.5-preview-free",
 	"mimo-v2.6-flash-free",
 	"nemotron-3.5-lightning-free",
+	"nemotron-3.5-super-vl-free",
+	"glm-5.3-flash-free",
+	"ll-alpha-free",
 }
 
 var OpenCodeZenSystemOneModels = []string{
@@ -127,14 +133,14 @@ var OpenCodeGoChatModels = []string{
 	"longcat-2.5-preview-free",
 	"deepseek-v4.1-flash",
 	"deepseek-v4-pro",
-	"deepseek-v4-flash",
-	"deepseek-v4-flash-vision-exp",
-	"deepseek-flash",
 	"mimo-v2.6-flash",
 	"mimo-v2.6-pro",
 	"mimo-v2.5",
 	"mimo-v2.5-pro",
 	"step-5-preview-free",
+	"step-5-preview",
+	"beam-free",
+	"minimax-m3.1-flash-free",
 	"hy4-preview",
 	"hy3",
 	"cat-jam-free",

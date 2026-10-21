@@ -333,8 +333,9 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	return DoApiRequestWithContext(context.Background(), a, c, info, requestBody)
 }
 
-// DoApiRequestWithContext binds cancellation to requests that manage their upstream stream lifecycle.
-func DoApiRequestWithContext(ctx context.Context, a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+// BuildUpstreamRequest creates the outbound request exactly as the relay does,
+// including header overrides, for callers that send it through their own client.
+func BuildUpstreamRequest(ctx context.Context, a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Request, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
 		return nil, fmt.Errorf("get request url failed: %w", err)
@@ -358,7 +359,30 @@ func DoApiRequestWithContext(ctx context.Context, a Adaptor, c *gin.Context, inf
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
 	enforceStrictContentType(req, info)
+	return req, nil
+}
+
+// DoApiRequestWithContext binds cancellation to requests that manage their upstream stream lifecycle.
+func DoApiRequestWithContext(ctx context.Context, a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	req, err := BuildUpstreamRequest(ctx, a, c, info, requestBody)
+	if err != nil {
+		return nil, err
+	}
 	resp, err := doRequest(c, req, info)
+	if err != nil {
+		return nil, fmt.Errorf("do request failed: %w", err)
+	}
+	return resp, nil
+}
+
+// DoApiRequestWithClient is DoApiRequestWithContext with an explicit client, for
+// adaptors whose upstream needs its own transport (TLS fingerprinting).
+func DoApiRequestWithClient(ctx context.Context, a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader, client *http.Client) (*http.Response, error) {
+	req, err := BuildUpstreamRequest(ctx, a, c, info, requestBody)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := doRequestWithClient(c, req, info, client)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
 	}
@@ -513,14 +537,20 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	if err != nil {
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
+	return doRequestWithClient(c, req, info, client)
+}
+
+// doRequestWithClient sends req through client while keeping the relay's
+// stream bookkeeping (event-stream headers, ping keep-alive, cancellation).
+func doRequestWithClient(c *gin.Context, req *http.Request, info *common.RelayInfo, client *http.Client) (*http.Response, error) {
+	if client == nil {
+		return nil, errors.New("http client is nil")
+	}
 	if common2.DebugEnabled && req != nil && req.URL != nil {
-		policy := service.NormalizeHTTPTransportPolicy(info.ChannelSetting)
 		logger.LogDebug(c, fmt.Sprintf(
-			"http transport select: host=%s protocol=%s shards=%d policy=%s",
+			"http transport select: host=%s client=%T",
 			req.URL.Host,
-			policy.Protocol,
-			policy.Shards,
-			policy.String(),
+			client.Transport,
 		))
 	}
 
