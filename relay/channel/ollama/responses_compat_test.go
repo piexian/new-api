@@ -1,7 +1,10 @@
 package ollama
 
 import (
+	"io"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -10,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 func TestConvertOpenAIResponsesRequestPassesThroughOfficialResponses(t *testing.T) {
@@ -48,4 +52,21 @@ func TestConvertOpenAIResponsesRequestPassesThroughOfficialResponses(t *testing.
 	if url != "http://localhost:11434/v1/responses" {
 		t.Fatalf("GetRequestURL = %q, want official Responses endpoint", url)
 	}
+}
+
+func TestOllamaResponsesInputTokensResponse(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/input_tokens", nil)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"object":"response.input_tokens","input_tokens":42}`)),
+	}
+	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeResponsesInputTokens, ChannelMeta: &relaycommon.ChannelMeta{}}
+
+	usage, apiErr := (&Adaptor{}).DoResponse(c, resp, info)
+	require.Nil(t, apiErr)
+	require.Equal(t, 42, usage.(*dto.Usage).InputTokens)
+	require.JSONEq(t, `{"object":"response.input_tokens","input_tokens":42}`, recorder.Body.String())
 }

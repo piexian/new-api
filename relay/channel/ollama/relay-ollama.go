@@ -331,6 +331,30 @@ func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	return usage, nil
 }
 
+// ollamaResponsesInputTokensHandler relays /v1/responses/input_tokens as-is and
+// bills the counted input tokens.
+func ollamaResponsesInputTokensHandler(c *gin.Context, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+	service.CloseResponseBodyGracefully(resp)
+	var tokenResp struct {
+		InputTokens int `json:"input_tokens"`
+	}
+	if err = common.Unmarshal(body, &tokenResp); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	service.IOCopyBytesGracefully(c, resp, body)
+	return &dto.Usage{
+		PromptTokens:  tokenResp.InputTokens,
+		InputTokens:   tokenResp.InputTokens,
+		TotalTokens:   tokenResp.InputTokens,
+		UsageSemantic: "openai",
+		UsageSource:   "ollama_responses_input_tokens",
+	}, nil
+}
+
 func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
 	url := fmt.Sprintf("%s/api/tags", NormalizeBaseURL(baseURL))
 

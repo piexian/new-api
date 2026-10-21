@@ -141,6 +141,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	switch info.RelayMode {
 	case relayconstant.RelayModeEmbeddings:
 		return ollamaEmbeddingHandler(c, info, resp)
+	case relayconstant.RelayModeResponsesInputTokens:
+		return ollamaResponsesInputTokensHandler(c, resp)
 	case relayconstant.RelayModeResponses:
 		if info.IsStream {
 			return openai.OaiResponsesStreamHandler(c, info, resp)
@@ -162,4 +164,22 @@ func (a *Adaptor) GetModelList() []string {
 
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
+}
+
+// OpenAICompatAdaptor relays standard OpenAI Chat requests to Ollama's
+// OpenAI-compatible /v1/chat/completions endpoint. It is used when another
+// protocol is converted to Chat, because the native /api/chat format cannot be
+// rendered back by the OpenAI response handlers.
+type OpenAICompatAdaptor struct {
+	openai.Adaptor
+}
+
+func (a *OpenAICompatAdaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	return NormalizeBaseURL(info.ChannelBaseUrl) + "/v1/chat/completions", nil
+}
+
+// DoRequest must be overridden so channel.DoApiRequest resolves GetRequestURL on
+// this type rather than on the embedded openai.Adaptor.
+func (a *OpenAICompatAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	return channel.DoApiRequest(a, c, info, requestBody)
 }
