@@ -36,6 +36,13 @@ const (
 	MsgBatchTooMany      = "common.batch_too_many"
 )
 
+// Risk center messages
+const (
+	MsgRiskMultiAccountReviewEmptyUsers   = "risk.multi_account_review_empty_users"
+	MsgRiskMultiAccountReviewNoteTooLong  = "risk.multi_account_review_note_too_long"
+	MsgRiskMultiAccountReviewUnknownUsers = "risk.multi_account_review_unknown_users"
+)
+
 // Auth middleware messages
 const (
 	MsgAuthNotLoggedIn           = "auth.not_logged_in"

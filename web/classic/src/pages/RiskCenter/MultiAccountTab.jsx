@@ -28,7 +28,7 @@ import {
   Tag,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Ban, Eye, Search } from 'lucide-react';
+import { Ban, Eye, Search, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import CardTable from '../../components/common/ui/CardTable';
 import { API, showError, showSuccess, timestamp2string } from '../../helpers';
@@ -52,6 +52,9 @@ const MultiAccountTab = () => {
   const [banReason, setBanReason] = useState('');
   const [banDuration, setBanDuration] = useState(0);
   const [banLoading, setBanLoading] = useState(false);
+  const [passMode, setPassMode] = useState(false);
+  const [passNote, setPassNote] = useState('');
+  const [passLoading, setPassLoading] = useState(false);
 
   const fetchClusters = useCallback(
     async (targetPage = page, targetKeyword = keyword) => {
@@ -157,9 +160,13 @@ const MultiAccountTab = () => {
   };
 
   const closeReviewStep = () => {
-    if (banLoading) return;
+    if (banLoading || passLoading) return;
     if (banTarget) {
       setBanTarget(null);
+      return;
+    }
+    if (passMode) {
+      setPassMode(false);
       return;
     }
     setSelectedCluster(null);
@@ -200,6 +207,35 @@ const MultiAccountTab = () => {
       showError(error);
     } finally {
       setBanLoading(false);
+    }
+  };
+
+  const openPass = () => {
+    setPassNote('');
+    setPassMode(true);
+  };
+
+  const confirmPass = async () => {
+    if (!selectedCluster) return;
+    setPassLoading(true);
+    try {
+      const response = await API.post('/api/risk/multi-account/clusters/pass', {
+        user_ids: (selectedCluster.accounts || []).map((account) => account.id),
+        note: passNote.trim(),
+        last_seen_at: selectedCluster.last_seen_at,
+      });
+      if (!response.data.success) {
+        showError(response.data.message);
+        return;
+      }
+      showSuccess(t('Review passed'));
+      setPassMode(false);
+      setSelectedCluster(null);
+      await fetchClusters(page, keyword);
+    } catch (error) {
+      showError(error);
+    } finally {
+      setPassLoading(false);
     }
   };
 
@@ -424,7 +460,13 @@ const MultiAccountTab = () => {
       </Card>
 
       <Modal
-        title={banTarget ? t('Confirm Ban') : t('Multi-account Review')}
+        title={
+          banTarget
+            ? t('Confirm Ban')
+            : passMode
+              ? t('Pass Review')
+              : t('Multi-account Review')
+        }
         visible={selectedCluster !== null}
         onCancel={closeReviewStep}
         footer={
@@ -448,13 +490,41 @@ const MultiAccountTab = () => {
                 {t('Confirm Ban')}
               </Button>
             </div>
+          ) : passMode ? (
+            <div className='flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
+              <Button
+                block={isMobile}
+                disabled={passLoading}
+                onClick={() => setPassMode(false)}
+              >
+                {t('Cancel')}
+              </Button>
+              <Button
+                block={isMobile}
+                type='primary'
+                icon={<ShieldCheck size={16} />}
+                loading={passLoading}
+                onClick={confirmPass}
+              >
+                {t('Confirm Pass')}
+              </Button>
+            </div>
           ) : (
-            <Button block={isMobile} onClick={() => setSelectedCluster(null)}>
-              {t('Close')}
-            </Button>
+            <div className='flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end'>
+              <Button
+                block={isMobile}
+                icon={<ShieldCheck size={16} />}
+                onClick={openPass}
+              >
+                {t('Pass Review')}
+              </Button>
+              <Button block={isMobile} onClick={() => setSelectedCluster(null)}>
+                {t('Close')}
+              </Button>
+            </div>
           )
         }
-        width={banTarget ? 520 : 920}
+        width={banTarget || passMode ? 520 : 920}
         fullScreen={isMobile}
         footerFill={isMobile}
         style={isMobile ? undefined : { maxWidth: 'calc(100vw - 24px)' }}
@@ -495,6 +565,18 @@ const MultiAccountTab = () => {
               />
             </div>
           </div>
+        ) : passMode ? (
+          <div className='flex min-w-0 flex-col gap-4'>
+            <Text style={{ wordBreak: 'break-word' }}>
+              {t(
+                'Mark all accounts in this cluster as reviewed this time. No account is banned and this is not a whitelist: the cluster reappears once newer evidence is detected.',
+              )}
+            </Text>
+            <div className='flex min-w-0 flex-col gap-1.5'>
+              <Text type='tertiary'>{t('Review Note (Optional)')}</Text>
+              <Input value={passNote} maxLength={1000} onChange={setPassNote} />
+            </div>
+          </div>
         ) : selectedCluster ? (
           <div className='flex min-w-0 flex-col gap-5 overflow-x-hidden pr-1 sm:max-h-[70vh] sm:overflow-y-auto sm:pr-2'>
             <div className='flex min-w-0 flex-wrap items-center gap-2'>
@@ -524,6 +606,25 @@ const MultiAccountTab = () => {
                       </Text>
                       <div className='flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center'>
                         <Tag>{accountStatus(account)}</Tag>
+                        {account.checkin_watch_status ? (
+                          <Tag
+                            color={
+                              account.checkin_watch_status === 'locked'
+                                ? 'red'
+                                : 'orange'
+                            }
+                          >
+                            {account.checkin_watch_status === 'locked'
+                              ? t('Checkin Locked')
+                              : t('Checkin Watch')}
+                          </Tag>
+                        ) : null}
+                        {account.session_risk_banned ? (
+                          <Tag color='orange'>{t('Session Risk Banned')}</Tag>
+                        ) : null}
+                        {account.in_shared_session ? (
+                          <Tag color='orange'>{t('Shared Session')}</Tag>
+                        ) : null}
                         <Button
                           type='danger'
                           size='small'

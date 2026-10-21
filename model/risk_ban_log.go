@@ -161,6 +161,26 @@ func DeleteRiskBanLogsBefore(before int64) (int64, error) {
 	return result.RowsAffected, result.Error
 }
 
+// ListUserIdsWithRuleBanLogs 返回在指定规则下有实际（非 dry-run）封禁记录的用户集合。
+func ListUserIdsWithRuleBanLogs(ruleId string, userIds []int) (map[int]struct{}, error) {
+	matched := make(map[int]struct{}, len(userIds))
+	if ruleId == "" || len(userIds) == 0 {
+		return matched, nil
+	}
+	var ids []int
+	err := DB.Model(&RiskBanLog{}).
+		Distinct("user_id").
+		Where("rule_id = ? AND user_id IN ? AND dry_run = ?", ruleId, userIds, false).
+		Pluck("user_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		matched[id] = struct{}{}
+	}
+	return matched, nil
+}
+
 // HasCurrentRiskBanLogForUser 判断当前禁用原因是否对应一条实际风控封禁记录。
 func HasCurrentRiskBanLogForUser(userId int, reason string) (bool, error) {
 	var count int64

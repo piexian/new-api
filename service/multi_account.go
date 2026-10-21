@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -38,6 +40,10 @@ type MultiAccountUser struct {
 	CreatedAt       int64                       `json:"created_at"`
 	LastLoginAt     int64                       `json:"last_login_at"`
 	CanBan          bool                        `json:"can_ban"`
+	// 联动风控信号：签到观察名单状态（watching/locked/空）、是否曾被会话风控封禁、当前是否命中共用会话标识
+	CheckinWatchStatus string `json:"checkin_watch_status"`
+	SessionRiskBanned  bool   `json:"session_risk_banned"`
+	InSharedSession    bool   `json:"in_shared_session"`
 }
 
 type MultiAccountOAuthIdentity struct {
@@ -243,21 +249,30 @@ func multiAccountOAuthIdentities(user model.User, customBindings []model.UserOAu
 	return identities
 }
 
-func multiAccountUserFromModel(user model.User, customBindings []model.UserOAuthBindingDetail) MultiAccountUser {
+type multiAccountRiskFlags struct {
+	checkinWatchStatus string
+	sessionRiskBanned  bool
+	inSharedSession    bool
+}
+
+func multiAccountUserFromModel(user model.User, customBindings []model.UserOAuthBindingDetail, flags multiAccountRiskFlags) MultiAccountUser {
 	return MultiAccountUser{
-		Id:              user.Id,
-		Username:        user.Username,
-		Email:           user.Email,
-		GitHubId:        user.GitHubId,
-		OAuthIdentities: multiAccountOAuthIdentities(user, customBindings),
-		Role:            user.Role,
-		Status:          user.Status,
-		DisableReason:   user.DisableReason,
-		DisabledUntil:   user.DisabledUntil,
-		Deleted:         user.DeletedAt.Valid,
-		CreatedAt:       user.CreatedAt,
-		LastLoginAt:     user.LastLoginAt,
-		CanBan:          !user.DeletedAt.Valid && user.Role == common.RoleCommonUser && user.Status == common.UserStatusEnabled,
+		Id:                 user.Id,
+		Username:           user.Username,
+		Email:              user.Email,
+		GitHubId:           user.GitHubId,
+		OAuthIdentities:    multiAccountOAuthIdentities(user, customBindings),
+		Role:               user.Role,
+		Status:             user.Status,
+		DisableReason:      user.DisableReason,
+		DisabledUntil:      user.DisabledUntil,
+		Deleted:            user.DeletedAt.Valid,
+		CreatedAt:          user.CreatedAt,
+		LastLoginAt:        user.LastLoginAt,
+		CanBan:             !user.DeletedAt.Valid && user.Role == common.RoleCommonUser && user.Status == common.UserStatusEnabled,
+		CheckinWatchStatus: flags.checkinWatchStatus,
+		SessionRiskBanned:  flags.sessionRiskBanned,
+		InSharedSession:    flags.inSharedSession,
 	}
 }
 
@@ -290,6 +305,18 @@ func scoreMultiAccountCluster(accounts []MultiAccountUser, evidence []MultiAccou
 	if len(types) > 1 {
 		score += 10
 	}
+	// 联动信号加成：签到观察名单、命中共用会话标识，各按命中账号数加分并封顶
+	checkinBoost := 0
+	sessionBoost := 0
+	for _, account := range accounts {
+		if account.CheckinWatchStatus != "" {
+			checkinBoost += 10
+		}
+		if account.InSharedSession {
+			sessionBoost += 10
+		}
+	}
+	score += min(checkinBoost, 20) + min(sessionBoost, 20)
 	createdMin := int64(0)
 	createdMax := int64(0)
 	for _, account := range accounts {
@@ -323,6 +350,55 @@ func scoreMultiAccountCluster(accounts []MultiAccountUser, evidence []MultiAccou
 	return score, level
 }
 
+// sharedSessionUsersCacheTTL 共用会话集合需对日志库整窗聚合，翻页/搜索时复用短期结果。
+const sharedSessionUsersCacheTTL = time.Minute
+
+var sharedSessionUsersCache struct {
+	sync.Mutex
+	users     map[int]struct{}
+	expiresAt time.Time
+}
+
+// sharedSessionUserIdSet 返回默认时间窗内命中共用会话标识的用户集合（短期缓存，只读）；
+// 日志库未配置或查询失败时降级为空集合，不影响主流程。
+func sharedSessionUserIdSet() map[int]struct{} {
+	sharedSessionUsersCache.Lock()
+	defer sharedSessionUsersCache.Unlock()
+	if sharedSessionUsersCache.users != nil && time.Now().Before(sharedSessionUsersCache.expiresAt) {
+		return sharedSessionUsersCache.users
+	}
+	users, complete := collectSharedSessionUserIds()
+	// 查询失败的降级结果不缓存，日志库恢复后下次请求即可拿到完整集合
+	if complete {
+		sharedSessionUsersCache.users = users
+		sharedSessionUsersCache.expiresAt = time.Now().Add(sharedSessionUsersCacheTTL)
+	}
+	return users
+}
+
+func collectSharedSessionUserIds() (map[int]struct{}, bool) {
+	users := make(map[int]struct{})
+	if model.LOG_DB == nil {
+		return users, true
+	}
+	complete := true
+	start, end := normalizeSessionRiskWindow(0, 0)
+	for _, kind := range []string{SessionRiskKindSession, SessionRiskKindCache} {
+		rows, err := listSessionRiskStats(kind, start, end, "")
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to collect shared session users for multi-account review (%s): %s", kind, err.Error()))
+			complete = false
+			continue
+		}
+		for _, item := range sharedSessionItems(rows, kind) {
+			for _, user := range item.Users {
+				users[user.UserId] = struct{}{}
+			}
+		}
+	}
+	return users, complete
+}
+
 func buildMultiAccountClusters(evidence []MultiAccountEvidence) ([]MultiAccountCluster, MultiAccountStats, error) {
 	unionFind := newAccountUnionFind()
 	for _, item := range evidence {
@@ -352,6 +428,15 @@ func buildMultiAccountClusters(evidence []MultiAccountEvidence) ([]MultiAccountC
 	if err != nil {
 		return nil, MultiAccountStats{}, err
 	}
+	checkinStatuses, err := model.ListActiveCheckinRiskWatchStatus(allIds)
+	if err != nil {
+		return nil, MultiAccountStats{}, err
+	}
+	sessionBanned, err := model.ListUserIdsWithRuleBanLogs(model.SessionRiskRuleID, allIds)
+	if err != nil {
+		return nil, MultiAccountStats{}, err
+	}
+	sharedUsers := sharedSessionUserIdSet()
 
 	evidenceByRoot := make(map[int][]MultiAccountEvidence)
 	for _, item := range evidence {
@@ -401,7 +486,10 @@ func buildMultiAccountClusters(evidence []MultiAccountEvidence) ([]MultiAccountC
 
 		accounts := make([]MultiAccountUser, 0, len(userIds))
 		for _, id := range userIds {
-			accounts = append(accounts, multiAccountUserFromModel(usersById[id], customBindingsByUserId[id]))
+			flags := multiAccountRiskFlags{checkinWatchStatus: checkinStatuses[id]}
+			_, flags.sessionRiskBanned = sessionBanned[id]
+			_, flags.inSharedSession = sharedUsers[id]
+			accounts = append(accounts, multiAccountUserFromModel(usersById[id], customBindingsByUserId[id], flags))
 			relatedAccounts[id] = struct{}{}
 		}
 		for _, item := range clusterEvidence {
@@ -509,6 +597,18 @@ func ListMultiAccountClusters(page, pageSize int, keyword string) (*MultiAccount
 	}, nil
 }
 
+// PassMultiAccountReview 记录「本次审查通过」：仅表示截至当前的证据已人工确认，
+// 不封禁任何账号、也不进白名单；之后出现更新的证据时聚类会重新出现。
+// PassMultiAccountReview 以管理员实际看到的聚类最新证据时间（reviewedThrough）作为审查时间点，
+// 打开页面后才到达的证据仍会让聚类重新出现；未提供或晚于当前时间时退回当前时间。
+func PassMultiAccountReview(userIds []int, operatorId int, note string, reviewedThrough int64) error {
+	reviewedAt := common.GetTimestamp()
+	if reviewedThrough > 0 && reviewedThrough < reviewedAt {
+		reviewedAt = reviewedThrough
+	}
+	return model.UpsertMultiAccountReviews(userIds, operatorId, strings.TrimSpace(note), reviewedAt)
+}
+
 func BanMultiAccountUser(userId, operatorId, durationMinutes int, reason string) (*MultiAccountUser, error) {
 	customBindings, err := model.GetUserOAuthBindingDetailsByUserIds([]int{userId})
 	if err != nil {
@@ -526,6 +626,6 @@ func BanMultiAccountUser(userId, operatorId, durationMinutes int, reason string)
 		common.SysLog(fmt.Sprintf("failed to invalidate multi-account token cache for user %d: %s", user.Id, err.Error()))
 	}
 	NotifyAccountDisabled(*user)
-	result := multiAccountUserFromModel(*user, customBindings)
+	result := multiAccountUserFromModel(*user, customBindings, multiAccountRiskFlags{})
 	return &result, nil
 }

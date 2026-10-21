@@ -410,6 +410,7 @@ func SetApiRouter(router *gin.Engine) {
 			riskGroup.GET("/ban-logs/:id", controller.GetRiskBanLog)
 			// 多开账号证据排行与管理员人工封禁
 			riskGroup.GET("/multi-account", controller.ListMultiAccountClusters)
+			riskGroup.POST("/multi-account/clusters/pass", controller.PassMultiAccountReview)
 			riskGroup.POST("/multi-account/users/:id/ban", controller.BanMultiAccountUser)
 			// 共用会话标识风控
 			riskGroup.GET("/session/config", controller.GetSessionRiskConfig)

@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import dayjs from 'dayjs'
-import { Ban, Eye, Search, UsersRound } from 'lucide-react'
+import { Ban, Eye, Search, ShieldCheck, UsersRound } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -41,6 +41,7 @@ import { Label } from '@/components/ui/label'
 import {
   banMultiAccountUser,
   getMultiAccountClusters,
+  passMultiAccountReview,
   type MultiAccountCluster,
   type MultiAccountEvidence,
   type MultiAccountRiskLevel,
@@ -72,6 +73,8 @@ export function MultiAccountPage() {
   const [banTarget, setBanTarget] = useState<MultiAccountUser | null>(null)
   const [banReason, setBanReason] = useState('')
   const [banDuration, setBanDuration] = useState(0)
+  const [passMode, setPassMode] = useState(false)
+  const [passNote, setPassNote] = useState('')
 
   const { data, error, isLoading } = useQuery({
     queryKey: ['risk', 'multi-account', page, keyword],
@@ -124,6 +127,29 @@ export function MultiAccountPage() {
     onError: (mutationError: Error) => toast.error(mutationError.message),
   })
 
+  const passMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedCluster) throw new Error(t('Cluster not found'))
+      const response = await passMultiAccountReview({
+        user_ids: selectedCluster.accounts.map((account) => account.id),
+        note: passNote.trim(),
+        last_seen_at: selectedCluster.last_seen_at,
+      })
+      if (!response.success) {
+        throw new Error(response.message || t('Operation failed'))
+      }
+    },
+    onSuccess: async () => {
+      toast.success(t('Review passed'))
+      setPassMode(false)
+      setSelectedCluster(null)
+      await queryClient.invalidateQueries({
+        queryKey: ['risk', 'multi-account'],
+      })
+    },
+    onError: (mutationError: Error) => toast.error(mutationError.message),
+  })
+
   const applySearch = () => {
     setKeyword(keywordInput.trim())
     setPage(1)
@@ -136,9 +162,13 @@ export function MultiAccountPage() {
   }
 
   const closeReviewDialog = () => {
-    if (banMutation.isPending) return
+    if (banMutation.isPending || passMutation.isPending) return
     if (banTarget) {
       setBanTarget(null)
+      return
+    }
+    if (passMode) {
+      setPassMode(false)
       return
     }
     setSelectedCluster(null)
@@ -189,6 +219,13 @@ export function MultiAccountPage() {
   const totalPages = data
     ? Math.max(1, Math.ceil(data.total / data.page_size))
     : 1
+
+  let dialogMode: 'review' | 'ban' | 'pass' = 'review'
+  if (banTarget) {
+    dialogMode = 'ban'
+  } else if (passMode) {
+    dialogMode = 'pass'
+  }
 
   return (
     <SectionPageLayout>
@@ -332,7 +369,7 @@ export function MultiAccountPage() {
           </div>
 
           <div className='border-border hidden max-w-full overflow-x-auto rounded-lg border sm:block'>
-            <table className='divide-border min-w-[64rem] table-fixed divide-y text-sm'>
+            <table className='divide-border w-full min-w-[64rem] table-fixed divide-y text-sm'>
               <thead className='bg-muted/50'>
                 <tr>
                   <th className='text-muted-foreground w-16 px-4 py-3 text-left font-medium'>
@@ -472,42 +509,49 @@ export function MultiAccountPage() {
           onOpenChange={(open) => !open && closeReviewDialog()}
         >
           <DialogContent
-            className={`max-h-[90vh] overflow-x-hidden overflow-y-auto ${banTarget ? 'sm:max-w-lg' : 'sm:max-w-5xl'}`}
+            className={`max-h-[90vh] overflow-x-hidden overflow-y-auto ${dialogMode === 'review' ? 'sm:max-w-5xl' : 'sm:max-w-lg'}`}
           >
             <DialogHeader>
-              {banTarget ? (
-                <DialogTitle className='pr-8'>{t('Confirm Ban')}</DialogTitle>
-              ) : (
+              {dialogMode === 'review' ? (
                 <DialogTitle className='flex min-w-0 items-start gap-2 pr-8'>
                   <UsersRound className='size-5 shrink-0' />
                   <span className='min-w-0 break-words'>
                     {t('Multi-account Review')}
                   </span>
                 </DialogTitle>
+              ) : (
+                <DialogTitle className='pr-8'>
+                  {dialogMode === 'ban' ? t('Confirm Ban') : t('Pass Review')}
+                </DialogTitle>
               )}
               <DialogDescription className='break-words'>
-                {banTarget
-                  ? t('Ban account confirmation', {
-                      id: banTarget.id,
-                      username: banTarget.username,
-                    })
-                  : selectedCluster && (
-                      <span className='flex flex-wrap items-center gap-2'>
-                        <Badge
-                          variant={riskBadgeVariant(selectedCluster.risk_level)}
-                        >
-                          {riskLevelLabel(selectedCluster.risk_level)}
-                        </Badge>
-                        <span>
-                          {t('Risk Score')}: {selectedCluster.risk_score}
-                        </span>
-                        <span>ID: {selectedCluster.id}</span>
-                      </span>
-                    )}
+                {dialogMode === 'ban' &&
+                  banTarget &&
+                  t('Ban account confirmation', {
+                    id: banTarget.id,
+                    username: banTarget.username,
+                  })}
+                {dialogMode === 'pass' &&
+                  t(
+                    'Mark all accounts in this cluster as reviewed this time. No account is banned and this is not a whitelist: the cluster reappears once newer evidence is detected.'
+                  )}
+                {dialogMode === 'review' && selectedCluster && (
+                  <span className='flex flex-wrap items-center gap-2'>
+                    <Badge
+                      variant={riskBadgeVariant(selectedCluster.risk_level)}
+                    >
+                      {riskLevelLabel(selectedCluster.risk_level)}
+                    </Badge>
+                    <span>
+                      {t('Risk Score')}: {selectedCluster.risk_score}
+                    </span>
+                    <span>ID: {selectedCluster.id}</span>
+                  </span>
+                )}
               </DialogDescription>
             </DialogHeader>
 
-            {banTarget ? (
+            {dialogMode === 'ban' && banTarget && (
               <>
                 <div className='grid gap-4'>
                   <div className='grid gap-2'>
@@ -562,130 +606,204 @@ export function MultiAccountPage() {
                   </Button>
                 </DialogFooter>
               </>
-            ) : (
-              selectedCluster && (
-                <div className='min-w-0 space-y-6'>
-                  <section className='space-y-3'>
-                    <h3 className='font-medium'>{t('Account Details')}</h3>
-                    {selectedCluster.accounts.map((account) => (
-                      <div
-                        key={account.id}
-                        className='border-border min-w-0 space-y-3 rounded-lg border p-3 sm:p-4'
-                      >
-                        <div className='flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between'>
-                          <div className='min-w-0 font-semibold break-all'>
-                            #{account.id} {account.username}
-                          </div>
-                          <div className='flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center'>
+            )}
+
+            {dialogMode === 'pass' && (
+              <>
+                <div className='grid gap-4'>
+                  <div className='grid gap-2'>
+                    <Label htmlFor='multi-account-pass-note'>
+                      {t('Review Note (Optional)')}
+                    </Label>
+                    <Input
+                      id='multi-account-pass-note'
+                      value={passNote}
+                      maxLength={1000}
+                      onChange={(event) => setPassNote(event.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant='outline'
+                    className='w-full sm:w-auto'
+                    disabled={passMutation.isPending}
+                    onClick={() => setPassMode(false)}
+                  >
+                    {t('Cancel')}
+                  </Button>
+                  <Button
+                    className='w-full sm:w-auto'
+                    disabled={passMutation.isPending}
+                    onClick={() => passMutation.mutate()}
+                  >
+                    <ShieldCheck data-icon='inline-start' className='size-4' />
+                    {passMutation.isPending
+                      ? t('Processing...')
+                      : t('Confirm Pass')}
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+
+            {dialogMode === 'review' && selectedCluster && (
+              <div className='min-w-0 space-y-6'>
+                <section className='space-y-3'>
+                  <h3 className='font-medium'>{t('Account Details')}</h3>
+                  {selectedCluster.accounts.map((account) => (
+                    <div
+                      key={account.id}
+                      className='border-border min-w-0 space-y-3 rounded-lg border p-3 sm:p-4'
+                    >
+                      <div className='flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                        <div className='min-w-0 font-semibold break-all'>
+                          #{account.id} {account.username}
+                        </div>
+                        <div className='flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center'>
+                          <Badge
+                            className='self-start'
+                            variant={account.can_ban ? 'outline' : 'secondary'}
+                          >
+                            {accountStatus(account)}
+                          </Badge>
+                          {account.checkin_watch_status && (
                             <Badge
                               className='self-start'
                               variant={
-                                account.can_ban ? 'outline' : 'secondary'
+                                account.checkin_watch_status === 'locked'
+                                  ? 'destructive'
+                                  : 'secondary'
                               }
                             >
-                              {accountStatus(account)}
+                              {account.checkin_watch_status === 'locked'
+                                ? t('Checkin Locked')
+                                : t('Checkin Watch')}
                             </Badge>
-                            <Button
-                              variant='destructive'
-                              size='sm'
-                              className='w-full sm:w-auto'
-                              disabled={!account.can_ban}
-                              onClick={() => openBanDialog(account)}
-                            >
-                              <Ban
-                                data-icon='inline-start'
-                                className='size-4'
-                              />
-                              {t('Ban Account')}
-                            </Button>
-                          </div>
-                        </div>
-                        <div className='grid gap-x-6 gap-y-3 md:grid-cols-2'>
-                          {accountDetailFields(account).map(
-                            ([label, value, fieldKey]) => (
-                              <div key={fieldKey} className='min-w-0'>
-                                <div className='text-muted-foreground text-xs font-medium'>
-                                  {label}
-                                </div>
-                                <div className='mt-1 break-all'>{value}</div>
-                              </div>
-                            )
                           )}
-                        </div>
-                      </div>
-                    ))}
-                  </section>
-
-                  <section className='space-y-3'>
-                    <h3 className='font-medium'>{t('Evidence Details')}</h3>
-                    {selectedCluster.evidence.map((item) => (
-                      <div
-                        key={`${item.type}-${item.user_ids.join('-')}-${item.email}-${item.ip}-${item.user_agent}-${item.last_seen_at}`}
-                        className='border-border min-w-0 space-y-3 rounded-lg border p-3 sm:p-4'
-                      >
-                        <div className='flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between'>
-                          <Badge
-                            variant='outline'
-                            className='h-auto max-w-full text-left whitespace-normal'
+                          {account.session_risk_banned && (
+                            <Badge className='self-start' variant='secondary'>
+                              {t('Session Risk Banned')}
+                            </Badge>
+                          )}
+                          {account.in_shared_session && (
+                            <Badge className='self-start' variant='secondary'>
+                              {t('Shared Session')}
+                            </Badge>
+                          )}
+                          <Button
+                            variant='destructive'
+                            size='sm'
+                            className='w-full sm:w-auto'
+                            disabled={!account.can_ban}
+                            onClick={() => openBanDialog(account)}
                           >
-                            {evidenceLabel(item)}
-                          </Badge>
-                          <span className='text-muted-foreground text-xs'>
-                            {t('Hit Count')}: {item.hit_count}
-                          </span>
+                            <Ban data-icon='inline-start' className='size-4' />
+                            {t('Ban Account')}
+                          </Button>
                         </div>
-                        <div className='grid gap-x-6 gap-y-3 md:grid-cols-2'>
-                          {item.email && (
-                            <div>
+                      </div>
+                      <div className='grid gap-x-6 gap-y-3 md:grid-cols-2'>
+                        {accountDetailFields(account).map(
+                          ([label, value, fieldKey]) => (
+                            <div key={fieldKey} className='min-w-0'>
                               <div className='text-muted-foreground text-xs font-medium'>
-                                {t('Full Email')}
+                                {label}
                               </div>
-                              <div className='mt-1 break-all'>{item.email}</div>
+                              <div className='mt-1 break-all'>{value}</div>
                             </div>
-                          )}
-                          {item.ip && (
-                            <div>
-                              <div className='text-muted-foreground text-xs font-medium'>
-                                {t('IP Address')}
-                              </div>
-                              <div className='mt-1 font-mono break-all'>
-                                {item.ip}
-                              </div>
-                            </div>
-                          )}
-                          {item.user_agent && (
-                            <div className='md:col-span-2'>
-                              <div className='text-muted-foreground text-xs font-medium'>
-                                {t('Browser / User Agent')}
-                              </div>
-                              <div className='mt-1 font-mono text-xs break-all'>
-                                {item.user_agent}
-                              </div>
-                            </div>
-                          )}
+                          )
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </section>
+
+                <section className='space-y-3'>
+                  <h3 className='font-medium'>{t('Evidence Details')}</h3>
+                  {selectedCluster.evidence.map((item) => (
+                    <div
+                      key={`${item.type}-${item.user_ids.join('-')}-${item.email}-${item.ip}-${item.user_agent}-${item.last_seen_at}`}
+                      className='border-border min-w-0 space-y-3 rounded-lg border p-3 sm:p-4'
+                    >
+                      <div className='flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                        <Badge
+                          variant='outline'
+                          className='h-auto max-w-full text-left whitespace-normal'
+                        >
+                          {evidenceLabel(item)}
+                        </Badge>
+                        <span className='text-muted-foreground text-xs'>
+                          {t('Hit Count')}: {item.hit_count}
+                        </span>
+                      </div>
+                      <div className='grid gap-x-6 gap-y-3 md:grid-cols-2'>
+                        {item.email && (
                           <div>
                             <div className='text-muted-foreground text-xs font-medium'>
-                              {t('Related User IDs')}
+                              {t('Full Email')}
                             </div>
-                            <div className='mt-1'>
-                              {item.user_ids.join(', ')}
+                            <div className='mt-1 break-all'>{item.email}</div>
+                          </div>
+                        )}
+                        {item.ip && (
+                          <div>
+                            <div className='text-muted-foreground text-xs font-medium'>
+                              {t('IP Address')}
+                            </div>
+                            <div className='mt-1 font-mono break-all'>
+                              {item.ip}
                             </div>
                           </div>
-                          <div>
+                        )}
+                        {item.user_agent && (
+                          <div className='md:col-span-2'>
                             <div className='text-muted-foreground text-xs font-medium'>
-                              {t('Observed At')}
+                              {t('Browser / User Agent')}
                             </div>
-                            <div className='mt-1'>
-                              {formatTime(item.first_seen_at)} -{' '}
-                              {formatTime(item.last_seen_at)}
+                            <div className='mt-1 font-mono text-xs break-all'>
+                              {item.user_agent}
                             </div>
+                          </div>
+                        )}
+                        <div>
+                          <div className='text-muted-foreground text-xs font-medium'>
+                            {t('Related User IDs')}
+                          </div>
+                          <div className='mt-1'>{item.user_ids.join(', ')}</div>
+                        </div>
+                        <div>
+                          <div className='text-muted-foreground text-xs font-medium'>
+                            {t('Observed At')}
+                          </div>
+                          <div className='mt-1'>
+                            {formatTime(item.first_seen_at)} -{' '}
+                            {formatTime(item.last_seen_at)}
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </section>
-                </div>
-              )
+                    </div>
+                  ))}
+                </section>
+
+                <DialogFooter className='flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'If the current evidence looks clean, you can pass this review without banning anyone.'
+                    )}
+                  </p>
+                  <Button
+                    variant='outline'
+                    className='w-full sm:w-auto'
+                    onClick={() => {
+                      setPassNote('')
+                      setPassMode(true)
+                    }}
+                  >
+                    <ShieldCheck data-icon='inline-start' className='size-4' />
+                    {t('Pass Review')}
+                  </Button>
+                </DialogFooter>
+              </div>
             )}
           </DialogContent>
         </Dialog>

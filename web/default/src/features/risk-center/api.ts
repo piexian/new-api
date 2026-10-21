@@ -302,6 +302,9 @@ export type MultiAccountUser = {
   created_at: number
   last_login_at: number
   can_ban: boolean
+  checkin_watch_status: '' | 'watching' | 'locked'
+  session_risk_banned: boolean
+  in_shared_session: boolean
 }
 
 export type MultiAccountEvidence = {
@@ -728,6 +731,9 @@ function normalizeMultiAccountUser(
     github_id: account.github_id ?? '',
     oauth_identities: account.oauth_identities ?? [],
     disable_reason: account.disable_reason ?? '',
+    checkin_watch_status: account.checkin_watch_status ?? '',
+    session_risk_banned: account.session_risk_banned ?? false,
+    in_shared_session: account.in_shared_session ?? false,
   }
 }
 
@@ -769,6 +775,19 @@ export async function banMultiAccountUser(
   return response.data
     ? { ...response, data: normalizeMultiAccountUser(response.data) }
     : response
+}
+
+export async function passMultiAccountReview(data: {
+  user_ids: number[]
+  note: string
+  last_seen_at: number
+}): Promise<ApiResponse<null>> {
+  const res = await api.post(
+    '/api/risk/multi-account/clusters/pass',
+    data,
+    skipBusinessErrorConfig
+  )
+  return res.data
 }
 
 // ============================================================================

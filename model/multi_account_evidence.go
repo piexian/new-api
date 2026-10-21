@@ -84,6 +84,8 @@ func ListMultiAccountEvidence(limit int) ([]MultiAccountEvidence, error) {
 	return evidence, err
 }
 
+// ListMultiAccountReviewTimes 汇总每个用户最近一次被审查的时间，
+// 来源包括人工封禁（RiskBanLog）与「本次审查通过」记录（MultiAccountReview）。
 func ListMultiAccountReviewTimes() (map[int]int64, error) {
 	var rows []struct {
 		UserId     int
@@ -100,6 +102,23 @@ func ListMultiAccountReviewTimes() (map[int]int64, error) {
 	reviewTimes := make(map[int]int64, len(rows))
 	for _, row := range rows {
 		reviewTimes[row.UserId] = row.ReviewedAt
+	}
+
+	var passRows []struct {
+		UserId     int
+		ReviewedAt int64
+	}
+	err = DB.Model(&MultiAccountReview{}).
+		Select("user_id, MAX(reviewed_at) AS reviewed_at").
+		Group("user_id").
+		Scan(&passRows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range passRows {
+		if row.ReviewedAt > reviewTimes[row.UserId] {
+			reviewTimes[row.UserId] = row.ReviewedAt
+		}
 	}
 	return reviewTimes, nil
 }

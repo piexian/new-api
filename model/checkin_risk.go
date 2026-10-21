@@ -49,6 +49,26 @@ func GetActiveCheckinRiskWatch(userId int) (*CheckinRiskWatch, error) {
 	return &w, nil
 }
 
+// ListActiveCheckinRiskWatchStatus 批量返回生效中（watching/locked）的观察记录状态。
+func ListActiveCheckinRiskWatchStatus(userIds []int) (map[int]string, error) {
+	status := make(map[int]string, len(userIds))
+	if len(userIds) == 0 {
+		return status, nil
+	}
+	var watches []CheckinRiskWatch
+	err := DB.Select("user_id", "status").
+		Where("user_id IN ? AND status IN ?", userIds,
+			[]string{CheckinRiskStatusWatching, CheckinRiskStatusLocked}).
+		Find(&watches).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, w := range watches {
+		status[w.UserId] = w.Status
+	}
+	return status, nil
+}
+
 // IsUserCheckinRiskLocked 用户签到奖励是否被风控锁底。
 // 查询失败时放行（不惩罚用户）。
 func IsUserCheckinRiskLocked(userId int) bool {

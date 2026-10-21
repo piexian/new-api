@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -31,17 +32,28 @@ func setupRiskModels(t *testing.T) {
 		&model.ErrorBanUserState{},
 		&model.RiskBanLog{},
 		&model.MultiAccountEvidence{},
+		&model.MultiAccountReview{},
+		&model.CheckinRiskWatch{},
 		&model.CustomOAuthProvider{},
 		&model.UserOAuthBinding{},
 	))
 }
 
+func resetSharedSessionUsersCache() {
+	sharedSessionUsersCache.Lock()
+	sharedSessionUsersCache.users = nil
+	sharedSessionUsersCache.Unlock()
+}
+
 func cleanupMultiAccountTestData(t *testing.T, userIds ...int) {
 	t.Helper()
+	resetSharedSessionUsersCache()
 	t.Cleanup(func() {
 		model.DB.Where("user_id IN ?", userIds).Delete(&model.UserOAuthBinding{})
 		model.DB.Where("primary_user_id IN ? OR related_user_id IN ?", userIds, userIds).Delete(&model.MultiAccountEvidence{})
 		model.DB.Where("user_id IN ?", userIds).Delete(&model.RiskBanLog{})
+		model.DB.Where("user_id IN ?", userIds).Delete(&model.MultiAccountReview{})
+		model.DB.Where("user_id IN ?", userIds).Delete(&model.CheckinRiskWatch{})
 		model.LOG_DB.Where("user_id IN ?", userIds).Delete(&model.Log{})
 		model.DB.Unscoped().Where("id IN ?", userIds).Delete(&model.User{})
 	})
@@ -233,6 +245,116 @@ func TestReviewedMultiAccountClusterClearsUntilNewEvidence(t *testing.T) {
 	require.Equal(t, 1, reopened.Total)
 	require.Equal(t, 1, reopened.Stats.TotalClusters)
 	require.Equal(t, 1, reopened.Stats.EmailConflicts)
+}
+
+func TestPassMultiAccountReviewClearsUntilNewEvidence(t *testing.T) {
+	setupRiskModels(t)
+	userIds := []int{98951, 98952}
+	cleanupMultiAccountTestData(t, userIds...)
+	now := common.GetTimestamp()
+	users := []model.User{
+		{Id: userIds[0], Username: "pass_multi_a", AffCode: "MULTIPA", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 120},
+		{Id: userIds[1], Username: "pass_multi_b", AffCode: "MULTIPB", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 60},
+	}
+	for index := range users {
+		require.NoError(t, model.DB.Create(&users[index]).Error)
+	}
+	require.NoError(t, model.UpsertGitHubEmailConflictEvidence(userIds[0], userIds[1], "pass-multi@example.com", now-30))
+
+	pending, err := ListMultiAccountClusters(1, 10, "pass-multi@example.com")
+	require.NoError(t, err)
+	require.Equal(t, 1, pending.Total)
+
+	require.NoError(t, PassMultiAccountReview(userIds, 1, "人工确认无异常", 0))
+
+	// 通过审查不封禁任何账号
+	for _, userId := range userIds {
+		user, getErr := model.GetUserById(userId, false)
+		require.NoError(t, getErr)
+		require.Equal(t, common.UserStatusEnabled, user.Status, "通过审查不得封禁账号")
+	}
+	reviewed, err := ListMultiAccountClusters(1, 10, "pass-multi@example.com")
+	require.NoError(t, err)
+	require.Zero(t, reviewed.Total)
+	require.Empty(t, reviewed.Items)
+
+	// 出现更晚的证据后聚类重新出现（不进入白名单）
+	require.NoError(t, model.UpsertGitHubEmailConflictEvidence(userIds[0], userIds[1], "pass-multi@example.com", common.GetTimestamp()+60))
+	reopened, err := ListMultiAccountClusters(1, 10, "pass-multi@example.com")
+	require.NoError(t, err)
+	require.Equal(t, 1, reopened.Total)
+}
+
+func TestPassMultiAccountReviewValidatesInput(t *testing.T) {
+	setupRiskModels(t)
+	userId := 98961
+	cleanupMultiAccountTestData(t, userId)
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: userId, Username: "pass_multi_valid", AffCode: "MULTIPV",
+		Role: common.RoleCommonUser, Status: common.UserStatusEnabled,
+	}).Error)
+
+	require.Error(t, PassMultiAccountReview(nil, 1, "", 0))
+	require.Error(t, PassMultiAccountReview([]int{userId, 98999}, 1, "", 0))
+	require.Error(t, PassMultiAccountReview([]int{userId}, 1, strings.Repeat("备", model.MultiAccountReviewNoteMaxLength+1), 0))
+	require.NoError(t, PassMultiAccountReview([]int{userId, userId}, 1, "重复 ID 去重后写入", 0))
+}
+
+func TestMultiAccountClusterRiskLinkageFlagsAndScore(t *testing.T) {
+	setupRiskModels(t)
+	userIds := []int{98971, 98972}
+	cleanupMultiAccountTestData(t, userIds...)
+	now := common.GetTimestamp()
+	users := []model.User{
+		// 注册时间拉开，避免触发注册时间接近的加分，便于精确断言
+		{Id: userIds[0], Username: "linkage_multi_a", AffCode: "MULTILA", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 10*86400},
+		{Id: userIds[1], Username: "linkage_multi_b", AffCode: "MULTILB", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 60},
+	}
+	for index := range users {
+		require.NoError(t, model.DB.Create(&users[index]).Error)
+	}
+	require.NoError(t, model.UpsertGitHubEmailConflictEvidence(userIds[0], userIds[1], "linkage-multi@example.com", now-30))
+	require.NoError(t, model.UpsertCheckinRiskWatch(userIds[0], 7, 1, 10, 5, "联动测试"))
+	require.NoError(t, model.CreateRiskBanLog(&model.RiskBanLog{
+		Dimension:   model.RiskBanDimensionUser,
+		UserId:      userIds[1],
+		Username:    users[1].Username,
+		Source:      model.RiskBanSourceManual,
+		RuleId:      model.SessionRiskRuleID,
+		RuleName:    model.SessionRiskRuleName,
+		Action:      "disable_user",
+		IsPermanent: true,
+		CreatedAt:   now - 20,
+	}))
+	// 两个账号共用同一会话标识 → 双双命中共用会话
+	for _, index := range []int{0, 1} {
+		require.NoError(t, model.LOG_DB.Create(&model.Log{
+			UserId:      userIds[index],
+			Username:    users[index].Username,
+			CreatedAt:   now - 10,
+			Type:        model.LogTypeConsume,
+			SessionHash: "linkage-session-hash",
+		}).Error)
+	}
+
+	page, err := ListMultiAccountClusters(1, 10, "linkage-multi@example.com")
+	require.NoError(t, err)
+	require.Equal(t, 1, page.Total)
+	cluster := page.Items[0]
+	// 基础分 75+1=76，签到观察 +10，共用会话两个账号 +20，合计 106 → 封顶 100
+	require.Equal(t, 100, cluster.RiskScore)
+	require.Equal(t, "high", cluster.RiskLevel)
+
+	byId := make(map[int]MultiAccountUser, len(cluster.Accounts))
+	for _, account := range cluster.Accounts {
+		byId[account.Id] = account
+	}
+	require.Equal(t, model.CheckinRiskStatusWatching, byId[userIds[0]].CheckinWatchStatus)
+	require.Empty(t, byId[userIds[1]].CheckinWatchStatus)
+	require.True(t, byId[userIds[1]].SessionRiskBanned)
+	require.False(t, byId[userIds[0]].SessionRiskBanned)
+	require.True(t, byId[userIds[0]].InSharedSession)
+	require.True(t, byId[userIds[1]].InSharedSession)
 }
 
 // setProbeGuardConfig 通过真实配置管线写入探测防护配置。
@@ -1380,4 +1502,52 @@ func TestErrorBanRuleTokenGroupExclusion(t *testing.T) {
 	ban, err := model.GetIPBanByTarget(ip)
 	require.NoError(t, err, "第二次命中应触发封禁")
 	require.NotZero(t, ban.ExpiresAt)
+}
+
+func TestPassMultiAccountReviewAcceptsLargeClusters(t *testing.T) {
+	setupRiskModels(t)
+	userIds := make([]int, 0, 120)
+	for index := 0; index < 120; index++ {
+		userIds = append(userIds, 96000+index)
+	}
+	cleanupMultiAccountTestData(t, userIds...)
+	for _, id := range userIds {
+		require.NoError(t, model.DB.Create(&model.User{
+			Id:       id,
+			Username: fmt.Sprintf("large_cluster_%d", id),
+			AffCode:  fmt.Sprintf("LC%d", id),
+			Role:     common.RoleCommonUser,
+			Status:   common.UserStatusEnabled,
+		}).Error)
+	}
+	require.NoError(t, PassMultiAccountReview(userIds, 1, "大聚类整体审查通过", 0))
+	var count int64
+	require.NoError(t, model.DB.Model(&model.MultiAccountReview{}).Where("user_id IN ?", userIds).Count(&count).Error)
+	require.Equal(t, int64(len(userIds)), count)
+}
+
+func TestPassMultiAccountReviewKeepsEvidenceNewerThanReviewed(t *testing.T) {
+	setupRiskModels(t)
+	userIds := []int{98961, 98962}
+	cleanupMultiAccountTestData(t, userIds...)
+	now := common.GetTimestamp()
+	users := []model.User{
+		{Id: userIds[0], Username: "through_multi_a", AffCode: "MULTITA", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 120},
+		{Id: userIds[1], Username: "through_multi_b", AffCode: "MULTITB", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 60},
+	}
+	for index := range users {
+		require.NoError(t, model.DB.Create(&users[index]).Error)
+	}
+	require.NoError(t, model.UpsertGitHubEmailConflictEvidence(userIds[0], userIds[1], "through-multi@example.com", now-30))
+	pending, err := ListMultiAccountClusters(1, 10, "through-multi@example.com")
+	require.NoError(t, err)
+	require.Equal(t, 1, pending.Total)
+	seenAt := pending.Items[0].LastSeenAt
+
+	// 管理员打开页面后、点击通过前到达的证据（早于点击时间）不能被一并隐藏
+	require.NoError(t, model.UpsertGitHubEmailConflictEvidence(userIds[0], userIds[1], "through-multi@example.com", now-10))
+	require.NoError(t, PassMultiAccountReview(userIds, 1, "", seenAt))
+	reopened, err := ListMultiAccountClusters(1, 10, "through-multi@example.com")
+	require.NoError(t, err)
+	require.Equal(t, 1, reopened.Total)
 }

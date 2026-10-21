@@ -312,6 +312,7 @@ func migrateDB() error {
 		&ErrorBanUserState{},
 		&RiskBanLog{},
 		&MultiAccountEvidence{},
+		&MultiAccountReview{},
 		&OAuthOwnershipTransfer{},
 		&TokenLoanAccount{},
 		&TokenLoanRecord{},
