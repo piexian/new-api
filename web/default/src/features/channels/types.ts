@@ -85,6 +85,7 @@ export interface ChannelSettings {
   chat_completions_to_responses_enabled?: boolean
   chat_completions_to_responses_models?: string[]
   responses_via_chat_fallback_enabled?: boolean
+  protocol_support?: ChannelProtocolSupport
   thinking_to_content?: boolean
   proxy?: string
   pass_through_body_enabled?: boolean
@@ -95,6 +96,13 @@ export interface ChannelSettings {
   plan_quota_cooldown_enabled?: boolean
   http_protocol?: 'auto' | 'http1' | string
   http2_connection_shards?: number
+}
+
+export interface ChannelProtocolSupport {
+  chat?: boolean
+  responses?: boolean
+  messages?: boolean
+  gemini?: boolean
 }
 
 export interface ChannelOtherSettings {

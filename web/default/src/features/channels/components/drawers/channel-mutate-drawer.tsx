@@ -65,7 +65,6 @@ import {
 } from '@/components/drawer-layout'
 import { JsonEditor } from '@/components/json-editor'
 import { MultiSelect } from '@/components/multi-select'
-import { TagInput } from '@/components/tag-input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -166,6 +165,9 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
+  CHANNEL_PROTOCOL_ITEMS,
+  resolveChannelProtocolSupport,
+  withProtocolOverride,
 } from '../../lib'
 import {
   collectInvalidStatusCodeEntries,
@@ -309,6 +311,7 @@ const SENSITIVE_FORM_FIELDS = [
   'chat_completions_to_responses_mode',
   'responses_via_chat_fallback_mode',
   'chat_completions_to_responses_models',
+  'protocol_support',
   'force_format',
   'xai_codex_compatibility_enabled',
   'plan_quota_cooldown_enabled',
@@ -374,6 +377,10 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.chat_completions_to_responses_mode !== 'inherit' ||
     values.responses_via_chat_fallback_mode !== 'inherit' ||
     (values.chat_completions_to_responses_models?.length ?? 0) > 0 ||
+    Boolean(
+      values.protocol_support &&
+      Object.values(values.protocol_support).some((v) => typeof v === 'boolean')
+    ) ||
     values.force_format ||
     values.xai_codex_compatibility_enabled ||
     values.plan_quota_cooldown_enabled ||
@@ -796,6 +803,7 @@ export function ChannelMutateDrawer({
   const currentChatToResponsesModels = form.watch(
     'chat_completions_to_responses_models'
   )
+  const currentProtocolSupport = form.watch('protocol_support')
   const currentForceFormat = form.watch('force_format')
   const currentXaiCodexCompatibilityEnabled = form.watch(
     'xai_codex_compatibility_enabled'
@@ -1092,6 +1100,10 @@ export function ChannelMutateDrawer({
     currentUseResponsesApi ||
     currentChatToResponsesMode !== 'inherit' ||
     (currentChatToResponsesModels?.length ?? 0) > 0 ||
+    Boolean(
+      currentProtocolSupport &&
+      Object.values(currentProtocolSupport).some((v) => typeof v === 'boolean')
+    ) ||
     currentForceFormat ||
     currentXaiCodexCompatibilityEnabled ||
     currentThinkingToContent ||
@@ -4889,143 +4901,81 @@ export function ChannelMutateDrawer({
                             <div className='divide-border space-y-0 divide-y border-y'>
                               <FormField
                                 control={form.control}
-                                name='chat_completions_to_responses_mode'
-                                render={({ field }) => (
-                                  <FormItem className='space-y-2 px-4 py-3'>
-                                    <FormLabel>
-                                      {t('ChatCompletions to Responses mode')}
-                                    </FormLabel>
-                                    <Select
-                                      items={[
-                                        {
-                                          value: 'inherit',
-                                          label: t('Inherit global setting'),
-                                        },
-                                        {
-                                          value: 'enabled',
-                                          label: t('Enable for this channel'),
-                                        },
-                                        {
-                                          value: 'disabled',
-                                          label: t('Disable for this channel'),
-                                        },
-                                      ]}
-                                      value={field.value}
-                                      onValueChange={field.onChange}
-                                    >
-                                      <FormControl>
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent
-                                        alignItemWithTrigger={false}
-                                      >
-                                        <SelectGroup>
-                                          <SelectItem value='inherit'>
-                                            {t('Inherit global setting')}
-                                          </SelectItem>
-                                          <SelectItem value='enabled'>
-                                            {t('Enable for this channel')}
-                                          </SelectItem>
-                                          <SelectItem value='disabled'>
-                                            {t('Disable for this channel')}
-                                          </SelectItem>
-                                        </SelectGroup>
-                                      </SelectContent>
-                                    </Select>
-                                    <FormDescription>
-                                      {t(
-                                        'Leave this on inherit to use the global switch.'
-                                      )}
-                                    </FormDescription>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-
-                              <FormField
-                                control={form.control}
-                                name='chat_completions_to_responses_models'
-                                render={({ field }) => (
-                                  <FormItem className='space-y-2 px-4 py-3'>
-                                    <FormLabel>
-                                      {t('Channel model matching rules')}
-                                    </FormLabel>
-                                    <FormControl>
-                                      <TagInput
-                                        value={field.value || []}
-                                        onChange={field.onChange}
-                                        placeholder={t(
-                                          'Enter a model name or regular expression and press Enter'
-                                        )}
-                                      />
-                                    </FormControl>
-                                    <FormDescription>
-                                      {t(
-                                        'Leave empty to inherit the global model rules; entries here replace them for this channel.'
-                                      )}
-                                    </FormDescription>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-
-                              <FormField
-                                control={form.control}
-                                name='responses_via_chat_fallback_mode'
-                                render={({ field }) => (
-                                  <FormItem className='space-y-2 px-4 py-3'>
-                                    <FormLabel>
-                                      {t('Responses to Chat fallback')}
-                                    </FormLabel>
-                                    <Select
-                                      items={[
-                                        {
-                                          value: 'inherit',
-                                          label: t('Inherit global setting'),
-                                        },
-                                        {
-                                          value: 'enabled',
-                                          label: t('Enable for this channel'),
-                                        },
-                                        {
-                                          value: 'disabled',
-                                          label: t('Disable for this channel'),
-                                        },
-                                      ]}
-                                      value={field.value}
-                                      onValueChange={field.onChange}
-                                    >
-                                      <FormControl>
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                      </FormControl>
-                                      <SelectContent
-                                        alignItemWithTrigger={false}
-                                      >
-                                        <SelectGroup>
-                                          <SelectItem value='inherit'>
-                                            {t('Inherit global setting')}
-                                          </SelectItem>
-                                          <SelectItem value='enabled'>
-                                            {t('Enable for this channel')}
-                                          </SelectItem>
-                                          <SelectItem value='disabled'>
-                                            {t('Disable for this channel')}
-                                          </SelectItem>
-                                        </SelectGroup>
-                                      </SelectContent>
-                                    </Select>
-                                    <FormDescription>
-                                      {t(
-                                        'Automatically fall back to Chat Completions when the channel does not support native /v1/responses. Enabled by default (inherit); when disabled, conversion failures return the error directly.'
-                                      )}
-                                    </FormDescription>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
+                                name='protocol_support'
+                                render={({ field }) => {
+                                  const resolvedProtocols =
+                                    resolveChannelProtocolSupport(
+                                      currentType,
+                                      form.watch('base_url'),
+                                      {
+                                        upstream_openai_compat_enabled:
+                                          currentUpstreamOpenAICompatEnabled,
+                                        zcode_mode_enabled:
+                                          currentZcodeModeEnabled,
+                                        protocol_support: field.value,
+                                      }
+                                    )
+                                  return (
+                                    <FormItem className='space-y-3 px-4 py-3'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel>
+                                          {t('Protocol Support')}
+                                        </FormLabel>
+                                        <FormDescription>
+                                          {t(
+                                            'Toggle upstream native protocol support. Disabled protocols automatically convert to an enabled protocol, or are blocked locally when request body pass-through is enabled.'
+                                          )}
+                                        </FormDescription>
+                                      </div>
+                                      <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
+                                        {CHANNEL_PROTOCOL_ITEMS.map((item) => {
+                                          const enabled =
+                                            resolvedProtocols[item.key]
+                                          return (
+                                            <div
+                                              key={item.key}
+                                              className='border-border/70 bg-muted/20 flex items-center justify-between gap-2 rounded-md border px-3 py-2'
+                                            >
+                                              <div className='min-w-0'>
+                                                <div className='text-xs font-medium'>
+                                                  {item.label}
+                                                </div>
+                                                <div className='text-muted-foreground truncate font-mono text-[10px]'>
+                                                  {item.endpoint}
+                                                </div>
+                                              </div>
+                                              <Switch
+                                                checked={enabled}
+                                                onCheckedChange={(checked) => {
+                                                  field.onChange(
+                                                    withProtocolOverride(
+                                                      currentType,
+                                                      field.value,
+                                                      item.key,
+                                                      checked
+                                                    )
+                                                  )
+                                                  if (
+                                                    (currentType === 24 ||
+                                                      currentType === 72) &&
+                                                    item.key === 'chat'
+                                                  ) {
+                                                    form.setValue(
+                                                      'upstream_openai_compat_enabled',
+                                                      checked,
+                                                      { shouldDirty: true }
+                                                    )
+                                                  }
+                                                }}
+                                              />
+                                            </div>
+                                          )
+                                        })}
+                                      </div>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )
+                                }}
                               />
 
                               {currentType === 1 && (

@@ -29,17 +29,26 @@ func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 
+	targetAdaptor := chatTargetAdaptor(info, adaptor)
+	if targetAdaptor == nil {
+		return nil, newTargetFormatUnsupportedError(c)
+	}
+
+	savedRelayFormat := info.RelayFormat
 	savedRelayMode := info.RelayMode
 	savedRequestURLPath := info.RequestURLPath
 	defer func() {
+		info.RelayFormat = savedRelayFormat
 		info.RelayMode = savedRelayMode
 		info.RequestURLPath = savedRequestURLPath
 	}()
+	info.RelayFormat = types.RelayFormatOpenAI
 	info.RelayMode = relayconstant.RelayModeChatCompletions
 	info.RequestURLPath = "/v1/chat/completions"
 	info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+	targetAdaptor.Init(info)
 
-	convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, chatRequest)
+	convertedRequest, err := targetAdaptor.ConvertOpenAIRequest(c, info, chatRequest)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
@@ -72,7 +81,8 @@ func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo, ad
 	info.UpstreamRequestBodySize = size
 	var requestBody io.Reader = body
 
-	resp, err := adaptor.DoRequest(c, info, requestBody)
+	resp, err := targetAdaptor.DoRequest(c, info, requestBody)
+	info.RelayFormat = savedRelayFormat
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
@@ -115,7 +125,13 @@ func responsesViaChatCompletions(c *gin.Context, info *relaycommon.RelayInfo, ad
 // responsesViaChatFallbackDisabled 渠道级开关: false=关闭降级。
 // ChannelSetting 是 ChannelMeta 的提升字段, InitChannelMeta 前恒为 nil, 先判空再读。
 func responsesViaChatFallbackDisabled(info *relaycommon.RelayInfo) bool {
-	if info == nil || info.ChannelMeta == nil || info.ChannelSetting.ResponsesViaChatFallbackEnabled == nil {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	if ps := info.ChannelSetting.ProtocolSupport; ps != nil && ps.Responses != nil {
+		return *ps.Responses
+	}
+	if info.ChannelSetting.ResponsesViaChatFallbackEnabled == nil {
 		return false
 	}
 	return !*info.ChannelSetting.ResponsesViaChatFallbackEnabled

@@ -23,9 +23,6 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
-import { StatusBadge } from '@/components/status-badge'
-import { TagInput } from '@/components/tag-input'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -67,18 +64,10 @@ const jsonString = z.string().refine((value) => {
   }
 }, 'Invalid JSON format')
 
-const chatToResponsesPolicySchema = z
-  .object({
-    enabled: z.boolean(),
-    model_patterns: z.array(z.string()),
-  })
-  .passthrough()
-
 const schema = z.object({
   global: z.object({
     pass_through_request_enabled: z.boolean(),
     thinking_model_blacklist: jsonString,
-    chat_completions_to_responses_policy: chatToResponsesPolicySchema,
   }),
   general_setting: z.object({
     ping_interval_enabled: z.boolean(),
@@ -92,7 +81,6 @@ type GlobalModelSettingsFormInput = z.input<typeof schema>
 type FlatGlobalModelSettings = {
   'global.pass_through_request_enabled': boolean
   'global.thinking_model_blacklist': string
-  'global.chat_completions_to_responses_policy': string
   'general_setting.ping_interval_enabled': boolean
   'general_setting.ping_interval_seconds': number
 }
@@ -106,12 +94,6 @@ const flattenGlobalValues = (
     values.global.thinking_model_blacklist,
     '[]'
   ),
-  'global.chat_completions_to_responses_policy': normalizeJsonText(
-    serializeChatToResponsesPolicy(
-      values.global.chat_completions_to_responses_policy
-    ),
-    '{}'
-  ),
   'general_setting.ping_interval_enabled':
     values.general_setting.ping_interval_enabled,
   'general_setting.ping_interval_seconds':
@@ -121,22 +103,6 @@ const flattenGlobalValues = (
 function normalizeJsonText(value: string, fallback: string) {
   const trimmed = (value ?? '').toString().trim()
   return trimmed ? trimmed : fallback
-}
-
-function serializeChatToResponsesPolicy(
-  policy: GlobalModelSettingsFormValues['global']['chat_completions_to_responses_policy']
-) {
-  const normalized: Record<string, unknown> = { ...policy }
-  delete normalized.channel_ids
-  delete normalized.channel_types
-  normalized.enabled = policy.enabled
-  normalized.all_channels = true
-  normalized.model_patterns = [
-    ...new Set(
-      policy.model_patterns.map((pattern) => pattern.trim()).filter(Boolean)
-    ),
-  ]
-  return JSON.stringify(normalized)
 }
 
 type GlobalSettingsCardProps = {
@@ -262,78 +228,6 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
               </FormItem>
             )}
           />
-
-          <Separator />
-
-          <div className='space-y-4'>
-            <div className='flex items-center gap-2'>
-              <h3 className='text-base font-semibold'>
-                {t('ChatCompletions -> Responses Compatibility')}
-              </h3>
-              <StatusBadge
-                label={t('Preview')}
-                variant='neutral'
-                copyable={false}
-              />
-            </div>
-
-            <Alert>
-              <AlertTitle>{t('Warning')}</AlertTitle>
-              <AlertDescription>
-                {t(
-                  'This feature is experimental. Configuration format and behavior may change.'
-                )}
-              </AlertDescription>
-            </Alert>
-
-            <FormField
-              control={form.control}
-              name='global.chat_completions_to_responses_policy.enabled'
-              render={({ field }) => (
-                <SettingsSwitchItem>
-                  <SettingsSwitchContent>
-                    <FormLabel>{t('Global compatibility switch')}</FormLabel>
-                    <FormDescription>
-                      {t(
-                        'Channels that inherit the global setting use this switch.'
-                      )}
-                    </FormDescription>
-                  </SettingsSwitchContent>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </SettingsSwitchItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name='global.chat_completions_to_responses_policy.model_patterns'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('Global model matching rules')}</FormLabel>
-                  <FormControl>
-                    <TagInput
-                      value={field.value}
-                      onChange={field.onChange}
-                      placeholder={t(
-                        'Enter a model name or regular expression and press Enter'
-                      )}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    {t(
-                      'A model is converted when it matches any rule. Channels can inherit or replace these rules.'
-                    )}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
 
           <Separator />
 

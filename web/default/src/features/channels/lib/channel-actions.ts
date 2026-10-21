@@ -41,7 +41,11 @@ import {
   updateChannelBalance,
 } from '../api'
 import { CHANNEL_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
-import type { ChannelTestResponse, CopyChannelParams } from '../types'
+import type { Channel, ChannelTestResponse, CopyChannelParams } from '../types'
+import {
+  buildUpdatedProtocolSupportSetting,
+  type ChannelProtocolKey,
+} from './protocol-support'
 
 // ============================================================================
 // Query Keys
@@ -228,6 +232,42 @@ export async function handleUpdateChannelField(
     }
   } catch {
     toast.error(i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+  }
+}
+
+/**
+ * Toggle one protocol on a channel row. Resolves to the saved setting string on
+ * success (so consecutive toggles can build on it before the list refetches),
+ * or null on failure.
+ */
+export async function handleToggleChannelProtocol(
+  channel: Channel,
+  protocolKey: ChannelProtocolKey,
+  nextValue: boolean,
+  queryClient?: QueryClient
+): Promise<string | null> {
+  try {
+    const nextSetting = buildUpdatedProtocolSupportSetting(
+      channel.type,
+      channel.base_url,
+      channel.setting,
+      protocolKey,
+      nextValue
+    )
+    const response = await updateChannel(channel.id, { setting: nextSetting })
+    if (response.success) {
+      toast.success(i18next.t(SUCCESS_MESSAGES.UPDATED))
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      queryClient?.invalidateQueries({
+        queryKey: channelsQueryKeys.detail(channel.id),
+      })
+      return nextSetting
+    }
+    toast.error(response.message || i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+    return null
+  } catch {
+    toast.error(i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+    return null
   }
 }
 

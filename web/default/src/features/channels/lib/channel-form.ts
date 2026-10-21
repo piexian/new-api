@@ -31,6 +31,11 @@ import {
   stringifyAdvancedCustomConfig,
   validateAdvancedCustomConfig,
 } from './advanced-custom'
+import {
+  buildProtocolSupportOverrides,
+  resolveChannelProtocolSupport,
+  toProtocolSupportFormValue,
+} from './protocol-support'
 
 // ============================================================================
 // Form Validation Schema
@@ -276,6 +281,14 @@ export const channelFormSchema = z
       .enum(['inherit', 'enabled', 'disabled'])
       .optional(),
     chat_completions_to_responses_models: z.array(z.string()).optional(),
+    protocol_support: z
+      .object({
+        chat: z.boolean().optional(),
+        responses: z.boolean().optional(),
+        messages: z.boolean().optional(),
+        gemini: z.boolean().optional(),
+      })
+      .optional(),
     thinking_to_content: z.boolean().optional(),
     proxy: z
       .string()
@@ -463,6 +476,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   chat_completions_to_responses_mode: 'inherit',
   responses_via_chat_fallback_mode: 'inherit',
   chat_completions_to_responses_models: [],
+  protocol_support: undefined,
   thinking_to_content: false,
   proxy: '',
   http_protocol: HTTP_PROTOCOL_AUTO,
@@ -517,6 +531,14 @@ export function transformChannelToFormDefaults(
       | 'enabled'
       | 'disabled',
     chat_completions_to_responses_models: [] as string[],
+    protocol_support: undefined as
+      | {
+          chat?: boolean
+          responses?: boolean
+          messages?: boolean
+          gemini?: boolean
+        }
+      | undefined,
     thinking_to_content: false,
     proxy: '',
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
@@ -563,6 +585,33 @@ export function transformChannelToFormDefaults(
         parsed.http2_connection_shards
       )
 
+      let protocolSupport:
+        | {
+            chat?: boolean
+            responses?: boolean
+            messages?: boolean
+            gemini?: boolean
+          }
+        | undefined
+      if (
+        parsed.protocol_support &&
+        typeof parsed.protocol_support === 'object' &&
+        !Array.isArray(parsed.protocol_support)
+      ) {
+        protocolSupport = toProtocolSupportFormValue(
+          channel.type,
+          parsed.protocol_support
+        )
+      }
+      // Gemini channels: an explicit protocol_support.chat wins over the compat flag
+      const upstreamOpenAICompatEnabled =
+        channel.type === 24 || channel.type === 72
+          ? resolveChannelProtocolSupport(
+              channel.type,
+              channel.base_url,
+              parsed
+            ).chat
+          : parsed.upstream_openai_compat_enabled === true
       extraSettings = {
         force_format: parsed.force_format || false,
         use_responses_api: parsed.use_responses_api === true,
@@ -574,13 +623,13 @@ export function transformChannelToFormDefaults(
         http_protocol: protocol,
         http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
-        upstream_openai_compat_enabled:
-          parsed.upstream_openai_compat_enabled === true,
+        upstream_openai_compat_enabled: upstreamOpenAICompatEnabled,
         zcode_mode_enabled: parsed.zcode_mode_enabled === true,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
         plan_quota_cooldown_enabled:
           parsed.plan_quota_cooldown_enabled === true,
+        protocol_support: protocolSupport,
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -739,30 +788,20 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     delete settingObj.http2_connection_shards
   }
 
-  const patterns = [
-    ...new Set(
-      (formData.chat_completions_to_responses_models || [])
-        .map((pattern) => pattern.trim())
-        .filter(Boolean)
-    ),
-  ]
-  if (formData.chat_completions_to_responses_mode === 'inherit') {
-    delete settingObj.chat_completions_to_responses_enabled
+  // Only protocols that differ from the channel-type defaults are stored.
+  const protocolSupport = buildProtocolSupportOverrides(
+    formData.type,
+    formData.base_url,
+    settingObj,
+    formData.protocol_support
+  )
+  if (protocolSupport) {
+    settingObj.protocol_support = protocolSupport
   } else {
-    settingObj.chat_completions_to_responses_enabled =
-      formData.chat_completions_to_responses_mode === 'enabled'
+    delete settingObj.protocol_support
   }
-  if (formData.responses_via_chat_fallback_mode === 'inherit') {
-    delete settingObj.responses_via_chat_fallback_enabled
-  } else {
-    settingObj.responses_via_chat_fallback_enabled =
-      formData.responses_via_chat_fallback_mode === 'enabled'
-  }
-  if (patterns.length > 0) {
-    settingObj.chat_completions_to_responses_models = patterns
-  } else {
-    delete settingObj.chat_completions_to_responses_models
-  }
+  delete settingObj.chat_completions_to_responses_enabled
+  delete settingObj.chat_completions_to_responses_models
   // New policy fields carry the explicit behavior; keep the legacy field only
   // as a false marker so old readers never bypass model matching after save.
   settingObj.use_responses_api = false

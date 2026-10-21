@@ -26,6 +26,13 @@ import {
   showSuccess,
   verifyJSON,
 } from '../../../../helpers';
+import {
+  CHANNEL_PROTOCOL_ITEMS,
+  buildProtocolSupportOverrides,
+  resolveChannelProtocolSupport,
+  toProtocolSupportFormValue,
+  withProtocolOverride,
+} from '../../../../helpers/protocolSupport';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   CHANNEL_OPTIONS,
@@ -43,6 +50,7 @@ import {
   SideSheet,
   Space,
   Spin,
+  Switch,
   Button,
   Typography,
   Checkbox,
@@ -256,6 +264,7 @@ const EditChannelModal = (props) => {
     chat_completions_to_responses_mode: 'inherit',
     responses_via_chat_fallback_mode: 'inherit',
     chat_completions_to_responses_models: [],
+    protocol_support: undefined,
     system_prompt: '',
     system_prompt_override: false,
     settings: '',
@@ -601,6 +610,7 @@ const EditChannelModal = (props) => {
     chat_completions_to_responses_mode: 'inherit',
     responses_via_chat_fallback_mode: 'inherit',
     chat_completions_to_responses_models: [],
+    protocol_support: undefined,
     system_prompt: '',
     plan_quota_cooldown_enabled: false,
   });
@@ -1101,8 +1111,15 @@ const EditChannelModal = (props) => {
                 );
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
+          // Gemini 渠道：显式 protocol_support.chat 优先于兼容开关
           data.upstream_openai_compat_enabled =
-            parsedSettings.upstream_openai_compat_enabled === true;
+            data.type === 24 || data.type === 72
+              ? resolveChannelProtocolSupport(
+                  data.type,
+                  data.base_url,
+                  parsedSettings,
+                ).chat
+              : parsedSettings.upstream_openai_compat_enabled === true;
           data.zcode_mode_enabled = parsedSettings.zcode_mode_enabled === true;
           data.use_responses_api = parsedSettings.use_responses_api === true;
           data.chat_completions_to_responses_mode =
@@ -1135,6 +1152,15 @@ const EditChannelModal = (props) => {
             parsedSettings.system_prompt_override || false;
           data.plan_quota_cooldown_enabled =
             parsedSettings.plan_quota_cooldown_enabled === true;
+          data.protocol_support =
+            parsedSettings.protocol_support &&
+            typeof parsedSettings.protocol_support === 'object' &&
+            !Array.isArray(parsedSettings.protocol_support)
+              ? toProtocolSupportFormValue(
+                  data.type,
+                  parsedSettings.protocol_support,
+                )
+              : undefined;
         } catch (error) {
           console.error('解析渠道设置失败:', error);
           data.force_format = false;
@@ -1149,6 +1175,7 @@ const EditChannelModal = (props) => {
           data.chat_completions_to_responses_mode = 'inherit';
           data.responses_via_chat_fallback_mode = 'inherit';
           data.chat_completions_to_responses_models = [];
+          data.protocol_support = undefined;
           data.system_prompt = '';
           data.system_prompt_override = false;
           data.plan_quota_cooldown_enabled = false;
@@ -1166,6 +1193,7 @@ const EditChannelModal = (props) => {
         data.chat_completions_to_responses_mode = 'inherit';
         data.responses_via_chat_fallback_mode = 'inherit';
         data.chat_completions_to_responses_models = [];
+        data.protocol_support = undefined;
         data.system_prompt = '';
         data.system_prompt_override = false;
         data.plan_quota_cooldown_enabled = false;
@@ -1306,6 +1334,7 @@ const EditChannelModal = (props) => {
           data.responses_via_chat_fallback_mode || 'inherit',
         chat_completions_to_responses_models:
           data.chat_completions_to_responses_models || [],
+        protocol_support: data.protocol_support,
         system_prompt: data.system_prompt,
         system_prompt_override: data.system_prompt_override || false,
       });
@@ -1711,6 +1740,7 @@ const EditChannelModal = (props) => {
       chat_completions_to_responses_mode: 'inherit',
       responses_via_chat_fallback_mode: 'inherit',
       chat_completions_to_responses_models: [],
+      protocol_support: undefined,
       system_prompt: '',
       system_prompt_override: false,
     });
@@ -2153,24 +2183,24 @@ const EditChannelModal = (props) => {
     if (protocol !== 'http1' && shards > 1) {
       channelExtraSettings.http2_connection_shards = shards;
     }
-    if (localInputs.chat_completions_to_responses_mode !== 'inherit') {
-      channelExtraSettings.chat_completions_to_responses_enabled =
-        localInputs.chat_completions_to_responses_mode === 'enabled';
-    }
-    if (localInputs.responses_via_chat_fallback_mode !== 'inherit') {
-      channelExtraSettings.responses_via_chat_fallback_enabled =
-        localInputs.responses_via_chat_fallback_mode === 'enabled';
-    }
-    const chatToResponsesModels = Array.from(
-      new Set(
-        (localInputs.chat_completions_to_responses_models || [])
-          .map((pattern) => String(pattern).trim())
-          .filter(Boolean),
-      ),
+    // 只保存与渠道类型默认值不同的协议；protocol_support 不是已注册的表单字段，
+    // getValues() 取不到，需从 channelSettings 状态读取
+    const protocolSupport = buildProtocolSupportOverrides(
+      localInputs.type,
+      localInputs.base_url,
+      channelExtraSettings,
+      channelSettings.protocol_support,
     );
-    if (chatToResponsesModels.length > 0) {
-      channelExtraSettings.chat_completions_to_responses_models =
-        chatToResponsesModels;
+    if (protocolSupport) {
+      channelExtraSettings.protocol_support = protocolSupport;
+    }
+    // 旧版 Responses 转 Chat 降级开关已无界面入口，保留已有值（后端仍读取）
+    if (
+      inputs.responses_via_chat_fallback_mode === 'enabled' ||
+      inputs.responses_via_chat_fallback_mode === 'disabled'
+    ) {
+      channelExtraSettings.responses_via_chat_fallback_enabled =
+        inputs.responses_via_chat_fallback_mode === 'enabled';
     }
     localInputs.setting = JSON.stringify(channelExtraSettings);
 
@@ -2269,6 +2299,8 @@ const EditChannelModal = (props) => {
     delete localInputs.use_responses_api;
     delete localInputs.chat_completions_to_responses_mode;
     delete localInputs.chat_completions_to_responses_models;
+    delete localInputs.responses_via_chat_fallback_mode;
+    delete localInputs.protocol_support;
     delete localInputs.system_prompt;
     delete localInputs.system_prompt_override;
     delete localInputs.plan_quota_cooldown_enabled;
@@ -3151,61 +3183,96 @@ const EditChannelModal = (props) => {
                     />
                   )}
 
-                  <Form.Select
-                    field='chat_completions_to_responses_mode'
-                    label={t('ChatCompletions→Responses 模式')}
-                    optionList={[
-                      { value: 'inherit', label: t('继承全局配置') },
-                      { value: 'enabled', label: t('为此渠道启用') },
-                      { value: 'disabled', label: t('为此渠道禁用') },
-                    ]}
-                    style={{ width: '100%' }}
-                    onChange={(value) =>
-                      handleChannelSettingsChange(
-                        'chat_completions_to_responses_mode',
-                        value,
-                      )
-                    }
-                    extraText={t('选择继承时使用全局兼容开关')}
-                  />
-
-                  <Form.TagInput
-                    field='chat_completions_to_responses_models'
-                    label={t('渠道模型匹配规则')}
-                    placeholder={t('输入模型名或正则表达式，按回车添加')}
-                    addOnBlur
-                    showClear
-                    style={{ width: '100%' }}
-                    onChange={(value) =>
-                      handleChannelSettingsChange(
-                        'chat_completions_to_responses_models',
-                        value,
-                      )
-                    }
-                    extraText={t(
-                      '留空时继承全局模型规则；填写后将覆盖此渠道的全局规则',
-                    )}
-                  />
-
-                  <Form.Select
-                    field='responses_via_chat_fallback_mode'
-                    label={t('Responses 转 Chat 兜底')}
-                    optionList={[
-                      { value: 'inherit', label: t('继承全局配置') },
-                      { value: 'enabled', label: t('为此渠道启用') },
-                      { value: 'disabled', label: t('为此渠道禁用') },
-                    ]}
-                    style={{ width: '100%' }}
-                    onChange={(value) =>
-                      handleChannelSettingsChange(
-                        'responses_via_chat_fallback_mode',
-                        value,
-                      )
-                    }
-                    extraText={t(
-                      '渠道不支持原生 /v1/responses 时自动降级为 Chat Completions。默认（继承）开启；关闭后转换失败将直接返回错误。',
-                    )}
-                  />
+                  <div
+                    className='semi-form-field'
+                    style={{ paddingTop: 12, paddingBottom: 12 }}
+                  >
+                    <div
+                      className='semi-form-field-label-text'
+                      style={{ fontWeight: 600, marginBottom: 4 }}
+                    >
+                      {t('协议支持')}
+                    </div>
+                    <div
+                      className='semi-form-field-extra'
+                      style={{ marginBottom: 8 }}
+                    >
+                      {t(
+                        '控制该渠道上游原生支持的协议。关闭的协议将自动转换为已开启协议（若开启请求体透传则在网关本地直接拦截）。',
+                      )}
+                    </div>
+                    <Space spacing={12} wrap>
+                      {(() => {
+                        const resolvedProtocols = resolveChannelProtocolSupport(
+                          inputs.type,
+                          inputs.base_url,
+                          {
+                            upstream_openai_compat_enabled:
+                              channelSettings.upstream_openai_compat_enabled,
+                            zcode_mode_enabled:
+                              channelSettings.zcode_mode_enabled,
+                            protocol_support: channelSettings.protocol_support,
+                          },
+                        );
+                        return CHANNEL_PROTOCOL_ITEMS.map((item) => {
+                          const enabled = resolvedProtocols[item.key];
+                          return (
+                            <div
+                              key={item.key}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '6px 10px',
+                                border: '1px solid var(--semi-color-border)',
+                                borderRadius: 6,
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontSize: 12, fontWeight: 500 }}>
+                                  {item.label}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    color: 'var(--semi-color-text-2)',
+                                    fontFamily: 'monospace',
+                                  }}
+                                >
+                                  {item.endpoint}
+                                </div>
+                              </div>
+                              <Switch
+                                size='small'
+                                checked={enabled}
+                                onChange={(checked) => {
+                                  handleChannelSettingsChange(
+                                    'protocol_support',
+                                    withProtocolOverride(
+                                      inputs.type,
+                                      channelSettings.protocol_support,
+                                      item.key,
+                                      checked,
+                                    ),
+                                  );
+                                  if (
+                                    (inputs.type === 24 ||
+                                      inputs.type === 72) &&
+                                    item.key === 'chat'
+                                  ) {
+                                    handleChannelSettingsChange(
+                                      'upstream_openai_compat_enabled',
+                                      checked,
+                                    );
+                                  }
+                                }}
+                              />
+                            </div>
+                          );
+                        });
+                      })()}
+                    </Space>
+                  </div>
 
                   {inputs.type === 48 && (
                     <Form.Switch

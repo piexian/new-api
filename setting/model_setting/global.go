@@ -1,43 +1,16 @@
 package model_setting
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
-type ChatCompletionsToResponsesPolicy struct {
-	Enabled       bool     `json:"enabled"`
-	AllChannels   bool     `json:"all_channels"`
-	ChannelIDs    []int    `json:"channel_ids,omitempty"`
-	ChannelTypes  []int    `json:"channel_types,omitempty"`
-	ModelPatterns []string `json:"model_patterns,omitempty"`
-}
-
-func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID int, channelType int) bool {
-	if !p.Enabled {
-		return false
-	}
-	if p.AllChannels {
-		return true
-	}
-
-	if channelID > 0 && len(p.ChannelIDs) > 0 && slices.Contains(p.ChannelIDs, channelID) {
-		return true
-	}
-	if channelType > 0 && len(p.ChannelTypes) > 0 && slices.Contains(p.ChannelTypes, channelType) {
-		return true
-	}
-	return false
-}
-
 type GlobalSettings struct {
-	PassThroughRequestEnabled        bool                             `json:"pass_through_request_enabled"`
-	ThinkingModelBlacklist []string `json:"thinking_model_blacklist"`
+	PassThroughRequestEnabled bool     `json:"pass_through_request_enabled"`
+	ThinkingModelBlacklist    []string `json:"thinking_model_blacklist"`
 	// EffortTailModelIDs 列出名称本身以 effort 词结尾的真实模型 ID，转换器不再追加/剥离 effort 后缀。
-	EffortTailModelIDs               []string                         `json:"effort_tail_model_ids"`
-	ChatCompletionsToResponsesPolicy ChatCompletionsToResponsesPolicy `json:"chat_completions_to_responses_policy"`
+	EffortTailModelIDs []string `json:"effort_tail_model_ids"`
 }
 
 // 默认配置
@@ -52,10 +25,6 @@ var defaultOpenaiSettings = GlobalSettings{
 		"qwen-image-edit-max",
 		"qwen-max",
 		"stable-diffusion-3-medium",
-	},
-	ChatCompletionsToResponsesPolicy: ChatCompletionsToResponsesPolicy{
-		Enabled:     false,
-		AllChannels: true,
 	},
 }
 

@@ -14,8 +14,8 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	dto "github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
@@ -163,6 +163,25 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 	}
 
+	if newAPIError = checkInboundProtocolInterception(c, info); newAPIError != nil {
+		return newAPIError
+	}
+	route, routeErr := planInboundRoute(c, info, relaycommon.ProtocolGemini)
+	if routeErr != nil {
+		return routeErr
+	}
+	if route.adaptor != nil {
+		adaptor = route.adaptor
+		adaptor.Init(info)
+	}
+	if route.dispatch {
+		usage, newApiErr := dispatchToTargetProtocol(c, info, adaptor, route.targets, request)
+		if newApiErr != nil {
+			return newApiErr
+		}
+		service.PostTextConsumeQuota(c, info, usage, nil)
+		return nil
+	}
 	var requestBody io.Reader
 	if shouldPassThroughModelRequest(info) {
 		body, _, err := relaycommon.PassThroughRequestBody(c, info)

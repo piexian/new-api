@@ -12,23 +12,24 @@ import (
 )
 
 type ChannelSettings struct {
-	TaskPluginKey                     string   `json:"task_plugin_key,omitempty"`
-	ForceFormat                       bool     `json:"force_format,omitempty"`
-	ThinkingToContent                 bool     `json:"thinking_to_content,omitempty"`
-	Proxy                             string   `json:"proxy"`
-	PassThroughBodyEnabled            bool     `json:"pass_through_body_enabled,omitempty"`
-	ResponsesWebSocketEnabled         bool     `json:"responses_websocket_enabled,omitempty"`
-	UseResponsesApi                   bool     `json:"use_responses_api,omitempty"`
-	UpstreamOpenAICompatEnabled       bool     `json:"upstream_openai_compat_enabled,omitempty"` // OpenAI Chat 入站直传上游 OpenAI 兼容端点(仅 Gemini 系渠道)
-	ZcodeModeEnabled                  bool     `json:"zcode_mode_enabled,omitempty"`             // ZCode 模式:GLM Coding Plan 仅接受 /v1/messages 入站并注入 ZCode 指纹,其余格式直接拒绝(仅智谱 Coding Plan 渠道)
-	ZcodeFingerprintVersion           string   `json:"zcode_fingerprint_version,omitempty"`      // 指纹声明的客户端版本;空=默认(对齐官方解包版本)
-	ZcodeLegacyTraceHeaders           *bool    `json:"zcode_legacy_trace_headers,omitempty"`     // 旧版 x-zcode-*/x-query-id/x-session-id 追踪头;nil=关(官方当前形态)
-	ZcodeClientSigningEnabled         *bool    `json:"zcode_client_signing_enabled,omitempty"`   // Client Request Signing V4(Ed25519+PoW);nil=开(套餐默认按验签发放权益)
-	ChatCompletionsToResponsesEnabled *bool    `json:"chat_completions_to_responses_enabled,omitempty"`
-	ChatCompletionsToResponsesModels  []string `json:"chat_completions_to_responses_models,omitempty"`
-	ResponsesViaChatFallbackEnabled   *bool    `json:"responses_via_chat_fallback_enabled,omitempty"` // 渠道不支持原生 /v1/responses 时自动降级为 Chat Completions;nil=开(保持现有行为)
-	SystemPrompt                      string   `json:"system_prompt,omitempty"`
-	SystemPromptOverride              bool     `json:"system_prompt_override,omitempty"`
+	TaskPluginKey                     string                  `json:"task_plugin_key,omitempty"`
+	ForceFormat                       bool                    `json:"force_format,omitempty"`
+	ThinkingToContent                 bool                    `json:"thinking_to_content,omitempty"`
+	Proxy                             string                  `json:"proxy"`
+	PassThroughBodyEnabled            bool                    `json:"pass_through_body_enabled,omitempty"`
+	ResponsesWebSocketEnabled         bool                    `json:"responses_websocket_enabled,omitempty"`
+	UseResponsesApi                   bool                    `json:"use_responses_api,omitempty"`
+	UpstreamOpenAICompatEnabled       bool                    `json:"upstream_openai_compat_enabled,omitempty"` // OpenAI Chat 入站直传上游 OpenAI 兼容端点(仅 Gemini 系渠道)
+	ZcodeModeEnabled                  bool                    `json:"zcode_mode_enabled,omitempty"`             // ZCode 模式:GLM Coding Plan 仅接受 /v1/messages 入站并注入 ZCode 指纹,其余格式直接拒绝(仅智谱 Coding Plan 渠道)
+	ZcodeFingerprintVersion           string                  `json:"zcode_fingerprint_version,omitempty"`      // 指纹声明的客户端版本;空=默认(对齐官方解包版本)
+	ZcodeLegacyTraceHeaders           *bool                   `json:"zcode_legacy_trace_headers,omitempty"`     // 旧版 x-zcode-*/x-query-id/x-session-id 追踪头;nil=关(官方当前形态)
+	ZcodeClientSigningEnabled         *bool                   `json:"zcode_client_signing_enabled,omitempty"`   // Client Request Signing V4(Ed25519+PoW);nil=开(套餐默认按验签发放权益)
+	ChatCompletionsToResponsesEnabled *bool                   `json:"chat_completions_to_responses_enabled,omitempty"`
+	ChatCompletionsToResponsesModels  []string                `json:"chat_completions_to_responses_models,omitempty"`
+	ResponsesViaChatFallbackEnabled   *bool                   `json:"responses_via_chat_fallback_enabled,omitempty"` // 渠道不支持原生 /v1/responses 时自动降级为 Chat Completions;nil=开(保持现有行为)
+	ProtocolSupport                   *ChannelProtocolSupport `json:"protocol_support,omitempty"`
+	SystemPrompt                      string                  `json:"system_prompt,omitempty"`
+	SystemPromptOverride              bool                    `json:"system_prompt_override,omitempty"`
 	// TaskExtendPluginKeys lists the task plugins a New API channel (type 60)
 	// is extended with. The upstream gateway may host many plugins, so the
 	// channel serves every listed plugin's models while the request still pins
@@ -42,6 +43,13 @@ type ChannelSettings struct {
 	// HTTP2ConnectionShards spreads HTTP/2 traffic across N independent transports
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+}
+
+type ChannelProtocolSupport struct {
+	Chat      *bool `json:"chat,omitempty"`
+	Responses *bool `json:"responses,omitempty"`
+	Messages  *bool `json:"messages,omitempty"`
+	Gemini    *bool `json:"gemini,omitempty"`
 }
 
 const (

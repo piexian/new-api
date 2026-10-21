@@ -130,6 +130,25 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		}
 	}
 	knownOpenCodeRoute := isKnownOpenCodeRoute(info)
+	if newAPIError = checkInboundProtocolInterception(c, info); newAPIError != nil {
+		return newAPIError
+	}
+	route, routeErr := planInboundRoute(c, info, relaycommon.ProtocolResponses)
+	if routeErr != nil {
+		return routeErr
+	}
+	if route.adaptor != nil {
+		adaptor = route.adaptor
+		adaptor.Init(info)
+	}
+	if route.dispatch {
+		fallbackUsage, fallbackErr := dispatchToTargetProtocol(c, info, adaptor, route.targets, request)
+		if fallbackErr != nil {
+			return fallbackErr
+		}
+		postResponsesUsage(c, info, fallbackUsage)
+		return nil
+	}
 	var requestBody io.Reader
 	if shouldPassThroughModelRequest(info) {
 		body, _, err := relaycommon.PassThroughRequestBody(c, info)

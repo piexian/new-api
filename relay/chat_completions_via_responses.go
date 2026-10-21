@@ -104,19 +104,35 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 		return nil, types.NewError(fmt.Errorf("expected OpenAI responses request, got %T", result.Value), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 
+	targetAdaptor := adaptor
+	if requiresGenericAdaptor(info, relaycommon.ProtocolResponses) {
+		targetAdaptor = newGenericProtocolAdaptor(relaycommon.ProtocolResponses)
+	}
+
+	savedRelayFormat := info.RelayFormat
 	savedRelayMode := info.RelayMode
 	savedRequestURLPath := info.RequestURLPath
 	defer func() {
+		info.RelayFormat = savedRelayFormat
 		info.RelayMode = savedRelayMode
 		info.RequestURLPath = savedRequestURLPath
 	}()
 
+	info.RelayFormat = types.RelayFormatOpenAIResponses
 	info.RelayMode = relayconstant.RelayModeResponses
 	info.RequestURLPath = "/v1/responses"
+	// 先置为 Responses：自行降级到 Chat 的 adaptor 会改写为 OpenAI，避免沿用重试前的残留值
+	info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
+	targetAdaptor.Init(info)
 
-	convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *responsesReq)
+	convertedRequest, err := targetAdaptor.ConvertOpenAIResponsesRequest(c, info, *responsesReq)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	// 响应只能按 Responses 或（adaptor 自行降级的）OpenAI Chat 解析；adaptor 按 RelayFormat
+	// 改走其他协议（如智谱 Claude 兼容接口）时在请求上游前拒绝
+	if final := info.GetFinalRequestRelayFormat(); final != types.RelayFormatOpenAIResponses && final != types.RelayFormatOpenAI {
+		return nil, newTargetFormatUnsupportedError(c)
 	}
 	relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 
@@ -140,7 +156,8 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	var requestBody io.Reader = body
 
 	var httpResp *http.Response
-	resp, err := adaptor.DoRequest(c, info, requestBody)
+	resp, err := targetAdaptor.DoRequest(c, info, requestBody)
+	info.RelayFormat = savedRelayFormat
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
 	}
@@ -163,7 +180,7 @@ func chatCompletionsViaResponses(c *gin.Context, info *relaycommon.RelayInfo, ad
 	if info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
 		info.RelayMode = savedRelayMode
 		info.RequestURLPath = savedRequestURLPath
-		usageValue, newApiErr := adaptor.DoResponse(c, httpResp, info)
+		usageValue, newApiErr := targetAdaptor.DoResponse(c, httpResp, info)
 		if newApiErr != nil {
 			service.ResetStatusCode(newApiErr, statusCodeMappingStr)
 			return nil, newApiErr

@@ -156,26 +156,26 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	// ZCode 模式渠道禁 Responses 重路由与请求体透传：保证上游只收到官方化
 	// 处理后的 /v1/messages（协议转换会丢失 ZCode 指纹权益）。
 	zcodeMode := zhipu_4v.IsZCodeModeChannel(info.ChannelType, info.ChannelBaseUrl, info.ChannelSetting)
-	if !zcodeMode && !knownOpenCodeRoute &&
-		!model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
-		!info.ChannelSetting.PassThroughBodyEnabled &&
-		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
-		result, convErr := service.ConvertRequest(c, info, types.RelayFormatOpenAI, request)
-		if convErr != nil {
-			return types.NewError(convErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	if newAPIError = checkInboundProtocolInterception(c, info); newAPIError != nil {
+		return newAPIError
+	}
+	if !zcodeMode {
+		route, routeErr := planInboundRoute(c, info, relaycommon.ProtocolMessages)
+		if routeErr != nil {
+			return routeErr
 		}
-		openAIRequest, ok := result.Value.(*dto.GeneralOpenAIRequest)
-		if !ok {
-			return types.NewError(fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		if route.adaptor != nil {
+			adaptor = route.adaptor
+			adaptor.Init(info)
 		}
-
-		usage, newApiErr := chatCompletionsViaResponses(c, info, adaptor, openAIRequest)
-		if newApiErr != nil {
-			return newApiErr
+		if route.dispatch {
+			usage, newApiErr := dispatchToTargetProtocol(c, info, adaptor, route.targets, request)
+			if newApiErr != nil {
+				return newApiErr
+			}
+			service.PostTextConsumeQuota(c, info, usage, nil)
+			return nil
 		}
-
-		service.PostTextConsumeQuota(c, info, usage, nil)
-		return nil
 	}
 
 	var requestBody io.Reader

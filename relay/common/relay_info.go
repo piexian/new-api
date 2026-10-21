@@ -113,18 +113,18 @@ type RelayInfo struct {
 	RelayMode              int
 	OriginModelName        string
 	// BillingModelName 计费身份，独立于客户端可见模型与上游路由模型。
-	BillingModelName string
-	RequestURLPath         string
-	RequestHeaders         map[string]string
-	ShouldIncludeUsage     bool
-	DisablePing            bool // 是否禁止向下游发送自定义 Ping
-	ClientWs               *websocket.Conn
-	TargetWs               *websocket.Conn
-	InputAudioFormat       string
-	OutputAudioFormat      string
-	RealtimeTools          []dto.RealTimeTool
-	IsFirstRequest         bool
-	AudioUsage             bool
+	BillingModelName   string
+	RequestURLPath     string
+	RequestHeaders     map[string]string
+	ShouldIncludeUsage bool
+	DisablePing        bool // 是否禁止向下游发送自定义 Ping
+	ClientWs           *websocket.Conn
+	TargetWs           *websocket.Conn
+	InputAudioFormat   string
+	OutputAudioFormat  string
+	RealtimeTools      []dto.RealTimeTool
+	IsFirstRequest     bool
+	AudioUsage         bool
 	ReasoningEffort    string
 	// ReasoningConversion 记录模型后缀推导的推理意图，转换器经 ReasoningState() 读取。
 	ReasoningConversion *dto.ReasoningConversionState
@@ -780,7 +780,15 @@ func (info *RelayInfo) AppendRequestModelRouting(route string) {
 // UpstreamOpenAICompatChat 渠道级开关:OpenAI Chat 入站直传上游 OpenAI 兼容端点
 // 仅对 chat completions 请求生效;responses/legacy completions/embeddings 等其余模式不受影响
 func (info *RelayInfo) UpstreamOpenAICompatChat() bool {
-	if info == nil || !info.ChannelSetting.UpstreamOpenAICompatEnabled {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	chatEnabled := info.ChannelSetting.UpstreamOpenAICompatEnabled
+	if (info.ChannelType == constant.ChannelTypeGemini || info.ChannelType == constant.ChannelTypeGeminiInteractions) &&
+		info.ChannelSetting.ProtocolSupport != nil && info.ChannelSetting.ProtocolSupport.Chat != nil {
+		chatEnabled = *info.ChannelSetting.ProtocolSupport.Chat
+	}
+	if !chatEnabled {
 		return false
 	}
 	return info.RelayMode == relayconstant.RelayModeUnknown || info.RelayMode == relayconstant.RelayModeChatCompletions
@@ -937,7 +945,6 @@ func (info *RelayInfo) GetBillingModelName() string {
 	return info.OriginModelName
 }
 
-
 // ConvOptions 为转换器快照宿主设置；一个请求会话只构建一次并缓存。
 func (info *RelayInfo) ConvOptions() *convmeta.Options {
 	if info != nil && info.convOptions != nil {
@@ -953,11 +960,11 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 			DefaultMaxTokens:                      claudeSettings.GetDefaultMaxTokens,
 		},
 		Gemini: convmeta.GeminiOptions{
-			ThinkingAdapterEnabled:              geminiSettings.ThinkingAdapterEnabled,
+			ThinkingAdapterEnabled:                geminiSettings.ThinkingAdapterEnabled,
 			ThinkingAdapterBudgetTokensPercentage: geminiSettings.ThinkingAdapterBudgetTokensPercentage,
-			FunctionCallThoughtSignatureEnabled: geminiSettings.FunctionCallThoughtSignatureEnabled,
-			SupportsImagine:                     model_setting.IsGeminiModelSupportImagine,
-			SafetySetting:                       model_setting.GetGeminiSafetySetting,
+			FunctionCallThoughtSignatureEnabled:   geminiSettings.FunctionCallThoughtSignatureEnabled,
+			SupportsImagine:                       model_setting.IsGeminiModelSupportImagine,
+			SafetySetting:                         model_setting.GetGeminiSafetySetting,
 		},
 		OpenRouterDialect:      info != nil && info.GetChannelType() == constant.ChannelTypeOpenRouter,
 		PreserveThinkingSuffix: model_setting.ShouldPreserveThinkingSuffix,

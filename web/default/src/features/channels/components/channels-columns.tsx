@@ -71,7 +71,7 @@ import {
   getCurrencyLabel,
 } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
-import { truncateText } from '@/lib/utils'
+import { cn, truncateText } from '@/lib/utils'
 
 import { getCodexUsage } from '../api'
 import {
@@ -95,6 +95,11 @@ import {
   handleUpdateChannelField,
   handleUpdateTagField,
   handleUpdateChannelBalance,
+  handleToggleChannelProtocol,
+  CHANNEL_PROTOCOL_ITEMS,
+  resolveChannelProtocolSupport,
+  type ChannelProtocolKey,
+  type ResolvedProtocolSupport,
   isTagAggregateRow,
   type TagRow,
 } from '../lib'
@@ -110,6 +115,147 @@ import {
 } from './dialogs/codex-usage-dialog'
 import { NumericSpinnerInput } from './numeric-spinner-input'
 
+const PROTOCOL_PILL_STYLES: Record<
+  ChannelProtocolKey,
+  { active: string; dot: string }
+> = {
+  chat: {
+    active:
+      'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300',
+    dot: 'bg-emerald-500',
+  },
+  responses: {
+    active:
+      'border-blue-500/40 bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 dark:text-blue-300',
+    dot: 'bg-blue-500',
+  },
+  messages: {
+    active:
+      'border-violet-500/40 bg-violet-500/10 text-violet-700 hover:bg-violet-500/20 dark:text-violet-300',
+    dot: 'bg-violet-500',
+  },
+  gemini: {
+    active:
+      'border-amber-500/40 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300',
+    dot: 'bg-amber-500',
+  },
+}
+
+function ProtocolSupportCell({ channel }: { channel: Channel }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  // Last setting saved from this cell; consecutive toggles build on it until the
+  // list refetch delivers the updated row.
+  const [savedSetting, setSavedSetting] = useState<string | null>(null)
+  const baseSetting = savedSetting ?? channel.setting
+  const settings = parseChannelSettings(baseSetting)
+  const isPassThrough = settings.pass_through_body_enabled === true
+  const resolvedFromChannel = useMemo(
+    () =>
+      resolveChannelProtocolSupport(
+        channel.type,
+        channel.base_url,
+        baseSetting
+      ),
+    [channel.type, channel.base_url, baseSetting]
+  )
+  const [optimistic, setOptimistic] = useState<ResolvedProtocolSupport | null>(
+    null
+  )
+  const [pendingKey, setPendingKey] = useState<ChannelProtocolKey | null>(null)
+
+  useEffect(() => {
+    setOptimistic(null)
+    setSavedSetting(null)
+  }, [channel.type, channel.base_url, channel.setting])
+
+  const current = optimistic ?? resolvedFromChannel
+
+  const handleToggle = async (e: React.MouseEvent, key: ChannelProtocolKey) => {
+    e.stopPropagation()
+    if (pendingKey) return
+    const nextValue = !current[key]
+    const nextState: ResolvedProtocolSupport = {
+      ...current,
+      [key]: nextValue,
+    }
+    setOptimistic(nextState)
+    setPendingKey(key)
+    const saved = await handleToggleChannelProtocol(
+      { ...channel, setting: baseSetting },
+      key,
+      nextValue,
+      queryClient
+    )
+    if (saved !== null) {
+      setSavedSetting(saved)
+    }
+    setOptimistic(null)
+    setPendingKey(null)
+  }
+
+  return (
+    <div className='flex flex-wrap items-center gap-1'>
+      {CHANNEL_PROTOCOL_ITEMS.map((item) => {
+        const enabled = current[item.key]
+        const style = PROTOCOL_PILL_STYLES[item.key]
+        const isPending = pendingKey === item.key
+        let statusDesc = t(
+          'Disabled: auto-converts to enabled protocol (click to enable)'
+        )
+        if (enabled) {
+          statusDesc = t('Direct protocol enabled (click to disable)')
+        } else if (isPassThrough) {
+          statusDesc = t(
+            'Disabled: blocked locally when body pass-through is on (click to enable)'
+          )
+        }
+
+        return (
+          <TooltipProvider key={item.key} delay={150}>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type='button'
+                    disabled={isPending}
+                    onClick={(e) => void handleToggle(e, item.key)}
+                    className={cn(
+                      'inline-flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-tight font-medium transition-colors select-none',
+                      enabled
+                        ? style.active
+                        : 'border-border/60 bg-muted/30 text-muted-foreground/60 hover:bg-muted/60 hover:text-muted-foreground',
+                      isPending && 'opacity-60'
+                    )}
+                  />
+                }
+              >
+                <span
+                  className={cn(
+                    'h-1.5 w-1.5 shrink-0 rounded-full',
+                    enabled ? style.dot : 'bg-muted-foreground/30'
+                  )}
+                />
+                <span>{item.label}</span>
+              </TooltipTrigger>
+              <TooltipContent side='top' className='max-w-xs'>
+                <div className='space-y-0.5 text-xs'>
+                  <div className='font-medium'>
+                    {item.label}{' '}
+                    <span className='text-muted-foreground font-mono'>
+                      ({item.endpoint})
+                    </span>
+                  </div>
+                  <div className='text-muted-foreground'>{statusDesc}</div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )
+      })}
+    </div>
+  )
+}
 type ChannelStatusMeta = {
   reason: string
   time: string
@@ -937,6 +1083,22 @@ export function useChannelsColumns(
           return value.includes(String(row.getValue(id)))
         },
         size: 140,
+        enableSorting: false,
+      },
+
+      // Protocols column
+      {
+        id: 'protocols',
+        meta: { label: t('Protocols') },
+        header: t('Protocols'),
+        cell: ({ row }) => {
+          if (isTagAggregateRow(row.original)) {
+            return <span className='text-muted-foreground text-xs'>-</span>
+          }
+          const channel = row.original as Channel
+          return <ProtocolSupportCell channel={channel} />
+        },
+        size: 240,
         enableSorting: false,
       },
 

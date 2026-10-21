@@ -20,7 +20,6 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
@@ -128,28 +127,36 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	adaptor.Init(info)
 
 	knownOpenCodeRoute := isKnownOpenCodeRoute(info)
-	passThroughGlobal := model_setting.GetGlobalSettings().PassThroughRequestEnabled
-	if info.RelayMode == relayconstant.RelayModeChatCompletions &&
-		!passThroughGlobal &&
-		!info.ChannelSetting.PassThroughBodyEnabled &&
-		!info.UpstreamOpenAICompatChat() &&
-		!knownOpenCodeRoute &&
-		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
-		applySystemPromptIfNeeded(c, info, request)
-		usage, newApiErr := chatCompletionsViaResponses(c, info, adaptor, request)
-		if newApiErr != nil {
-			return newApiErr
-		}
+	if newAPIError = checkInboundProtocolInterception(c, info); newAPIError != nil {
+		return newAPIError
+	}
 
-		var containAudioTokens = usage.CompletionTokenDetails.AudioTokens > 0 || usage.PromptTokensDetails.AudioTokens > 0
-		var containsAudioRatios = ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)
-
-		if containAudioTokens && containsAudioRatios {
-			service.PostAudioConsumeQuota(c, info, usage, "")
-		} else {
-			service.PostTextConsumeQuota(c, info, usage, nil)
+	if (info.RelayMode == relayconstant.RelayModeChatCompletions || info.RelayMode == relayconstant.RelayModeUnknown) &&
+		!info.UpstreamOpenAICompatChat() {
+		route, routeErr := planInboundRoute(c, info, relaycommon.ProtocolChat)
+		if routeErr != nil {
+			return routeErr
 		}
-		return nil
+		if route.adaptor != nil {
+			adaptor = route.adaptor
+			adaptor.Init(info)
+		}
+		if route.dispatch {
+			applySystemPromptIfNeeded(c, info, request)
+			usage, newApiErr := dispatchToTargetProtocol(c, info, adaptor, route.targets, request)
+			if newApiErr != nil {
+				return newApiErr
+			}
+			// usage 为 nil 时同样结算（记“上游无计费信息”），与其余 helper 一致
+			if usage != nil &&
+				(usage.CompletionTokenDetails.AudioTokens > 0 || usage.PromptTokensDetails.AudioTokens > 0) &&
+				(ratio_setting.ContainsAudioRatio(info.OriginModelName) || ratio_setting.ContainsAudioCompletionRatio(info.OriginModelName)) {
+				service.PostAudioConsumeQuota(c, info, usage, "")
+			} else {
+				service.PostTextConsumeQuota(c, info, usage, nil)
+			}
+			return nil
+		}
 	}
 
 	var requestBody io.Reader

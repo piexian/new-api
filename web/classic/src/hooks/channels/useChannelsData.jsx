@@ -140,6 +140,7 @@ export const useChannelsData = () => {
     NAME: 'name',
     GROUP: 'group',
     TYPE: 'type',
+    PROTOCOLS: 'protocols',
     STATUS: 'status',
     RESPONSE_TIME: 'response_time',
     BALANCE: 'balance',
@@ -180,6 +181,7 @@ export const useChannelsData = () => {
       [COLUMN_KEYS.NAME]: true,
       [COLUMN_KEYS.GROUP]: true,
       [COLUMN_KEYS.TYPE]: true,
+      [COLUMN_KEYS.PROTOCOLS]: true,
       [COLUMN_KEYS.STATUS]: true,
       [COLUMN_KEYS.RESPONSE_TIME]: true,
       [COLUMN_KEYS.BALANCE]: true,
@@ -474,6 +476,10 @@ export const useChannelsData = () => {
         data.channel_info.multi_key_status_list = {};
         res = await API.put('/api/channel/', data);
         break;
+      case 'setting':
+        data.setting = value;
+        res = await API.put('/api/channel/', data);
+        break;
     }
     const { success, message } = res.data;
     if (success) {
@@ -484,6 +490,9 @@ export const useChannelsData = () => {
         const channel = res.data.data;
         const newChannels = [...channels];
         record.status = channel.status;
+        if (action === 'setting') {
+          record.setting = channel?.setting ?? value;
+        }
         setChannels(newChannels);
       }
     } else {

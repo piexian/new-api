@@ -51,6 +51,11 @@ import {
 } from '../../../constants';
 import { parseUpstreamUpdateMeta } from '../../../hooks/channels/upstreamUpdateUtils';
 import {
+  CHANNEL_PROTOCOL_ITEMS,
+  resolveChannelProtocolSupport,
+  buildUpdatedProtocolSupportSetting,
+} from '../../../helpers/protocolSupport';
+import {
   IconTreeTriangleDown,
   IconMore,
   IconAlertTriangle,
@@ -603,6 +608,61 @@ export const getChannelsColumns = ({
         } else {
           return <>{renderTagType(t)}</>;
         }
+      },
+    },
+    {
+      key: COLUMN_KEYS.PROTOCOLS,
+      title: t('协议支持'),
+      dataIndex: 'setting',
+      render: (text, record) => {
+        if (record.children !== undefined) {
+          return <span>-</span>;
+        }
+        const passThroughEnabled = isRequestPassThroughEnabled(record);
+        const resolved = resolveChannelProtocolSupport(
+          record.type,
+          record.base_url,
+          record.setting,
+        );
+        return (
+          <Space spacing={4} wrap>
+            {CHANNEL_PROTOCOL_ITEMS.map((item) => {
+              const enabled = resolved[item.key];
+              const statusDesc = enabled
+                ? t('直通已开启（点击关闭）')
+                : passThroughEnabled
+                  ? t('已关闭：开启请求体透传时将在本地直接拦截（点击开启）')
+                  : t('已关闭：自动转换为已开启协议（点击开启）');
+              return (
+                <Tooltip
+                  key={item.key}
+                  content={`${item.label} (${item.endpoint}) — ${statusDesc}`}
+                >
+                  <Tag
+                    color={enabled ? item.color : 'grey'}
+                    type={enabled ? 'light' : 'ghost'}
+                    shape='circle'
+                    className='cursor-pointer select-none'
+                    style={{ opacity: enabled ? 1 : 0.55 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const nextSetting = buildUpdatedProtocolSupportSetting(
+                        record.type,
+                        record.base_url,
+                        record.setting,
+                        item.key,
+                        !enabled,
+                      );
+                      manageChannel(record.id, 'setting', record, nextSetting);
+                    }}
+                  >
+                    {item.label}
+                  </Tag>
+                </Tooltip>
+              );
+            })}
+          </Space>
+        );
       },
     },
     {
