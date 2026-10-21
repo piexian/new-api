@@ -52,45 +52,8 @@ const thinkingExample = JSON.stringify(
 const defaultGlobalSettingInputs = {
   'global.pass_through_request_enabled': false,
   'global.thinking_model_blacklist': '[]',
-  'global.chat_completions_to_responses_policy': '{}',
   'general_setting.ping_interval_enabled': false,
   'general_setting.ping_interval_seconds': 60,
-};
-
-const parseChatCompletionsToResponsesPolicy = (value) => {
-  try {
-    const parsed = JSON.parse(String(value || '{}'));
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
-      return { enabled: false, model_patterns: [] };
-    }
-    return {
-      ...parsed,
-      enabled: parsed.enabled === true,
-      model_patterns: Array.isArray(parsed.model_patterns)
-        ? parsed.model_patterns.filter((pattern) => typeof pattern === 'string')
-        : [],
-    };
-  } catch {
-    return { enabled: false, model_patterns: [] };
-  }
-};
-
-const serializeChatCompletionsToResponsesPolicy = (value, patch) => {
-  const policy = {
-    ...parseChatCompletionsToResponsesPolicy(value),
-    ...patch,
-  };
-  delete policy.channel_ids;
-  delete policy.channel_types;
-  policy.all_channels = true;
-  policy.model_patterns = Array.from(
-    new Set(
-      policy.model_patterns
-        .map((pattern) => String(pattern).trim())
-        .filter(Boolean),
-    ),
-  );
-  return JSON.stringify(policy);
 };
 
 export default function SettingGlobalModel(props) {
@@ -100,31 +63,11 @@ export default function SettingGlobalModel(props) {
   const [inputs, setInputs] = useState(defaultGlobalSettingInputs);
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(defaultGlobalSettingInputs);
-  const chatCompletionsToResponsesPolicyKey =
-    'global.chat_completions_to_responses_policy';
-
-  const updateChatCompletionsToResponsesPolicy = (patch) => {
-    const value = serializeChatCompletionsToResponsesPolicy(
-      inputs[chatCompletionsToResponsesPolicyKey],
-      patch,
-    );
-    setInputs((prev) => ({
-      ...prev,
-      [chatCompletionsToResponsesPolicyKey]: value,
-    }));
-    if (refForm.current) {
-      refForm.current.setValue(chatCompletionsToResponsesPolicyKey, value);
-    }
-  };
 
   const normalizeValueBeforeSave = (key, value) => {
     if (key === 'global.thinking_model_blacklist') {
       const text = typeof value === 'string' ? value.trim() : '';
       return text === '' ? '[]' : value;
-    }
-    if (key === 'global.chat_completions_to_responses_policy') {
-      const text = typeof value === 'string' ? value.trim() : '';
-      return text === '' ? '{}' : value;
     }
     return value;
   };
@@ -179,16 +122,6 @@ export default function SettingGlobalModel(props) {
             value = defaultGlobalSettingInputs[key];
           }
         }
-        if (key === 'global.chat_completions_to_responses_policy') {
-          try {
-            value =
-              value && String(value).trim() !== ''
-                ? JSON.stringify(JSON.parse(value), null, 2)
-                : defaultGlobalSettingInputs[key];
-          } catch (error) {
-            value = defaultGlobalSettingInputs[key];
-          }
-        }
         currentInputs[key] = value;
       } else {
         currentInputs[key] = defaultGlobalSettingInputs[key];
@@ -201,11 +134,6 @@ export default function SettingGlobalModel(props) {
       refForm.current.setValues(currentInputs);
     }
   }, [props.options]);
-
-  const chatCompletionsToResponsesPolicy =
-    parseChatCompletionsToResponsesPolicy(
-      inputs[chatCompletionsToResponsesPolicyKey],
-    );
 
   return (
     <>
@@ -261,83 +189,6 @@ export default function SettingGlobalModel(props) {
                 />
               </Col>
             </Row>
-
-            <Form.Section
-              text={
-                <span
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  {t('ChatCompletions→Responses 兼容配置')}
-                  <Tag color='orange' size='small'>
-                    {t('测试版')}
-                  </Tag>
-                </span>
-              }
-            >
-              <Row style={{ marginTop: 10 }}>
-                <Col span={24}>
-                  <Banner
-                    type='warning'
-                    description={t(
-                      '提示：该功能为测试版，未来配置结构与功能行为可能发生变更，请勿在生产环境使用。',
-                    )}
-                  />
-                </Col>
-              </Row>
-
-              <Row style={{ marginTop: 10 }}>
-                <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                  <div
-                    style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
-                  >
-                    <span>{t('全局兼容开关')}</span>
-                    <Switch
-                      checked={chatCompletionsToResponsesPolicy.enabled}
-                      onChange={(enabled) =>
-                        updateChatCompletionsToResponsesPolicy({ enabled })
-                      }
-                    />
-                    <Text type='tertiary' size='small'>
-                      {t('选择继承全局配置的渠道将使用此开关')}
-                    </Text>
-                  </div>
-                </Col>
-              </Row>
-
-              <Row style={{ marginTop: 16, marginBottom: 16 }}>
-                <Col span={24}>
-                  <div
-                    style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
-                  >
-                    <span>{t('全局模型匹配规则')}</span>
-                    <TagInput
-                      value={chatCompletionsToResponsesPolicy.model_patterns}
-                      onChange={(model_patterns) =>
-                        updateChatCompletionsToResponsesPolicy({
-                          model_patterns,
-                        })
-                      }
-                      placeholder={t('输入模型名或正则表达式，按回车添加')}
-                      addOnBlur
-                      showClear
-                      style={{ width: '100%' }}
-                    />
-                    <Text type='tertiary' size='small'>
-                      {t(
-                        '匹配任一规则的模型将进行转换，渠道可以继承或覆盖这些规则',
-                      )}
-                    </Text>
-                  </div>
-                </Col>
-              </Row>
-            </Form.Section>
 
             <Form.Section
               text={
