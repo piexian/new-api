@@ -161,10 +161,57 @@ func TestUpdateChannelStatusSyncsMultiKeyStateAndRouting(t *testing.T) {
 	assert.True(t, changed)
 	requireChannelStatusState(t, db, channel.Id, common.ChannelStatusAutoDisabled, false, false)
 
-	changed, err = UpdateChannelStatusWithError(channel.Id, "key-a", common.ChannelStatusEnabled, "")
+	cached, err = CacheGetChannel(channel.Id)
+	require.NoError(t, err)
+	_, _, apiErr := cached.GetNextEnabledKey()
+	require.NotNil(t, apiErr)
+	testKey, testIdx, testErr := cached.GetNextKeyForTest()
+	require.Nil(t, testErr)
+	assert.Equal(t, "key-b", testKey)
+	assert.Equal(t, 1, testIdx)
+
+	changed, err = UpdateChannelStatusWithError(channel.Id, testKey, common.ChannelStatusEnabled, "")
 	require.NoError(t, err)
 	assert.True(t, changed)
 	requireChannelStatusState(t, db, channel.Id, common.ChannelStatusEnabled, true, true)
+
+	cached, err = CacheGetChannel(channel.Id)
+	require.NoError(t, err)
+	assert.True(t, cached.HasAvailableKey())
+	// Only the probed key-b is restored; key-a stays auto-disabled until verified.
+	assert.Equal(t, map[int]int{0: common.ChannelStatusAutoDisabled}, cached.ChannelInfo.MultiKeyStatusList)
+	assert.NotContains(t, cached.GetOtherInfo(), "status_reason")
+}
+
+func TestChannelLevelEnableRestoresAutoDisabledMultiKeys(t *testing.T) {
+	db := setupChannelStatusTestDB(t)
+	channel := createChannelStatusFixture(t, db, "multi-key-manual-enable", "multi-key-tag", ChannelInfo{
+		IsMultiKey:   true,
+		MultiKeySize: 2,
+		MultiKeyMode: constant.MultiKeyModeRandom,
+	})
+	InitChannelCache()
+
+	_, err := UpdateChannelStatusWithError(channel.Id, "key-a", common.ChannelStatusAutoDisabled, "key-a failed")
+	require.NoError(t, err)
+	_, err = UpdateChannelStatusWithError(channel.Id, "key-b", common.ChannelStatusAutoDisabled, "key-b failed")
+	require.NoError(t, err)
+	requireChannelStatusState(t, db, channel.Id, common.ChannelStatusAutoDisabled, false, false)
+
+	changed, err := UpdateChannelStatusWithError(channel.Id, "", common.ChannelStatusEnabled, "manual operation")
+	require.NoError(t, err)
+	assert.True(t, changed)
+	requireChannelStatusState(t, db, channel.Id, common.ChannelStatusEnabled, true, true)
+
+	cached, err := CacheGetChannel(channel.Id)
+	require.NoError(t, err)
+	assert.True(t, cached.HasAvailableKey())
+	assert.Empty(t, cached.ChannelInfo.MultiKeyStatusList)
+
+	selected, err := GetRandomSatisfiedChannel("default", "gpt-4o", 0, "/v1/chat/completions")
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, channel.Id, selected.Id)
 }
 
 func TestUpdateChannelStatusDoesNotMutateCacheWhenDatabaseWriteFails(t *testing.T) {
@@ -197,4 +244,77 @@ func TestUpdateChannelStatusByTagRollsBackOnAbilityFailure(t *testing.T) {
 
 	require.Error(t, DisableChannelByTag("rollback-tag"))
 	requireChannelStatusState(t, db, channel.Id, common.ChannelStatusEnabled, true, true)
+}
+
+func TestMultiKeyChannelUpdateRestoresStatusOnlyOnKeyEdit(t *testing.T) {
+	db := setupChannelStatusTestDB(t)
+	channel := createChannelStatusFixture(t, db, "multi-key-update", "", ChannelInfo{
+		IsMultiKey:   true,
+		MultiKeySize: 2,
+		MultiKeyMode: constant.MultiKeyModeRandom,
+	})
+	setAutoDisabled := func(until int64) {
+		info := map[string]interface{}{"status_reason": "upstream down", "keep": "me"}
+		if until > 0 {
+			info[channelStatusUntilKey] = until
+		}
+		otherInfo, err := common.Marshal(info)
+		require.NoError(t, err)
+		require.NoError(t, db.Model(&Channel{}).Where("id = ?", channel.Id).
+			Updates(map[string]interface{}{"status": common.ChannelStatusAutoDisabled, "other_info": string(otherInfo)}).Error)
+	}
+	load := func() *Channel {
+		stored, err := GetChannelById(channel.Id, true)
+		require.NoError(t, err)
+		return stored
+	}
+
+	// Partial update without keys or other_info: status and metadata stay untouched.
+	setAutoDisabled(0)
+	partial := &Channel{Id: channel.Id, Name: "renamed", ChannelInfo: load().ChannelInfo}
+	require.NoError(t, partial.Update())
+	stored := load()
+	assert.Equal(t, common.ChannelStatusAutoDisabled, stored.Status)
+	assert.Equal(t, "upstream down", stored.GetOtherInfo()["status_reason"])
+	assert.Equal(t, "me", stored.GetOtherInfo()["keep"])
+
+	// Key edit while the cooldown is still running keeps the channel disabled.
+	setAutoDisabled(common.GetTimestamp() + 3600)
+	edit := &Channel{Id: channel.Id, Key: "key-c\nkey-d", Status: common.ChannelStatusAutoDisabled, ChannelInfo: load().ChannelInfo}
+	require.NoError(t, edit.Update())
+	assert.Equal(t, common.ChannelStatusAutoDisabled, load().Status)
+
+	// Key edit after the cooldown re-enables and only clears status metadata from the stored other_info.
+	setAutoDisabled(0)
+	edit = &Channel{Id: channel.Id, Key: "key-c\nkey-d", ChannelInfo: load().ChannelInfo}
+	require.NoError(t, edit.Update())
+	stored = load()
+	assert.Equal(t, common.ChannelStatusEnabled, stored.Status)
+	assert.NotContains(t, stored.GetOtherInfo(), "status_reason")
+	assert.Equal(t, "me", stored.GetOtherInfo()["keep"])
+}
+
+func TestChannelLevelEnableKeepsManuallyDisabledKeys(t *testing.T) {
+	db := setupChannelStatusTestDB(t)
+	channel := createChannelStatusFixture(t, db, "multi-key-manual-keep", "", ChannelInfo{
+		IsMultiKey:   true,
+		MultiKeySize: 2,
+		MultiKeyMode: constant.MultiKeyModeRandom,
+		MultiKeyStatusList: map[int]int{
+			0: common.ChannelStatusManuallyDisabled,
+			1: common.ChannelStatusAutoDisabled,
+		},
+	})
+	require.NoError(t, db.Model(&Channel{}).Where("id = ?", channel.Id).Update("status", common.ChannelStatusAutoDisabled).Error)
+	InitChannelCache()
+
+	changed, err := UpdateChannelStatusWithError(channel.Id, "", common.ChannelStatusEnabled, "manual operation")
+	require.NoError(t, err)
+	assert.True(t, changed)
+
+	stored, err := GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusEnabled, stored.Status)
+	// The revoked key stays disabled; only the auto-disabled one is restored.
+	assert.Equal(t, map[int]int{0: common.ChannelStatusManuallyDisabled}, stored.ChannelInfo.MultiKeyStatusList)
 }

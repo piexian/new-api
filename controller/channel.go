@@ -459,7 +459,7 @@ func GetChannelKey(c *gin.Context) {
 		"success": true,
 		"message": "获取成功",
 		"data": map[string]interface{}{
-			"key": channel.Key,
+			"key": channel.KeysDisplayText(),
 		},
 	})
 }
@@ -1118,6 +1118,7 @@ func UpdateChannel(c *gin.Context) {
 	}
 
 	// 处理多key模式下的密钥追加/覆盖逻辑
+	// 未携带 key_mode 的请求（脚本/API 原样回传密钥列表）不做追加/重置，保持各 key 状态
 	if channel.KeyMode != nil && channel.ChannelInfo.IsMultiKey {
 		switch *channel.KeyMode {
 		case "append":
@@ -1154,7 +1155,10 @@ func UpdateChannel(c *gin.Context) {
 				}
 			}
 		case "replace":
-			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
+			// 覆盖模式：当确实提交了新密钥时重置旧池禁用状态
+			if strings.TrimSpace(channel.Key) != "" {
+				channel.ChannelInfo.ResetMultiKeyDisabledState()
+			}
 		}
 	}
 	err = channel.Update()

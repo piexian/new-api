@@ -266,8 +266,12 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	c.Set("channel", channel.Type)
 	c.Set("base_url", channel.GetBaseURL())
 	group, _ := model.GetUserGroup(testUserID, false)
+	if group == "" {
+		group = cache.Group
+	}
 	c.Set("group", group)
 
+	common.SetContextKey(c, constant.ContextKeyIsChannelTest, true)
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel)
 	if newAPIError != nil {
 		return testResult{
