@@ -39,6 +39,8 @@ tmp/
 new-api.prev
 new-api.prev-*
 new-api.bad-*
+new-api.bak.*
+backups/
 .codegraph/
 exports/
 docs/specs/.workflow-confirmations.json
