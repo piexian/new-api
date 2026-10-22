@@ -608,6 +608,9 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 			ModelName:      modelName,
 			RequestPath:    path,
 		})
+		// Matching a rule alone is not an affinity hit. MarkChannelAffinityUsed
+		// enables the no-retry policy once the cached channel is actually used.
+		c.Set(ginKeyChannelAffinitySkipRetry, false)
 
 		cache := getChannelAffinityCache()
 		channelID, found, err := cache.Get(cacheKeySuffix)
@@ -639,6 +642,16 @@ func ShouldSkipRetryAfterChannelAffinityFailure(c *gin.Context) bool {
 		return false
 	}
 	return meta.SkipRetry
+}
+
+// ChannelAffinityRuleSkipsRetry reports whether the matched affinity rule stops
+// retries, regardless of whether the cached channel has been used yet.
+func ChannelAffinityRuleSkipsRetry(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	meta, ok := getChannelAffinityMeta(c)
+	return ok && meta.SkipRetry
 }
 
 func ClearCurrentChannelAffinityCache(c *gin.Context) bool {

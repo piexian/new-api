@@ -190,6 +190,21 @@ func TestExtractChannelAffinityValue_RequestHeader(t *testing.T) {
 	require.Equal(t, "tenant-123", value)
 }
 
+func TestBuildChannelAffinityCacheKeySuffix_SkipRetryRuleRespectsIncludeModelName(t *testing.T) {
+	rule := operation_setting.ChannelAffinityRule{
+		Name:               "codex cli trace",
+		SkipRetryOnFailure: true,
+		IncludeUsingGroup:  true,
+		IncludeRuleName:    true,
+	}
+
+	firstModelKey := buildChannelAffinityCacheKeySuffix(rule, "gpt-5", "default", "session-1")
+	secondModelKey := buildChannelAffinityCacheKeySuffix(rule, "gpt-5-mini", "default", "session-1")
+
+	require.Equal(t, firstModelKey, secondModelKey)
+	require.Equal(t, "codex cli trace:default:session-1", firstModelKey)
+}
+
 func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -200,8 +215,9 @@ func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {
 		KeySources: []operation_setting.ChannelAffinityKeySource{
 			{Type: "request_header", Key: "X-Affinity-Key"},
 		},
-		IncludeRuleName:  true,
-		IncludeModelName: true,
+		SkipRetryOnFailure: true,
+		IncludeRuleName:    true,
+		IncludeModelName:   true,
 	}
 
 	affinityValue := fmt.Sprintf("header-hit-%d", time.Now().UnixNano())
@@ -228,12 +244,51 @@ func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {
 	channelID, found := GetPreferredChannelByAffinity(ctx, "gpt-5", "default")
 	require.True(t, found)
 	require.Equal(t, 9528, channelID)
+	require.True(t, ChannelAffinityRuleSkipsRetry(ctx))
+	// A hit alone must not stop retries; the fallback channel may be used instead.
+	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
+
+	MarkChannelAffinityUsed(ctx, "default", channelID)
+	require.True(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
 
 	meta, ok := getChannelAffinityMeta(ctx)
 	require.True(t, ok)
 	require.Equal(t, "request_header", meta.KeySourceType)
 	require.Equal(t, "X-Affinity-Key", meta.KeySourceKey)
 	require.Equal(t, buildChannelAffinityKeyHint(affinityValue), meta.KeyHint)
+}
+
+func TestGetPreferredChannelByAffinity_MissDoesNotSetSkipRetry(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	affinityValue := fmt.Sprintf("header-miss-%d", time.Now().UnixNano())
+	rule := operation_setting.ChannelAffinityRule{
+		Name:               "header-affinity-miss",
+		ModelRegex:         []string{"^gpt-.*$"},
+		PathRegex:          []string{"/v1/responses"},
+		KeySources:         []operation_setting.ChannelAffinityKeySource{{Type: "request_header", Key: "X-Affinity-Key"}},
+		SkipRetryOnFailure: true,
+		IncludeModelName:   true,
+		IncludeRuleName:    true,
+	}
+
+	setting := operation_setting.GetChannelAffinitySetting()
+	originalRules := setting.Rules
+	setting.Rules = append([]operation_setting.ChannelAffinityRule{rule}, originalRules...)
+	t.Cleanup(func() {
+		setting.Rules = originalRules
+	})
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	ctx.Request.Header.Set("X-Affinity-Key", affinityValue)
+
+	channelID, found := GetPreferredChannelByAffinity(ctx, "gpt-5-mini", "default")
+	require.False(t, found)
+	require.Zero(t, channelID)
+	require.True(t, ChannelAffinityRuleSkipsRetry(ctx))
+	require.False(t, ShouldSkipRetryAfterChannelAffinityFailure(ctx))
 }
 
 func TestClearCurrentChannelAffinityCache(t *testing.T) {

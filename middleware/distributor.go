@@ -119,7 +119,9 @@ func Distribute() func(c *gin.Context) {
 						preferred, err := model.CacheGetChannel(preferredChannelID)
 						if err == nil && preferred != nil {
 							if preferred.Status != common.ChannelStatusEnabled {
-								if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
+								// Only abort when the disabled channel actually serves this request;
+								// otherwise (e.g. a model switch) let the normal selector pick another channel.
+								if service.ChannelAffinityRuleSkipsRetry(c) && channelConfiguredForAffinityRequest(c, preferred, usingGroup, modelRequest.Model) {
 									abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorAffinityChannelDisabled))
 									return
 								}
@@ -204,6 +206,34 @@ func channelSupportsRequestPath(channel *model.Channel, requestPath string) bool
 	}
 	config := channel.GetOtherSettings().AdvancedCustom
 	return config != nil && config.SupportsPath(requestPath)
+}
+
+// channelConfiguredForAffinityRequest reports whether the channel is configured
+// for the request's group and model, ignoring its current status.
+func channelConfiguredForAffinityRequest(c *gin.Context, channel *model.Channel, usingGroup string, modelName string) bool {
+	groups := []string{usingGroup}
+	if usingGroup == "auto" {
+		groups = service.GetUserAutoGroup(common.GetContextKeyString(c, constant.ContextKeyUserGroup))
+	}
+	return channelConfiguredForGroupModel(channel, groups, modelName)
+}
+
+func channelConfiguredForGroupModel(channel *model.Channel, groups []string, modelName string) bool {
+	if channel == nil || modelName == "" {
+		return false
+	}
+	channelGroups := channel.GetGroups()
+	if !slices.ContainsFunc(groups, func(g string) bool { return slices.Contains(channelGroups, g) }) {
+		return false
+	}
+	normalized := ratio_setting.FormatMatchingModelName(modelName)
+	for _, m := range channel.GetModels() {
+		m = strings.TrimSpace(m)
+		if m == modelName || (normalized != "" && m == normalized) {
+			return true
+		}
+	}
+	return false
 }
 
 // getModelFromRequest 从请求中读取模型信息
