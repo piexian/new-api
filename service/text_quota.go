@@ -214,9 +214,13 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.ImageTokens = usage.PromptTokensDetails.ImageTokens
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
+	// Only usage whose Claude semantic was inferred from the request format is
+	// raw OpenAI-style (prompt_tokens includes cache). Explicit anthropic usage
+	// already reports input_tokens without cache, so subtracting again goes negative.
 	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
 		relayInfo.ChannelType == constant.ChannelTypeOpenRouter &&
-		summary.IsClaudeUsageSemantic
+		summary.IsClaudeUsageSemantic &&
+		usage.UsageSemantic == ""
 
 	if isOpenRouterClaudeBilling {
 		summary.PromptTokens -= summary.CacheTokens

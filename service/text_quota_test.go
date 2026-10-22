@@ -598,6 +598,46 @@ func TestCalculateTextQuotaSummarySeparatesOpenRouterCacheCreationFromPromptBill
 	require.Equal(t, 3012, summary.Quota)
 }
 
+func TestCalculateTextQuotaSummaryDoesNotSubtractCacheFromExplicitAnthropicOpenRouterUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	relayInfo := &relaycommon.RelayInfo{
+		FinalRequestRelayFormat: types.RelayFormatClaude,
+		OriginModelName:         "minimax/minimax-m3.1-flash",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeOpenRouter,
+		},
+		PriceData: types.PriceData{
+			ModelRatio:         1,
+			CompletionRatio:    1,
+			CacheRatio:         0.1,
+			CacheCreationRatio: 1.25,
+			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+
+	// Anthropic semantics: input_tokens excludes cache reads, so it can be far
+	// smaller than cache_read_input_tokens.
+	usage := &dto.Usage{
+		PromptTokens:     1789,
+		CompletionTokens: 383,
+		UsageSemantic:    "anthropic",
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 211670,
+		},
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	require.True(t, summary.IsClaudeUsageSemantic)
+	require.Equal(t, 1789, summary.PromptTokens)
+	// quota = 1789 + 211670*0.1 + 383 = 23339
+	require.Equal(t, 23339, summary.Quota)
+}
+
 func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
