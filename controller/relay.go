@@ -266,8 +266,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		addUsedChannel(c, channel.Id)
-		// 协议转换会写入实际上游格式，重试换渠道时清空，避免沿用上一次尝试的值
-		relayInfo.FinalRequestRelayFormat = ""
+		// 协议转换会写入实际上游格式与转换链，重试换渠道时清空，避免沿用上一次尝试的值
+		relayInfo.ResetRequestConversionAttempt()
 		bodyStorage, bodyErr := common.GetBodyStorage(c)
 		if bodyErr != nil {
 			// Ensure consistent 413 for oversized bodies even when error occurs later (e.g., retry path)

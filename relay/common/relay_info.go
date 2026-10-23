@@ -746,6 +746,18 @@ func (info *RelayInfo) InitRequestConversionChain() {
 	info.RequestConversionChain = []types.RelayFormat{info.RelayFormat}
 }
 
+// ResetRequestConversionAttempt 清除上一次重试尝试记录的转换与路由，只保留入站格式。
+func (info *RelayInfo) ResetRequestConversionAttempt() {
+	if info == nil {
+		return
+	}
+	info.FinalRequestRelayFormat = ""
+	info.RequestModelRoutingChain = nil
+	if len(info.RequestConversionChain) > 1 {
+		info.RequestConversionChain = info.RequestConversionChain[:1]
+	}
+}
+
 func (info *RelayInfo) AppendRequestConversion(format types.RelayFormat) {
 	if info == nil {
 		return

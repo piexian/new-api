@@ -107,3 +107,20 @@ func TestGenRelayInfoXAIRealtimeUsesNativeModeAndClientWebSocket(t *testing.T) {
 	require.True(t, info.IsStream)
 	require.Equal(t, "/v1/tts?language=en", info.RequestURLPath)
 }
+
+func TestRelayInfoResetRequestConversionAttemptKeepsInboundFormat(t *testing.T) {
+	info := &RelayInfo{RelayFormat: types.RelayFormatClaude}
+	info.InitRequestConversionChain()
+	// 第一次尝试走 OpenAI 兼容渠道。
+	info.AppendRequestConversion(types.RelayFormatOpenAI)
+	info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+	info.AppendRequestModelRouting("route-a")
+
+	info.ResetRequestConversionAttempt()
+	// 重试到 Claude 原生渠道，不应残留上一次的 OpenAI 一跳。
+	info.AppendRequestConversion(types.RelayFormatClaude)
+
+	require.Equal(t, []types.RelayFormat{types.RelayFormatClaude}, info.RequestConversionChain)
+	require.Empty(t, info.FinalRequestRelayFormat)
+	require.Empty(t, info.RequestModelRoutingChain)
+}
