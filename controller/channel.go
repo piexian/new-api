@@ -213,12 +213,6 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 	switch channel.Type {
 	case constant.ChannelTypeAnthropic:
 		headers = GetClaudeAuthHeader(key)
-	case constant.ChannelTypeMiniMaxCode:
-		oauthKey, err := minimaxcode.ParseOAuthKey(key)
-		if err != nil {
-			return nil, err
-		}
-		headers = GetAuthHeader(oauthKey.AccessToken)
 	case constant.ChannelTypeQwenTokenPlan:
 		apiKey, err := qwentokenplan.ExtractAPIKey(key)
 		if err != nil {
@@ -1480,11 +1474,18 @@ func FetchModels(c *gin.Context) {
 		baseURL = stepfun.OpenAIBaseURL(baseURL)
 	}
 	if req.Type == constant.ChannelTypeMiniMaxCode {
-		// 无上游模型列表接口，直接返回静态列表。
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"data":    minimaxcode.ModelList,
-		})
+		// 凭证是 JSON，不能按行截断。
+		oauthKey, err := service.ParseMiniMaxCodeOAuthKey(req.Key)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		models, err := service.FetchMiniMaxCodeModels(c.Request.Context(), "", oauthKey)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": fmt.Sprintf("获取模型列表失败: %s", err.Error())})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": models})
 		return
 	}
 	if req.Type == constant.ChannelTypeMistralConsole {

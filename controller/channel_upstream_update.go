@@ -293,6 +293,18 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		})), nil
 	}
 
+	if channel.Type == constant.ChannelTypeMiniMaxCode {
+		oauthKey, err := service.ParseMiniMaxCodeOAuthKey(channel.Key)
+		if err != nil {
+			return nil, err
+		}
+		models, err := service.FetchMiniMaxCodeModels(context.Background(), channel.GetSetting().Proxy, oauthKey)
+		if err != nil {
+			return nil, err
+		}
+		return normalizeModelNames(models), nil
+	}
+
 	if channel.Type == constant.ChannelTypeCohere {
 		key, _, apiErr := channel.GetNextEnabledKey()
 		if apiErr != nil {
