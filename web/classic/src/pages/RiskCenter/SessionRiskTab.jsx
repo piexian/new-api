@@ -393,7 +393,6 @@ const SessionRiskTab = () => {
           <Button
             type='primary'
             className='w-full sm:w-auto'
-            icon={<Search size={16} />}
             onClick={applySearch}
           >
             {t('Search')}
