@@ -286,9 +286,116 @@ func DefaultChannelProtocolSupport(channelType int, baseURL string, setting dto.
 	}
 }
 
+// UsesPrivateChatProtocol reports whether the channel adaptor relays Chat over a
+// non-OpenAI wire protocol, so the OpenAI handlers cannot render its responses.
+func UsesPrivateChatProtocol(channelType int) bool {
+	switch channelType {
+	case constant.ChannelTypePaLM,
+		constant.ChannelTypeBaidu,
+		constant.ChannelTypeXunfei,
+		constant.ChannelTypeTencent,
+		constant.ChannelTypeZhipu,
+		constant.ChannelTypeCohere,
+		constant.ChannelTypeDify,
+		constant.ChannelTypeJina,
+		constant.ChannelTypeMokaAI,
+		constant.ChannelTypeCoze,
+		constant.ChannelTypeJimeng,
+		constant.ChannelTypeReplicate,
+		constant.ChannelTypeXunfeiMaaSImage,
+		constant.ChannelTypeMistralConsole,
+		constant.ChannelTypeTypeSafe:
+		return true
+	default:
+		return false
+	}
+}
+
+// ProtocolSupportLocked reports whether the channel's upstream speaks one fixed
+// protocol (or a private wire protocol). Other protocols only work through the
+// adaptor's own conversion, so protocol_support overrides are ignored there.
+func ProtocolSupportLocked(channelType int, baseURL string, setting dto.ChannelSettings) bool {
+	switch channelType {
+	case constant.ChannelTypeAnthropic,
+		constant.ChannelTypeAws,
+		constant.ChannelTypeVertexAi,
+		constant.ChannelTypeCodex,
+		constant.ChannelTypeMiniMaxCode:
+		return true
+	case constant.ChannelTypeZhipu_v4:
+		return setting.ZcodeModeEnabled && isZhipuZCodeBase(baseURL)
+	}
+	return UsesPrivateChatProtocol(channelType)
+}
+
+// WithoutLockedProtocolOverrides drops protocol_support on locked channels, so
+// overrides saved before the lock existed cannot steer routing.
+func WithoutLockedProtocolOverrides(channelType int, baseURL string, setting dto.ChannelSettings) dto.ChannelSettings {
+	if setting.ProtocolSupport != nil && ProtocolSupportLocked(channelType, baseURL, setting) {
+		setting.ProtocolSupport = nil
+	}
+	return setting
+}
+
+// ChannelProtocolSupportInfo is the protocol view exposed to the admin UI, so
+// the frontends do not keep their own copy of the defaults matrix.
+type ChannelProtocolSupportInfo struct {
+	Defaults ResolvedProtocolSupport `json:"defaults"`
+	Resolved ResolvedProtocolSupport `json:"resolved"`
+	Locked   bool                    `json:"locked"`
+}
+
+func BuildChannelProtocolSupportInfo(channelType int, baseURL string, setting dto.ChannelSettings) ChannelProtocolSupportInfo {
+	return ChannelProtocolSupportInfo{
+		Defaults: DefaultChannelProtocolSupport(channelType, baseURL, setting),
+		Resolved: ResolveChannelProtocolSupport(channelType, baseURL, setting),
+		Locked:   ProtocolSupportLocked(channelType, baseURL, setting),
+	}
+}
+
+// NormalizeProtocolSupportOverrides turns the desired protocol state submitted
+// by the UI into stored overrides: values equal to the channel-type default are
+// dropped, Gemini Chat is carried by upstream_openai_compat_enabled, and locked
+// channels keep no overrides at all.
+func NormalizeProtocolSupportOverrides(channelType int, baseURL string, setting dto.ChannelSettings) dto.ChannelSettings {
+	ps := setting.ProtocolSupport
+	if ps == nil {
+		return setting
+	}
+	if ProtocolSupportLocked(channelType, baseURL, setting) {
+		setting.ProtocolSupport = nil
+		return setting
+	}
+	next := *ps
+	if channelType == constant.ChannelTypeGemini || channelType == constant.ChannelTypeGeminiInteractions {
+		if next.Chat != nil {
+			setting.UpstreamOpenAICompatEnabled = *next.Chat
+			next.Chat = nil
+		}
+	}
+	defaults := DefaultChannelProtocolSupport(channelType, baseURL, setting)
+	dropDefault := func(value *bool, defaultValue bool) *bool {
+		if value == nil || *value == defaultValue {
+			return nil
+		}
+		return value
+	}
+	next.Chat = dropDefault(next.Chat, defaults.Chat)
+	next.Responses = dropDefault(next.Responses, defaults.Responses)
+	next.Messages = dropDefault(next.Messages, defaults.Messages)
+	next.Gemini = dropDefault(next.Gemini, defaults.Gemini)
+	if next.Chat == nil && next.Responses == nil && next.Messages == nil && next.Gemini == nil {
+		setting.ProtocolSupport = nil
+	} else {
+		setting.ProtocolSupport = &next
+	}
+	return setting
+}
+
 // ResolveChannelProtocolSupport merges channel-type defaults with explicit
-// protocol_support overrides.
+// protocol_support overrides; locked channels always use the defaults.
 func ResolveChannelProtocolSupport(channelType int, baseURL string, setting dto.ChannelSettings) ResolvedProtocolSupport {
+	setting = WithoutLockedProtocolOverrides(channelType, baseURL, setting)
 	res := DefaultChannelProtocolSupport(channelType, baseURL, setting)
 	if ps := setting.ProtocolSupport; ps != nil {
 		if ps.Chat != nil {

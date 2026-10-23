@@ -6760,7 +6760,9 @@
     "MiniMax Code channels do not support batch creation": "Каналы MiniMax Code не поддерживают пакетное создание",
     "Not claimable": "Недоступно для получения",
     "Auto Sign-in": "Автоматический ежедневный вход",
-    "Automatically claim the MiniMax daily sign-in points once per day": "Автоматически получать ежедневные баллы MiniMax один раз в день"
+    "Automatically claim the MiniMax daily sign-in points once per day": "Автоматически получать ежедневные баллы MiniMax один раз в день",
+    "Fixed upstream protocol; other protocols are converted automatically": "Протокол апстрима фиксирован; остальные протоколы конвертируются автоматически",
+    "Fixed upstream protocol: {{protocols}}. Other protocols are converted automatically.": "Протокол апстрима фиксирован: {{protocols}}. Остальные протоколы конвертируются автоматически."
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

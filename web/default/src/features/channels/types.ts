@@ -34,6 +34,13 @@ export const channelInfoSchema = z.object({
 
 export type ChannelInfo = z.infer<typeof channelInfoSchema>
 
+const resolvedProtocolSupportSchema = z.object({
+  chat: z.boolean(),
+  responses: z.boolean(),
+  messages: z.boolean(),
+  gemini: z.boolean(),
+})
+
 export const channelSchema = z.object({
   id: z.number(),
   type: z.number(),
@@ -71,6 +78,14 @@ export const channelSchema = z.object({
     multi_key_mode: 'random',
   }),
   settings: z.string().default('{}'), // other_settings JSON
+  // Computed by the backend; absent on tag aggregate rows
+  protocol_support_info: z
+    .object({
+      defaults: resolvedProtocolSupportSchema,
+      resolved: resolvedProtocolSupportSchema,
+      locked: z.boolean(),
+    })
+    .nullish(),
 })
 
 export type Channel = z.infer<typeof channelSchema>

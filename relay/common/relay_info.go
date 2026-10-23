@@ -249,7 +249,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 
 	channelSetting, ok := common.GetContextKeyType[dto.ChannelSettings](c, constant.ContextKeyChannelSetting)
 	if ok {
-		channelMeta.ChannelSetting = channelSetting
+		channelMeta.ChannelSetting = WithoutLockedProtocolOverrides(channelType, channelMeta.ChannelBaseUrl, channelSetting)
 	}
 
 	channelOtherSettings, ok := common.GetContextKeyType[dto.ChannelOtherSettings](c, constant.ContextKeyChannelOtherSetting)

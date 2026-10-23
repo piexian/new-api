@@ -27,6 +27,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/stepfun"
 	"github.com/QuantumNous/new-api/relay/channel/typesafe"
 	"github.com/QuantumNous/new-api/relay/channel/zenmux"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
@@ -75,7 +76,9 @@ func parseStatusFilter(statusParam string) int {
 	}
 }
 
-func clearChannelInfo(channel *model.Channel) {
+// prepareChannelResponse 清理不对外暴露的多 key 状态，并附上协议支持信息。
+func prepareChannelResponse(channel *model.Channel) {
+	attachChannelProtocolSupportInfo(channel)
 	if channel.ChannelInfo.IsMultiKey {
 		channel.ChannelInfo.MultiKeyDisabledReason = nil
 		channel.ChannelInfo.MultiKeyDisabledTime = nil
@@ -178,7 +181,7 @@ func GetAllChannels(c *gin.Context) {
 	}
 
 	for _, datum := range channelData {
-		clearChannelInfo(datum)
+		prepareChannelResponse(datum)
 	}
 
 	countQuery := buildChannelListQuery(groupFilter, statusFilter, -1)
@@ -397,7 +400,7 @@ func SearchChannels(c *gin.Context) {
 	pagedData := channelData[startIdx:endIdx]
 
 	for _, datum := range pagedData {
-		clearChannelInfo(datum)
+		prepareChannelResponse(datum)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -424,7 +427,7 @@ func GetChannel(c *gin.Context) {
 		return
 	}
 	if channel != nil {
-		clearChannelInfo(channel)
+		prepareChannelResponse(channel)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -697,6 +700,10 @@ func AddChannel(c *gin.Context) {
 			"success": false,
 			"message": err.Error(),
 		})
+		return
+	}
+	if err := normalizeChannelProtocolSupportSetting(addChannelRequest.Channel, addChannelRequest.Channel.Type, addChannelRequest.Channel.GetBaseURL()); err != nil {
+		common.ApiError(c, err)
 		return
 	}
 
@@ -1131,6 +1138,18 @@ func UpdateChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	protocolChannelType := channel.Type
+	if _, ok := requestData["type"]; !ok {
+		protocolChannelType = originChannel.Type
+	}
+	protocolBaseURL := channel.GetBaseURL()
+	if _, ok := requestData["base_url"]; !ok {
+		protocolBaseURL = originChannel.GetBaseURL()
+	}
+	if err := normalizeChannelProtocolSupportSetting(&channel.Channel, protocolChannelType, protocolBaseURL); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
@@ -1213,7 +1232,14 @@ func UpdateChannel(c *gin.Context) {
 		"changed_fields": changedFields,
 	})
 	channel.Key = ""
-	clearChannelInfo(&channel.Channel)
+	prepareChannelResponse(&channel.Channel)
+	// 局部更新（如列表页只提交 setting）时请求体里没有 type/base_url，按库中值重算协议信息。
+	responseSetting := channel.Setting
+	if _, ok := requestData["setting"]; !ok {
+		responseSetting = originChannel.Setting
+	}
+	responseProtocolInfo := relaycommon.BuildChannelProtocolSupportInfo(protocolChannelType, protocolBaseURL, parseChannelSettingsForProtocol(responseSetting))
+	channel.ProtocolSupportInfo = &responseProtocolInfo
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

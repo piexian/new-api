@@ -6760,7 +6760,9 @@
     "MiniMax Code channels do not support batch creation": "MiniMax Code 渠道不支持批量创建",
     "Not claimable": "不可领取",
     "Auto Sign-in": "自动签到",
-    "Automatically claim the MiniMax daily sign-in points once per day": "每日自动领取一次 MiniMax 账号签到积分"
+    "Automatically claim the MiniMax daily sign-in points once per day": "每日自动领取一次 MiniMax 账号签到积分",
+    "Fixed upstream protocol; other protocols are converted automatically": "上游协议固定，其余协议自动转换",
+    "Fixed upstream protocol: {{protocols}}. Other protocols are converted automatically.": "上游协议固定为 {{protocols}}，其余协议自动转换"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

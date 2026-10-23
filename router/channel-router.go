@@ -71,6 +71,7 @@ var channelPermissionRoutes = []permissionRoute{
 	{method: http.MethodGet, path: "/:id/codex/usage", permission: authz.ChannelRead, handler: controller.GetCodexChannelUsage},
 	{method: http.MethodGet, path: "/:id/codex/usage/reset-credits", permission: authz.ChannelRead, handler: controller.GetCodexChannelRateLimitResetCredits},
 	{method: http.MethodPost, path: "/:id/codex/usage/reset", permission: authz.ChannelOperate, handler: controller.ResetCodexChannelUsage},
+	{method: http.MethodPost, path: "/protocol_support/resolve", permission: authz.ChannelRead, handler: controller.ResolveChannelProtocolSupport},
 	{method: http.MethodGet, path: "/:id/minimax/usage", permission: authz.ChannelRead, handler: controller.GetMiniMaxChannelUsage},
 	{method: http.MethodPost, path: "/minimaxcode/oauth/start", permission: authz.ChannelSensitiveWrite, handler: controller.StartMiniMaxCodeAuth},
 	{method: http.MethodPost, path: "/minimaxcode/oauth/poll", permission: authz.ChannelSensitiveWrite, handler: controller.PollMiniMaxCodeAuth},

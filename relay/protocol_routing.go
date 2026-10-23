@@ -116,31 +116,6 @@ func usesInternalResponsesChatConversion(channelType int) bool {
 	}
 }
 
-// usesPrivateChatProtocol reports whether the channel adaptor relays Chat over a
-// non-OpenAI wire protocol, so the OpenAI handlers cannot render its responses.
-func usesPrivateChatProtocol(channelType int) bool {
-	switch channelType {
-	case constant.ChannelTypePaLM,
-		constant.ChannelTypeBaidu,
-		constant.ChannelTypeXunfei,
-		constant.ChannelTypeTencent,
-		constant.ChannelTypeZhipu,
-		constant.ChannelTypeCohere,
-		constant.ChannelTypeDify,
-		constant.ChannelTypeJina,
-		constant.ChannelTypeMokaAI,
-		constant.ChannelTypeCoze,
-		constant.ChannelTypeJimeng,
-		constant.ChannelTypeReplicate,
-		constant.ChannelTypeXunfeiMaaSImage,
-		constant.ChannelTypeMistralConsole,
-		constant.ChannelTypeTypeSafe:
-		return true
-	default:
-		return false
-	}
-}
-
 // chatTargetAdaptor picks the adaptor that relays a converted OpenAI Chat request
 // whose response is rendered by the OpenAI handlers; nil means the channel
 // cannot serve Chat that way.
@@ -155,7 +130,7 @@ func chatTargetAdaptor(info *relaycommon.RelayInfo, adaptor channel.Adaptor) cha
 	case info.ChannelType == constant.ChannelTypeOllama:
 		// Ollama 原生 /api/chat 为私有格式，改走其 OpenAI 兼容端点
 		return &ollamachannel.OpenAICompatAdaptor{}
-	case usesPrivateChatProtocol(info.ChannelType):
+	case relaycommon.UsesPrivateChatProtocol(info.ChannelType):
 		return nil
 	case isGeminiFamilyChannel(info.ChannelType):
 		// Gemini 渠道仅在开启 OpenAI 兼容时把 Chat 原样发往上游兼容端点

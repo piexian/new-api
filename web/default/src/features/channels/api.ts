@@ -21,6 +21,7 @@ import { api, type ApiRequestConfig } from '@/lib/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import type { InferenceStatus } from './lib/inference-status'
+import type { ChannelProtocolSupportInfo } from './lib/protocol-support'
 import type {
   AddChannelRequest,
   BatchDeleteParams,
@@ -284,6 +285,28 @@ export async function updateChannelBalance(
     channelActionConfig()
   )
   return res.data
+}
+
+/**
+ * Protocol defaults and lock state for a channel that is being edited (type or
+ * base URL may not be saved yet). The backend owns the defaults matrix.
+ */
+export async function resolveChannelProtocolSupport(data: {
+  type: number
+  base_url?: string | null
+  setting: {
+    zcode_mode_enabled?: boolean
+    upstream_openai_compat_enabled?: boolean
+  }
+}): Promise<ChannelProtocolSupportInfo> {
+  const res = await api.post('/api/channel/protocol_support/resolve', {
+    type: data.type,
+    base_url: data.base_url ?? '',
+    setting: data.setting,
+  })
+  return requireServerSuccess(
+    res.data as { success: boolean; data: ChannelProtocolSupportInfo }
+  ).data
 }
 
 /**

@@ -23,7 +23,7 @@ import {
   ERROR_MESSAGES,
   canFetchChannelModels,
 } from '../constants'
-import type { Channel } from '../types'
+import type { Channel, ChannelProtocolSupport } from '../types'
 import {
   CHANNEL_TYPE_ADVANCED_CUSTOM,
   advancedCustomConfigUsesRelativeUpstreamPath,
@@ -32,8 +32,7 @@ import {
   validateAdvancedCustomConfig,
 } from './advanced-custom'
 import {
-  buildProtocolSupportOverrides,
-  resolveChannelProtocolSupport,
+  isGeminiFamilyChannel,
   toProtocolSupportFormValue,
 } from './protocol-support'
 
@@ -617,13 +616,12 @@ export function transformChannelToFormDefaults(
         )
       }
       // Gemini channels: an explicit protocol_support.chat wins over the compat flag
+      const explicitGeminiChat = isGeminiFamilyChannel(channel.type)
+        ? (parsed.protocol_support as ChannelProtocolSupport | undefined)?.chat
+        : undefined
       const upstreamOpenAICompatEnabled =
-        channel.type === 24 || channel.type === 72
-          ? resolveChannelProtocolSupport(
-              channel.type,
-              channel.base_url,
-              parsed
-            ).chat
+        typeof explicitGeminiChat === 'boolean'
+          ? explicitGeminiChat
           : parsed.upstream_openai_compat_enabled === true
       extraSettings = {
         force_format: parsed.force_format || false,
@@ -803,14 +801,13 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     delete settingObj.http2_connection_shards
   }
 
-  // Only protocols that differ from the channel-type defaults are stored.
-  const protocolSupport = buildProtocolSupportOverrides(
+  // The backend drops values equal to the channel-type defaults (and all
+  // overrides on locked channels) when saving.
+  const protocolSupport = toProtocolSupportFormValue(
     formData.type,
-    formData.base_url,
-    settingObj,
-    formData.protocol_support
+    formData.protocol_support ?? {}
   )
-  if (protocolSupport) {
+  if (Object.values(protocolSupport).some((v) => typeof v === 'boolean')) {
     settingObj.protocol_support = protocolSupport
   } else {
     delete settingObj.protocol_support

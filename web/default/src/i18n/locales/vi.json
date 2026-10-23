@@ -6760,7 +6760,9 @@
     "MiniMax Code channels do not support batch creation": "Kênh MiniMax Code không hỗ trợ tạo hàng loạt",
     "Not claimable": "Không thể nhận",
     "Auto Sign-in": "Điểm danh tự động",
-    "Automatically claim the MiniMax daily sign-in points once per day": "Tự động nhận điểm điểm danh hằng ngày của MiniMax một lần mỗi ngày"
+    "Automatically claim the MiniMax daily sign-in points once per day": "Tự động nhận điểm điểm danh hằng ngày của MiniMax một lần mỗi ngày",
+    "Fixed upstream protocol; other protocols are converted automatically": "Giao thức upstream cố định; các giao thức khác được chuyển đổi tự động",
+    "Fixed upstream protocol: {{protocols}}. Other protocols are converted automatically.": "Giao thức upstream cố định: {{protocols}}. Các giao thức khác được chuyển đổi tự động."
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

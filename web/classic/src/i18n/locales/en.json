@@ -667,6 +667,8 @@
     "上游 OpenAI 兼容直传": "Upstream OpenAI Compat Passthrough",
     "上游价格同步": "Upstream Price Sync",
     "上游倍率同步": "Upstream ratio synchronization",
+    "上游协议固定，其余协议自动转换": "Fixed upstream protocol; other protocols are converted automatically",
+    "上游协议固定为 {{protocols}}，其余协议自动转换": "Fixed upstream protocol: {{protocols}}. Other protocols are converted automatically.",
     "上游已删除的模型": "Models Deleted Upstream",
     "上游未返回": "Not returned by upstream",
     "上游模型：{{model}}": "Upstream model: {{model}}",

@@ -53,7 +53,6 @@ import {
 import { parseUpstreamUpdateMeta } from '../../../hooks/channels/upstreamUpdateUtils';
 import {
   CHANNEL_PROTOCOL_ITEMS,
-  resolveChannelProtocolSupport,
   buildUpdatedProtocolSupportSetting,
 } from '../../../helpers/protocolSupport';
 import {
@@ -623,12 +622,32 @@ export const getChannelsColumns = ({
         if (record.children !== undefined) {
           return <span>-</span>;
         }
+        const info = record.protocol_support_info;
+        if (!info) {
+          return <span>-</span>;
+        }
+        if (info.locked) {
+          return (
+            <Tooltip content={t('上游协议固定，其余协议自动转换')}>
+              <Space spacing={4} wrap>
+                {CHANNEL_PROTOCOL_ITEMS.filter(
+                  (item) => info.resolved[item.key],
+                ).map((item) => (
+                  <Tag
+                    key={item.key}
+                    color={item.color}
+                    type='light'
+                    shape='circle'
+                  >
+                    {item.label}
+                  </Tag>
+                ))}
+              </Space>
+            </Tooltip>
+          );
+        }
         const passThroughEnabled = isRequestPassThroughEnabled(record);
-        const resolved = resolveChannelProtocolSupport(
-          record.type,
-          record.base_url,
-          record.setting,
-        );
+        const resolved = info.resolved;
         return (
           <Space spacing={4} wrap>
             {CHANNEL_PROTOCOL_ITEMS.map((item) => {
@@ -652,9 +671,8 @@ export const getChannelsColumns = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       const nextSetting = buildUpdatedProtocolSupportSetting(
-                        record.type,
-                        record.base_url,
                         record.setting,
+                        resolved,
                         item.key,
                         !enabled,
                       );

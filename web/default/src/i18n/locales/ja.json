@@ -6760,7 +6760,9 @@
     "MiniMax Code channels do not support batch creation": "MiniMax Code チャネルは一括作成に対応していません",
     "Not claimable": "受け取り不可",
     "Auto Sign-in": "自動チェックイン",
-    "Automatically claim the MiniMax daily sign-in points once per day": "MiniMax のデイリーチェックインポイントを1日1回自動で受け取る"
+    "Automatically claim the MiniMax daily sign-in points once per day": "MiniMax のデイリーチェックインポイントを1日1回自動で受け取る",
+    "Fixed upstream protocol; other protocols are converted automatically": "上流プロトコルは固定です。その他のプロトコルは自動変換されます",
+    "Fixed upstream protocol: {{protocols}}. Other protocols are converted automatically.": "上流プロトコルは {{protocols}} に固定されています。その他のプロトコルは自動変換されます。"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

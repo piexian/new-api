@@ -278,7 +278,8 @@ func TestProtocolSupportChatTargetUsesOpenAIWireProtocol(t *testing.T) {
 	require.NotNil(t, ClaudeHelper(c, info))
 	assert.Equal(t, "/v1/chat/completions", <-sent)
 
-	// Channels with a private Chat protocol and no other target fail before reaching upstream.
+	// Private-protocol channels are locked: the Messages override is ignored and
+	// the adaptor's built-in handling rejects the request before reaching upstream.
 	var upstreamHits atomic.Int32
 	blocked := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upstreamHits.Add(1)
@@ -288,8 +289,8 @@ func TestProtocolSupportChatTargetUsesOpenAIWireProtocol(t *testing.T) {
 	c, info = newClaudeRequest(t, constant.ChannelTypeCohere, blocked.URL, &dto.ChannelProtocolSupport{Messages: boolPtr(false)})
 	apiErr := ClaudeHelper(c, info)
 	require.NotNil(t, apiErr)
-	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
 	assert.Zero(t, upstreamHits.Load())
+	assert.Nil(t, info.ChannelSetting.ProtocolSupport)
 }
 
 func TestProtocolSupportLocalInterceptionWhenPassThroughEnabled(t *testing.T) {

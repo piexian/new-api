@@ -6760,7 +6760,9 @@
     "MiniMax Code channels do not support batch creation": "MiniMax Code channels do not support batch creation",
     "Not claimable": "Not claimable",
     "Auto Sign-in": "Auto Sign-in",
-    "Automatically claim the MiniMax daily sign-in points once per day": "Automatically claim the MiniMax daily sign-in points once per day"
+    "Automatically claim the MiniMax daily sign-in points once per day": "Automatically claim the MiniMax daily sign-in points once per day",
+    "Fixed upstream protocol; other protocols are converted automatically": "Fixed upstream protocol; other protocols are converted automatically",
+    "Fixed upstream protocol: {{protocols}}. Other protocols are converted automatically.": "Fixed upstream protocol: {{protocols}}. Other protocols are converted automatically."
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

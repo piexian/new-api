@@ -651,6 +651,8 @@
     "上游 OpenAI 兼容直传": "Truyền thẳng OpenAI tương thích upstream",
     "上游价格同步": "Đồng bộ giá upstream",
     "上游倍率同步": "Đồng bộ hóa tỷ lệ thượng nguồn",
+    "上游协议固定，其余协议自动转换": "Giao thức upstream cố định; các giao thức khác được chuyển đổi tự động",
+    "上游协议固定为 {{protocols}}，其余协议自动转换": "Giao thức upstream cố định: {{protocols}}. Các giao thức khác được chuyển đổi tự động.",
     "上游已删除的模型": "Mô hình đã xóa ở upstream",
     "上游未返回": "Thượng nguồn không trả về",
     "上游模型：{{model}}": "Mô hình thượng nguồn: {{model}}",

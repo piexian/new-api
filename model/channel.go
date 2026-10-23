@@ -57,6 +57,8 @@ type Channel struct {
 
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
+	// ProtocolSupportInfo 仅在管理接口响应时填充（relay/common.ChannelProtocolSupportInfo），不入库。
+	ProtocolSupportInfo any `json:"protocol_support_info,omitempty" gorm:"-"`
 }
 
 type ChannelInfo struct {

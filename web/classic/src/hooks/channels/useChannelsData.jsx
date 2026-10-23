@@ -494,6 +494,8 @@ export const useChannelsData = () => {
         record.status = channel.status;
         if (action === 'setting') {
           record.setting = channel?.setting ?? value;
+          record.protocol_support_info =
+            channel?.protocol_support_info ?? record.protocol_support_info;
         }
         setChannels(newChannels);
       }

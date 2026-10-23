@@ -28,8 +28,8 @@ import {
 } from '../../../../helpers';
 import {
   CHANNEL_PROTOCOL_ITEMS,
-  buildProtocolSupportOverrides,
-  resolveChannelProtocolSupport,
+  applyProtocolOverrides,
+  isGeminiFamilyChannel,
   toProtocolSupportFormValue,
   withProtocolOverride,
 } from '../../../../helpers/protocolSupport';
@@ -622,6 +622,43 @@ const EditChannelModal = (props) => {
     system_prompt: '',
     plan_quota_cooldown_enabled: false,
   });
+  // 协议默认值与锁定规则由后端维护，类型/地址变化后防抖查询
+  const [protocolInfo, setProtocolInfo] = useState(null);
+  useEffect(() => {
+    if (typeof inputs.type !== 'number') return undefined;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await API.post(
+          '/api/channel/protocol_support/resolve',
+          {
+            type: inputs.type,
+            base_url: inputs.base_url || '',
+            setting: {
+              zcode_mode_enabled: channelSettings.zcode_mode_enabled === true,
+              upstream_openai_compat_enabled:
+                channelSettings.upstream_openai_compat_enabled === true,
+            },
+          },
+          { skipErrorHandler: true },
+        );
+        if (!cancelled && res?.data?.success) {
+          setProtocolInfo(res.data.data);
+        }
+      } catch {
+        // 查询失败时保留上一次结果，协议区块不影响保存
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    inputs.type,
+    inputs.base_url,
+    channelSettings.zcode_mode_enabled,
+    channelSettings.upstream_openai_compat_enabled,
+  ]);
   const showApiConfigCard = true; // 控制是否显示 API 配置卡片
   const getInitValues = () => ({ ...originInputs });
 
@@ -1121,12 +1158,9 @@ const EditChannelModal = (props) => {
             parsedSettings.pass_through_body_enabled || false;
           // Gemini 渠道：显式 protocol_support.chat 优先于兼容开关
           data.upstream_openai_compat_enabled =
-            data.type === 24 || data.type === 72
-              ? resolveChannelProtocolSupport(
-                  data.type,
-                  data.base_url,
-                  parsedSettings,
-                ).chat
+            isGeminiFamilyChannel(data.type) &&
+            typeof parsedSettings.protocol_support?.chat === 'boolean'
+              ? parsedSettings.protocol_support.chat
               : parsedSettings.upstream_openai_compat_enabled === true;
           data.zcode_mode_enabled = parsedSettings.zcode_mode_enabled === true;
           data.auto_signin_enabled =
@@ -2242,15 +2276,13 @@ const EditChannelModal = (props) => {
     if (protocol !== 'http1' && shards > 1) {
       channelExtraSettings.http2_connection_shards = shards;
     }
-    // 只保存与渠道类型默认值不同的协议；protocol_support 不是已注册的表单字段，
-    // getValues() 取不到，需从 channelSettings 状态读取
-    const protocolSupport = buildProtocolSupportOverrides(
+    // protocol_support 不是已注册的表单字段，getValues() 取不到，需从 channelSettings 状态读取；
+    // 后端保存时丢弃与类型默认值相同的项，锁定渠道不保留覆盖
+    const protocolSupport = toProtocolSupportFormValue(
       localInputs.type,
-      localInputs.base_url,
-      channelExtraSettings,
-      channelSettings.protocol_support,
+      channelSettings.protocol_support || {},
     );
-    if (protocolSupport) {
+    if (Object.values(protocolSupport).some((v) => typeof v === 'boolean')) {
       channelExtraSettings.protocol_support = protocolSupport;
     }
     // 旧版 Responses 转 Chat 降级开关已无界面入口，保留已有值（后端仍读取）
@@ -3245,8 +3277,30 @@ const EditChannelModal = (props) => {
                     />
                   )}
 
-                  {/* MiniMax Code 上游只有 Claude Messages，其余协议一律转换，开关没有意义 */}
-                  {inputs.type !== CHANNEL_TYPE_MINIMAX_CODE && (
+                  {/* 锁定渠道上游协议固定，其余协议一律由适配器转换，只读展示 */}
+                  {protocolInfo?.locked && (
+                    <div
+                      className='semi-form-field'
+                      style={{ paddingTop: 12, paddingBottom: 12 }}
+                    >
+                      <div
+                        className='semi-form-field-label-text'
+                        style={{ fontWeight: 600, marginBottom: 4 }}
+                      >
+                        {t('协议支持')}
+                      </div>
+                      <div className='semi-form-field-extra'>
+                        {t('上游协议固定为 {{protocols}}，其余协议自动转换', {
+                          protocols: CHANNEL_PROTOCOL_ITEMS.filter(
+                            (item) => protocolInfo.defaults[item.key],
+                          )
+                            .map((item) => item.label)
+                            .join(', '),
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {protocolInfo && !protocolInfo.locked && (
                     <div
                       className='semi-form-field'
                       style={{ paddingTop: 12, paddingBottom: 12 }}
@@ -3267,19 +3321,10 @@ const EditChannelModal = (props) => {
                       </div>
                       <Space spacing={12} wrap>
                         {(() => {
-                          const resolvedProtocols =
-                            resolveChannelProtocolSupport(
-                              inputs.type,
-                              inputs.base_url,
-                              {
-                                upstream_openai_compat_enabled:
-                                  channelSettings.upstream_openai_compat_enabled,
-                                zcode_mode_enabled:
-                                  channelSettings.zcode_mode_enabled,
-                                protocol_support:
-                                  channelSettings.protocol_support,
-                              },
-                            );
+                          const resolvedProtocols = applyProtocolOverrides(
+                            protocolInfo.defaults,
+                            channelSettings.protocol_support,
+                          );
                           return CHANNEL_PROTOCOL_ITEMS.map((item) => {
                             const enabled = resolvedProtocols[item.key];
                             return (

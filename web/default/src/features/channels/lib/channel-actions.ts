@@ -45,6 +45,7 @@ import type { Channel, ChannelTestResponse, CopyChannelParams } from '../types'
 import {
   buildUpdatedProtocolSupportSetting,
   type ChannelProtocolKey,
+  type ResolvedProtocolSupport,
 } from './protocol-support'
 
 // ============================================================================
@@ -242,15 +243,15 @@ export async function handleUpdateChannelField(
  */
 export async function handleToggleChannelProtocol(
   channel: Channel,
+  current: ResolvedProtocolSupport,
   protocolKey: ChannelProtocolKey,
   nextValue: boolean,
   queryClient?: QueryClient
 ): Promise<string | null> {
   try {
     const nextSetting = buildUpdatedProtocolSupportSetting(
-      channel.type,
-      channel.base_url,
       channel.setting,
+      current,
       protocolKey,
       nextValue
     )

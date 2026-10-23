@@ -119,6 +119,7 @@ import {
   useSecureVerification,
 } from '@/features/auth/secure-verification'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import {
   ADMIN_PERMISSION_ACTIONS,
@@ -143,6 +144,7 @@ import {
   getPrefillGroups,
   refreshCodexCredential,
   refreshMiniMaxCodeCredential,
+  resolveChannelProtocolSupport,
 } from '../../api'
 import {
   ADD_MODE_OPTIONS,
@@ -175,7 +177,7 @@ import {
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
   CHANNEL_PROTOCOL_ITEMS,
-  resolveChannelProtocolSupport,
+  applyProtocolOverrides,
   withProtocolOverride,
 } from '../../lib'
 import {
@@ -842,6 +844,30 @@ export function ChannelMutateDrawer({
     'upstream_openai_compat_enabled'
   )
   const currentZcodeModeEnabled = form.watch('zcode_mode_enabled')
+  // 协议默认值与锁定规则由后端维护；地址输入防抖后再查询
+  const debouncedProtocolBaseUrl = useDebounce(currentBaseUrl ?? '', 400)
+  const { data: protocolInfo } = useQuery({
+    queryKey: [
+      'channel-protocol-support',
+      currentType,
+      debouncedProtocolBaseUrl,
+      currentZcodeModeEnabled === true,
+      currentUpstreamOpenAICompatEnabled === true,
+    ],
+    queryFn: () =>
+      resolveChannelProtocolSupport({
+        type: currentType,
+        base_url: debouncedProtocolBaseUrl,
+        setting: {
+          zcode_mode_enabled: currentZcodeModeEnabled === true,
+          upstream_openai_compat_enabled:
+            currentUpstreamOpenAICompatEnabled === true,
+        },
+      }),
+    enabled: open && typeof currentType === 'number',
+    staleTime: Infinity,
+    placeholderData: (previous) => previous,
+  })
   const currentDisableTaskPollingSleep = form.watch(
     'disable_task_polling_sleep'
   )
@@ -5009,23 +5035,37 @@ export function ChannelMutateDrawer({
                             )}
 
                             <div className='divide-border space-y-0 divide-y border-y'>
-                              {/* MiniMax Code 上游只有 Claude Messages，其余协议一律转换，开关没有意义 */}
-                              {currentType !== 81 && (
+                              {/* 锁定渠道上游协议固定，其余协议一律由适配器转换，只读展示 */}
+                              {protocolInfo?.locked && (
+                                <div className='space-y-0.5 px-4 py-3'>
+                                  <div className='text-sm font-medium'>
+                                    {t('Protocol Support')}
+                                  </div>
+                                  <div className='text-muted-foreground text-xs'>
+                                    {t(
+                                      'Fixed upstream protocol: {{protocols}}. Other protocols are converted automatically.',
+                                      {
+                                        protocols:
+                                          CHANNEL_PROTOCOL_ITEMS.filter(
+                                            (item) =>
+                                              protocolInfo.defaults[item.key]
+                                          )
+                                            .map((item) => item.label)
+                                            .join(', '),
+                                      }
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              {protocolInfo && !protocolInfo.locked && (
                                 <FormField
                                   control={form.control}
                                   name='protocol_support'
                                   render={({ field }) => {
                                     const resolvedProtocols =
-                                      resolveChannelProtocolSupport(
-                                        currentType,
-                                        form.watch('base_url'),
-                                        {
-                                          upstream_openai_compat_enabled:
-                                            currentUpstreamOpenAICompatEnabled,
-                                          zcode_mode_enabled:
-                                            currentZcodeModeEnabled,
-                                          protocol_support: field.value,
-                                        }
+                                      applyProtocolOverrides(
+                                        protocolInfo.defaults,
+                                        field.value
                                       )
                                     return (
                                       <FormItem className='space-y-3 px-4 py-3'>

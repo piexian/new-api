@@ -660,6 +660,8 @@
     "上游 OpenAI 兼容直传": "Compat OpenAI amont",
     "上游价格同步": "Synchro des prix amont",
     "上游倍率同步": "Synchronisation du ratio en amont",
+    "上游协议固定，其余协议自动转换": "Protocole amont fixe ; les autres protocoles sont convertis automatiquement",
+    "上游协议固定为 {{protocols}}，其余协议自动转换": "Protocole amont fixe : {{protocols}}. Les autres protocoles sont convertis automatiquement.",
     "上游已删除的模型": "Modèles supprimés en amont",
     "上游未返回": "Non fourni par le fournisseur",
     "上游模型：{{model}}": "Modèle en amont : {{model}}",

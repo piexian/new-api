@@ -97,7 +97,6 @@ import {
   handleUpdateChannelBalance,
   handleToggleChannelProtocol,
   CHANNEL_PROTOCOL_ITEMS,
-  resolveChannelProtocolSupport,
   type ChannelProtocolKey,
   type ResolvedProtocolSupport,
   isTagAggregateRow,
@@ -144,21 +143,15 @@ const PROTOCOL_PILL_STYLES: Record<
 function ProtocolSupportCell({ channel }: { channel: Channel }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  // Last setting saved from this cell; consecutive toggles build on it until the
-  // list refetch delivers the updated row.
+  const info = channel.protocol_support_info
+  // Last state saved from this cell; consecutive toggles build on it until the
+  // list refetch delivers the recomputed protocol info.
   const [savedSetting, setSavedSetting] = useState<string | null>(null)
+  const [savedResolved, setSavedResolved] =
+    useState<ResolvedProtocolSupport | null>(null)
   const baseSetting = savedSetting ?? channel.setting
   const settings = parseChannelSettings(baseSetting)
   const isPassThrough = settings.pass_through_body_enabled === true
-  const resolvedFromChannel = useMemo(
-    () =>
-      resolveChannelProtocolSupport(
-        channel.type,
-        channel.base_url,
-        baseSetting
-      ),
-    [channel.type, channel.base_url, baseSetting]
-  )
   const [optimistic, setOptimistic] = useState<ResolvedProtocolSupport | null>(
     null
   )
@@ -167,9 +160,52 @@ function ProtocolSupportCell({ channel }: { channel: Channel }) {
   useEffect(() => {
     setOptimistic(null)
     setSavedSetting(null)
-  }, [channel.type, channel.base_url, channel.setting])
+    setSavedResolved(null)
+  }, [channel.setting, info])
 
-  const current = optimistic ?? resolvedFromChannel
+  if (!info) {
+    return <span className='text-muted-foreground text-xs'>-</span>
+  }
+
+  if (info.locked) {
+    const fixed = CHANNEL_PROTOCOL_ITEMS.filter(
+      (item) => info.resolved[item.key]
+    )
+    return (
+      <TooltipProvider delay={150}>
+        <Tooltip>
+          <TooltipTrigger
+            render={<div className='flex flex-wrap items-center gap-1' />}
+          >
+            {fixed.map((item) => (
+              <span
+                key={item.key}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] leading-tight font-medium select-none',
+                  PROTOCOL_PILL_STYLES[item.key].active
+                )}
+              >
+                <span
+                  className={cn(
+                    'h-1.5 w-1.5 shrink-0 rounded-full',
+                    PROTOCOL_PILL_STYLES[item.key].dot
+                  )}
+                />
+                <span>{item.label}</span>
+              </span>
+            ))}
+          </TooltipTrigger>
+          <TooltipContent>
+            {t(
+              'Fixed upstream protocol; other protocols are converted automatically'
+            )}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  const current = optimistic ?? savedResolved ?? info.resolved
 
   const handleToggle = async (e: React.MouseEvent, key: ChannelProtocolKey) => {
     e.stopPropagation()
@@ -183,12 +219,14 @@ function ProtocolSupportCell({ channel }: { channel: Channel }) {
     setPendingKey(key)
     const saved = await handleToggleChannelProtocol(
       { ...channel, setting: baseSetting },
+      current,
       key,
       nextValue,
       queryClient
     )
     if (saved !== null) {
       setSavedSetting(saved)
+      setSavedResolved(nextState)
     }
     setOptimistic(null)
     setPendingKey(null)
