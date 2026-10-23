@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"golang.org/x/sync/singleflight"
 )
 
 // 共用会话标识风控：聚合日志中的会话标识/缓存关联标识，找出被多个用户共用的标识。
@@ -98,6 +100,8 @@ func normalizeSessionRiskWindow(start, end int64) (int64, int64) {
 
 // listSessionRiskStats 聚合完整时间窗内的原始请求，不做任何条数截断，
 // 避免先截断再聚合漏掉共用同一标识的其他账号。列名只来自上面的白名单。
+// 用 "> ''" 而非 "<> ''" 排除空标识：前者可以在 (hash, created_at) 索引上做范围扫描，
+// 后者会让优化器退回按时间扫描整窗日志，而带标识的日志只占很小一部分。
 func listSessionRiskStats(kind string, start, end int64, identifier string) ([]sessionRiskRow, error) {
 	idCol, hashCol, sourceCol, err := sessionRiskColumns(kind)
 	if err != nil {
@@ -108,7 +112,7 @@ func listSessionRiskStats(kind string, start, end int64, identifier string) ([]s
 			ip, token_id, token_name, user_id, username, COUNT(*) AS request_count,
 			SUM(CASE WHEN type = ? THEN 1 ELSE 0 END) AS error_count,
 			SUM(quota) AS quota, MIN(created_at) AS first_seen_at, MAX(created_at) AS last_seen_at`, idCol, hashCol, sourceCol), model.LogTypeError).
-		Where(hashCol+" <> '' AND user_id > 0 AND type IN ? AND created_at >= ? AND created_at <= ?", []int{model.LogTypeConsume, model.LogTypeError}, start, end).
+		Where(hashCol+" > '' AND user_id > 0 AND type IN ? AND created_at >= ? AND created_at <= ?", []int{model.LogTypeConsume, model.LogTypeError}, start, end).
 		Group(hashCol + ", " + sourceCol + ", ip, token_id, token_name, user_id, username")
 	if identifier != "" {
 		tx = tx.Where(hashCol+" = ?", common.SessionIdentifierHash(identifier))
@@ -116,6 +120,55 @@ func listSessionRiskStats(kind string, start, end int64, identifier string) ([]s
 	var rows []sessionRiskRow
 	err = tx.Find(&rows).Error
 	return rows, err
+}
+
+// sharedSessionItemsCacheTTL 整窗聚合代价高，翻页/排序/搜索在短期内复用同一时间窗的结果。
+const sharedSessionItemsCacheTTL = time.Minute
+
+type sharedSessionItemsEntry struct {
+	items     []SessionRiskItem
+	expiresAt time.Time
+}
+
+var (
+	sharedSessionItemsCache = struct {
+		sync.Mutex
+		entries map[string]sharedSessionItemsEntry
+	}{entries: map[string]sharedSessionItemsEntry{}}
+	sharedSessionItemsGroup singleflight.Group
+)
+
+// cachedSharedSessionItems 返回时间窗内的共用标识簇；同一时间窗的并发请求只查询一次日志库。
+// 返回的切片由多个请求共享，调用方不得原地修改。
+func cachedSharedSessionItems(kind string, start, end int64) ([]SessionRiskItem, error) {
+	key := fmt.Sprintf("%s:%d:%d", kind, start, end)
+	sharedSessionItemsCache.Lock()
+	entry, ok := sharedSessionItemsCache.entries[key]
+	sharedSessionItemsCache.Unlock()
+	if ok && time.Now().Before(entry.expiresAt) {
+		return entry.items, nil
+	}
+	value, err, _ := sharedSessionItemsGroup.Do(key, func() (interface{}, error) {
+		rows, err := listSessionRiskStats(kind, start, end, "")
+		if err != nil {
+			return nil, err
+		}
+		items := sharedSessionItems(rows, kind)
+		now := time.Now()
+		sharedSessionItemsCache.Lock()
+		for k, e := range sharedSessionItemsCache.entries {
+			if !now.Before(e.expiresAt) {
+				delete(sharedSessionItemsCache.entries, k)
+			}
+		}
+		sharedSessionItemsCache.entries[key] = sharedSessionItemsEntry{items: items, expiresAt: now.Add(sharedSessionItemsCacheTTL)}
+		sharedSessionItemsCache.Unlock()
+		return items, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return value.([]SessionRiskItem), nil
 }
 
 // sharedSessionItems 把明细行按标识哈希聚合成簇，只保留被至少两个用户共用的标识。
@@ -217,6 +270,49 @@ func sortedSessionRiskStrings(m map[string]struct{}) []string {
 	return out
 }
 
+// withoutDisabledSessionRiskUsers 按当前账号状态剔除已封禁/已删除的用户及其令牌，
+// 启用账号不足两个的标识不再算作共用。账号状态每次实时查询，封禁后无需等待聚合缓存过期。
+// 请求量、错误数、额度、IP 等仍是该标识在时间窗内的整体统计。
+func withoutDisabledSessionRiskUsers(items []SessionRiskItem) ([]SessionRiskItem, error) {
+	ids := make([]int, 0)
+	seen := make(map[int]struct{})
+	for _, item := range items {
+		for _, user := range item.Users {
+			if _, ok := seen[user.UserId]; !ok {
+				seen[user.UserId] = struct{}{}
+				ids = append(ids, user.UserId)
+			}
+		}
+	}
+	enabled, err := model.ListEnabledUserIds(ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SessionRiskItem, 0, len(items))
+	for _, item := range items {
+		users := make([]SessionRiskUserRef, 0, len(item.Users))
+		for _, user := range item.Users {
+			if _, ok := enabled[user.UserId]; ok {
+				users = append(users, user)
+			}
+		}
+		if len(users) < 2 {
+			continue
+		}
+		tokens := make([]SessionRiskTokenRef, 0, len(item.Tokens))
+		for _, token := range item.Tokens {
+			if _, ok := enabled[token.UserId]; ok {
+				tokens = append(tokens, token)
+			}
+		}
+		// item 是缓存条目的值拷贝，替换切片不会影响缓存。
+		item.Users, item.Tokens = users, tokens
+		item.UserCount, item.TokenCount = int64(len(users)), int64(len(tokens))
+		out = append(out, item)
+	}
+	return out, nil
+}
+
 func sessionRiskItemMatchesKeyword(item SessionRiskItem, keyword string) bool {
 	if keyword == "" {
 		return true
@@ -250,14 +346,18 @@ func sessionRiskItemMatchesKeyword(item SessionRiskItem, keyword string) bool {
 // ListSharedSessions 列出时间窗内被多个用户共用的会话标识/缓存关联标识。
 func ListSharedSessions(kind string, page, pageSize int, keyword string, start, end int64, sortKey, sortOrder string) (SessionRiskPage, error) {
 	start, end = normalizeSessionRiskWindow(start, end)
-	rows, err := listSessionRiskStats(kind, start, end, "")
+	shared, err := cachedSharedSessionItems(kind, start, end)
+	if err != nil {
+		return SessionRiskPage{}, err
+	}
+	shared, err = withoutDisabledSessionRiskUsers(shared)
 	if err != nil {
 		return SessionRiskPage{}, err
 	}
 	keyword = strings.ToLower(strings.TrimSpace(keyword))
 	items := make([]SessionRiskItem, 0)
 	// 先构建完整关联再按关键字过滤，避免搜索隐藏同一标识下的其他用户。
-	for _, item := range sharedSessionItems(rows, kind) {
+	for _, item := range shared {
 		if sessionRiskItemMatchesKeyword(item, keyword) {
 			items = append(items, item)
 		}

@@ -22,6 +22,7 @@ import {
   Button,
   Card,
   Checkbox,
+  DatePicker,
   Input,
   Modal,
   Select,
@@ -30,26 +31,29 @@ import {
   Tag,
   Typography,
 } from '@douyinfe/semi-ui';
+import dayjs from 'dayjs';
 import { Ban, Eye, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import CardTable from '../../components/common/ui/CardTable';
+import { DATE_RANGE_PRESETS } from '../../constants/console.constants';
 import { API, showError, showSuccess, timestamp2string } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 
 const { Text, Title } = Typography;
 const PAGE_SIZE = 10;
 const KINDS = ['session', 'cache'];
-const WINDOW_OPTIONS = [
-  { value: 24 * 3600, labelKey: 'Last 24 Hours' },
-  { value: 7 * 24 * 3600, labelKey: 'Last 7 Days' },
-  { value: 30 * 24 * 3600, labelKey: 'Last 30 Days' },
+const defaultDateRange = () => [
+  dayjs().subtract(29, 'day').startOf('day').toDate(),
+  dayjs().endOf('day').toDate(),
 ];
+const toUnix = (date) =>
+  date ? Math.floor(new Date(date).getTime() / 1000) : undefined;
 
 const SessionRiskTab = () => {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [kind, setKind] = useState('session');
-  const [windowSeconds, setWindowSeconds] = useState(30 * 24 * 3600);
+  const [dateRange, setDateRange] = useState(defaultDateRange);
   const [recordingEnabled, setRecordingEnabled] = useState(false);
   const [recordingLoading, setRecordingLoading] = useState(false);
   const [items, setItems] = useState([]);
@@ -103,9 +107,9 @@ const SessionRiskTab = () => {
   const fetchShared = useCallback(
     async (targetPage = page, targetKeyword = keyword, overrides = {}) => {
       const currentKind = overrides.kind ?? kind;
-      const currentWindow = overrides.windowSeconds ?? windowSeconds;
-      const end = Math.floor(Date.now() / 1000);
-      const start = end - currentWindow;
+      const [rangeStart, rangeEnd] = overrides.dateRange ?? dateRange;
+      const start = toUnix(rangeStart);
+      const end = toUnix(rangeEnd);
       setLoading(true);
       try {
         const response = await API.get('/api/risk/session/shared', {
@@ -133,7 +137,7 @@ const SessionRiskTab = () => {
         setLoading(false);
       }
     },
-    [kind, keyword, page, windowSeconds],
+    [kind, keyword, page, dateRange],
   );
 
   useEffect(() => {
@@ -152,9 +156,10 @@ const SessionRiskTab = () => {
     fetchShared(1, keyword, { kind: value });
   };
 
-  const changeWindow = (value) => {
-    setWindowSeconds(value);
-    fetchShared(1, keyword, { windowSeconds: value });
+  const changeDateRange = (value) => {
+    const next = Array.isArray(value) && value.length === 2 ? value : [];
+    setDateRange(next);
+    fetchShared(1, keyword, { dateRange: next });
   };
 
   const openReview = (item) => {
@@ -363,13 +368,17 @@ const SessionRiskTab = () => {
               label: kindLabel(value),
             }))}
           />
-          <Select
-            value={windowSeconds}
-            onChange={changeWindow}
-            style={{ width: isMobile ? '100%' : 160 }}
-            optionList={WINDOW_OPTIONS.map((option) => ({
-              value: option.value,
-              label: t(option.labelKey),
+          <DatePicker
+            type='dateTimeRange'
+            value={dateRange}
+            onChange={changeDateRange}
+            placeholder={[t('开始时间'), t('结束时间')]}
+            showClear
+            style={{ width: isMobile ? '100%' : 360 }}
+            presets={DATE_RANGE_PRESETS.map((preset) => ({
+              text: t(preset.text),
+              start: preset.start(),
+              end: preset.end(),
             }))}
           />
           <Input

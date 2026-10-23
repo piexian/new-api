@@ -157,6 +157,22 @@ func GetUsersByIDsUnscoped(ids []int) ([]User, error) {
 	return users, err
 }
 
+// ListEnabledUserIds 返回给定 ID 中仍处于启用状态的用户（已封禁或已删除的不返回）。
+func ListEnabledUserIds(ids []int) (map[int]struct{}, error) {
+	enabled := make(map[int]struct{}, len(ids))
+	if len(ids) == 0 {
+		return enabled, nil
+	}
+	var rows []int
+	if err := DB.Model(&User{}).Where("id IN ? AND status = ?", ids, common.UserStatusEnabled).Pluck("id", &rows).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range rows {
+		enabled[id] = struct{}{}
+	}
+	return enabled, nil
+}
+
 func ListRecentLoginEnvironmentSignals(since int64, limit int) ([]LoginEnvironmentSignal, error) {
 	if LOG_DB == nil {
 		return []LoginEnvironmentSignal{}, nil

@@ -14,8 +14,25 @@ func sessionRiskLog(user, token int, id, cache string, when int64) model.Log {
 		SessionId: id, SessionHash: common.SessionIdentifierHash(id), SessionSource: "header:session-id", CacheKey: cache, CacheHash: common.SessionIdentifierHash(cache), CacheSource: "body:prompt_cache_key", SessionRecorded: true}
 }
 
+func resetSharedSessionItemsCache() {
+	sharedSessionItemsCache.Lock()
+	clear(sharedSessionItemsCache.entries)
+	sharedSessionItemsCache.Unlock()
+}
+
+func createSessionRiskUsers(t *testing.T, userIds ...int) {
+	t.Helper()
+	for _, id := range userIds {
+		require.NoError(t, model.DB.Create(&model.User{
+			Id: id, Username: fmt.Sprintf("sess_risk_%d", id), AffCode: fmt.Sprintf("SESSR%d", id),
+			Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: common.GetTimestamp(),
+		}).Error)
+	}
+}
+
 func cleanupSessionRiskTestData(t *testing.T, userIds ...int) {
 	t.Helper()
+	resetSharedSessionItemsCache()
 	t.Cleanup(func() {
 		model.DB.Where("user_id IN ?", userIds).Delete(&model.RiskBanLog{})
 		model.LOG_DB.Where("user_id IN ?", userIds).Delete(&model.Log{})
@@ -27,6 +44,7 @@ func TestSharedSessionsWindowIdentityAndSearch(t *testing.T) {
 	setupRiskModels(t)
 	userIds := []int{98801, 98802, 98803, 98804, 98805, 98806, 98807}
 	cleanupSessionRiskTestData(t, userIds...)
+	createSessionRiskUsers(t, userIds...)
 	now := common.GetTimestamp()
 	logs := []model.Log{
 		sessionRiskLog(98801, 11, "shared", "cache", now-60), sessionRiskLog(98802, 22, "shared", "cache", now),
@@ -70,12 +88,7 @@ func TestSharedSessionBanValidatesUsers(t *testing.T) {
 	userIds := []int{98811, 98812, 98813}
 	cleanupSessionRiskTestData(t, userIds...)
 	now := common.GetTimestamp()
-	for i, id := range userIds {
-		require.NoError(t, model.DB.Create(&model.User{
-			Id: id, Username: fmt.Sprintf("sess_risk_%d", i), AffCode: fmt.Sprintf("SESSR%d", id),
-			Role: common.RoleCommonUser, Status: common.UserStatusEnabled, CreatedAt: now - 120,
-		}).Error)
-	}
+	createSessionRiskUsers(t, userIds...)
 	require.NoError(t, model.LOG_DB.Create(&[]model.Log{
 		sessionRiskLog(userIds[0], 1, "shared", "", now),
 		sessionRiskLog(userIds[1], 2, "shared", "", now),
@@ -103,4 +116,45 @@ func TestSharedSessionBanValidatesUsers(t *testing.T) {
 	var banLog model.RiskBanLog
 	require.NoError(t, model.DB.Where("rule_id = ? AND user_id = ?", model.SessionRiskRuleID, userIds[1]).First(&banLog).Error)
 	require.Equal(t, "session review", banLog.Reason)
+}
+
+func TestSharedSessionsExcludeDisabledUsers(t *testing.T) {
+	setupRiskModels(t)
+	userIds := []int{98821, 98822, 98823}
+	cleanupSessionRiskTestData(t, userIds...)
+	createSessionRiskUsers(t, userIds...)
+	now := common.GetTimestamp()
+	require.NoError(t, model.LOG_DB.Create(&[]model.Log{
+		sessionRiskLog(userIds[0], 1, "three-users", "", now),
+		sessionRiskLog(userIds[1], 2, "three-users", "", now),
+		sessionRiskLog(userIds[2], 3, "three-users", "", now),
+		sessionRiskLog(userIds[0], 1, "two-users", "", now),
+		sessionRiskLog(userIds[2], 3, "two-users", "", now),
+	}).Error)
+	list := func() map[string]SessionRiskItem {
+		page, err := ListSharedSessions(SessionRiskKindSession, 1, 10, "", now-60, now, "", "")
+		require.NoError(t, err)
+		byIdentifier := make(map[string]SessionRiskItem, len(page.Items))
+		for _, item := range page.Items {
+			byIdentifier[item.Identifier] = item
+		}
+		return byIdentifier
+	}
+	require.Len(t, list(), 2)
+
+	// 封禁后立即生效：聚合结果仍在缓存中，但封禁用户及其令牌被剔除，启用账号不足两个的标识不再展示。
+	_, err := BanSharedSessionUsers(SessionRiskBanRequest{Kind: SessionRiskKindSession, Identifier: "two-users",
+		Start: now - 60, End: now, UserIds: []int{userIds[2]}, Reason: "session review"}, 1)
+	require.NoError(t, err)
+	items := list()
+	require.Len(t, items, 1)
+	item := items["three-users"]
+	require.EqualValues(t, 2, item.UserCount)
+	require.EqualValues(t, 2, item.TokenCount)
+	for _, user := range item.Users {
+		require.NotEqual(t, userIds[2], user.UserId)
+	}
+	for _, token := range item.Tokens {
+		require.NotEqual(t, userIds[2], token.UserId)
+	}
 }

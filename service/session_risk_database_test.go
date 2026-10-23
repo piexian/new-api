@@ -46,7 +46,8 @@ func TestSessionRiskDatabaseMigrationAndAggregation(t *testing.T) {
 			require.False(t, db.Migrator().HasTable("logs"), "use an empty disposable database")
 			previous := model.LOG_DB
 			model.LOG_DB = db // Keep the main DB independent of the log DB.
-			defer func() { model.LOG_DB = previous }()
+			resetSharedSessionItemsCache()
+			defer func() { model.LOG_DB = previous; resetSharedSessionItemsCache() }()
 			// Reconstruct the pre-feature schema from Log, excluding only the new fields/indexes.
 			var fields []reflect.StructField
 			logType := reflect.TypeOf(model.Log{})
@@ -72,25 +73,28 @@ func TestSessionRiskDatabaseMigrationAndAggregation(t *testing.T) {
 			require.False(t, historical.SessionRecorded)
 			require.Empty(t, historical.SessionHash)
 			require.Empty(t, historical.CacheHash)
+			setupRiskModels(t)
+			cleanupSessionRiskTestData(t, 98831, 98832, 98833)
+			createSessionRiskUsers(t, 98831, 98832, 98833)
 			now := common.GetTimestamp()
 			logs := []model.Log{
-				sessionRiskLog(1, 1, "Case-敏感", "cache", now-60),
-				sessionRiskLog(2, 2, "Case-敏感", "cache", now),
-				sessionRiskLog(3, 3, "case-敏感", "", now),
+				sessionRiskLog(98831, 1, "Case-敏感", "cache", now-60),
+				sessionRiskLog(98832, 2, "Case-敏感", "cache", now),
+				sessionRiskLog(98833, 3, "case-敏感", "", now),
 			}
 			require.NoError(t, db.Create(&logs).Error)
 			for _, kind := range []string{SessionRiskKindSession, SessionRiskKindCache} {
-				page, err := ListSharedSessions(kind, 1, 10, "user-2", now-60, now, "", "")
+				page, err := ListSharedSessions(kind, 1, 10, "user-98832", now-60, now, "", "")
 				require.NoError(t, err)
 				require.Equal(t, 1, page.Total)
 				require.EqualValues(t, 2, page.Items[0].UserCount)
 				require.EqualValues(t, 2, page.Items[0].RequestCount)
 				require.EqualValues(t, 20, page.Items[0].Quota)
 			}
-			items, total, err := model.GetUserLogs(2, 0, now-60, now, "", "", 0, 20, "", "", "", "", "", model.LogSessionFilter{SessionID: "Case-敏感"})
+			items, total, err := model.GetUserLogs(98832, 0, now-60, now, "", "", 0, 20, "", "", "", "", "", model.LogSessionFilter{SessionID: "Case-敏感"})
 			require.NoError(t, err)
 			require.EqualValues(t, 1, total)
-			require.Equal(t, 2, items[0].UserId)
+			require.Equal(t, 98832, items[0].UserId)
 		})
 	}
 }

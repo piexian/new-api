@@ -39,6 +39,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { CompactDateTimeRangePicker } from '@/features/usage-logs/components/compact-date-time-range-picker'
 
 import {
   banSharedSessionUsers,
@@ -51,11 +52,16 @@ import {
 
 const PAGE_SIZE = 10
 
-const WINDOW_OPTIONS = [
-  { label: 'Last 24 Hours', seconds: 24 * 3600 },
-  { label: 'Last 7 Days', seconds: 7 * 24 * 3600 },
-  { label: 'Last 30 Days', seconds: 30 * 24 * 3600 },
-] as const
+function defaultDateRange(): { start?: Date; end?: Date } {
+  return {
+    start: dayjs().subtract(29, 'day').startOf('day').toDate(),
+    end: dayjs().endOf('day').toDate(),
+  }
+}
+
+function toUnix(date?: Date) {
+  return date ? Math.floor(date.getTime() / 1000) : undefined
+}
 
 function formatTime(timestamp: number) {
   return timestamp ? dayjs.unix(timestamp).format('YYYY-MM-DD HH:mm:ss') : '-'
@@ -65,9 +71,7 @@ export function SessionRiskPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [kind, setKind] = useState<SessionRiskKind>('session')
-  const [windowSeconds, setWindowSeconds] = useState<number>(
-    WINDOW_OPTIONS[2].seconds
-  )
+  const [dateRange, setDateRange] = useState(defaultDateRange)
   const [page, setPage] = useState(1)
   const [keywordInput, setKeywordInput] = useState('')
   const [keyword, setKeyword] = useState('')
@@ -104,10 +108,10 @@ export function SessionRiskPage() {
     onError: (mutationError: Error) => toast.error(mutationError.message),
   })
 
-  const now = Math.floor(Date.now() / 1000)
-  const start = now - windowSeconds
+  const start = toUnix(dateRange.start)
+  const end = toUnix(dateRange.end)
   const { data, error, isLoading } = useQuery({
-    queryKey: ['risk', 'session', 'shared', kind, windowSeconds, page, keyword],
+    queryKey: ['risk', 'session', 'shared', kind, start, end, page, keyword],
     queryFn: async () => {
       const response = await getSharedSessions({
         kind,
@@ -115,7 +119,7 @@ export function SessionRiskPage() {
         page_size: PAGE_SIZE,
         keyword,
         start_timestamp: start,
-        end_timestamp: now,
+        end_timestamp: end,
       })
       if (!response.success) {
         throw new Error(response.message || t('Failed to load data'))
@@ -317,20 +321,15 @@ export function SessionRiskPage() {
                 </Button>
               ))}
             </div>
-            <select
-              className='border-input bg-background h-9 rounded-lg border px-3 text-sm shadow-xs'
-              value={windowSeconds}
-              onChange={(event) => {
-                setWindowSeconds(Number(event.target.value))
+            <CompactDateTimeRangePicker
+              className='lg:w-auto'
+              start={dateRange.start}
+              end={dateRange.end}
+              onChange={(range) => {
+                setDateRange(range)
                 setPage(1)
               }}
-            >
-              {WINDOW_OPTIONS.map((option) => (
-                <option key={option.seconds} value={option.seconds}>
-                  {t(option.label)}
-                </option>
-              ))}
-            </select>
+            />
             <div className='relative w-full max-w-xl'>
               <Search className='text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2' />
               <Input
