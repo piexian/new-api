@@ -39,6 +39,13 @@ type InboundRouteBlocker interface {
 	BlockedInboundRoutes() []string
 }
 
+// ProtectedHeaderAdaptor 声明由渠道自身写入的身份/指纹请求头（不区分大小写）。
+// Header Override（含渠道亲和性模板的 pass_headers）不得新增或覆盖这些头：
+// 客户端的 User-Agent、会话 ID 等被透传后会让 OAuth 凭证或客户端指纹校验失败。
+type ProtectedHeaderAdaptor interface {
+	ProtectedRequestHeaders(info *relaycommon.RelayInfo) []string
+}
+
 type TaskAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 

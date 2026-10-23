@@ -90,6 +90,18 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
+// ProtectedRequestHeaders：上游按 OAuth 凭证与 MiniMaxAgent 客户端头联合鉴权，
+// 客户端透传的 User-Agent 等会导致 401 auth failed。
+func (a *Adaptor) ProtectedRequestHeaders(info *relaycommon.RelayInfo) []string {
+	return []string{
+		"Authorization",
+		"User-Agent",
+		"X-Mavis-Session-Id",
+		"X-Mavis-Agent-Id",
+		"X-Mavis-Timezone-Offset",
+	}
+}
+
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	return channel.DoApiRequest(a, c, info, requestBody)
 }

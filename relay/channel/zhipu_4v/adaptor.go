@@ -315,6 +315,15 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	return requestOpenAI2Zhipu(*chatRequest), nil
 }
 
+// ProtectedRequestHeaders：ZCode 模式的指纹与签名由渠道生成，客户端透传的
+// User-Agent、x-session-id 等会破坏指纹一致性与验签。
+func (a *Adaptor) ProtectedRequestHeaders(info *relaycommon.RelayInfo) []string {
+	if !isZhipuZcodeMode(info) {
+		return nil
+	}
+	return zcodeModeProtectedHeaders
+}
+
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	resp, err := channel.DoApiRequest(a, c, info, requestBody)
 	if err == nil {

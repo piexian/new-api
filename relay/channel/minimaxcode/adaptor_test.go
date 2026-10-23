@@ -1,6 +1,7 @@
 package minimaxcode
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -8,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
@@ -127,5 +129,40 @@ func TestStableUUID(t *testing.T) {
 	c := stableUUID("seed-b")
 	if a != b || a == c {
 		t.Fatalf("stableUUID not stable/unique: %q %q %q", a, b, c)
+	}
+}
+
+func TestBuildUpstreamRequestIgnoresIdentityPassHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	info := &relaycommon.RelayInfo{
+		UseRuntimeHeadersOverride: true,
+		// 等价于亲和性模板 pass_headers 透传的客户端头。
+		RuntimeHeadersOverride: map[string]any{
+			"user-agent":         "zcode/9.9.9",
+			"authorization":      "Bearer client",
+			"x-mavis-session-id": "client-session",
+			"x-session-id":       "kept",
+		},
+		ChannelMeta: &relaycommon.ChannelMeta{ApiKey: `{"access_token":"a"}`},
+	}
+
+	req, err := channel.BuildUpstreamRequest(context.Background(), &Adaptor{}, ctx, info, strings.NewReader("{}"))
+	if err != nil {
+		t.Fatalf("BuildUpstreamRequest: %v", err)
+	}
+	if got := req.Header.Get("User-Agent"); got != UserAgent {
+		t.Fatalf("User-Agent = %q, want %q", got, UserAgent)
+	}
+	if got := req.Header.Get("Authorization"); got != "Bearer a" {
+		t.Fatalf("Authorization = %q, want channel token", got)
+	}
+	if got := req.Header.Get("X-Mavis-Session-Id"); got != stableUUID("mavis-session|a") {
+		t.Fatalf("X-Mavis-Session-Id = %q, want derived id", got)
+	}
+	if got := req.Header.Get("x-session-id"); got != "kept" {
+		t.Fatalf("x-session-id = %q, want passthrough", got)
 	}
 }

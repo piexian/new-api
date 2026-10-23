@@ -109,6 +109,11 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	return request, nil
 }
 
+// ProtectedRequestHeaders 只保护凭证头；originator、User-Agent 等客户端头允许透传。
+func (a *Adaptor) ProtectedRequestHeaders(info *relaycommon.RelayInfo) []string {
+	return []string{"Authorization", "chatgpt-account-id"}
+}
+
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	return channel.DoApiRequest(a, c, info, requestBody)
 }

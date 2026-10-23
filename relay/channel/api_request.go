@@ -302,6 +302,22 @@ func ResolveHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 	return processHeaderOverride(info, c)
 }
 
+// resolveAdaptorHeaderOverride 在 processHeaderOverride 的结果上剔除 adaptor 声明的受保护头。
+func resolveAdaptorHeaderOverride(a Adaptor, info *common.RelayInfo, c *gin.Context) (map[string]string, error) {
+	headerOverride, err := processHeaderOverride(info, c)
+	if err != nil {
+		return nil, err
+	}
+	protector, ok := a.(ProtectedHeaderAdaptor)
+	if !ok {
+		return headerOverride, nil
+	}
+	for _, name := range protector.ProtectedRequestHeaders(info) {
+		delete(headerOverride, strings.ToLower(strings.TrimSpace(name)))
+	}
+	return headerOverride, nil
+}
+
 func applyHeaderOverrideToRequest(req *http.Request, headerOverride map[string]string) {
 	if req == nil {
 		return
@@ -353,7 +369,7 @@ func BuildUpstreamRequest(ctx context.Context, a Adaptor, c *gin.Context, info *
 	}
 	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
 	// 这样可以覆盖默认的 Authorization header 设置
-	headerOverride, err := processHeaderOverride(info, c)
+	headerOverride, err := resolveAdaptorHeaderOverride(a, info, c)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +425,7 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	}
 	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
 	// 这样可以覆盖默认的 Authorization header 设置
-	headerOverride, err := processHeaderOverride(info, c)
+	headerOverride, err := resolveAdaptorHeaderOverride(a, info, c)
 	if err != nil {
 		return nil, err
 	}
@@ -434,7 +450,7 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	}
 	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
 	// 这样可以覆盖默认的 Authorization header 设置
-	headerOverride, err := processHeaderOverride(info, c)
+	headerOverride, err := resolveAdaptorHeaderOverride(a, info, c)
 	if err != nil {
 		return nil, err
 	}

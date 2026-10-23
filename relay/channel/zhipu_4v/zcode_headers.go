@@ -177,3 +177,32 @@ var zcodeReplacedClaudeHeaders = []string{
 	"X-Claude-Code-Session-Id",
 	"x-client-request-id",
 }
+
+// zcodeModeProtectedHeaders 是 ZCode 模式下由渠道写入或主动清除的头：凭证、
+// 桌面端指纹、追踪头、V4 签名头，以及被替换掉的 Claude 系客户端头。
+var zcodeModeProtectedHeaders = append([]string{
+	"Authorization",
+	"x-api-key",
+	"anthropic-beta",
+	"HTTP-Referer",
+	"X-Title",
+	"X-ZCode-App-Version",
+	"X-Platform",
+	"X-Release-Channel",
+	"X-Client-Language",
+	"X-Client-Timezone",
+	"X-Os-Category",
+	"X-Os-Version",
+	"X-Device-Mid",
+	"x-request-id",
+	"x-zcode-session-type",
+	"x-zcode-trace-id",
+	"x-query-id",
+	"x-session-id",
+	"X-Client-Ts",
+	"X-Client-Version",
+	"X-Client-Sig",
+	"X-Client-Nonce",
+	"X-App-Id",
+	"X-Client-Pow",
+}, zcodeReplacedClaudeHeaders...)
