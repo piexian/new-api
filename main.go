@@ -131,6 +131,9 @@ func main() {
 	// MiniMax Code credential auto-refresh check every 10 minutes
 	service.StartMiniMaxCodeCredentialAutoRefreshTask()
 
+	// MiniMax Code auto sign-in (channel-level opt-in, daily)
+	service.StartMiniMaxCodeAutoSigninTask()
+
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
 

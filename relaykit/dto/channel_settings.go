@@ -37,6 +37,7 @@ type ChannelSettings struct {
 	// and stays valid on a New API channel as well.
 	TaskExtendPluginKeys     []string `json:"task_extend_plugin_keys,omitempty"`
 	PlanQuotaCooldownEnabled bool     `json:"plan_quota_cooldown_enabled,omitempty"`
+	AutoSigninEnabled        bool     `json:"auto_signin_enabled,omitempty"` // 每日自动领取 MiniMax 账号签到积分(仅 MiniMax Code 渠道)
 	// HTTPProtocol controls outbound HTTP version negotiation for this channel.
 	// Accepted values: "", "auto" (default), "http1".
 	HTTPProtocol string `json:"http_protocol,omitempty"`
