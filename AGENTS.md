@@ -60,8 +60,10 @@ Prefer GORM APIs; when raw SQL is unavoidable, branch on the database helpers in
 
 For upstream relay request DTOs, optional scalar JSON fields must be pointer
 types with `omitempty` so explicit `0`, `0.0`, or `false` values survive
-round-trips. In `web/default/`, follow ESLint and Prettier: 2-space indent,
-single quotes, no semicolons, sorted imports, and no `console` calls.
+round-trips. In `web/default/`, follow oxlint and oxfmt
+(`node_modules/.bin/oxfmt -c .oxfmtrc.json --write <file>`, not Prettier):
+2-space indent, single quotes, no semicolons, sorted imports, and no `console`
+calls. `web/classic/` uses Prettier.
 
 ## Testing Guidelines
 
@@ -104,6 +106,27 @@ protected project identity or attribution references related to **nеw-аρi** o
 first. When adding a new channel, verify whether `StreamOptions` is supported
 and update `streamSupportedChannels` when applicable.
 
+### Channel Protocol Support
+
+Protocol defaults and lock rules live only in `relay/common/protocol_support.go`
+(`DefaultChannelProtocolSupport`, `NativeChannelProtocol`,
+`ProtocolSupportLocked`). Frontends must not keep their own per-type matrix:
+channel list/detail responses carry `protocol_support_info`
+(`defaults`/`resolved`/`locked`), and edit forms call
+`POST /api/channel/protocol_support/resolve`. Forms submit the desired
+`protocol_support` state; the backend drops values equal to the defaults and
+all overrides on locked channels. When adding a channel type, update those
+backend functions; lock it when the upstream speaks one fixed or a private
+protocol, so the UI shows read-only tags instead of toggles.
+
+### Plan Usage Panels
+
+Usage/credit panels for OAuth or account-backed channels must return only
+whitelisted fields from the backend. Never pass raw upstream account responses
+to the frontend or render them as raw JSON; they may contain credentials.
+`web/classic/` replaces Tailwind's color palette, so style with `semi-color-*`
+classes or Semi components instead of default colors such as `bg-red-50`.
+
 ## i18n & Localization
 
 New API has two i18n layers: backend Go (`i18n/`) and frontend React (`web/*/src/i18n/`).
@@ -122,6 +145,8 @@ New API has two i18n layers: backend Go (`i18n/`) and frontend React (`web/*/src
 - `web/classic/` uses Chinese keys with `i18next-cli` (`bun run i18n:extract`).
 - After changing UI text, run the appropriate sync/extract command and fill in
   translations for all supported locales.
+- `i18n:apply` overwrites keys that already exist. Patch only new keys, or
+  check the diff against `HEAD` so existing translations are not replaced.
 
 ### i18n Check Script
 
