@@ -76,7 +76,9 @@ func TestGetUserLogsUsesExactIpFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), total)
 	require.Len(t, logs, 1)
-	require.Equal(t, exact.Id, logs[0].Id)
+	// 用户日志返回的 Id 被替换为分页序号，不能与插入时的真实 Id 比较。
+	require.Equal(t, exact.Ip, logs[0].Ip)
+	require.Equal(t, exact.CreatedAt, logs[0].CreatedAt)
 }
 
 func TestRecordChannelManageLog(t *testing.T) {
