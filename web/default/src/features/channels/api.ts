@@ -528,6 +528,166 @@ export async function getQwenTokenPlanUsage(
 }
 
 // ============================================================================
+// MiniMax Code（OAuth 设备码登录渠道）
+// ============================================================================
+
+export type MiniMaxCodeRegion = 'cn' | 'global'
+
+export type MiniMaxCodeAuthStartResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    region?: MiniMaxCodeRegion
+    user_code?: string
+    verification_url?: string
+    verification_url_complete?: string
+    interval_ms?: number
+    expires_in?: number
+  }
+}
+
+export type MiniMaxCodeAuthPollResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    status?: 'pending' | 'ready' | 'denied' | 'expired'
+    region?: MiniMaxCodeRegion
+    user_code?: string
+    expires_at?: string
+    group_id?: string
+    channel_id?: number
+    key?: string
+  }
+}
+
+export type MiniMaxCodeUsageSection = {
+  success: boolean
+  message?: string
+  data?: unknown
+}
+
+export type MiniMaxCodeUsageResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    account?: {
+      region?: string
+      user_name?: string
+      email?: string
+      group_id?: string
+      expires_at?: string
+    }
+    summary?: {
+      credit_balance?: string | null
+      credit_fallback_enabled?: boolean | null
+      credit_details?: Record<string, unknown>[]
+      reset_cards?: Record<string, unknown>[]
+      signin_days?: Record<string, unknown>[]
+    }
+    remains?: MiniMaxCodeUsageSection
+    credit?: MiniMaxCodeUsageSection
+    reset_cards?: MiniMaxCodeUsageSection
+    signin?: MiniMaxCodeUsageSection
+    credit_details?: MiniMaxCodeUsageSection
+  }
+}
+
+export async function startMiniMaxCodeAuth(
+  region: MiniMaxCodeRegion = 'cn',
+  channelId?: number
+): Promise<MiniMaxCodeAuthStartResponse> {
+  const path = channelId
+    ? `/api/channel/${channelId}/minimaxcode/oauth/start`
+    : '/api/channel/minimaxcode/oauth/start'
+  const res = await api.post(
+    path,
+    { region },
+    {
+      skipBusinessError: true,
+      disableDuplicate: true,
+    }
+  )
+  return res.data
+}
+
+export async function pollMiniMaxCodeAuth(
+  channelId?: number
+): Promise<MiniMaxCodeAuthPollResponse> {
+  const path = channelId
+    ? `/api/channel/${channelId}/minimaxcode/oauth/poll`
+    : '/api/channel/minimaxcode/oauth/poll'
+  const res = await api.post(
+    path,
+    {},
+    {
+      skipBusinessError: true,
+      disableDuplicate: true,
+    }
+  )
+  return res.data
+}
+
+export async function getMiniMaxCodeUsage(
+  channelId: number
+): Promise<MiniMaxCodeUsageResponse> {
+  const res = await api.get(`/api/channel/${channelId}/minimaxcode/usage`, {
+    skipBusinessError: true,
+    disableDuplicate: true,
+  })
+  return res.data
+}
+
+export async function refreshMiniMaxCodeCredential(channelId: number): Promise<{
+  success: boolean
+  message?: string
+  data?: { expires_at?: string; last_refresh?: string; group_id?: string }
+}> {
+  const res = await api.post(
+    `/api/channel/${channelId}/minimaxcode/refresh`,
+    {},
+    { skipBusinessError: true, disableDuplicate: true }
+  )
+  return res.data
+}
+
+export async function consumeMiniMaxCodeResetCard(
+  channelId: number,
+  // 原样回传卡片列表里的值，上游类型未固定（数字或字符串）
+  sourceType: unknown,
+  outBizNo: string
+): Promise<{ success: boolean; message?: string; data?: unknown }> {
+  const res = await api.post(
+    `/api/channel/${channelId}/minimaxcode/reset_card/use`,
+    { source_type: sourceType, out_biz_no: outBizNo },
+    { skipBusinessError: true, disableDuplicate: true }
+  )
+  return res.data
+}
+
+export async function updateMiniMaxCodeCreditFallback(
+  channelId: number,
+  enabled: boolean
+): Promise<{ success: boolean; message?: string; data?: unknown }> {
+  const res = await api.post(
+    `/api/channel/${channelId}/minimaxcode/credit_fallback`,
+    { enabled },
+    { skipBusinessError: true, disableDuplicate: true }
+  )
+  return res.data
+}
+
+export async function claimMiniMaxCodeSignin(
+  channelId: number
+): Promise<{ success: boolean; message?: string; data?: unknown }> {
+  const res = await api.post(
+    `/api/channel/${channelId}/minimaxcode/signin/claim`,
+    {},
+    { skipBusinessError: true, disableDuplicate: true }
+  )
+  return res.data
+}
+
+// ============================================================================
 // Multi-Key Management
 // ============================================================================
 

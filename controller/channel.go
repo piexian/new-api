@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/gmicloud"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
+	"github.com/QuantumNous/new-api/relay/channel/minimaxcode"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/opencode"
 	"github.com/QuantumNous/new-api/relay/channel/poe"
@@ -209,6 +210,12 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 	switch channel.Type {
 	case constant.ChannelTypeAnthropic:
 		headers = GetClaudeAuthHeader(key)
+	case constant.ChannelTypeMiniMaxCode:
+		oauthKey, err := minimaxcode.ParseOAuthKey(key)
+		if err != nil {
+			return nil, err
+		}
+		headers = GetAuthHeader(oauthKey.AccessToken)
 	case constant.ChannelTypeQwenTokenPlan:
 		apiKey, err := qwentokenplan.ExtractAPIKey(key)
 		if err != nil {
@@ -555,6 +562,19 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 			}
 			if v, ok := keyMap["account_id"]; !ok || v == nil || strings.TrimSpace(fmt.Sprintf("%v", v)) == "" {
 				return fmt.Errorf("Codex key JSON must include account_id")
+			}
+		}
+	}
+
+	// MiniMax Code 仅支持 OAuth 登录产生的 JSON 凭证（单 key）。
+	if channel.Type == constant.ChannelTypeMiniMaxCode {
+		if channel.ChannelInfo.IsMultiKey {
+			return fmt.Errorf("MiniMax Code channel does not support multi-key")
+		}
+		trimmedKey := strings.TrimSpace(channel.Key)
+		if isAdd || trimmedKey != "" {
+			if _, err := minimaxcode.ParseOAuthKey(trimmedKey); err != nil {
+				return fmt.Errorf("MiniMax Code key must be a JSON credential obtained via OAuth device login")
 			}
 		}
 	}
@@ -1432,6 +1452,14 @@ func FetchModels(c *gin.Context) {
 	}
 	if req.Type == constant.ChannelTypeStepFun {
 		baseURL = stepfun.OpenAIBaseURL(baseURL)
+	}
+	if req.Type == constant.ChannelTypeMiniMaxCode {
+		// 无上游模型列表接口，直接返回静态列表。
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    minimaxcode.ModelList,
+		})
+		return
 	}
 	if req.Type == constant.ChannelTypeMistralConsole {
 		c.JSON(http.StatusOK, gin.H{

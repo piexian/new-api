@@ -70,6 +70,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Form,
   FormControl,
   FormDescription,
@@ -134,6 +142,7 @@ import {
   getGroups,
   getPrefillGroups,
   refreshCodexCredential,
+  refreshMiniMaxCodeCredential,
 } from '../../api'
 import {
   ADD_MODE_OPTIONS,
@@ -170,6 +179,10 @@ import {
   withProtocolOverride,
 } from '../../lib'
 import {
+  acceptMiniMaxCodeRiskDisclaimer,
+  hasAcceptedMiniMaxCodeRiskDisclaimer,
+} from '../../lib/minimaxcode'
+import {
   collectInvalidStatusCodeEntries,
   collectNewDisallowedStatusCodeRedirects,
 } from '../../lib/status-code-risk-guard'
@@ -177,6 +190,7 @@ import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { AdvancedCustomEditorDialog } from '../dialogs/advanced-custom-editor-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
+import { MiniMaxCodeAuthDialog } from '../dialogs/minimaxcode-auth-dialog'
 import {
   MissingModelsConfirmationDialog,
   type MissingModelsAction,
@@ -203,6 +217,11 @@ const DOUBAO_PLAN_DEFAULT_MODEL = 'ark-code-latest'
 const OPENCODE_ZEN_BASE_URL = 'opencode-zen'
 const QWEN_TOKEN_PLAN_BASE_URL =
   'https://token-plan.cn-beijing.maas.aliyuncs.com'
+const MINIMAX_CODE_DEFAULT_MODELS = [
+  'MiniMax-M3',
+  'MiniMax-M3.1-Flash',
+  'MiniMax-M3.1-Flash-Preview',
+]
 const OPENCODE_GO_BASE_URL = 'opencode-go'
 const MOONSHOT_DEFAULT_BASE_URL = 'https://api.moonshot.cn'
 const MOONSHOT_INTL_BASE_URL = 'https://api.moonshot.ai'
@@ -320,6 +339,7 @@ const SENSITIVE_FORM_FIELDS = [
   'pass_through_body_enabled',
   'upstream_openai_compat_enabled',
   'zcode_mode_enabled',
+  'auto_signin_enabled',
   'system_prompt',
   'system_prompt_override',
   'allow_service_tier',
@@ -388,6 +408,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.pass_through_body_enabled ||
     values.upstream_openai_compat_enabled ||
     values.zcode_mode_enabled ||
+    values.auto_signin_enabled ||
     values.system_prompt_override ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
@@ -668,6 +689,10 @@ export function ChannelMutateDrawer({
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
+  const [minimaxCodeAuthOpen, setMinimaxCodeAuthOpen] = useState(false)
+  const [minimaxCodeDisclaimerOpen, setMinimaxCodeDisclaimerOpen] =
+    useState(false)
+  const [isMinimaxCodeRefreshing, setIsMinimaxCodeRefreshing] = useState(false)
   const [qwenAPIKeyInput, setQwenAPIKeyInput] = useState('')
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
@@ -922,7 +947,7 @@ export function ChannelMutateDrawer({
     multiKeyMode === 'batch' || multiKeyMode === 'multi_to_single'
   const isChannelDetailLoading = isEditing && isChannelLoading
   const supportsMultiKeyAddMode =
-    ![57, 69].includes(currentType) &&
+    ![57, 69, 81].includes(currentType) &&
     !(currentType === 41 && vertexKeyType === 'api_key')
   const addModeOptions = useMemo(
     () =>
@@ -1400,6 +1425,14 @@ export function ChannelMutateDrawer({
         form.setValue('other', 'v2.1')
       }
     }
+
+    // Type 81 (MiniMax Code) - prefill default models
+    if (currentType === 81) {
+      const currentModels = form.getValues('models')
+      if (!currentModels || parseModelsString(currentModels).length === 0) {
+        form.setValue('models', MINIMAX_CODE_DEFAULT_MODELS.join(','))
+      }
+    }
   }, [currentType, isEditing, form])
 
   useEffect(() => {
@@ -1520,6 +1553,33 @@ export function ChannelMutateDrawer({
       setIsCodexCredentialRefreshing(false)
     }
   }, [channelId, queryClient, t])
+
+  const handleRefreshMiniMaxCodeCredential = useCallback(async () => {
+    if (!channelId) return
+    setIsMinimaxCodeRefreshing(true)
+    try {
+      const res = await refreshMiniMaxCodeCredential(channelId)
+      if (!res.success) {
+        throw new Error(res.message || t('Failed to refresh credential'))
+      }
+      toast.success(t('Credential refreshed'))
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.detail(channelId),
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('Refresh failed'))
+    } finally {
+      setIsMinimaxCodeRefreshing(false)
+    }
+  }, [channelId, queryClient, t])
+
+  const handleStartMiniMaxCodeAuth = useCallback(() => {
+    if (!hasAcceptedMiniMaxCodeRiskDisclaimer()) {
+      setMinimaxCodeDisclaimerOpen(true)
+      return
+    }
+    setMinimaxCodeAuthOpen(true)
+  }, [])
 
   // Unified function to update models
   const updateModels = useCallback(
@@ -3874,6 +3934,56 @@ export function ChannelMutateDrawer({
                                 </div>
                               )}
 
+                              {currentType === 81 && (
+                                <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                                  <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                                    <div className='text-muted-foreground text-xs'>
+                                      {t(
+                                        'MiniMax Code channels use an OAuth JSON credential generated by device login.'
+                                      )}
+                                    </div>
+                                    <div className='flex flex-wrap items-center gap-2'>
+                                      <Button
+                                        type='button'
+                                        variant='outline'
+                                        size='sm'
+                                        onClick={handleStartMiniMaxCodeAuth}
+                                      >
+                                        <KeyRound className='mr-2 h-4 w-4' />
+                                        {t('OAuth Device Login')}
+                                      </Button>
+                                      {isEditing && channelId && (
+                                        <Button
+                                          type='button'
+                                          variant='outline'
+                                          size='sm'
+                                          onClick={
+                                            handleRefreshMiniMaxCodeCredential
+                                          }
+                                          disabled={isMinimaxCodeRefreshing}
+                                        >
+                                          {isMinimaxCodeRefreshing ? (
+                                            <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                          ) : (
+                                            <RefreshCw className='mr-2 h-4 w-4' />
+                                          )}
+                                          {isMinimaxCodeRefreshing
+                                            ? t('Refreshing...')
+                                            : t('Refresh credential')}
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Alert className='border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-50'>
+                                    <AlertDescription>
+                                      {t(
+                                        'Disclaimer: Personal use only. Do not distribute or share any credentials. This channel logs in with your personal MiniMax account via OAuth; use it only if you understand the flow and risks, and comply with MiniMax terms and policies.'
+                                      )}
+                                    </AlertDescription>
+                                  </Alert>
+                                </div>
+                              )}
+
                               {isEditing && isMultiKeyChannel && (
                                 <FormField
                                   control={form.control}
@@ -4899,84 +5009,91 @@ export function ChannelMutateDrawer({
                             )}
 
                             <div className='divide-border space-y-0 divide-y border-y'>
-                              <FormField
-                                control={form.control}
-                                name='protocol_support'
-                                render={({ field }) => {
-                                  const resolvedProtocols =
-                                    resolveChannelProtocolSupport(
-                                      currentType,
-                                      form.watch('base_url'),
-                                      {
-                                        upstream_openai_compat_enabled:
-                                          currentUpstreamOpenAICompatEnabled,
-                                        zcode_mode_enabled:
-                                          currentZcodeModeEnabled,
-                                        protocol_support: field.value,
-                                      }
-                                    )
-                                  return (
-                                    <FormItem className='space-y-3 px-4 py-3'>
-                                      <div className='space-y-0.5'>
-                                        <FormLabel>
-                                          {t('Protocol Support')}
-                                        </FormLabel>
-                                        <FormDescription>
-                                          {t(
-                                            'Toggle upstream native protocol support. Disabled protocols automatically convert to an enabled protocol, or are blocked locally when request body pass-through is enabled.'
-                                          )}
-                                        </FormDescription>
-                                      </div>
-                                      <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
-                                        {CHANNEL_PROTOCOL_ITEMS.map((item) => {
-                                          const enabled =
-                                            resolvedProtocols[item.key]
-                                          return (
-                                            <div
-                                              key={item.key}
-                                              className='border-border/70 bg-muted/20 flex items-center justify-between gap-2 rounded-md border px-3 py-2'
-                                            >
-                                              <div className='min-w-0'>
-                                                <div className='text-xs font-medium'>
-                                                  {item.label}
-                                                </div>
-                                                <div className='text-muted-foreground truncate font-mono text-[10px]'>
-                                                  {item.endpoint}
-                                                </div>
-                                              </div>
-                                              <Switch
-                                                checked={enabled}
-                                                onCheckedChange={(checked) => {
-                                                  field.onChange(
-                                                    withProtocolOverride(
-                                                      currentType,
-                                                      field.value,
-                                                      item.key,
+                              {/* MiniMax Code 上游只有 Claude Messages，其余协议一律转换，开关没有意义 */}
+                              {currentType !== 81 && (
+                                <FormField
+                                  control={form.control}
+                                  name='protocol_support'
+                                  render={({ field }) => {
+                                    const resolvedProtocols =
+                                      resolveChannelProtocolSupport(
+                                        currentType,
+                                        form.watch('base_url'),
+                                        {
+                                          upstream_openai_compat_enabled:
+                                            currentUpstreamOpenAICompatEnabled,
+                                          zcode_mode_enabled:
+                                            currentZcodeModeEnabled,
+                                          protocol_support: field.value,
+                                        }
+                                      )
+                                    return (
+                                      <FormItem className='space-y-3 px-4 py-3'>
+                                        <div className='space-y-0.5'>
+                                          <FormLabel>
+                                            {t('Protocol Support')}
+                                          </FormLabel>
+                                          <FormDescription>
+                                            {t(
+                                              'Toggle upstream native protocol support. Disabled protocols automatically convert to an enabled protocol, or are blocked locally when request body pass-through is enabled.'
+                                            )}
+                                          </FormDescription>
+                                        </div>
+                                        <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
+                                          {CHANNEL_PROTOCOL_ITEMS.map(
+                                            (item) => {
+                                              const enabled =
+                                                resolvedProtocols[item.key]
+                                              return (
+                                                <div
+                                                  key={item.key}
+                                                  className='border-border/70 bg-muted/20 flex items-center justify-between gap-2 rounded-md border px-3 py-2'
+                                                >
+                                                  <div className='min-w-0'>
+                                                    <div className='text-xs font-medium'>
+                                                      {item.label}
+                                                    </div>
+                                                    <div className='text-muted-foreground truncate font-mono text-[10px]'>
+                                                      {item.endpoint}
+                                                    </div>
+                                                  </div>
+                                                  <Switch
+                                                    checked={enabled}
+                                                    onCheckedChange={(
                                                       checked
-                                                    )
-                                                  )
-                                                  if (
-                                                    (currentType === 24 ||
-                                                      currentType === 72) &&
-                                                    item.key === 'chat'
-                                                  ) {
-                                                    form.setValue(
-                                                      'upstream_openai_compat_enabled',
-                                                      checked,
-                                                      { shouldDirty: true }
-                                                    )
-                                                  }
-                                                }}
-                                              />
-                                            </div>
-                                          )
-                                        })}
-                                      </div>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )
-                                }}
-                              />
+                                                    ) => {
+                                                      field.onChange(
+                                                        withProtocolOverride(
+                                                          currentType,
+                                                          field.value,
+                                                          item.key,
+                                                          checked
+                                                        )
+                                                      )
+                                                      if (
+                                                        (currentType === 24 ||
+                                                          currentType === 72) &&
+                                                        item.key === 'chat'
+                                                      ) {
+                                                        form.setValue(
+                                                          'upstream_openai_compat_enabled',
+                                                          checked,
+                                                          { shouldDirty: true }
+                                                        )
+                                                      }
+                                                    }}
+                                                  />
+                                                </div>
+                                              )
+                                            }
+                                          )}
+                                        </div>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )
+                                  }}
+                                />
+                              )}
 
                               {currentType === 1 && (
                                 <FormField
@@ -5093,6 +5210,32 @@ export function ChannelMutateDrawer({
                                         <FormDescription>
                                           {t(
                                             'Only accept /v1/messages (Claude format) requests with the ZCode client fingerprint; other formats are rejected (GLM Coding Plan channels only)'
+                                          )}
+                                        </FormDescription>
+                                      </div>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value}
+                                          onCheckedChange={field.onChange}
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
+                              {currentType === 81 && (
+                                <FormField
+                                  control={form.control}
+                                  name='auto_signin_enabled'
+                                  render={({ field }) => (
+                                    <FormItem className='flex items-center justify-between px-4 py-3'>
+                                      <div className='space-y-0.5'>
+                                        <FormLabel>
+                                          {t('Auto Sign-in')}
+                                        </FormLabel>
+                                        <FormDescription>
+                                          {t(
+                                            'Automatically claim the MiniMax daily sign-in points once per day'
                                           )}
                                         </FormDescription>
                                       </div>
@@ -5791,6 +5934,52 @@ export function ChannelMutateDrawer({
             : undefined
         }
       />
+
+      {/* MiniMax Code OAuth Device Login (new-channel mode) */}
+      <MiniMaxCodeAuthDialog
+        open={minimaxCodeAuthOpen}
+        onOpenChange={setMinimaxCodeAuthOpen}
+        onKeyGenerated={(key) => {
+          form.setValue('key', key, { shouldDirty: true, shouldValidate: true })
+          toast.success(t('Credential generated'))
+        }}
+      />
+
+      {/* MiniMax Code risk disclaimer */}
+      <Dialog
+        open={minimaxCodeDisclaimerOpen}
+        onOpenChange={setMinimaxCodeDisclaimerOpen}
+      >
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>{t('Risk Disclaimer')}</DialogTitle>
+            <DialogDescription>
+              {t(
+                'This channel logs in with your personal MiniMax account via OAuth device login. For personal use only — do not distribute or share any credentials. Use it only if you understand the flow and risks, and comply with MiniMax terms and policies.'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => setMinimaxCodeDisclaimerOpen(false)}
+            >
+              {t('Cancel')}
+            </Button>
+            <Button
+              type='button'
+              onClick={() => {
+                acceptMiniMaxCodeRiskDisclaimer()
+                setMinimaxCodeDisclaimerOpen(false)
+                setMinimaxCodeAuthOpen(true)
+              }}
+            >
+              {t('I understand and agree')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SecureVerificationDialog
         open={verificationOpen}

@@ -80,6 +80,8 @@ import ModelSelectModal from './ModelSelectModal';
 import SingleModelSelectModal from './SingleModelSelectModal';
 import OllamaModelModal from './OllamaModelModal';
 import CodexOAuthModal from './CodexOAuthModal';
+import MiniMaxCodeOAuthModal from './MiniMaxCodeOAuthModal';
+import { CHANNEL_TYPE_MINIMAX_CODE } from '../../../../constants/channel.constants';
 import ParamOverrideEditorModal from './ParamOverrideEditorModal';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import SecureVerificationModal from '../../../common/modals/SecureVerificationModal';
@@ -260,6 +262,7 @@ const EditChannelModal = (props) => {
     pass_through_body_enabled: false,
     upstream_openai_compat_enabled: false,
     zcode_mode_enabled: false,
+    auto_signin_enabled: false,
     use_responses_api: false,
     chat_completions_to_responses_mode: 'inherit',
     responses_via_chat_fallback_mode: 'inherit',
@@ -454,6 +457,10 @@ const EditChannelModal = (props) => {
   const [isIonetChannel, setIsIonetChannel] = useState(false);
   const [ionetMetadata, setIonetMetadata] = useState(null);
   const [codexOAuthModalVisible, setCodexOAuthModalVisible] = useState(false);
+  const [minimaxCodeAuthVisible, setMinimaxCodeAuthVisible] = useState(false);
+  const [minimaxCodeDisclaimerVisible, setMinimaxCodeDisclaimerVisible] =
+    useState(false);
+  const [minimaxCodeRefreshing, setMinimaxCodeRefreshing] = useState(false);
   const [qwenApiKeyInput, setQwenApiKeyInput] = useState('');
   const [qwenCredentialBound, setQwenCredentialBound] = useState(false);
   const [qwenConsoleToken, setQwenConsoleToken] = useState('');
@@ -606,6 +613,7 @@ const EditChannelModal = (props) => {
     pass_through_body_enabled: false,
     upstream_openai_compat_enabled: false,
     zcode_mode_enabled: false,
+    auto_signin_enabled: false,
     use_responses_api: false,
     chat_completions_to_responses_mode: 'inherit',
     responses_via_chat_fallback_mode: 'inherit',
@@ -1121,6 +1129,8 @@ const EditChannelModal = (props) => {
                 ).chat
               : parsedSettings.upstream_openai_compat_enabled === true;
           data.zcode_mode_enabled = parsedSettings.zcode_mode_enabled === true;
+          data.auto_signin_enabled =
+            parsedSettings.auto_signin_enabled === true;
           data.use_responses_api = parsedSettings.use_responses_api === true;
           data.chat_completions_to_responses_mode =
             typeof parsedSettings.chat_completions_to_responses_enabled ===
@@ -1172,6 +1182,7 @@ const EditChannelModal = (props) => {
           data.use_responses_api = false;
           data.upstream_openai_compat_enabled = false;
           data.zcode_mode_enabled = false;
+          data.auto_signin_enabled = false;
           data.chat_completions_to_responses_mode = 'inherit';
           data.responses_via_chat_fallback_mode = 'inherit';
           data.chat_completions_to_responses_models = [];
@@ -1190,6 +1201,7 @@ const EditChannelModal = (props) => {
         data.use_responses_api = false;
         data.upstream_openai_compat_enabled = false;
         data.zcode_mode_enabled = false;
+        data.auto_signin_enabled = false;
         data.chat_completions_to_responses_mode = 'inherit';
         data.responses_via_chat_fallback_mode = 'inherit';
         data.chat_completions_to_responses_models = [];
@@ -1327,6 +1339,7 @@ const EditChannelModal = (props) => {
         upstream_openai_compat_enabled:
           data.upstream_openai_compat_enabled === true,
         zcode_mode_enabled: data.zcode_mode_enabled === true,
+        auto_signin_enabled: data.auto_signin_enabled === true,
         use_responses_api: data.use_responses_api || false,
         chat_completions_to_responses_mode:
           data.chat_completions_to_responses_mode || 'inherit',
@@ -1381,6 +1394,7 @@ const EditChannelModal = (props) => {
         data.pass_through_body_enabled ||
         data.upstream_openai_compat_enabled === true ||
         data.zcode_mode_enabled === true ||
+        data.auto_signin_enabled === true ||
         data.force_format ||
         data.claude_beta_query ||
         data.system_prompt_override;
@@ -1599,6 +1613,49 @@ const EditChannelModal = (props) => {
     }
   };
 
+  const MINIMAX_CODE_DISCLAIMER_KEY = 'minimaxcode_risk_disclaimer_accepted';
+
+  const hasAcceptedMinimaxCodeDisclaimer = () => {
+    try {
+      return localStorage.getItem(MINIMAX_CODE_DISCLAIMER_KEY) === 'true';
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const handleStartMinimaxCodeAuth = () => {
+    if (!hasAcceptedMinimaxCodeDisclaimer()) {
+      setMinimaxCodeDisclaimerVisible(true);
+      return;
+    }
+    setMinimaxCodeAuthVisible(true);
+  };
+
+  const handleMinimaxCodeGenerated = (key) => {
+    handleInputChange('key', key);
+    formatJsonField('key');
+  };
+
+  const handleRefreshMinimaxCodeCredential = async () => {
+    if (!isEdit) return;
+    setMinimaxCodeRefreshing(true);
+    try {
+      const res = await API.post(
+        `/api/channel/${channelId}/minimaxcode/refresh`,
+        {},
+        { skipErrorHandler: true },
+      );
+      if (!res?.data?.success) {
+        throw new Error(res?.data?.message || t('刷新失败'));
+      }
+      showSuccess(t('凭证已刷新'));
+    } catch (error) {
+      showError(error.message || t('刷新失败'));
+    } finally {
+      setMinimaxCodeRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     if (![25, 26, 45, CHANNEL_TYPE_OPENCODE].includes(inputs.type)) {
       doubaoApiClickCountRef.current = 0;
@@ -1736,6 +1793,7 @@ const EditChannelModal = (props) => {
       pass_through_body_enabled: false,
       upstream_openai_compat_enabled: false,
       zcode_mode_enabled: false,
+      auto_signin_enabled: false,
       use_responses_api: false,
       chat_completions_to_responses_mode: 'inherit',
       responses_via_chat_fallback_mode: 'inherit',
@@ -2163,6 +2221,7 @@ const EditChannelModal = (props) => {
       upstream_openai_compat_enabled:
         localInputs.upstream_openai_compat_enabled === true,
       zcode_mode_enabled: localInputs.zcode_mode_enabled === true,
+      auto_signin_enabled: localInputs.auto_signin_enabled === true,
       use_responses_api: false,
       system_prompt: localInputs.system_prompt || '',
       system_prompt_override: localInputs.system_prompt_override || false,
@@ -2296,6 +2355,7 @@ const EditChannelModal = (props) => {
     delete localInputs.pass_through_body_enabled;
     delete localInputs.upstream_openai_compat_enabled;
     delete localInputs.zcode_mode_enabled;
+    delete localInputs.auto_signin_enabled;
     delete localInputs.use_responses_api;
     delete localInputs.chat_completions_to_responses_mode;
     delete localInputs.chat_completions_to_responses_models;
@@ -2463,7 +2523,9 @@ const EditChannelModal = (props) => {
 
   const batchAllowed =
     (!isEdit || isMultiKeyChannel) &&
-    ![57, CHANNEL_TYPE_QWEN_TOKEN_PLAN].includes(inputs.type);
+    ![57, CHANNEL_TYPE_QWEN_TOKEN_PLAN, CHANNEL_TYPE_MINIMAX_CODE].includes(
+      inputs.type,
+    );
   const batchExtra = batchAllowed ? (
     <Space>
       {!isEdit && (
@@ -3183,96 +3245,103 @@ const EditChannelModal = (props) => {
                     />
                   )}
 
-                  <div
-                    className='semi-form-field'
-                    style={{ paddingTop: 12, paddingBottom: 12 }}
-                  >
+                  {/* MiniMax Code 上游只有 Claude Messages，其余协议一律转换，开关没有意义 */}
+                  {inputs.type !== CHANNEL_TYPE_MINIMAX_CODE && (
                     <div
-                      className='semi-form-field-label-text'
-                      style={{ fontWeight: 600, marginBottom: 4 }}
+                      className='semi-form-field'
+                      style={{ paddingTop: 12, paddingBottom: 12 }}
                     >
-                      {t('协议支持')}
-                    </div>
-                    <div
-                      className='semi-form-field-extra'
-                      style={{ marginBottom: 8 }}
-                    >
-                      {t(
-                        '控制该渠道上游原生支持的协议。关闭的协议将自动转换为已开启协议（若开启请求体透传则在网关本地直接拦截）。',
-                      )}
-                    </div>
-                    <Space spacing={12} wrap>
-                      {(() => {
-                        const resolvedProtocols = resolveChannelProtocolSupport(
-                          inputs.type,
-                          inputs.base_url,
-                          {
-                            upstream_openai_compat_enabled:
-                              channelSettings.upstream_openai_compat_enabled,
-                            zcode_mode_enabled:
-                              channelSettings.zcode_mode_enabled,
-                            protocol_support: channelSettings.protocol_support,
-                          },
-                        );
-                        return CHANNEL_PROTOCOL_ITEMS.map((item) => {
-                          const enabled = resolvedProtocols[item.key];
-                          return (
-                            <div
-                              key={item.key}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                padding: '6px 10px',
-                                border: '1px solid var(--semi-color-border)',
-                                borderRadius: 6,
-                              }}
-                            >
-                              <div>
-                                <div style={{ fontSize: 12, fontWeight: 500 }}>
-                                  {item.label}
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: 11,
-                                    color: 'var(--semi-color-text-2)',
-                                    fontFamily: 'monospace',
-                                  }}
-                                >
-                                  {item.endpoint}
-                                </div>
-                              </div>
-                              <Switch
-                                size='small'
-                                checked={enabled}
-                                onChange={(checked) => {
-                                  handleChannelSettingsChange(
-                                    'protocol_support',
-                                    withProtocolOverride(
-                                      inputs.type,
-                                      channelSettings.protocol_support,
-                                      item.key,
-                                      checked,
-                                    ),
-                                  );
-                                  if (
-                                    (inputs.type === 24 ||
-                                      inputs.type === 72) &&
-                                    item.key === 'chat'
-                                  ) {
-                                    handleChannelSettingsChange(
-                                      'upstream_openai_compat_enabled',
-                                      checked,
-                                    );
-                                  }
+                      <div
+                        className='semi-form-field-label-text'
+                        style={{ fontWeight: 600, marginBottom: 4 }}
+                      >
+                        {t('协议支持')}
+                      </div>
+                      <div
+                        className='semi-form-field-extra'
+                        style={{ marginBottom: 8 }}
+                      >
+                        {t(
+                          '控制该渠道上游原生支持的协议。关闭的协议将自动转换为已开启协议（若开启请求体透传则在网关本地直接拦截）。',
+                        )}
+                      </div>
+                      <Space spacing={12} wrap>
+                        {(() => {
+                          const resolvedProtocols =
+                            resolveChannelProtocolSupport(
+                              inputs.type,
+                              inputs.base_url,
+                              {
+                                upstream_openai_compat_enabled:
+                                  channelSettings.upstream_openai_compat_enabled,
+                                zcode_mode_enabled:
+                                  channelSettings.zcode_mode_enabled,
+                                protocol_support:
+                                  channelSettings.protocol_support,
+                              },
+                            );
+                          return CHANNEL_PROTOCOL_ITEMS.map((item) => {
+                            const enabled = resolvedProtocols[item.key];
+                            return (
+                              <div
+                                key={item.key}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '6px 10px',
+                                  border: '1px solid var(--semi-color-border)',
+                                  borderRadius: 6,
                                 }}
-                              />
-                            </div>
-                          );
-                        });
-                      })()}
-                    </Space>
-                  </div>
+                              >
+                                <div>
+                                  <div
+                                    style={{ fontSize: 12, fontWeight: 500 }}
+                                  >
+                                    {item.label}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: 11,
+                                      color: 'var(--semi-color-text-2)',
+                                      fontFamily: 'monospace',
+                                    }}
+                                  >
+                                    {item.endpoint}
+                                  </div>
+                                </div>
+                                <Switch
+                                  size='small'
+                                  checked={enabled}
+                                  onChange={(checked) => {
+                                    handleChannelSettingsChange(
+                                      'protocol_support',
+                                      withProtocolOverride(
+                                        inputs.type,
+                                        channelSettings.protocol_support,
+                                        item.key,
+                                        checked,
+                                      ),
+                                    );
+                                    if (
+                                      (inputs.type === 24 ||
+                                        inputs.type === 72) &&
+                                      item.key === 'chat'
+                                    ) {
+                                      handleChannelSettingsChange(
+                                        'upstream_openai_compat_enabled',
+                                        checked,
+                                      );
+                                    }
+                                  }}
+                                />
+                              </div>
+                            );
+                          });
+                        })()}
+                      </Space>
+                    </div>
+                  )}
 
                   {inputs.type === 48 && (
                     <Form.Switch
@@ -3362,6 +3431,24 @@ const EditChannelModal = (props) => {
                       }
                       extraText={t(
                         '开启后仅接受 /v1/messages（Claude 格式）请求并携带 ZCode 客户端指纹，其余格式请求将被拒绝；关闭保持原有透传逻辑（仅 GLM Coding Plan 渠道）',
+                      )}
+                    />
+                  )}
+
+                  {inputs.type === 81 && (
+                    <Form.Switch
+                      field='auto_signin_enabled'
+                      label={t('自动签到')}
+                      checkedText={t('开')}
+                      uncheckedText={t('关')}
+                      onChange={(value) =>
+                        handleChannelSettingsChange(
+                          'auto_signin_enabled',
+                          value,
+                        )
+                      }
+                      extraText={t(
+                        '开启后每日自动领取一次 MiniMax 账号签到积分（仅 MiniMax Code 渠道）',
                       )}
                     />
                   )}
@@ -3902,6 +3989,114 @@ const EditChannelModal = (props) => {
                                 }
                                 onSuccess={handleCodexOAuthGenerated}
                               />
+                            </>
+                          ) : inputs.type === CHANNEL_TYPE_MINIMAX_CODE ? (
+                            <>
+                              <Form.TextArea
+                                field='key'
+                                label={t('密钥')}
+                                placeholder={t(
+                                  '凭证由 OAuth 设备码登录生成，点击下方按钮登录',
+                                )}
+                                autosize
+                                showClear
+                                onChange={(value) =>
+                                  handleInputChange('key', value)
+                                }
+                                extraText={
+                                  <div className='flex flex-col gap-2'>
+                                    <Text type='tertiary' size='small'>
+                                      {t(
+                                        'MiniMax Code 渠道使用设备码登录生成的 OAuth JSON 凭证作为密钥。',
+                                      )}
+                                    </Text>
+                                    <Space wrap spacing='tight'>
+                                      <Button
+                                        size='small'
+                                        type='primary'
+                                        theme='outline'
+                                        onClick={handleStartMinimaxCodeAuth}
+                                      >
+                                        {t('OAuth 设备码登录')}
+                                      </Button>
+                                      {isEdit && (
+                                        <Button
+                                          size='small'
+                                          type='primary'
+                                          theme='outline'
+                                          onClick={
+                                            handleRefreshMinimaxCodeCredential
+                                          }
+                                          loading={minimaxCodeRefreshing}
+                                        >
+                                          {t('刷新凭证')}
+                                        </Button>
+                                      )}
+                                      <Button
+                                        size='small'
+                                        type='primary'
+                                        theme='outline'
+                                        onClick={() => formatJsonField('key')}
+                                      >
+                                        {t('格式化')}
+                                      </Button>
+                                    </Space>
+                                  </div>
+                                }
+                              />
+
+                              <MiniMaxCodeOAuthModal
+                                visible={minimaxCodeAuthVisible}
+                                onCancel={() =>
+                                  setMinimaxCodeAuthVisible(false)
+                                }
+                                onSuccess={handleMinimaxCodeGenerated}
+                              />
+
+                              <Modal
+                                title={t('风险声明')}
+                                visible={minimaxCodeDisclaimerVisible}
+                                onCancel={() =>
+                                  setMinimaxCodeDisclaimerVisible(false)
+                                }
+                                footer={
+                                  <Space>
+                                    <Button
+                                      theme='borderless'
+                                      onClick={() =>
+                                        setMinimaxCodeDisclaimerVisible(false)
+                                      }
+                                    >
+                                      {t('取消')}
+                                    </Button>
+                                    <Button
+                                      type='primary'
+                                      theme='solid'
+                                      onClick={() => {
+                                        try {
+                                          localStorage.setItem(
+                                            MINIMAX_CODE_DISCLAIMER_KEY,
+                                            'true',
+                                          );
+                                        } catch (e) {
+                                          // localStorage 不可用时跳过持久化
+                                        }
+                                        setMinimaxCodeDisclaimerVisible(false);
+                                        setMinimaxCodeAuthVisible(true);
+                                      }}
+                                    >
+                                      {t('我已了解并同意')}
+                                    </Button>
+                                  </Space>
+                                }
+                              >
+                                <Banner
+                                  type='warning'
+                                  description={t(
+                                    '此渠道通过 OAuth 设备码登录你的个人 MiniMax 账户，仅供个人使用，请勿分发或共享任何凭证。仅在理解流程与风险并遵守 MiniMax 条款和政策的前提下使用。',
+                                  )}
+                                />
+                              </Modal>
                             </>
                           ) : inputs.type === 41 &&
                             (inputs.vertex_key_type || 'json') === 'json' ? (

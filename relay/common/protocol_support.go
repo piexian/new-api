@@ -91,6 +91,8 @@ func NativeChannelProtocol(channelType int, baseURL string, setting dto.ChannelS
 		return ProtocolGemini
 	case constant.ChannelTypeCodex:
 		return ProtocolResponses
+	case constant.ChannelTypeMiniMaxCode:
+		return ProtocolMessages
 	case constant.ChannelTypeZhipu_v4:
 		if setting.ZcodeModeEnabled && isZhipuZCodeBase(baseURL) {
 			return ProtocolMessages
@@ -220,6 +222,13 @@ func DefaultChannelProtocolSupport(channelType int, baseURL string, setting dto.
 		}
 	case constant.ChannelTypeAnthropic,
 		constant.ChannelTypeAws:
+		return ResolvedProtocolSupport{
+			Chat:      false,
+			Responses: false,
+			Messages:  true,
+			Gemini:    false,
+		}
+	case constant.ChannelTypeMiniMaxCode:
 		return ResolvedProtocolSupport{
 			Chat:      false,
 			Responses: false,

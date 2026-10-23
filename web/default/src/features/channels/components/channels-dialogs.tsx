@@ -24,6 +24,7 @@ import { CopyChannelDialog } from './dialogs/copy-channel-dialog'
 import { EditTagDialog } from './dialogs/edit-tag-dialog'
 import { FetchModelsDialog } from './dialogs/fetch-models-dialog'
 import { InferenceStatusDialog } from './dialogs/inference-status-dialog'
+import { MiniMaxCodeAuthDialog } from './dialogs/minimaxcode-auth-dialog'
 import { MultiKeyManageDialog } from './dialogs/multi-key-manage-dialog'
 import { OllamaModelsDialog } from './dialogs/ollama-models-dialog'
 import { PlanUsageQueryDialog } from './dialogs/plan-usage-query-dialog'
@@ -65,6 +66,12 @@ export function ChannelsDialogs() {
       {/* ZCode StartPlan Re-authorization Dialog */}
       <ZcodeStartPlanAuthDialog
         open={open === 'start-plan-auth'}
+        onOpenChange={(v) => !v && setOpen(null)}
+      />
+
+      {/* MiniMax Code Re-authorization Dialog */}
+      <MiniMaxCodeAuthDialog
+        open={open === 'minimaxcode-auth'}
         onOpenChange={(v) => !v && setOpen(null)}
       />
 

@@ -230,10 +230,20 @@ func miniMaxTokenPlanRequestURLs(channel *model.Channel) []string {
 }
 
 func isMiniMaxTokenPlanLimitError(channelError types.ChannelError, err *types.NewAPIError) bool {
-	if channelError.ChannelType != constant.ChannelTypeMiniMax || err == nil {
+	if (channelError.ChannelType != constant.ChannelTypeMiniMax &&
+		channelError.ChannelType != constant.ChannelTypeMiniMaxCode) || err == nil {
 		return false
 	}
 	message := strings.ToLower(err.ErrorWithStatusCode())
+	if channelError.ChannelType == constant.ChannelTypeMiniMaxCode {
+		// MiniMax Code 上游限流文案未完全固化，429 下按额度类关键词放宽匹配；
+		// 余量查询无耗尽窗口时不进入冷却，风险可控。
+		return strings.Contains(message, "token plan") ||
+			strings.Contains(message, "quota") ||
+			strings.Contains(message, "limit") ||
+			strings.Contains(message, "额度") ||
+			strings.Contains(message, "用量")
+	}
 	return strings.Contains(message, "token plan") &&
 		strings.Contains(message, miniMaxTokenPlanLimitCode) &&
 		(strings.Contains(message, "用量上限") || strings.Contains(message, "usage limit") || strings.Contains(message, "limit"))
@@ -265,6 +275,9 @@ func resolveMiniMaxTokenPlanCooldownUntil(ctx context.Context, channelError type
 	}
 	if ch == nil {
 		return 0, "", false, errors.New("channel not found")
+	}
+	if ch.Type == constant.ChannelTypeMiniMaxCode {
+		return resolveMiniMaxCodeTokenPlanCooldownUntil(ctx, ch, modelName, now)
 	}
 	if ch.Type != constant.ChannelTypeMiniMax {
 		return 0, "", false, fmt.Errorf("channel type is not MiniMax: %d", ch.Type)
@@ -371,11 +384,13 @@ func miniMaxTokenPlanRemainCooldownUntil(item miniMaxTokenPlanModelRemain, now t
 	return windowUntil, fmt.Sprintf("model=%s window=%s reset_at=%s", item.ModelName, strings.Join(windows, "+"), time.Unix(windowUntil, 0).Format(time.RFC3339)), true
 }
 
+// coding_plan/remains 的 usage_count 实为剩余次数（官方客户端按 total - usage_count 计算已用），
+// 所以次数窗口耗尽对应 usage_count 归零。
 func miniMaxTokenPlanWindowExhausted(status int, remainingPercent float64, totalCount int64, usageCount int64) bool {
 	if status == miniMaxTokenPlanExhaustedStatus {
 		return true
 	}
-	return remainingPercent <= 0 && totalCount > 0 && usageCount >= totalCount
+	return remainingPercent <= 0 && totalCount > 0 && usageCount <= 0
 }
 
 func miniMaxTokenPlanResetUnix(endTime int64, remainsTime int64, now time.Time) int64 {

@@ -56,6 +56,10 @@ export function isMiniMaxTokenPlanChannel(channel: Channel): boolean {
   return channel.type === CHANNEL_TYPE_MINIMAX
 }
 
+export function isMiniMaxCodeChannel(channel: Channel): boolean {
+  return channel.type === 81
+}
+
 export function isQwenTokenPlanChannel(channel: Channel): boolean {
   return channel.type === CHANNEL_TYPE_QWEN_TOKEN_PLAN
 }

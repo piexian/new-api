@@ -44,6 +44,7 @@ import {
   CHANNEL_OPTIONS,
   CHANNEL_TYPE_CODEX,
   CHANNEL_TYPE_MINIMAX,
+  CHANNEL_TYPE_MINIMAX_CODE,
   CHANNEL_TYPE_MOONSHOT,
   CHANNEL_TYPE_QWEN_TOKEN_PLAN,
   CHANNEL_TYPE_ZHIPU_V4,
@@ -92,6 +93,9 @@ const isZhipuCodingPlanChannel = (record) => {
 };
 
 // StartPlan 免费档代理渠道（zcode.z.ai，密钥为 zcodeJwtToken），支持一键重授权。
+const isMiniMaxCodeChannel = (record) =>
+  Boolean(record) && record.type === CHANNEL_TYPE_MINIMAX_CODE;
+
 const isZcodeStartPlanChannel = (record) => {
   if (!record || record.children !== undefined) {
     return false;
@@ -426,6 +430,7 @@ export const getChannelsColumns = ({
   COLUMN_KEYS,
   updateChannelBalance,
   openMiniMaxTokenPlanUsage,
+  openMiniMaxCodeUsage,
   openZhipuCodingPlanUsage,
   openZcodeStartPlanAuth,
   openKimiCodingPlanUsage,
@@ -799,6 +804,19 @@ export const getChannelsColumns = ({
                     </Tag>
                   </Tooltip>
                 )}
+                {isMiniMaxCodeChannel(record) && (
+                  <Tooltip content={t('查询 MiniMax Code 用量、积分与重置卡')}>
+                    <Tag
+                      color='green'
+                      type='light'
+                      shape='circle'
+                      className='cursor-pointer'
+                      onClick={() => openMiniMaxCodeUsage(record)}
+                    >
+                      {t('用量/积分')}
+                    </Tag>
+                  </Tooltip>
+                )}
                 {isZcodeStartPlan && (
                   <Tooltip content={t('ZCode StartPlan 一键重授权')}>
                     <Tag
@@ -1007,7 +1025,10 @@ export const getChannelsColumns = ({
             },
           ];
 
-          if (!record.channel_info?.is_multi_key) {
+          if (
+            !record.channel_info?.is_multi_key &&
+            record.type !== CHANNEL_TYPE_MINIMAX_CODE
+          ) {
             moreMenuItems.push({
               node: 'item',
               name: t('转换为多密钥渠道'),

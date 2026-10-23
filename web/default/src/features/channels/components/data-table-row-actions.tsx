@@ -72,6 +72,7 @@ import {
   handleToggleChannelStatus,
   isChannelEnabled,
   isKimiCodingPlanChannel,
+  isMiniMaxCodeChannel,
   isMiniMaxTokenPlanChannel,
   isMultiKeyChannel,
   isQwenTokenPlanChannel,
@@ -108,11 +109,14 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   )
   const canQueryPlanUsage =
     isMiniMaxTokenPlanChannel(channel) ||
+    isMiniMaxCodeChannel(channel) ||
     isZhipuCodingPlanChannel(channel) ||
     isKimiCodingPlanChannel(channel) ||
     isQwenTokenPlanChannel(channel)
   const canReauthorizeStartPlan =
     canEditSensitive && isZcodeStartPlanChannel(channel)
+  const canReauthorizeMiniMaxCode =
+    canEditSensitive && isMiniMaxCodeChannel(channel)
 
   const convertMutation = useMutation({
     mutationFn: async () => {
@@ -167,6 +171,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const handleStartPlanAuth = () => {
     setCurrentRow(channel)
     setOpen('start-plan-auth')
+  }
+
+  const handleMiniMaxCodeAuth = () => {
+    setCurrentRow(channel)
+    setOpen('minimaxcode-auth')
   }
 
   const handleFetchModels = () => {
@@ -337,10 +346,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
 
           {canQueryPlanUsage && (
             <DropdownMenuItem onClick={handleQueryPlanUsage}>
-              {isMiniMaxTokenPlanChannel(channel) ||
-              isQwenTokenPlanChannel(channel)
-                ? t('Token Plan')
-                : t('Coding Plan')}
+              {planUsageActionLabel(channel, t)}
               <DropdownMenuShortcut>
                 <ChartNoAxesColumn size={16} />
               </DropdownMenuShortcut>
@@ -350,6 +356,15 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           {canReauthorizeStartPlan && (
             <DropdownMenuItem onClick={handleStartPlanAuth}>
               {t('StartPlan Re-authorization')}
+              <DropdownMenuShortcut>
+                <KeyRound size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
+
+          {canReauthorizeMiniMaxCode && (
+            <DropdownMenuItem onClick={handleMiniMaxCodeAuth}>
+              {t('MiniMax Code Re-authorization')}
               <DropdownMenuShortcut>
                 <KeyRound size={16} />
               </DropdownMenuShortcut>
@@ -419,8 +434,8 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             </DropdownMenuItem>
           )}
 
-          {/* Manage Keys (only for multi-key channels) */}
-          {!isMultiKey && (
+          {/* Manage Keys (only for multi-key channels); MiniMax Code does not support multi-key */}
+          {!isMultiKey && !isMiniMaxCodeChannel(channel) && (
             <DropdownMenuItem
               disabled={!canEditSensitive}
               onClick={() => setConvertConfirmOpen(true)}
@@ -492,4 +507,15 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
       />
     </div>
   )
+}
+
+function planUsageActionLabel(
+  channel: Channel,
+  t: (key: string) => string
+): string {
+  if (isMiniMaxCodeChannel(channel)) return t('Usage & Credits')
+  if (isMiniMaxTokenPlanChannel(channel) || isQwenTokenPlanChannel(channel)) {
+    return t('Token Plan')
+  }
+  return t('Coding Plan')
 }

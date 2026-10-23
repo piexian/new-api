@@ -302,6 +302,7 @@ export const channelFormSchema = z
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
     plan_quota_cooldown_enabled: z.boolean().optional(),
+    auto_signin_enabled: z.boolean().optional(), // MiniMax Code: daily auto sign-in
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -373,6 +374,16 @@ export const channelFormSchema = z
           ctx,
           'key',
           'Codex credential must be a JSON object with access_token and account_id'
+        )
+      }
+    }
+
+    if (data.type === 81) {
+      if (data.multi_key_mode && data.multi_key_mode !== 'single') {
+        addRequiredIssue(
+          ctx,
+          'multi_key_mode',
+          'MiniMax Code channels do not support batch creation'
         )
       }
     }
@@ -487,6 +498,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   system_prompt: '',
   system_prompt_override: false,
   plan_quota_cooldown_enabled: false,
+  auto_signin_enabled: false,
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -549,6 +561,7 @@ export function transformChannelToFormDefaults(
     system_prompt: '',
     system_prompt_override: false,
     plan_quota_cooldown_enabled: false,
+    auto_signin_enabled: false,
   }
 
   if (channel.setting) {
@@ -629,6 +642,7 @@ export function transformChannelToFormDefaults(
         system_prompt_override: parsed.system_prompt_override || false,
         plan_quota_cooldown_enabled:
           parsed.plan_quota_cooldown_enabled === true,
+        auto_signin_enabled: parsed.auto_signin_enabled === true,
         protocol_support: protocolSupport,
       }
     } catch (error) {
@@ -767,6 +781,7 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
     plan_quota_cooldown_enabled: formData.plan_quota_cooldown_enabled === true,
+    auto_signin_enabled: formData.auto_signin_enabled === true,
   })
 
   const protocol = normalizeHttpProtocol(formData.http_protocol)

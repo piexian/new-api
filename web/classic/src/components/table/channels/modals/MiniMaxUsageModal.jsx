@@ -116,18 +116,12 @@ const resolveCurrentWindowLabel = (startTime, endTime, t) => {
 
 const resolveWindowQuota = ({ total, remaining, upstreamUsageCount }) => {
   const totalValue = toNumber(total);
-  const usedCount = toNumber(upstreamUsageCount);
-  const remainingCount = toNumber(remaining);
+  // coding_plan/remains 的 usage_count 实为剩余次数，官方客户端同样按 total - usage_count 计算已用
+  const remainingValue = toNumber(remaining) ?? toNumber(upstreamUsageCount);
   const usedValue =
-    usedCount ??
-    (totalValue != null && remainingCount != null
-      ? Math.max(totalValue - remainingCount, 0)
-      : null);
-  const remainingValue =
-    remainingCount ??
-    (totalValue != null && usedCount != null
-      ? Math.max(totalValue - usedCount, 0)
-      : null);
+    totalValue != null && remainingValue != null
+      ? Math.max(totalValue - remainingValue, 0)
+      : null;
 
   return {
     total: totalValue,
@@ -252,7 +246,7 @@ const buildWindow = ({
   };
 };
 
-const resolveModelWindows = (item, t) => {
+export const resolveModelWindows = (item, t) => {
   const currentStartTime = normalizeEpochMs(item?.start_time);
   const currentEndTime = normalizeEpochMs(item?.end_time);
   const weeklyStartTime = normalizeEpochMs(item?.weekly_start_time);
@@ -400,7 +394,7 @@ const WindowCard = ({ t, windowInfo }) => {
   );
 };
 
-const MiniMaxModelCard = ({ t, item, windows }) => {
+export const MiniMaxModelCard = ({ t, item, windows }) => {
   const modelName = String(item?.model_name || item?.model || t('未命名模型'));
 
   return (
@@ -422,7 +416,7 @@ const MiniMaxModelCard = ({ t, item, windows }) => {
   );
 };
 
-const MetaBlock = ({ label, value }) => {
+export const MetaBlock = ({ label, value }) => {
   return (
     <div className='min-w-0 rounded-lg border border-semi-color-border bg-semi-color-bg-0 p-3'>
       <div className='mb-1 text-xs text-semi-color-text-2'>{label}</div>

@@ -409,6 +409,7 @@ export function getChannelIcon(channelType) {
     case 31: // 零一万物
       return <Yi.Color size={iconSize} />;
     case 35: // MiniMax
+    case 81: // MiniMax Code
       return <Minimax.Color size={iconSize} />;
     case 37: // Dify
       return <Dify.Color size={iconSize} />;

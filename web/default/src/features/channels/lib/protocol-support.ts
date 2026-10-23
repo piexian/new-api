@@ -182,6 +182,7 @@ export function getDefaultProtocolSupport(
       }
     case 14: // Anthropic
     case 33: // AWS
+    case 81: // MiniMax Code
       return {
         chat: false,
         responses: false,

@@ -22,6 +22,7 @@ import { toast } from 'sonner'
 
 import {
   getKimiCodingPlanUsage,
+  getMiniMaxCodeUsage,
   getMiniMaxTokenPlanUsage,
   getQwenTokenPlanUsage,
   getZhipuCodingPlanUsage,
@@ -29,6 +30,7 @@ import {
 } from '../../api'
 import {
   isKimiCodingPlanChannel,
+  isMiniMaxCodeChannel,
   isQwenTokenPlanChannel,
 } from '../../lib/plan-usage-utils'
 import { useChannels } from '../channels-provider'
@@ -57,6 +59,8 @@ export function PlanUsageQueryDialog({
   let kind: ChannelPlanUsageKind = 'zhipu'
   if (currentRow?.type === 35) {
     kind = 'minimax'
+  } else if (currentRow && isMiniMaxCodeChannel(currentRow)) {
+    kind = 'minimaxcode'
   } else if (currentRow && isKimiCodingPlanChannel(currentRow)) {
     kind = 'kimi'
   } else if (currentRow && isQwenTokenPlanChannel(currentRow)) {
@@ -73,6 +77,9 @@ export function PlanUsageQueryDialog({
         let res: ChannelPlanUsageResponse
         if (kind === 'minimax') {
           res = await getMiniMaxTokenPlanUsage(row.id, keyIndex)
+        } else if (kind === 'minimaxcode') {
+          const minimaxCodeRes = await getMiniMaxCodeUsage(row.id)
+          res = minimaxCodeRes as unknown as ChannelPlanUsageResponse
         } else if (kind === 'kimi') {
           res = await getKimiCodingPlanUsage(row.id, keyIndex)
         } else if (kind === 'qwen') {

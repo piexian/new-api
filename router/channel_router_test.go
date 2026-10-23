@@ -80,6 +80,12 @@ func TestSetApiRouterRegistersPermissionRoutes(t *testing.T) {
 		http.MethodGet + " /api/channel/:id/zcode/start_plan/auth/poll",
 		http.MethodGet + " /api/channel/:id/kimi/coding_plan/usage",
 		http.MethodGet + " /api/channel/:id/qwen/token_plan/usage",
+		http.MethodPost + " /api/channel/minimaxcode/oauth/start",
+		http.MethodPost + " /api/channel/minimaxcode/oauth/poll",
+		http.MethodPost + " /api/channel/:id/minimaxcode/oauth/start",
+		http.MethodPost + " /api/channel/:id/minimaxcode/oauth/poll",
+		http.MethodPost + " /api/channel/:id/minimaxcode/refresh",
+		http.MethodGet + " /api/channel/:id/minimaxcode/usage",
 	}
 	for _, route := range requiredRoutes {
 		assert.Contains(t, routes, route)

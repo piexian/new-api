@@ -40,6 +40,8 @@ import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
 import { Modal, Button } from '@douyinfe/semi-ui';
 import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 import { openMiniMaxUsageModal } from '../../components/table/channels/modals/MiniMaxUsageModal';
+import { openMiniMaxCodeUsageModal } from '../../components/table/channels/modals/MiniMaxCodeUsageModal';
+import MiniMaxCodeOAuthModal from '../../components/table/channels/modals/MiniMaxCodeOAuthModal';
 import { openZhipuCodingPlanUsageModal } from '../../components/table/channels/modals/ZhipuCodingPlanModal';
 import { openZcodeStartPlanAuthModal } from '../../components/table/channels/modals/ZcodeStartPlanAuthModal';
 import { openKimiCodingPlanUsageModal } from '../../components/table/channels/modals/KimiCodingPlanModal';
@@ -803,6 +805,13 @@ export const useChannelsData = () => {
     });
   };
 
+  const openMiniMaxCodeUsage = (record) => {
+    openMiniMaxCodeUsageModal({
+      t,
+      record,
+    });
+  };
+
   const openZhipuCodingPlanUsage = (record) => {
     openZhipuCodingPlanUsageModal({
       t,
@@ -1285,6 +1294,7 @@ export const useChannelsData = () => {
     updateAllChannelsBalance,
     updateChannelBalance,
     openMiniMaxTokenPlanUsage,
+    openMiniMaxCodeUsage,
     openZhipuCodingPlanUsage,
     openZcodeStartPlanAuth,
     openKimiCodingPlanUsage,

@@ -41,6 +41,7 @@ type DialogType =
   | 'balance-query'
   | 'plan-usage'
   | 'start-plan-auth'
+  | 'minimaxcode-auth'
   | 'fetch-models'
   | 'ollama-models'
   | 'multi-key-manage'

@@ -78,6 +78,7 @@ const (
 	ChannelTypeNewAPI             = 78
 	ChannelTypeVLLM               = 79
 	ChannelTypeSGLang             = 80
+	ChannelTypeMiniMaxCode        = 81
 	ChannelTypeDummy              // this one is only for count, do not add any channel after this
 )
 
@@ -163,6 +164,7 @@ var ChannelBaseURLs = []string{
 	"",                            //78 NewAPI
 	"http://localhost:8000",       //79 vLLM
 	"http://localhost:30000",      //80 SGLang
+	"https://agent.minimax.cn",    //81 MiniMax Code
 }
 
 var ChannelTypeNames = map[int]string{
@@ -243,6 +245,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeNewAPI:             "New API",
 	ChannelTypeVLLM:               "vLLM",
 	ChannelTypeSGLang:             "SGLang",
+	ChannelTypeMiniMaxCode:        "MiniMax Code",
 }
 
 func GetChannelTypeName(channelType int) string {

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -154,4 +155,63 @@ func TestMiniMaxTokenPlanCooldownUntilUsesWeeklyResetWhenWeeklyExhausted(t *test
 	require.True(t, ok)
 	require.Equal(t, int64(1782057600), until)
 	require.Contains(t, detail, "window=weekly")
+}
+
+func TestIsMiniMaxCodeTokenPlanLimitError(t *testing.T) {
+	err := types.NewOpenAIError(
+		errors.New("已达到 Token Plan 用量上限：请升级 Token Plan 套餐或购买积分补充用量。 (2056)"),
+		types.ErrorCodeBadResponseStatusCode,
+		429,
+		types.ErrOptionWithSkipSensitiveMask(),
+	)
+	channelError := types.ChannelError{ChannelType: constant.ChannelTypeMiniMaxCode}
+	require.True(t, isMiniMaxTokenPlanLimitError(channelError, err))
+}
+
+func TestMiniMaxCodeRemainsCooldownIgnoresUnlimitedWindows(t *testing.T) {
+	now := time.Unix(1781869349, 0)
+	// coding_plan/remains 载荷：general 窗口不限量（status 3）不应触发冷却。
+	body := []byte(`{
+		"base_resp": {"status_code": 0, "status_msg": "success"},
+		"model_remains": [{
+			"model_name": "general",
+			"current_interval_status": 3,
+			"current_interval_remaining_percent": 0,
+			"current_interval_total_count": 0,
+			"current_interval_usage_count": 0,
+			"current_weekly_status": 3,
+			"current_weekly_remaining_percent": 0,
+			"current_weekly_total_count": 0,
+			"current_weekly_usage_count": 0
+		}]
+	}`)
+	until, detail, ok, err := miniMaxTokenPlanCooldownUntil(body, now, "MiniMax-M3")
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Zero(t, until)
+	require.Empty(t, detail)
+}
+
+func TestMiniMaxCodeRemainsCooldownUsesExhaustedWindow(t *testing.T) {
+	now := time.Unix(1781869349, 0)
+	resetAt := now.Add(2 * time.Hour).Unix()
+	body := []byte(`{
+		"base_resp": {"status_code": 0, "status_msg": "success"},
+		"model_remains": [{
+			"model_name": "general",
+			"current_interval_status": 2,
+			"current_interval_remaining_percent": 0,
+			"current_interval_total_count": 100,
+			"current_interval_usage_count": 0,
+			"end_time": ` + strconv.FormatInt(resetAt*1000, 10) + `,
+			"current_weekly_status": 1,
+			"current_weekly_remaining_percent": 50
+		}]
+	}`)
+	until, detail, ok, err := miniMaxTokenPlanCooldownUntil(body, now, "MiniMax-M3")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, resetAt, until)
+	require.Contains(t, detail, "general")
+	require.Contains(t, detail, "interval")
 }

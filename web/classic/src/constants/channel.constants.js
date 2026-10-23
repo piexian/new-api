@@ -38,6 +38,7 @@ export const CHANNEL_TYPE_SUB2API = 77;
 export const CHANNEL_TYPE_NEWAPI = 78;
 export const CHANNEL_TYPE_VLLM = 79;
 export const CHANNEL_TYPE_SGLANG = 80;
+export const CHANNEL_TYPE_MINIMAX_CODE = 81;
 
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
@@ -301,6 +302,11 @@ export const CHANNEL_OPTIONS = [
     value: CHANNEL_TYPE_SGLANG,
     color: 'orange',
     label: 'SGLang',
+  },
+  {
+    value: CHANNEL_TYPE_MINIMAX_CODE,
+    color: 'green',
+    label: 'MiniMax Code',
   },
 ];
 

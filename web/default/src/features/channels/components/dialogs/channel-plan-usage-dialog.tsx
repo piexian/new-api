@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -26,9 +27,11 @@ import {
   Loader2,
   RefreshCw,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -41,15 +44,27 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { Switch } from '@/components/ui/switch'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import dayjs from '@/lib/dayjs'
 import { formatTimestampToDate } from '@/lib/format'
 
-import type { ChannelPlanUsageResponse, KimiExtraUsage } from '../../api'
+import {
+  claimMiniMaxCodeSignin,
+  updateMiniMaxCodeCreditFallback,
+  consumeMiniMaxCodeResetCard,
+  type ChannelPlanUsageResponse,
+  type KimiExtraUsage,
+} from '../../api'
+import { channelsQueryKeys } from '../../lib'
 import type { Channel } from '../../types'
 
-export type ChannelPlanUsageKind = 'minimax' | 'zhipu' | 'kimi' | 'qwen'
+export type ChannelPlanUsageKind =
+  | 'minimax'
+  | 'minimaxcode'
+  | 'zhipu'
+  | 'kimi'
+  | 'qwen'
 
 type ChannelPlanUsageDialogProps = {
   open: boolean
@@ -261,16 +276,11 @@ function resolveWindowQuota(input: {
   upstreamUsageCount: unknown
 }): { total: number | null; used: number | null; remaining: number | null } {
   const total = toNumber(input.total)
-  const usedCount = toNumber(input.upstreamUsageCount)
-  const remainingCount = toNumber(input.remaining)
-  const used =
-    usedCount ??
-    (total != null && remainingCount != null
-      ? Math.max(total - remainingCount, 0)
-      : null)
+  // coding_plan/remains 的 usage_count 实为剩余次数，官方客户端同样按 total - usage_count 计算已用
   const remaining =
-    remainingCount ??
-    (total != null && usedCount != null ? Math.max(total - usedCount, 0) : null)
+    toNumber(input.remaining) ?? toNumber(input.upstreamUsageCount)
+  const used =
+    total != null && remaining != null ? Math.max(total - remaining, 0) : null
 
   return { total, used, remaining }
 }
@@ -671,14 +681,396 @@ function MiniMaxModelCard({
   )
 }
 
-function MiniMaxUsageView({
+type MiniMaxCodeUsageSummary = {
+  credit_balance?: string | null
+  credit_fallback_enabled?: boolean | null
+  credit_details?: Record<string, unknown>[]
+  reset_cards?: Record<string, unknown>[]
+  signin_days?: Record<string, unknown>[]
+}
+
+// 签到格子状态取自官方客户端：2 可领取，3 已领取，4 不可用，其余为未到期。
+const MINIMAX_CODE_SIGNIN_CLAIMABLE = 2
+const MINIMAX_CODE_SIGNIN_CLAIMED = 3
+const MINIMAX_CODE_SIGNIN_DISABLED = 4
+
+function toRecordList(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => toRecord(item))
+    .filter((item): item is Record<string, unknown> => item !== null)
+}
+
+function formatSigninStatus(status: unknown, t: (key: string) => string) {
+  const value = toNumber(status)
+  if (value === MINIMAX_CODE_SIGNIN_CLAIMED) return t('Claimed')
+  if (value === MINIMAX_CODE_SIGNIN_CLAIMABLE) return t('Claimable')
+  if (value === MINIMAX_CODE_SIGNIN_DISABLED) return t('Not claimable')
+  return t('Upcoming')
+}
+
+function MiniMaxCodeUsageView({
+  channelId,
   response,
   onRefresh,
   isRefreshing,
 }: {
+  channelId?: number
   response: ChannelPlanUsageResponse | null
   onRefresh: () => void
   isRefreshing?: boolean
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [busyAction, setBusyAction] = useState('')
+  const [pendingCard, setPendingCard] = useState<Record<
+    string,
+    unknown
+  > | null>(null)
+
+  const aggregate = toRecord(response?.data)
+  const account = toRecord(aggregate?.account)
+  const remains = toRecord(aggregate?.remains)
+  const credit = toRecord(aggregate?.credit)
+  const creditDetailsSection = toRecord(aggregate?.credit_details)
+  const resetCardsSection = toRecord(aggregate?.reset_cards)
+  const signin = toRecord(aggregate?.signin)
+  const summary = (toRecord(aggregate?.summary) ??
+    {}) as MiniMaxCodeUsageSummary
+
+  const remainsResponse = useMemo<ChannelPlanUsageResponse | null>(() => {
+    if (!response) return null
+    return {
+      ...(response as ChannelPlanUsageResponse),
+      success: remains?.success !== false,
+      message: String(remains?.message || ''),
+      data: remains?.data ?? null,
+    }
+  }, [response, remains])
+
+  const cards = toRecordList(summary.reset_cards)
+  const creditDetails = toRecordList(summary.credit_details)
+  const signinDays = toRecordList(summary.signin_days).sort(
+    (a, b) => (toNumber(a.day_no) ?? 0) - (toNumber(b.day_no) ?? 0)
+  )
+  const claimedToday = signinDays.some(
+    (day) =>
+      day.is_today === true &&
+      toNumber(day.status) === MINIMAX_CODE_SIGNIN_CLAIMED
+  )
+  const claimable = signinDays.some(
+    (day) => toNumber(day.status) === MINIMAX_CODE_SIGNIN_CLAIMABLE
+  )
+
+  const fallbackEnabledInitial =
+    typeof summary.credit_fallback_enabled === 'boolean'
+      ? summary.credit_fallback_enabled
+      : null
+  const [fallbackEnabled, setFallbackEnabled] = useState<boolean | null>(
+    fallbackEnabledInitial
+  )
+
+  useEffect(() => {
+    setFallbackEnabled(fallbackEnabledInitial)
+  }, [fallbackEnabledInitial])
+
+  const runAction = async (
+    key: string,
+    action: () => Promise<{ success: boolean; message?: string }>
+  ) => {
+    if (!channelId || busyAction) return
+    setBusyAction(key)
+    try {
+      const res = await action()
+      if (res.success) {
+        toast.success(t('Operation succeeded'))
+        onRefresh()
+        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      } else {
+        toast.error(res.message || t('Operation failed'))
+        setFallbackEnabled(fallbackEnabledInitial)
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : t('Operation failed')
+      )
+      setFallbackEnabled(fallbackEnabledInitial)
+    } finally {
+      setBusyAction('')
+    }
+  }
+
+  const confirmUseCard = () => {
+    const card = pendingCard
+    setPendingCard(null)
+    if (!card || !channelId) return
+    const id = channelId
+    const outBizNo = String(card.out_biz_no ?? '')
+    void runAction(`card-${outBizNo}`, () =>
+      consumeMiniMaxCodeResetCard(id, card.source_type, outBizNo)
+    )
+  }
+
+  // 上游不一定返回账户名等字段，只展示有值的项。
+  const accountMeta = [
+    { label: t('Region'), value: String(account?.region || '') },
+    {
+      label: t('Account'),
+      value: String(account?.user_name || account?.email || ''),
+    },
+    { label: t('Plan group'), value: String(account?.group_id || '') },
+    {
+      label: t('Token expires at'),
+      value: account?.expires_at
+        ? formatDateTime(String(account.expires_at))
+        : '',
+    },
+  ].filter((meta) => meta.value)
+
+  let creditDetailsContent: ReactNode
+  if (creditDetailsSection?.success === false) {
+    creditDetailsContent = (
+      <SectionMessage text={String(creditDetailsSection.message || '-')} />
+    )
+  } else if (creditDetails.length === 0) {
+    creditDetailsContent = <SectionMessage text={t('No credit details')} />
+  } else {
+    creditDetailsContent = (
+      <div className='space-y-1.5'>
+        {creditDetails.map((detail) => (
+          <div
+            key={`${String(detail.credit_type ?? '')}-${String(detail.granted_at_ms ?? '')}-${String(detail.expire_at_ms ?? '')}`}
+            className='flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs'
+          >
+            <span>
+              {t('Remaining')} {String(detail.remaining_amount ?? '-')} /{' '}
+              {t('Granted')} {String(detail.granted_amount ?? '-')}
+            </span>
+            <span className='text-muted-foreground'>
+              {t('Expires at')}: {formatDateTime(detail.expire_at_ms)}
+            </span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  let resetCardsContent: ReactNode
+  if (resetCardsSection?.success === false) {
+    resetCardsContent = (
+      <SectionMessage text={String(resetCardsSection.message || '-')} />
+    )
+  } else if (cards.length === 0) {
+    resetCardsContent = <SectionMessage text={t('No available reset cards')} />
+  } else {
+    resetCardsContent = (
+      <div className='space-y-2'>
+        {cards.map((card, index) => {
+          const outBizNo = String(card.out_biz_no ?? '')
+          const usable = Boolean(
+            card.source_type !== undefined && outBizNo && channelId
+          )
+          return (
+            <div
+              key={String(card.card_id ?? outBizNo ?? index)}
+              className='flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between'
+            >
+              <div className='min-w-0 space-y-1'>
+                <div className='text-sm font-medium'>
+                  {String(card.card_name || card.name || t('Full reset'))}
+                </div>
+                <div className='text-muted-foreground text-xs'>
+                  {t('Expires at')}: {formatDateTime(card.expire_time)}
+                </div>
+              </div>
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                className='self-start sm:self-auto'
+                disabled={!usable || busyAction !== ''}
+                onClick={() => setPendingCard(card)}
+              >
+                {busyAction === `card-${outBizNo}` ? (
+                  <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                ) : null}
+                {t('Use')}
+              </Button>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return (
+    <div className='space-y-4'>
+      {response?.success === false && (
+        <div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400'>
+          {response.message || t('Failed to fetch usage')}
+        </div>
+      )}
+
+      {accountMeta.length > 0 && (
+        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+          {accountMeta.map((meta) => (
+            <MetaBlock key={meta.label} label={meta.label} value={meta.value} />
+          ))}
+        </div>
+      )}
+
+      <div className='space-y-2'>
+        <div className='text-sm font-semibold'>{t('Plan remains')}</div>
+        <MiniMaxUsageView
+          response={remainsResponse}
+          onRefresh={onRefresh}
+          isRefreshing={isRefreshing}
+          hideMeta
+        />
+      </div>
+
+      <MiniMaxCodeSectionCard title={t('Credits')}>
+        {credit?.success === false && summary.credit_balance == null ? (
+          <SectionMessage text={String(credit.message || '-')} />
+        ) : (
+          <div className='flex items-baseline gap-2'>
+            <span className='text-muted-foreground text-sm'>
+              {t('Credit balance')}
+            </span>
+            <span className='text-lg font-semibold'>
+              {summary.credit_balance ?? '-'}
+            </span>
+          </div>
+        )}
+        {fallbackEnabled !== null && channelId ? (
+          <div className='mt-3 flex items-center justify-between gap-3 border-t pt-3'>
+            <div className='text-sm'>
+              {t('Use credits when plan is exhausted')}
+            </div>
+            <Switch
+              checked={fallbackEnabled}
+              disabled={busyAction !== ''}
+              onCheckedChange={(checked) => {
+                setFallbackEnabled(checked)
+                void runAction('fallback', () =>
+                  updateMiniMaxCodeCreditFallback(channelId, checked)
+                )
+              }}
+            />
+          </div>
+        ) : null}
+        <div className='mt-3 border-t pt-3'>
+          <div className='text-muted-foreground mb-2 text-xs font-medium'>
+            {t('Credit details')}
+          </div>
+          {creditDetailsContent}
+        </div>
+      </MiniMaxCodeSectionCard>
+
+      <MiniMaxCodeSectionCard title={t('Reset cards')}>
+        {resetCardsContent}
+      </MiniMaxCodeSectionCard>
+
+      <MiniMaxCodeSectionCard title={t('Daily sign-in')}>
+        {signin?.success === false ? (
+          <SectionMessage text={String(signin.message || '-')} />
+        ) : (
+          <div className='space-y-3'>
+            {signinDays.length === 0 ? (
+              <SectionMessage text={t('No sign-in data')} />
+            ) : (
+              <div className='grid grid-cols-4 gap-2 sm:grid-cols-7'>
+                {signinDays.map((day) => (
+                  <div
+                    key={String(day.day_no)}
+                    className={`rounded-lg border p-2 text-center text-xs ${
+                      day.is_today === true ? 'border-primary' : ''
+                    }`}
+                  >
+                    <div className='font-medium'>
+                      {t('Day {{day}}', { day: String(day.day_no ?? '-') })}
+                    </div>
+                    <div>
+                      +{String(day.points ?? 0)}
+                      {toNumber(day.bonus_points)
+                        ? ` +${String(day.bonus_points)}`
+                        : ''}
+                    </div>
+                    <div className='text-muted-foreground'>
+                      {formatSigninStatus(day.status, t)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {channelId ? (
+              <Button
+                type='button'
+                size='sm'
+                variant='outline'
+                disabled={busyAction !== '' || claimedToday || !claimable}
+                onClick={() => {
+                  void runAction('signin', () =>
+                    claimMiniMaxCodeSignin(channelId)
+                  )
+                }}
+              >
+                {busyAction === 'signin' ? (
+                  <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                ) : null}
+                {claimedToday ? t('Claimed today') : t('Sign in')}
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </MiniMaxCodeSectionCard>
+
+      <ConfirmDialog
+        open={pendingCard !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingCard(null)
+        }}
+        title={t('Use this reset card?')}
+        desc={t(
+          'The plan usage windows will be reset immediately and the card will be consumed.'
+        )}
+        confirmText={t('Use')}
+        handleConfirm={confirmUseCard}
+      />
+    </div>
+  )
+}
+
+function MiniMaxCodeSectionCard({
+  title,
+  children,
+}: {
+  title: string
+  children: ReactNode
+}) {
+  return (
+    <div className='rounded-lg border p-4'>
+      <div className='mb-3 text-sm font-semibold'>{title}</div>
+      {children}
+    </div>
+  )
+}
+
+function SectionMessage({ text }: { text: string }) {
+  return <div className='text-muted-foreground text-sm'>{text || '-'}</div>
+}
+
+function MiniMaxUsageView({
+  response,
+  onRefresh,
+  isRefreshing,
+  hideMeta = false,
+}: {
+  response: ChannelPlanUsageResponse | null
+  onRefresh: () => void
+  isRefreshing?: boolean
+  // MiniMax Code 由后端代理查询，没有上游状态与请求地址可展示
+  hideMeta?: boolean
 }) {
   const { t } = useTranslation()
   const upstreamData = toRecord(response?.data)
@@ -722,19 +1114,21 @@ function MiniMaxUsageView({
         </div>
       )}
 
-      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-        <MetaBlock
-          label={t('Upstream Status')}
-          value={response?.upstream_status ?? '-'}
-        />
-        <MetaBlock label={t('Request URL')} value={response?.request_url} />
-        <MetaBlock label={t('Business Status')} value={businessStatus} />
-        <MetaBlock
-          label={t('Business Message')}
-          value={String(baseResp?.status_msg || response?.message || '-')}
-        />
-        <MetaBlock label={t('Plan')} value={planLabel} />
-      </div>
+      {!hideMeta && (
+        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+          <MetaBlock
+            label={t('Upstream Status')}
+            value={response?.upstream_status ?? '-'}
+          />
+          <MetaBlock label={t('Request URL')} value={response?.request_url} />
+          <MetaBlock label={t('Business Status')} value={businessStatus} />
+          <MetaBlock
+            label={t('Business Message')}
+            value={String(baseResp?.status_msg || response?.message || '-')}
+          />
+          <MetaBlock label={t('Plan')} value={planLabel} />
+        </div>
+      )}
 
       <div className='space-y-3'>
         {activeModels.length > 0 &&
@@ -1482,10 +1876,14 @@ export function ChannelPlanUsageDialog({
   const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const [showRawJson, setShowRawJson] = useState(false)
+  // MiniMax Code 的上游账户响应可能带凭据，只展示后端整理过的字段。
+  const showRawJsonSection = kind !== 'minimaxcode'
 
   let title = t('Zhipu Coding Plan Usage')
   if (kind === 'minimax') {
     title = t('MiniMax Token Plan Usage')
+  } else if (kind === 'minimaxcode') {
+    title = t('MiniMax Code Usage')
   } else if (kind === 'kimi') {
     title = t('Kimi Coding Plan Usage')
   } else if (kind === 'qwen') {
@@ -1512,6 +1910,15 @@ export function ChannelPlanUsageDialog({
   if (kind === 'minimax') {
     usageView = (
       <MiniMaxUsageView
+        response={response}
+        onRefresh={refreshCurrentKey}
+        isRefreshing={isRefreshing}
+      />
+    )
+  } else if (kind === 'minimaxcode') {
+    usageView = (
+      <MiniMaxCodeUsageView
+        channelId={channel?.id}
         response={response}
         onRefresh={refreshCurrentKey}
         isRefreshing={isRefreshing}
@@ -1546,7 +1953,7 @@ export function ChannelPlanUsageDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className='min-h-0 flex-1 pr-4'>
+        <div className='-mr-2 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-2'>
           {isRefreshing && !response ? (
             <div className='text-muted-foreground flex min-h-64 items-center justify-center gap-2 text-sm'>
               <Loader2 className='h-4 w-4 animate-spin' />
@@ -1563,48 +1970,50 @@ export function ChannelPlanUsageDialog({
 
               {usageView}
 
-              <div className='rounded-lg border'>
-                <button
-                  type='button'
-                  className='hover:bg-muted/40 flex w-full items-center justify-between gap-2 p-3 transition-colors'
-                  onClick={() => setShowRawJson((v) => !v)}
-                >
-                  <div className='text-sm font-medium'>{t('Raw JSON')}</div>
-                  {showRawJson ? (
-                    <ChevronUp className='text-muted-foreground h-4 w-4' />
-                  ) : (
-                    <ChevronDown className='text-muted-foreground h-4 w-4' />
+              {showRawJsonSection && (
+                <div className='rounded-lg border'>
+                  <button
+                    type='button'
+                    className='hover:bg-muted/40 flex w-full items-center justify-between gap-2 p-3 transition-colors'
+                    onClick={() => setShowRawJson((v) => !v)}
+                  >
+                    <div className='text-sm font-medium'>{t('Raw JSON')}</div>
+                    {showRawJson ? (
+                      <ChevronUp className='text-muted-foreground h-4 w-4' />
+                    ) : (
+                      <ChevronDown className='text-muted-foreground h-4 w-4' />
+                    )}
+                  </button>
+                  {showRawJson && (
+                    <>
+                      <div className='flex justify-end border-t px-3 py-2'>
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          onClick={() => copyToClipboard(rawJsonText)}
+                          disabled={!rawJsonText}
+                        >
+                          {copiedText === rawJsonText ? (
+                            <Check className='mr-1.5 h-3.5 w-3.5 text-green-600' />
+                          ) : (
+                            <Copy className='mr-1.5 h-3.5 w-3.5' />
+                          )}
+                          {t('Copy')}
+                        </Button>
+                      </div>
+                      <div className='max-h-[42vh] overflow-y-auto'>
+                        <pre className='bg-muted/30 m-0 p-3 text-xs break-words whitespace-pre-wrap'>
+                          {rawJsonText || '-'}
+                        </pre>
+                      </div>
+                    </>
                   )}
-                </button>
-                {showRawJson && (
-                  <>
-                    <div className='flex justify-end border-t px-3 py-2'>
-                      <Button
-                        type='button'
-                        variant='outline'
-                        size='sm'
-                        onClick={() => copyToClipboard(rawJsonText)}
-                        disabled={!rawJsonText}
-                      >
-                        {copiedText === rawJsonText ? (
-                          <Check className='mr-1.5 h-3.5 w-3.5 text-green-600' />
-                        ) : (
-                          <Copy className='mr-1.5 h-3.5 w-3.5' />
-                        )}
-                        {t('Copy')}
-                      </Button>
-                    </div>
-                    <ScrollArea className='max-h-[42vh]'>
-                      <pre className='bg-muted/30 m-0 p-3 text-xs break-words whitespace-pre-wrap'>
-                        {rawJsonText || '-'}
-                      </pre>
-                    </ScrollArea>
-                  </>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
-        </ScrollArea>
+        </div>
 
         <DialogFooter>
           <Button

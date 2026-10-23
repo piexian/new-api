@@ -364,6 +364,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeCodex:          true,
 	constant.ChannelTypeMoonshot:       true,
 	constant.ChannelTypeMiniMax:        true,
+	constant.ChannelTypeMiniMaxCode:    true,
 	constant.ChannelTypePoe:            true,
 	constant.ChannelTypeSiliconFlow:    true,
 	constant.ChannelTypeXunfeiMaaS:     true,

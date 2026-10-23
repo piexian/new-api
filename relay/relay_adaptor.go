@@ -27,6 +27,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/jina"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
+	"github.com/QuantumNous/new-api/relay/channel/minimaxcode"
 	"github.com/QuantumNous/new-api/relay/channel/mistral"
 	mistralconsole "github.com/QuantumNous/new-api/relay/channel/mistral_console"
 	"github.com/QuantumNous/new-api/relay/channel/moark"
@@ -139,6 +140,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &submodel.Adaptor{}
 	case constant.APITypeMiniMax:
 		return &minimax.Adaptor{}
+	case constant.APITypeMiniMaxCode:
+		return &minimaxcode.Adaptor{}
 	case constant.APITypeReplicate:
 		return &replicate.Adaptor{}
 	case constant.APITypeCodex:
