@@ -109,3 +109,76 @@ func TestLoginPasswordSetupFlow(t *testing.T) {
 	_, result = request("PUT", "/api/user/self", gin.H{"display_name": "changed"}, true)
 	require.Equal(t, true, result["success"])
 }
+
+// 密码重置下发的随机密码必须满足密码策略，且 token 一次性消费。
+func TestResetPasswordGeneratesPolicyCompliantPassword(t *testing.T) {
+	require.NoError(t, newapii18n.Init())
+	db := setupChannelStatusControllerTestDB(t)
+
+	user := model.User{
+		Username:    "reset-flow",
+		Email:       "reset-flow@example.com",
+		DisplayName: "reset-flow",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+	}
+	require.NoError(t, db.Create(&user).Error)
+
+	router := gin.New()
+	router.POST("/api/user/reset", ResetPassword)
+
+	resetOnce := func(email string) *httptest.ResponseRecorder {
+		token := "reset-token-" + email
+		common.RegisterVerificationCodeWithKey(email, token, common.PasswordResetPurpose)
+		body, err := common.Marshal(gin.H{"email": email, "token": token})
+		require.NoError(t, err)
+		req := httptest.NewRequest(http.MethodPost, "/api/user/reset", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w
+	}
+
+	newPasswordOf := func(w *httptest.ResponseRecorder) string {
+		require.Equal(t, http.StatusOK, w.Code)
+		var response map[string]any
+		require.NoError(t, common.Unmarshal(w.Body.Bytes(), &response))
+		require.Equal(t, true, response["success"])
+		password, ok := response["data"].(string)
+		require.True(t, ok)
+		require.NoError(t, common.ValidateLoginPassword(password))
+		return password
+	}
+
+	storedPasswordOf := func() string {
+		stored, err := model.GetUserById(user.Id, true)
+		require.NoError(t, err)
+		return stored.Password
+	}
+
+	// 无初始密码用户（第三方登录绑定邮箱）也走同一条重置路径
+	require.Empty(t, storedPasswordOf())
+	newPassword := newPasswordOf(resetOnce(user.Email))
+	require.True(t, common.ValidatePasswordAndHash(newPassword, storedPasswordOf()))
+
+	// 同一 token 不能复用
+	resetWithToken := func(email, token string) map[string]any {
+		body, err := common.Marshal(gin.H{"email": email, "token": token})
+		require.NoError(t, err)
+		req := httptest.NewRequest(http.MethodPost, "/api/user/reset", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		var response map[string]any
+		require.NoError(t, common.Unmarshal(w.Body.Bytes(), &response))
+		return response
+	}
+	reused := resetWithToken(user.Email, "reset-token-"+user.Email)
+	require.Equal(t, false, reused["success"])
+
+	// 已有密码用户同样可以重置
+	newerPassword := newPasswordOf(resetOnce(user.Email))
+	require.NotEqual(t, newPassword, newerPassword)
+	require.True(t, common.ValidatePasswordAndHash(newerPassword, storedPasswordOf()))
+}

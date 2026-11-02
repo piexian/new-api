@@ -466,11 +466,19 @@ func ResetPassword(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordResetLinkInvalid)
 		return
 	}
-	password := common.GenerateVerificationCode(12)
+	password, err := common.GenerateLoginPassword()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	err = model.ResetUserPasswordByEmail(req.Email, password)
 	if err != nil {
 		if errors.Is(err, model.ErrEmailNotFound) || errors.Is(err, model.ErrEmailAmbiguous) {
 			common.ApiErrorI18n(c, i18n.MsgUserPasswordResetLinkInvalid)
+			return
+		}
+		if errors.Is(err, common.ErrPasswordPolicy) {
+			common.ApiErrorI18n(c, i18n.MsgUserPasswordPolicy)
 			return
 		}
 		common.ApiError(c, err)

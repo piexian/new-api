@@ -65,9 +65,7 @@ export function ResetPasswordConfirm({
     startCountdown()
     setLoading(true)
     try {
-      const res = await api.post('/api/user/reset', { email, token }, {
-        skipBusinessError: true,
-      } as Record<string, unknown>)
+      const res = await api.post('/api/user/reset', { email, token })
 
       if (res?.data?.success) {
         const password = res.data.data
