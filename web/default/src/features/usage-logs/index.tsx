@@ -34,6 +34,7 @@ import {
   useLogsViewScope,
   useUsageLogsContext,
 } from './components/usage-logs-provider'
+import { UsageLogsScopeTabs } from './components/usage-logs-scope-tabs'
 import { UsageLogsTable } from './components/usage-logs-table'
 import {
   isUsageLogsSectionId,
@@ -165,6 +166,7 @@ function UsageLogsContent() {
         )}
         <SectionPageLayout.Content>
           <div className='flex h-full min-h-0 flex-col gap-4'>
+            {activeCategory === 'common' && <UsageLogsScopeTabs />}
             {showTaskSwitcher && (
               <Tabs value={activeCategory} onValueChange={handleSectionChange}>
                 <TabsList className='max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto'>

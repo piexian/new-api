@@ -51,6 +51,14 @@ import {
   renderAuditContent,
 } from '../../lib/format'
 import {
+  getLoginAuditOutcomeLabel,
+  getLoginAuditReasonLabel,
+  getLoginAuditUserAgent,
+  getLoginAuthAudit,
+  isLoginAuditLogType,
+  resolveLoginAuditOutcome,
+} from '../../lib/login-audit'
+import {
   isDisplayableLogType,
   isTimingLogType,
   getLogTypeConfig,
@@ -126,6 +134,17 @@ function buildTypeDetailSegments(
   if (log.type === 3 || log.type === 7) {
     const text = log.content || renderAuditContent(other, t)
     return text ? [{ text }] : []
+  }
+
+  if (log.type === 8) {
+    const audit = getLoginAuthAudit(other)
+    const reasonLabel = getLoginAuditReasonLabel(audit?.reason)
+    const outcomeLabel = getLoginAuditOutcomeLabel(
+      resolveLoginAuditOutcome(log.type, audit)
+    )
+    return [
+      { text: log.content || (reasonLabel ? t(reasonLabel) : t(outcomeLabel)) },
+    ]
   }
 
   if (log.type === 6) {
@@ -786,7 +805,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
       accessorKey: 'user_agent',
       header: t('User Agent'),
       cell: ({ row }) => {
-        const ua = row.original.user_agent
+        const log = row.original
+        // Login records may only carry the user agent inside `other`.
+        const ua =
+          isLoginAuditLogType(log.type) && !log.user_agent
+            ? getLoginAuditUserAgent(log, parseLogOther(log.other))
+            : log.user_agent
         return ua ? (
           <div className='max-w-xs truncate font-mono text-xs' title={ua}>
             {ua}

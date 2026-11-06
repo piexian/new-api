@@ -38,10 +38,14 @@ import {
 } from '../constants'
 import { useColumnsByCategory } from '../lib/columns'
 import { parseLogOther } from '../lib/format'
+import { getLoginAuthAudit, resolveLoginAuditOutcome } from '../lib/login-audit'
 import { fetchLogsByCategory } from '../lib/utils'
 import type { LogCategory } from '../types'
+import { useLoginAuditColumns } from './columns/login-audit-columns'
 import { CommonLogsFilterBar } from './common-logs-filter-bar'
 import { EmailLogsFilterBar } from './email-logs-filter-bar'
+import { LoginAuditFilterBar } from './login-audit-filter-bar'
+import { LoginAuditMobileList } from './login-audit-mobile-card'
 import { TaskLogsFilterBar } from './task-logs-filter-bar'
 import { UsageLogsMobileList } from './usage-logs-mobile-card'
 import { useLogsViewScope } from './usage-logs-provider'
@@ -57,11 +61,21 @@ const logTypeRowTint: Record<number, string> = {
 // Takes precedence over the per-type tint since it flags a billing anomaly.
 const quotaSaturationRowTint = 'bg-amber-50/60 dark:bg-amber-950/25'
 
+// Login audit tint by outcome: failed/blocked sign-ins stand out from
+// successful ones, while an internal error uses the softer amber tone.
+const loginAuditOutcomeRowTint: Record<string, string> = {
+  failure: 'bg-rose-50/40 dark:bg-rose-950/20',
+  blocked: 'bg-rose-50/40 dark:bg-rose-950/20',
+  error: 'bg-amber-50/40 dark:bg-amber-950/20',
+}
+
 function getColumnVisibilityStorageKey(
   logCategory: LogCategory,
-  isAdmin: boolean
+  isAdmin: boolean,
+  isLoginAudit: boolean
 ): string {
-  return `usage-logs:${logCategory}:${isAdmin ? 'admin' : 'user'}:column-visibility`
+  const scope = isLoginAudit ? 'login-audit' : logCategory
+  return `usage-logs:${scope}:${isAdmin ? 'admin' : 'user'}:column-visibility`
 }
 
 function deserializeLogTypeFilter(value: unknown): unknown[] {
@@ -87,6 +101,10 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   const isAdmin = logCategory === 'email' ? canManageScope : isAdminView
   const isMobile = useMediaQuery('(max-width: 640px)')
   const searchParams = route.useSearch()
+  // Login audit view: the common section with scope=login, which the backend
+  // intersects with the remaining filters.
+  const isLoginAudit =
+    logCategory === 'common' && searchParams.scope === 'login'
 
   const {
     columnFilters,
@@ -131,6 +149,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       'logs',
       logCategory,
       isAdmin,
+      isLoginAudit,
       pagination.pageIndex + 1,
       pagination.pageSize,
       columnFilters,
@@ -157,7 +176,15 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       return result.data || DEFAULT_LOGS_DATA
     },
     placeholderData: (previousData, previousQuery) => {
-      if (previousQuery?.queryKey[1] === logCategory) {
+      // Reuse only within the same category and scope, so switching between
+      // usage logs, login audit, or all/only-mine never paints the old rows
+      // with the new column set.
+      const previousKey = previousQuery?.queryKey
+      if (
+        previousKey?.[1] === logCategory &&
+        previousKey?.[2] === isAdmin &&
+        previousKey?.[3] === isLoginAudit
+      ) {
         return previousData
       }
       return undefined
@@ -165,7 +192,9 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   })
 
   const logs = data?.items || []
-  const columns = useColumnsByCategory(logCategory, isAdmin)
+  const categoryColumns = useColumnsByCategory(logCategory, isAdmin)
+  const loginAuditColumns = useLoginAuditColumns(isAdmin)
+  const columns = isLoginAudit ? loginAuditColumns : categoryColumns
   const isLoadingData = isLoading || (isFetching && !data)
 
   const { table } = useDataTable({
@@ -174,7 +203,8 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
     columnFilters,
     columnVisibilityStorageKey: getColumnVisibilityStorageKey(
       logCategory,
-      isAdmin
+      isAdmin,
+      isLoginAudit
     ),
     pagination,
     enableRowSelection: false,
@@ -195,23 +225,42 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
       columns={columns as ColumnDef<Record<string, unknown>>[]}
       isLoading={isLoadingData}
       isFetching={isFetching}
-      emptyTitle={t('No Logs Found')}
-      emptyDescription={t(
-        'No usage logs available. Logs will appear here once API calls are made.'
-      )}
+      emptyTitle={
+        isLoginAudit ? t('No login records found') : t('No Logs Found')
+      }
+      emptyDescription={
+        isLoginAudit
+          ? t('No login records match the current filters.')
+          : t(
+              'No usage logs available. Logs will appear here once API calls are made.'
+            )
+      }
       skeletonKeyPrefix='usage-log-skeleton'
       applyHeaderSize
       tableClassName={cn(
         '[&_[data-slot=table]]:text-[13px] [&_[data-slot=table]_td]:text-[13px] [&_[data-slot=table]_td_*]:text-[13px] [&_[data-slot=table]_th]:text-[13px] [&_[data-slot=table]_th_*]:text-[13px]'
       )}
       mobile={
-        <UsageLogsMobileList
-          table={table}
-          isLoading={isLoadingData}
-          logCategory={logCategory}
-        />
+        isLoginAudit ? (
+          <LoginAuditMobileList
+            table={table}
+            isLoading={isLoadingData}
+            isAdmin={isAdmin}
+            emptyTitle={t('No login records found')}
+            emptyDescription={t('No login records match the current filters.')}
+          />
+        ) : (
+          <UsageLogsMobileList
+            table={table}
+            isLoading={isLoadingData}
+            logCategory={logCategory}
+          />
+        )
       }
       toolbar={(() => {
+        if (isLoginAudit) {
+          return <LoginAuditFilterBar table={table} />
+        }
         if (isCommon) {
           return <CommonLogsFilterBar table={table} />
         }
@@ -226,7 +275,16 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
           | undefined
         let tintClass =
           isCommon && logType != null ? (logTypeRowTint[logType] ?? '') : ''
-        if (isCommon && isAdmin) {
+        if (isLoginAudit) {
+          const other = parseLogOther(
+            ((row.original as Record<string, unknown>).other as string) ?? ''
+          )
+          const outcome = resolveLoginAuditOutcome(
+            logType ?? 0,
+            getLoginAuthAudit(other)
+          )
+          tintClass = loginAuditOutcomeRowTint[outcome] ?? ''
+        } else if (isCommon && isAdmin) {
           const other = parseLogOther(
             ((row.original as Record<string, unknown>).other as string) ?? ''
           )

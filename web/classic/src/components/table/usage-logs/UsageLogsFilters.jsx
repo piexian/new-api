@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Button, Form } from '@douyinfe/semi-ui';
+import { Button, Form, Radio, RadioGroup } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
@@ -32,8 +32,28 @@ const LogsFilters = ({
   setLogType,
   loading,
   isAdminUser,
+  logScope,
+  handleLogScopeChange,
   t,
 }) => {
+  const isLoginScope = logScope === 'login';
+  const logTypeOptions = isLoginScope
+    ? [
+        { value: '0', label: t('全部') },
+        { value: '7', label: t('登录成功') },
+        ...(isAdminUser ? [{ value: '8', label: t('安全事件') }] : []),
+      ]
+    : [
+        { value: '0', label: t('全部') },
+        { value: '1', label: t('充值') },
+        { value: '2', label: t('消费') },
+        { value: '3', label: t('管理') },
+        { value: '4', label: t('系统') },
+        { value: '5', label: t('错误') },
+        { value: '6', label: t('退款') },
+        { value: '7', label: t('登录') },
+        ...(isAdminUser ? [{ value: '8', label: t('安全事件') }] : []),
+      ];
   return (
     <Form
       initValues={formInitValues}
@@ -65,33 +85,55 @@ const LogsFilters = ({
             />
           </div>
 
-          {/* 其他搜索字段 */}
-          <Form.Input
-            field='token_name'
-            prefix={<IconSearch />}
-            placeholder={t('令牌名称')}
-            showClear
-            pure
-            size='small'
-          />
+          {!isLoginScope && (
+            <>
+              {/* 其他搜索字段 */}
+              <Form.Input
+                field='token_name'
+                prefix={<IconSearch />}
+                placeholder={t('令牌名称')}
+                showClear
+                pure
+                size='small'
+              />
 
-          <Form.Input
-            field='model_name'
-            prefix={<IconSearch />}
-            placeholder={t('模型名称')}
-            showClear
-            pure
-            size='small'
-          />
+              <Form.Input
+                field='model_name'
+                prefix={<IconSearch />}
+                placeholder={t('模型名称')}
+                showClear
+                pure
+                size='small'
+              />
 
-          <Form.Input
-            field='group'
-            prefix={<IconSearch />}
-            placeholder={t('分组')}
-            showClear
-            pure
-            size='small'
-          />
+              <Form.Input
+                field='group'
+                prefix={<IconSearch />}
+                placeholder={t('分组')}
+                showClear
+                pure
+                size='small'
+              />
+
+              <Form.Input
+                field='session_id'
+                prefix={<IconSearch />}
+                placeholder={t('Session ID')}
+                showClear
+                pure
+                size='small'
+              />
+
+              <Form.Input
+                field='cache_key'
+                prefix={<IconSearch />}
+                placeholder={t('Cache Key')}
+                showClear
+                pure
+                size='small'
+              />
+            </>
+          )}
 
           <Form.Input
             field='request_id'
@@ -120,25 +162,7 @@ const LogsFilters = ({
             size='small'
           />
 
-          <Form.Input
-            field='session_id'
-            prefix={<IconSearch />}
-            placeholder={t('Session ID')}
-            showClear
-            pure
-            size='small'
-          />
-
-          <Form.Input
-            field='cache_key'
-            prefix={<IconSearch />}
-            placeholder={t('Cache Key')}
-            showClear
-            pure
-            size='small'
-          />
-
-          {isAdminUser && (
+          {isAdminUser && !isLoginScope && (
             <>
               <Form.Input
                 field='channel'
@@ -158,33 +182,52 @@ const LogsFilters = ({
               />
             </>
           )}
+
+          {isAdminUser && isLoginScope && (
+            <Form.Input
+              field='username'
+              prefix={<IconSearch />}
+              placeholder={t('用户名称')}
+              showClear
+              pure
+              size='small'
+            />
+          )}
         </div>
 
         {/* 操作按钮区域 */}
         <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
-          {/* 日志类型选择器 */}
-          <div className='w-full sm:w-auto'>
+          {/* 查询范围与日志类型选择器 */}
+          <div className='w-full sm:w-auto flex flex-col sm:flex-row gap-2'>
+            <RadioGroup
+              type='button'
+              buttonSize='small'
+              value={logScope}
+              onChange={(e) => handleLogScopeChange(e.target.value)}
+            >
+              <Radio value='all'>{t('全部日志')}</Radio>
+              <Radio value='login'>{t('登录审计')}</Radio>
+            </RadioGroup>
             <Form.Select
               field='logType'
               placeholder={t('日志类型')}
               className='w-full sm:w-auto min-w-[120px]'
               showClear
               pure
-              onChange={() => {
-                // 延迟执行搜索，让表单值先更新
+              onChange={(value) => {
+                // 同步统计开关所需的类型状态，再延迟查询让表单值生效
+                setLogType(value ? parseInt(value) : 0);
                 setTimeout(() => {
                   refresh();
                 }, 0);
               }}
               size='small'
             >
-              <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
-              <Form.Select.Option value='1'>{t('充值')}</Form.Select.Option>
-              <Form.Select.Option value='2'>{t('消费')}</Form.Select.Option>
-              <Form.Select.Option value='3'>{t('管理')}</Form.Select.Option>
-              <Form.Select.Option value='4'>{t('系统')}</Form.Select.Option>
-              <Form.Select.Option value='5'>{t('错误')}</Form.Select.Option>
-              <Form.Select.Option value='6'>{t('退款')}</Form.Select.Option>
+              {logTypeOptions.map((option) => (
+                <Form.Select.Option key={option.value} value={option.value}>
+                  {option.label}
+                </Form.Select.Option>
+              ))}
             </Form.Select>
           </div>
 
@@ -212,13 +255,15 @@ const LogsFilters = ({
             >
               {t('重置')}
             </Button>
-            <Button
-              type='tertiary'
-              onClick={() => setShowColumnSelector(true)}
-              size='small'
-            >
-              {t('列设置')}
-            </Button>
+            {!isLoginScope && (
+              <Button
+                type='tertiary'
+                onClick={() => setShowColumnSelector(true)}
+                size='small'
+              >
+                {t('列设置')}
+              </Button>
+            )}
           </div>
         </div>
       </div>

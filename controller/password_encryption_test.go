@@ -123,6 +123,7 @@ func TestLoginWithEncryptionDisabledAcceptsPlaintext(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/user/login", bytes.NewReader(payload))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -165,6 +166,7 @@ func TestLoginWithEncryptionEnabledEnforcesDecryption(t *testing.T) {
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/user/login", bytes.NewReader(payload))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -184,6 +186,7 @@ func TestLoginWithEncryptionEnabledEnforcesDecryption(t *testing.T) {
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/user/login", bytes.NewReader(payload))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -204,6 +207,7 @@ func TestLoginWithEncryptionEnabledEnforcesDecryption(t *testing.T) {
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/user/login", bytes.NewReader(payload))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -224,6 +228,7 @@ func TestLoginWithEncryptionEnabledEnforcesDecryption(t *testing.T) {
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/user/login", bytes.NewReader(payload))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 
@@ -244,6 +249,7 @@ func TestLoginWithEncryptionEnabledEnforcesDecryption(t *testing.T) {
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/user/login", bytes.NewReader(payload))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)
 

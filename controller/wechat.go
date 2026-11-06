@@ -62,6 +62,10 @@ func WeChatAuth(c *gin.Context) {
 		})
 		return
 	}
+	// 早于换取微信登录码，避免空 UA 先消费外部 code/创建账号。
+	if blockLoginForMissingUserAgent(c, nil) {
+		return
+	}
 	code := c.Query("code")
 	wechatId, err := getWeChatIdByCode(code)
 	if err != nil {

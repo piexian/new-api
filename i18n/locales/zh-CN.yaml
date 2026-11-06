@@ -39,6 +39,7 @@ auth.user_id_mismatch: "无权进行此操作，New-Api-User 与登录用户不�
 auth.user_banned: "用户已被封禁"
 auth.insufficient_privilege: "无权进行此操作，权限不足"
 auth.oauth_email_repair: "账号异常，请以 OAuth 登录重新登录自动修复"
+auth.browser_environment_invalid: "浏览器环境异常，请检查浏览器设置后重试"
 
 # Token messages
 token.name_too_long: "令牌名称过长"
@@ -412,3 +413,6 @@ user.password_setup_required: "为保障账户安全，请先设置登录密码�
 risk.multi_account_review_empty_users: "用户列表不能为空"
 risk.multi_account_review_note_too_long: "审查备注不能超过 {{.Max}} 个字符"
 risk.multi_account_review_unknown_users: "用户列表中包含不存在的用户"
+
+# 日志查询
+log.scope_invalid: "不支持的日志查询范围"

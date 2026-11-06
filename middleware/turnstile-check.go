@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
@@ -108,6 +109,7 @@ func validateTurnstile(c *gin.Context, allowSessionReuse bool, scope TurnstileSc
 
 	response := c.Query("turnstile")
 	if response == "" {
+		MarkLoginAuditBlocked(c, model.LoginAuditStageCaptcha, model.LoginAuditReasonCaptchaMissing)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "Turnstile token 为空",
@@ -123,6 +125,8 @@ func validateTurnstile(c *gin.Context, allowSessionReuse bool, scope TurnstileSc
 	})
 	if err != nil {
 		common.SysLog(err.Error())
+		// 站点校验请求本身失败（网络/证书/超时）属于内部错误，不是用户输错。
+		MarkLoginAuditError(c, model.LoginAuditStageCaptcha, model.LoginAuditReasonCaptchaError)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -136,6 +140,8 @@ func validateTurnstile(c *gin.Context, allowSessionReuse bool, scope TurnstileSc
 	err = common.DecodeJson(rawRes.Body, &res)
 	if err != nil {
 		common.SysLog(err.Error())
+		// 上游响应无法解析同样是内部错误。
+		MarkLoginAuditError(c, model.LoginAuditStageCaptcha, model.LoginAuditReasonCaptchaError)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -144,6 +150,7 @@ func validateTurnstile(c *gin.Context, allowSessionReuse bool, scope TurnstileSc
 		return false
 	}
 	if !res.Success {
+		MarkLoginAuditBlocked(c, model.LoginAuditStageCaptcha, model.LoginAuditReasonCaptchaInvalid)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "Turnstile 校验失败，请刷新重试！",
@@ -156,6 +163,8 @@ func validateTurnstile(c *gin.Context, allowSessionReuse bool, scope TurnstileSc
 		session.Set(turnstileSessionKey(scope), true)
 		err = session.Save()
 		if err != nil {
+			// 会话存储故障属于内部错误。
+			MarkLoginAuditError(c, model.LoginAuditStageCaptcha, model.LoginAuditReasonSessionSaveFailed)
 			c.JSON(http.StatusOK, gin.H{
 				"message": "无法保存会话信息，请重试",
 				"success": false,

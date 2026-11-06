@@ -61,3 +61,18 @@ export {
 
 // Column utilities
 export { useColumnsByCategory } from './columns'
+// Login audit (type=7 success / type=8 security events)
+export {
+  isLoginAuditLogType,
+  getLoginAuthAudit,
+  resolveLoginAuditOutcome,
+  getLoginAuditOutcomeLabel,
+  getLoginAuditOutcomeVariant,
+  getLoginAuditStageLabel,
+  getLoginAuditReasonLabel,
+  getLoginAuditCount,
+  getLoginAuditMethod,
+  getLoginAuditUserAgent,
+  getLoginAuditTarget,
+  getLoginAuditWindow,
+} from './login-audit'

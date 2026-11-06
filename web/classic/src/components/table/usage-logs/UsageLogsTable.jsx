@@ -25,6 +25,7 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { getLogsColumns } from './UsageLogsColumnDefs';
+import { getLoginAuditColumns } from './LoginAuditColumnDefs';
 
 const LogsTable = (logsData) => {
   const {
@@ -44,6 +45,7 @@ const LogsTable = (logsData) => {
     hasExpandableRows,
     isAdminUser,
     billingDisplayMode,
+    logScope,
     t,
     COLUMN_KEYS,
   } = logsData;
@@ -69,14 +71,18 @@ const LogsTable = (logsData) => {
     billingDisplayMode,
   ]);
 
-  // Filter columns based on visibility settings
-  const getVisibleColumns = () => {
-    return allColumns.filter((column) => visibleColumns[column.key]);
-  };
+  // 登录审计视图使用固定的审计列，不受消费日志列设置影响
+  const auditColumns = useMemo(() => {
+    return getLoginAuditColumns({ t, isAdminUser, copyText });
+  }, [t, isAdminUser, copyText]);
 
+  // Filter columns based on visibility settings
   const visibleColumnsList = useMemo(() => {
-    return getVisibleColumns();
-  }, [visibleColumns, allColumns]);
+    if (logScope === 'login') {
+      return auditColumns;
+    }
+    return allColumns.filter((column) => visibleColumns[column.key]);
+  }, [logScope, auditColumns, visibleColumns, allColumns]);
 
   const tableColumns = useMemo(() => {
     return compactMode
@@ -85,7 +91,14 @@ const LogsTable = (logsData) => {
   }, [compactMode, visibleColumnsList]);
 
   const expandRowRender = (record, index) => {
-    return <Descriptions data={expandData[record.key]} />;
+    // 登录审计详情单独占一格，给长 UA 留出宽度
+    const isLoginAudit = record.type === 7 || record.type === 8;
+    return (
+      <Descriptions
+        data={expandData[record.key]}
+        {...(isLoginAudit ? { column: 1, align: 'plain' } : null)}
+      />
+    );
   };
 
   return (

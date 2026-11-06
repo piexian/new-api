@@ -39,6 +39,7 @@ auth.user_id_mismatch: "無權進行此操作，New-Api-User 與登入使用者�
 auth.user_banned: "使用者已被封禁"
 auth.insufficient_privilege: "無權進行此操作，權限不足"
 auth.oauth_email_repair: "帳號異常，請以 OAuth 登入重新登入自動修復"
+auth.browser_environment_invalid: "瀏覽器環境異常，請檢查瀏覽器設定後重試"
 
 # Token messages
 token.name_too_long: "令牌名稱過長"
@@ -412,3 +413,6 @@ user.password_setup_required: "為保障帳戶安全，請先設定登入密碼�
 risk.multi_account_review_empty_users: "使用者列表不能為空"
 risk.multi_account_review_note_too_long: "審查備註不能超過 {{.Max}} 個字元"
 risk.multi_account_review_unknown_users: "使用者列表中包含不存在的使用者"
+
+# 日誌查詢
+log.scope_invalid: "不支援的日誌查詢範圍"

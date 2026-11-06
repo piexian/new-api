@@ -38,6 +38,7 @@ auth.user_id_mismatch: "Unauthorized, New-Api-User does not match logged in user
 auth.user_banned: "User has been banned"
 auth.insufficient_privilege: "Unauthorized, insufficient privileges"
 auth.oauth_email_repair: "Account anomaly detected. Sign in again with OAuth to repair it automatically."
+auth.browser_environment_invalid: "Browser environment error. Please check your browser settings and try again."
 
 # Token messages
 token.name_too_long: "Token name is too long"
@@ -411,3 +412,6 @@ user.password_setup_required: "For your account security, please set a login pas
 risk.multi_account_review_empty_users: "User list cannot be empty"
 risk.multi_account_review_note_too_long: "Review note cannot exceed {{.Max}} characters"
 risk.multi_account_review_unknown_users: "User list contains users that do not exist"
+
+# Log query
+log.scope_invalid: "Unsupported log scope"

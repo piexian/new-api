@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,6 +28,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 	listLength, err := rdb.LLen(ctx, key).Result()
 	if err != nil {
 		fmt.Println(err.Error())
+		MarkLoginAuditError(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonInternalError)
 		c.Status(http.StatusInternalServerError)
 		c.Abort()
 		return
@@ -39,6 +41,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		oldTime, err := time.Parse(timeFormat, oldTimeStr)
 		if err != nil {
 			fmt.Println(err)
+			MarkLoginAuditError(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonInternalError)
 			c.Status(http.StatusInternalServerError)
 			c.Abort()
 			return
@@ -47,6 +50,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		nowTime, err := time.Parse(timeFormat, nowTimeStr)
 		if err != nil {
 			fmt.Println(err)
+			MarkLoginAuditError(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonInternalError)
 			c.Status(http.StatusInternalServerError)
 			c.Abort()
 			return
@@ -56,6 +60,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
 			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
 			c.Header("Retry-After", strconv.FormatInt(max(1, int64(math.Ceil(float64(duration)-nowTime.Sub(oldTime).Seconds()))), 10))
+			MarkLoginAuditBlocked(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonRateLimited)
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
@@ -71,6 +76,7 @@ func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark s
 	key := mark + c.ClientIP()
 	if allowed, retryAfter := inMemoryRateLimiter.RequestWithRetry(key, maxRequestNum, duration); !allowed {
 		c.Header("Retry-After", strconv.FormatInt(max(1, retryAfter), 10))
+		MarkLoginAuditBlocked(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonRateLimited)
 		c.Status(http.StatusTooManyRequests)
 		c.Abort()
 		return
@@ -159,6 +165,7 @@ func userRateLimitFactory(maxRequestNum int, duration int64, mark string) func(c
 		key := fmt.Sprintf("%s:user:%d", mark, userId)
 		if allowed, retryAfter := inMemoryRateLimiter.RequestWithRetry(key, maxRequestNum, duration); !allowed {
 			c.Header("Retry-After", strconv.FormatInt(max(1, retryAfter), 10))
+			MarkLoginAuditBlocked(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonRateLimited)
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
@@ -174,6 +181,7 @@ func userRedisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, key
 	listLength, err := rdb.LLen(ctx, key).Result()
 	if err != nil {
 		fmt.Println(err.Error())
+		MarkLoginAuditError(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonInternalError)
 		c.Status(http.StatusInternalServerError)
 		c.Abort()
 		return
@@ -186,6 +194,7 @@ func userRedisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, key
 		oldTime, err := time.Parse(timeFormat, oldTimeStr)
 		if err != nil {
 			fmt.Println(err)
+			MarkLoginAuditError(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonInternalError)
 			c.Status(http.StatusInternalServerError)
 			c.Abort()
 			return
@@ -194,6 +203,7 @@ func userRedisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, key
 		nowTime, err := time.Parse(timeFormat, nowTimeStr)
 		if err != nil {
 			fmt.Println(err)
+			MarkLoginAuditError(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonInternalError)
 			c.Status(http.StatusInternalServerError)
 			c.Abort()
 			return
@@ -201,6 +211,7 @@ func userRedisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, key
 		if int64(nowTime.Sub(oldTime).Seconds()) < duration {
 			rdb.Expire(ctx, key, common.RateLimitKeyExpirationDuration)
 			c.Header("Retry-After", strconv.FormatInt(max(1, int64(math.Ceil(float64(duration)-nowTime.Sub(oldTime).Seconds()))), 10))
+			MarkLoginAuditBlocked(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonRateLimited)
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return

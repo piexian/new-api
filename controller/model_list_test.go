@@ -406,6 +406,7 @@ func TestSetupLoginDoesNotTouchPasswordWhenPasswordFieldOmitted(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 	router.ServeHTTP(recorder, request)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
@@ -439,6 +440,7 @@ func TestSetupLoginRejectsGitHubUserWithoutEmail(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	request.Header.Set("Accept-Language", "zh-CN")
+	request.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 	router.ServeHTTP(recorder, request)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
@@ -478,6 +480,7 @@ func TestSetupLoginSessionAllowsVerifiedOAuthRecovery(t *testing.T) {
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 	router.ServeHTTP(recorder, request)
 
 	require.Equal(t, http.StatusOK, recorder.Code)

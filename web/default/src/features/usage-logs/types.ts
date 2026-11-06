@@ -124,6 +124,31 @@ export const USAGE_BILLING_PATH = {
 export type UsageBillingPath =
   (typeof USAGE_BILLING_PATH)[keyof typeof USAGE_BILLING_PATH]
 
+/** Structured login audit detail for type=7 (success) and type=8 (security events). */
+export interface LoginAuthAudit {
+  outcome?: LoginAuditOutcome | string
+  stage?: LoginAuditStage | string
+  reason?: string
+  count?: number
+  window_start?: number
+  window_end?: number
+}
+
+export type LoginAuditOutcome =
+  | 'success'
+  | 'failure'
+  | 'blocked'
+  | 'challenge'
+  | 'error'
+
+export type LoginAuditStage =
+  | 'precheck'
+  | 'request'
+  | 'captcha'
+  | 'credentials'
+  | 'two_factor'
+  | 'session'
+
 export interface LogOtherData {
   admin_info?: {
     cf_ray?: string
@@ -145,6 +170,15 @@ export interface LogOtherData {
     admin_id?: number | string
     admin_role?: number
     auth_method?: 'session' | 'access_token' | string
+    // Login audit target identity (type=8, admin only). The log row itself has
+    // user_id=0, so the audited account is carried here.
+    target_user_id?: number | string
+    target_username?: string
+    // Identifier the client attempted to log in with (type=8, admin only).
+    attempted_identifier?: string
+    // TCP peer address seen by the server (type=8, admin only) when a proxy
+    // supplies client IP headers.
+    peer_ip?: string
     // Quota saturation marker: set when a quota conversion clamped at the
     // int32 bound (overflow/underflow) or hit a NaN fallback while computing
     // this request's charge. Admin-only (nested under admin_info).
@@ -170,9 +204,11 @@ export interface LogOtherData {
     success?: boolean
     params?: Record<string, string>
   }
-  // Login audit fields (type=7); visible to the log owner
+  // Login audit fields; visible to the log owner
   login_method?: string
   user_agent?: string
+  // Structured login audit detail (type=7 success / type=8 security event)
+  auth_audit?: LoginAuthAudit
   request_path?: string
   request_conversion?: string[]
   ws?: boolean
@@ -372,6 +408,8 @@ export interface GetLogsParams {
   ip?: string
   session_id?: string
   cache_key?: string
+  // Login audit scope; the backend intersects it with the other filters.
+  scope?: 'login'
 }
 
 export interface GetLogsResponse {

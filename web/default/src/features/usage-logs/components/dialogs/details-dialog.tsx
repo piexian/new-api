@@ -81,6 +81,16 @@ import {
   usageGenerationParams,
 } from '../../lib/generation-params'
 import {
+  getLoginAuditOutcomeLabel,
+  getLoginAuditOutcomeVariant,
+  getLoginAuditReasonLabel,
+  getLoginAuditStageLabel,
+  getLoginAuditUserAgent,
+  getLoginAuthAudit,
+  isLoginAuditLogType,
+  resolveLoginAuditOutcome,
+} from '../../lib/login-audit'
+import {
   getLogTypeConfig,
   isPerCallBilling,
   isTimingLogType,
@@ -106,7 +116,7 @@ function timingTextColorClass(
   return 'text-rose-600'
 }
 
-function DetailRow(props: {
+export function DetailRow(props: {
   label: React.ReactNode
   value: React.ReactNode
   mono?: boolean
@@ -130,7 +140,7 @@ function DetailRow(props: {
   )
 }
 
-function DetailSection(props: {
+export function DetailSection(props: {
   icon?: React.ReactNode
   iconTone?: IconBadgeTone
   label: string
@@ -596,22 +606,43 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const showManageAuditSection =
     isManage && props.isAdmin && (operationText != null || auditRoute != null)
 
-  // Login audit (type=7); visible to the log owner, not admin-only.
-  const isLogin = props.log.type === 7
+  // Login audit (type=7 success / type=8 security events); visible to the log
+  // owner. Account and network diagnostics stay administrator-only.
+  const isLogin = isLoginAuditLogType(props.log.type)
+  const loginAudit = getLoginAuthAudit(other)
+  const loginOutcome = isLogin
+    ? resolveLoginAuditOutcome(props.log.type, loginAudit)
+    : null
+  const loginStageLabel = getLoginAuditStageLabel(loginAudit?.stage)
+  const loginReasonLabel = getLoginAuditReasonLabel(loginAudit?.reason)
+  const loginUserAgent = isLogin ? getLoginAuditUserAgent(props.log, other) : ''
   const loginAuditFields = isLogin
     ? ([
+        props.log.username && {
+          label: t('Account'),
+          value: String(props.log.username),
+        },
         other?.login_method && {
           label: t('Login Method'),
           value: String(other.login_method),
+        },
+        other?.request_path && {
+          label: t('Path'),
+          value: String(other.request_path),
         },
         props.log.ip && {
           label: t('IP Address'),
           value: props.log.ip,
         },
-        other?.user_agent && {
+        loginUserAgent && {
           label: t('User Agent'),
-          value: String(other.user_agent),
+          value: loginUserAgent,
         },
+        props.isAdmin &&
+          adminInfo?.peer_ip && {
+            label: t('Peer IP'),
+            value: String(adminInfo.peer_ip),
+          },
       ].filter(Boolean) as Array<{ label: string; value: string }>)
     : []
 
@@ -623,8 +654,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
     conversionChain.length <= 1
       ? t('Native format')
       : conversionChain.join(' -> ')
+  // Login records only carry request_path for the audit view, so skip this section.
   const showConversion =
     props.isAdmin &&
+    !isLogin &&
     props.log.type !== 6 &&
     (other?.request_path || conversionChain.length > 0)
 
@@ -1010,13 +1043,34 @@ export function DetailsDialog(props: DetailsDialogProps) {
           </DetailSection>
         )}
 
-        {/* Login audit info (type=7) */}
-        {isLogin && loginAuditFields.length > 0 && (
+        {/* Login audit info (type=7 success / type=8 security events) */}
+        {isLogin && loginOutcome && (
           <DetailSection
             icon={<LogIn className='size-3.5' aria-hidden='true' />}
             iconTone='info'
             label={t('Login Info')}
           >
+            <div className='flex min-w-0 flex-wrap items-center gap-1.5'>
+              <StatusBadge
+                label={t(getLoginAuditOutcomeLabel(loginOutcome))}
+                variant={getLoginAuditOutcomeVariant(loginOutcome)}
+                size='sm'
+                showDot={false}
+                copyable={false}
+              />
+              {loginStageLabel && (
+                <StatusBadge
+                  label={t(loginStageLabel)}
+                  variant='neutral'
+                  size='sm'
+                  showDot={false}
+                  copyable={false}
+                />
+              )}
+            </div>
+            {loginReasonLabel && (
+              <DetailRow label={t('Reason')} value={t(loginReasonLabel)} />
+            )}
             {operationText != null && (
               <DetailRow label={t('Operation')} value={operationText} />
             )}
@@ -1132,6 +1186,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
         {/* Admin billing mode indicator for non-consume */}
         {props.isAdmin &&
           !isConsume &&
+          !isLogin &&
           props.log.type !== 6 &&
           other?.admin_info && (
             <DetailRow

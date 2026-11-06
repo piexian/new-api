@@ -54,6 +54,8 @@ const (
 	MsgAuthUserBanned            = "auth.user_banned"
 	MsgAuthInsufficientPrivilege = "auth.insufficient_privilege"
 	MsgAuthOAuthEmailRepair      = "auth.oauth_email_repair"
+	// MsgAuthBrowserEnvironmentInvalid 用于阻止缺少 User-Agent 的浏览器登录。
+	MsgAuthBrowserEnvironmentInvalid = "auth.browser_environment_invalid"
 )
 
 // Token related messages
@@ -454,6 +456,11 @@ const (
 	MsgTaskTypeRequired            = "task.type_required"
 	MsgTaskIdRequired              = "task.id_required"
 	MsgTaskNotFound                = "task.not_found"
+)
+
+// Log query messages
+const (
+	MsgLogScopeInvalid = "log.scope_invalid"
 )
 
 // OAuth flow related messages

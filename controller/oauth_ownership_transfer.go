@@ -316,6 +316,17 @@ func ConfirmOAuthOwnershipTransfer(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgOAuthOwnershipTransferUnavailable, providerParams("OAuth"))
 		return
 	}
+	// 除绑定模式外，确认即登录：空 UA 必须在 Expire/Claim/Verify/Complete 之前拒绝，
+	// 否则会先完成归属转移再返回失败。
+	if challenge.Mode != model.OAuthOwnershipTransferModeBind {
+		auditTarget := &model.User{Id: challenge.TargetUserId}
+		if auditTarget.Id <= 0 {
+			auditTarget = nil
+		}
+		if blockLoginForMissingUserAgent(c, auditTarget) {
+			return
+		}
+	}
 	now := common.GetTimestamp()
 	if challenge.Status != model.OAuthOwnershipTransferStatusCodeSent {
 		common.ApiErrorI18n(c, i18n.MsgOAuthOwnershipTransferUnavailable, providerParams(challenge.ProviderName))

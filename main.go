@@ -203,6 +203,10 @@ func main() {
 	server.Use(middleware.Version())
 	server.Use(middleware.SecurityHeaders())
 	server.Use(middleware.I18n())
+	// 登录安全审计必须位于 IPBan 与限流之前，才能记录前置拦截的原因。
+	server.Use(middleware.LoginAudit())
+	// 预拦截事件的分钟窗口聚合由显式启动的周期任务落库。
+	middleware.StartLoginAuditFlusher(0)
 	server.Use(middleware.IPBan())
 	middleware.SetUpLogger(server)
 	// Initialize session store
@@ -258,6 +262,9 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		common.SysError(fmt.Sprintf("server forced to shutdown: %v", err))
 	}
+	// 先停掉周期任务，再在总时限内落库剩余的登录安全审计聚合计数。
+	middleware.StopLoginAuditFlusher()
+	middleware.FlushLoginAudit()
 	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
 	if common.DataExportEnabled {
 		model.SaveQuotaDataCache()

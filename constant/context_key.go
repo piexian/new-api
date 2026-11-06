@@ -82,4 +82,9 @@ const (
 	// fallback in authHelper (finishAdminAudit) skips its record to avoid
 	// duplicate entries.
 	ContextKeyAuditLogged ContextKey = "audit_logged"
+
+	// ContextKeyLoginAudit stores the per-request login security audit state
+	// shared between middleware and login handlers. The value type is
+	// middleware.loginAuditState; only the middleware helpers touch it.
+	ContextKeyLoginAudit ContextKey = "login_audit"
 )

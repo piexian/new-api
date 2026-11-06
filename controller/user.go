@@ -175,44 +175,76 @@ func requiresOAuthEmailRepair(user *model.User) bool {
 		model.NormalizeEmail(user.Email) == ""
 }
 
+// blockLoginForMissingUserAgent 拒绝空 UA 的新登录并记录 type=8，不拦截已有会话的绑定操作。
+func blockLoginForMissingUserAgent(c *gin.Context, user *model.User) bool {
+	// 空 UA 视为浏览器环境异常；非空 UA 不判断品牌或真实性。
+	if strings.TrimSpace(c.Request.UserAgent()) != "" {
+		return false
+	}
+	// 共享登录出口（OAuth/Passkey/归属转移）没有入口状态，这里按需创建；
+	// 密码/2FA 入口已有状态则直接复用。
+	middleware.EnsureLoginAuditState(c, loginMethodFromContext(c))
+	if user != nil && user.Id > 0 {
+		middleware.MarkLoginAuditTarget(c, user.Id, user.Username)
+	}
+	middleware.MarkLoginAuditBlocked(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonUserAgentMissing)
+	common.ApiErrorI18n(c, i18n.MsgAuthBrowserEnvironmentInvalid)
+	return true
+}
+
 func rejectOAuthEmailRepair(c *gin.Context, user *model.User) bool {
 	if !requiresOAuthEmailRepair(user) {
 		return false
 	}
+	// 账号能通过凭证校验但被注册方式门槛挡住，属于 blocked 而不是撞库失败。
+	middleware.MarkLoginAuditTarget(c, user.Id, user.Username)
+	middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageCredentials, model.LoginAuditReasonEmailRepairRequired)
 	common.ApiErrorI18n(c, i18n.MsgAuthOAuthEmailRepair)
 	return true
 }
 
 func Login(c *gin.Context) {
+	if blockLoginForMissingUserAgent(c, nil) {
+		return
+	}
 	if !common.PasswordLoginEnabled {
+		middleware.MarkLoginAuditBlocked(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonPasswordLoginDisabled)
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordLoginDisabled)
 		return
 	}
 	var loginRequest LoginRequest
 	err := common.DecodeJson(c.Request.Body, &loginRequest)
 	if err != nil {
+		middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageRequest, model.LoginAuditReasonInvalidRequest)
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	// JSON 解析成功后立即记录输入账号：后续加密字段缺失、解密失败或账号不存在
+	// 时仍能按账号追查。
+	middleware.MarkLoginAuditIdentifier(c, loginRequest.Username)
 	username := loginRequest.Username
 	password := loginRequest.Password
 	if common.PasswordLoginEncryptionEnabled {
 		if loginRequest.PasswordEncrypted == "" || loginRequest.EncryptionKeyID == "" {
+			middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageRequest, model.LoginAuditReasonPasswordEncryptionRequired)
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 			return
 		}
 		if _, _, keyErr := ensurePasswordEncryptionKey(); keyErr != nil {
 			common.SysError("failed to load password encryption key: " + keyErr.Error())
+			middleware.MarkLoginAuditError(c, model.LoginAuditStageRequest, model.LoginAuditReasonDatabaseError)
 			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 			return
 		}
 		password, err = common.DecryptPassword(loginRequest.PasswordEncrypted, loginRequest.EncryptionKeyID)
 		if err != nil {
+			middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageRequest, model.LoginAuditReasonPasswordDecryptionFailed)
 			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
 			return
 		}
 	}
 	if username == "" || password == "" {
+		middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageRequest, model.LoginAuditReasonInvalidRequest)
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
@@ -222,17 +254,32 @@ func Login(c *gin.Context) {
 	}
 	err = user.ValidateAndFill()
 	if err != nil {
+		// 只要已经查到可靠用户，就记录目标账号（即使密码错误），方便按 UID 聚合。
+		middleware.MarkLoginAuditTarget(c, user.Id, user.Username)
 		switch {
 		case errors.Is(err, model.ErrDatabase):
+			// 数据库故障不能算撞库失败，也不能记成账号不存在。
+			middleware.MarkLoginAuditError(c, model.LoginAuditStageCredentials, model.LoginAuditReasonDatabaseError)
 			common.SysLog(fmt.Sprintf("Login database error for user %s: %v", username, err))
 			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		case errors.Is(err, model.ErrUserNotFound):
+			middleware.MarkLoginAuditFailure(c, model.LoginAuditStageCredentials, model.LoginAuditReasonUserNotFound)
 			common.ApiErrorI18n(c, i18n.MsgUserNotExists)
 		case errors.Is(err, model.ErrUserEmptyCredentials):
+			// 字段校验问题，不是凭证不匹配。
+			middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageRequest, model.LoginAuditReasonInvalidRequest)
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		case errors.Is(err, model.ErrUserDisabled):
 			apiDisabledUser(c, &user)
+			middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageCredentials, model.LoginAuditReasonAccountDisabled)
+		case errors.Is(err, model.ErrInvalidCredentials):
+			// 只有真实凭证不匹配才属于撞库失败。
+			middleware.MarkLoginAuditFailure(c, model.LoginAuditStageCredentials, model.LoginAuditReasonInvalidCredentials)
+			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
 		default:
+			// 未分类错误按内部故障处理，不污染凭证失败计数。
+			middleware.MarkLoginAuditError(c, model.LoginAuditStageCredentials, model.LoginAuditReasonInternalError)
+			common.SysLog(fmt.Sprintf("Login failed for user %s: %v", username, err))
 			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
 		}
 		return
@@ -241,10 +288,12 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	middleware.MarkLoginAuditTarget(c, user.Id, user.Username)
 	// 检查是否启用2FA
 	twoFAEnabled, err := model.IsTwoFAEnabled(user.Id)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("Login failed to load 2FA status for user %d: %v", user.Id, err))
+		middleware.MarkLoginAuditError(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonDatabaseError)
 		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
 		return
 	}
@@ -255,10 +304,13 @@ func Login(c *gin.Context) {
 		session.Set("pending_user_id", user.Id)
 		err := session.Save()
 		if err != nil {
+			// 会话存储故障属于内部错误，不计入凭证失败。
+			middleware.MarkLoginAuditError(c, model.LoginAuditStageSession, model.LoginAuditReasonSessionSaveFailed)
 			common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 			return
 		}
 
+		middleware.MarkLoginAuditChallenge(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonTwoFactorRequired)
 		c.JSON(http.StatusOK, gin.H{
 			"message": i18n.T(c, i18n.MsgUserRequire2FA),
 			"success": true,
@@ -279,12 +331,14 @@ func loginMethodFromContext(c *gin.Context) string {
 		return "password"
 	case "/api/user/login/2fa":
 		return "2fa"
-	case "/api/user/passkey/login/finish":
+	case "/api/user/passkey/login/begin", "/api/user/passkey/login/finish":
 		return "passkey"
 	case "/api/oauth/wechat":
 		return "wechat"
 	case "/api/oauth/telegram/login":
 		return "telegram"
+	case "/api/oauth/ownership/confirm":
+		return "oauth_ownership_transfer"
 	case "/api/oauth/:provider":
 		if provider := c.Param("provider"); provider != "" {
 			return "oauth:" + provider
@@ -299,12 +353,20 @@ func loginMethodFromContext(c *gin.Context) string {
 func recordLoginAudit(user *model.User, c *gin.Context) {
 	method := loginMethodFromContext(c)
 	ip := c.ClientIP()
+	requestId := c.GetString(common.RequestIdKey)
 	extra := map[string]interface{}{
 		"login_method": method,
 		"user_agent":   c.Request.UserAgent(),
 	}
+	// 成功与失败事件都记录不含 query 的请求路径。
+	if requestPath := middleware.LoginAuditRequestPath(c); requestPath != "" {
+		extra["request_path"] = requestPath
+	}
+	if diagnostics := middleware.LoginAuditRequestDiagnostics(c); len(diagnostics) > 0 {
+		extra["admin_info"] = diagnostics
+	}
 	content := fmt.Sprintf("Logged in successfully via %s", method)
-	model.RecordLoginLog(user.Id, user.Username, content, ip, "login", map[string]interface{}{
+	model.RecordLoginLog(user.Id, user.Username, content, ip, requestId, "login", map[string]interface{}{
 		"method": method,
 	}, extra)
 }
@@ -320,6 +382,11 @@ func setupLogin(user *model.User, c *gin.Context) {
 // setupLoginSession completes a login after the caller has performed all
 // authentication-specific account checks.
 func setupLoginSession(user *model.User, c *gin.Context) {
+	// 所有认证方式（密码/2FA/Passkey/微信/Telegram/OAuth/归属转移）都经过这里，
+	// 空 UA 必须在写最后登录时间与会话之前封死。
+	if blockLoginForMissingUserAgent(c, user) {
+		return
+	}
 	model.UpdateUserLastLoginAt(user.Id)
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
@@ -329,9 +396,13 @@ func setupLoginSession(user *model.User, c *gin.Context) {
 	session.Set("group", user.Group)
 	err := session.Save()
 	if err != nil {
+		// 会话存储故障属于内部错误，不计入凭证失败。
+		middleware.MarkLoginAuditError(c, model.LoginAuditStageSession, model.LoginAuditReasonSessionSaveFailed)
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}
+	// 成功以 session 落盘为边界；之后的资料查询错误不再补记口令失败。
+	middleware.MarkLoginAuditSuccess(c)
 	recordLoginAudit(user, c)
 	hasPassword, err := model.HasUserPassword(user.Id)
 	if err != nil {

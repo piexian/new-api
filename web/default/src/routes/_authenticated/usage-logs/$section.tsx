@@ -25,7 +25,7 @@ import {
   USAGE_LOGS_DEFAULT_SECTION,
 } from '@/features/usage-logs/section-registry'
 
-const logTypeValues = ['0', '1', '2', '3', '4', '5', '6', '7'] as const
+const logTypeValues = ['0', '1', '2', '3', '4', '5', '6', '7', '8'] as const
 const logTypeSearchSchema = z
   .preprocess((value) => {
     if (value == null || value === '') return undefined
@@ -37,6 +37,8 @@ const usageLogsSearchSchema = z.object({
   page: z.number().optional().catch(1),
   pageSize: z.number().optional().catch(undefined),
   type: logTypeSearchSchema.optional(),
+  // 登录审计范围：仅 login 有效，其余取值按缺省（全部日志）处理
+  scope: z.enum(['login']).optional().catch(undefined),
   filter: z.string().optional().catch(''),
   model: z.string().optional().catch(''),
   token: z.string().optional().catch(''),
@@ -65,15 +67,16 @@ export const Route = createFileRoute('/_authenticated/usage-logs/$section')({
         params: { section: USAGE_LOGS_DEFAULT_SECTION },
       })
     }
-    // type 仅 common 使用，非 common 时清掉 URL 里的 type
+    // type 与 scope 仅 common 使用，切到其他分区时清掉 URL 里的残留
     const hasTypeSearch = Array.isArray(search?.type)
       ? search.type.length > 0
       : search?.type != null && search.type !== ''
-    if (params.section !== 'common' && hasTypeSearch) {
+    const hasScopeSearch = search?.scope === 'login'
+    if (params.section !== 'common' && (hasTypeSearch || hasScopeSearch)) {
       throw redirect({
         to: '/usage-logs/$section',
         params: { section: params.section },
-        search: { ...search, type: undefined },
+        search: { ...search, type: undefined, scope: undefined },
         replace: true,
       })
     }

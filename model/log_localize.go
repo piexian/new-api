@@ -454,11 +454,43 @@ func LocalizeLogs(logs []*Log, language string) {
 				contentLocalized = true
 			}
 		}
+		if !contentLocalized && log.Type == LogTypeLoginSecurity {
+			if content, ok := localizeLoginAuditContent(log.Content, language); ok {
+				log.Content = content
+				contentLocalized = true
+			}
+		}
 		if !contentLocalized {
 			log.Content = LocalizeLogContent(log.Content, language)
 		}
 		localizeLogOtherReason(log, language)
 	}
+}
+
+// loginAuditContentPrefixEN 是登录安全审计日志（type=8）内容的固定前缀。
+var loginAuditContentPrefixEN = map[string]string{
+	"登录失败：":     "Login failed: ",
+	"登录请求被拦截：":  "Login request blocked: ",
+	"登录处理异常：":   "Login error: ",
+	"登录需要两步验证：": "Login requires two-factor authentication: ",
+}
+
+// localizeLoginAuditContent 只翻译 type=8 由固定前缀+固定原因组成的内容。
+func localizeLoginAuditContent(content string, language string) (string, bool) {
+	if NormalizeLogLanguage(language) != LogLanguageEN {
+		return "", false
+	}
+	for zhPrefix, enPrefix := range loginAuditContentPrefixEN {
+		if !strings.HasPrefix(content, zhPrefix) {
+			continue
+		}
+		reasonText := strings.TrimPrefix(content, zhPrefix)
+		if enText, ok := loginAuditReasonTextZHToEN[reasonText]; ok {
+			return enPrefix + enText, true
+		}
+		return enPrefix + reasonText, true
+	}
+	return "", false
 }
 
 func localizeLogOtherReason(log *Log, language string) {

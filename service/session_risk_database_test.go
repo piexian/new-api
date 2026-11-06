@@ -91,7 +91,7 @@ func TestSessionRiskDatabaseMigrationAndAggregation(t *testing.T) {
 				require.EqualValues(t, 2, page.Items[0].RequestCount)
 				require.EqualValues(t, 20, page.Items[0].Quota)
 			}
-			items, total, err := model.GetUserLogs(98832, 0, now-60, now, "", "", 0, 20, "", "", "", "", "", model.LogSessionFilter{SessionID: "Case-敏感"})
+			items, total, err := model.GetUserLogs(98832, 0, "", now-60, now, "", "", 0, 20, "", "", "", "", "", model.LogSessionFilter{SessionID: "Case-敏感"})
 			require.NoError(t, err)
 			require.EqualValues(t, 1, total)
 			require.Equal(t, 98832, items[0].UserId)

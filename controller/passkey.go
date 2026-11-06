@@ -260,6 +260,11 @@ func PasskeyLoginBegin(c *gin.Context) {
 		return
 	}
 
+	// 早于 challenge 创建：空 UA 不产生挑战。
+	if blockLoginForMissingUserAgent(c, nil) {
+		return
+	}
+
 	hint, err := parsePasskeyRPIDHint(c)
 	if err != nil {
 		common.ApiErrorMsg(c, "无效的 Passkey 验证请求")
@@ -302,6 +307,10 @@ func PasskeyLoginFinish(c *gin.Context) {
 		return
 	}
 
+	// 早于 PopSessionData 与签名计数更新，避免拒绝前先消耗挑战。
+	if blockLoginForMissingUserAgent(c, nil) {
+		return
+	}
 	sessionData, rpID, err := passkeysvc.PopSessionDataWithRPID(c, passkeysvc.LoginSessionKey)
 	if err != nil {
 		apiPasskeyError(c, err)

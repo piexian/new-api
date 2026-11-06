@@ -20,6 +20,7 @@ func IPBan() gin.HandlerFunc {
 			return
 		}
 		c.Set(SkipAccessLogKey, true)
+		MarkLoginAuditBlocked(c, model.LoginAuditStagePrecheck, model.LoginAuditReasonIPBanned)
 
 		// 永久封禁且标记 auto_ban_user 时，尝试根据请求中的令牌连坐封禁账号。
 		// 该中间件位于鉴权之前，session 尚不可用，只能解析原始 Authorization 头。
