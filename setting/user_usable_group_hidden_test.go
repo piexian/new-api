@@ -3,6 +3,8 @@ package setting
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +29,10 @@ func TestHiddenUserGroupsRoundTrip(t *testing.T) {
 	require.True(t, IsUserGroupHidden("svip"))
 	require.False(t, IsUserGroupHidden("default"))
 
-	require.JSONEq(t, `["vip","svip"]`, HiddenUserGroups2JSONString())
+	// map 导出的集合顺序随机，只校验成员而非数组顺序。
+	var exported []string
+	require.NoError(t, common.UnmarshalJsonStr(HiddenUserGroups2JSONString(), &exported))
+	require.ElementsMatch(t, []string{"vip", "svip"}, exported)
 }
 
 func TestUpdateHiddenUserGroupsReplacesPrevious(t *testing.T) {
