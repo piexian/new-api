@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -26,6 +27,16 @@ func resolveRequestLogLanguage(c *gin.Context) string {
 	return model.ResolveEffectiveLogLanguage(userSetting, model.GetRootLogLanguageFallback())
 }
 
+// resolveLogScope 校验 scope 参数；空串保持原有查询语义，非法值直接拒绝。
+func resolveLogScope(c *gin.Context) (string, bool) {
+	scope := strings.TrimSpace(c.Query("scope"))
+	if err := model.ValidateLogScope(scope); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgLogScopeInvalid)
+		return "", false
+	}
+	return scope, true
+}
+
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
@@ -40,7 +51,11 @@ func GetAllLogs(c *gin.Context) {
 	upstreamRequestId := c.Query("upstream_request_id")
 	userAgent := c.Query("user_agent")
 	ip := c.Query("ip")
-	logs, total, err := model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId, userAgent, ip, model.LogSessionFilter{SessionID: c.Query("session_id"), CacheKey: c.Query("cache_key")}, resolveRequestLogLanguage(c))
+	scope, ok := resolveLogScope(c)
+	if !ok {
+		return
+	}
+	logs, total, err := model.GetAllLogs(logType, scope, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId, upstreamRequestId, userAgent, ip, model.LogSessionFilter{SessionID: c.Query("session_id"), CacheKey: c.Query("cache_key")}, resolveRequestLogLanguage(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -64,7 +79,11 @@ func GetUserLogs(c *gin.Context) {
 	upstreamRequestId := c.Query("upstream_request_id")
 	userAgent := c.Query("user_agent")
 	ip := c.Query("ip")
-	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId, userAgent, ip, model.LogSessionFilter{SessionID: c.Query("session_id"), CacheKey: c.Query("cache_key")}, resolveRequestLogLanguage(c))
+	scope, ok := resolveLogScope(c)
+	if !ok {
+		return
+	}
+	logs, total, err := model.GetUserLogs(userId, logType, scope, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId, userAgent, ip, model.LogSessionFilter{SessionID: c.Query("session_id"), CacheKey: c.Query("cache_key")}, resolveRequestLogLanguage(c))
 	if err != nil {
 		common.ApiError(c, err)
 		return

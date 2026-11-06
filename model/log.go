@@ -98,6 +98,9 @@ const (
 	LogTypeError   = 5
 	LogTypeRefund  = 6
 	LogTypeLogin   = 7
+	// LogTypeLoginSecurity 记录密码/两步验证登录失败与前置拦截（user_id 恒为 0，
+	// 目标账号写入 other.admin_info），成功登录仍使用 LogTypeLogin。
+	LogTypeLoginSecurity = 8
 )
 
 func ensureLogRequestId(log *Log) {
@@ -233,27 +236,88 @@ func buildOpField(action string, params map[string]interface{}) map[string]inter
 	return op
 }
 
+// sanitizeLoginLogOther 与登录安全审计共用限长规则，保证成功登录日志里的
+// UA、诊断字段与请求路径不会超长或带上查询参数。
+func sanitizeLoginLogOther(other map[string]interface{}) map[string]interface{} {
+	if value, ok := other["user_agent"].(string); ok {
+		other["user_agent"] = truncateLoginAuditText(value, loginAuditMaxUserAgentLength)
+	}
+	if value, ok := other["request_path"].(string); ok {
+		other["request_path"] = truncateLoginAuditText(sanitizeLoginAuditRequestPath(value), loginAuditMaxRequestPathLength)
+	}
+	if value, ok := other["login_method"].(string); ok {
+		other["login_method"] = truncateLoginAuditText(value, 64)
+	}
+	if adminInfo, ok := other["admin_info"].(map[string]interface{}); ok {
+		limits := map[string]int{
+			"cf_ray":               loginAuditMaxDiagnosticLength,
+			"peer_ip":              loginAuditMaxIPLength,
+			"target_username":      loginAuditMaxIdentifierLength,
+			"attempted_identifier": loginAuditMaxIdentifierLength,
+		}
+		for key, limit := range limits {
+			if value, ok := adminInfo[key].(string); ok {
+				adminInfo[key] = truncateLoginAuditText(value, limit)
+			}
+		}
+	}
+	return other
+}
+
 // RecordLoginLog 记录用户登录成功的审计日志。
-func RecordLoginLog(userId int, username string, content string, ip string, action string, params map[string]interface{}, extra map[string]interface{}) {
+func RecordLoginLog(userId int, username string, content string, ip string, requestId string, action string, params map[string]interface{}, extra map[string]interface{}) {
 	other := map[string]interface{}{}
 	for key, value := range extra {
 		other[key] = value
 	}
 	userAgent, _ := extra["user_agent"].(string)
 	other["op"] = buildOpField(action, params)
+	other = sanitizeLoginLogOther(other)
 	log := &Log{
 		UserId:    userId,
-		Username:  username,
+		Username:  truncateLoginAuditText(username, loginAuditMaxIdentifierLength),
 		CreatedAt: common.GetTimestamp(),
 		Type:      LogTypeLogin,
 		Content:   content,
-		Ip:        ip,
-		UserAgent: strings.TrimSpace(userAgent),
+		Ip:        truncateLoginAuditText(ip, loginAuditMaxIPLength),
+		UserAgent: truncateLoginAuditText(userAgent, loginAuditMaxUserAgentLength),
+		RequestId: truncateLoginAuditText(requestId, loginAuditMaxRequestIdLength),
 		Other:     common.MapToJsonStr(other),
 	}
-	if err := createLog(log); err != nil {
-		common.SysLog("failed to record login log: " + err.Error())
+	ensureLogRequestId(log)
+	// 成功登录日志同样受 500ms 上限约束；失败时留结构化备份，不影响认证结果。
+	ctx, cancel := context.WithTimeout(context.Background(), loginAuditInsertTimeout)
+	defer cancel()
+	if err := LOG_DB.WithContext(ctx).Create(log).Error; err != nil {
+		common.SysError("failed to record login log: " + err.Error() + "; " + loginSuccessLogBackupJSON(log))
 	}
+}
+
+// loginSuccessLogBackupJSON 返回成功登录日志的白名单备份：只包含可追查的字段，
+// 不含口令、密文、Cookie 或原始报错。
+func loginSuccessLogBackupJSON(log *Log) string {
+	payload := struct {
+		UserId    int    `json:"user_id"`
+		Username  string `json:"username"`
+		CreatedAt int64  `json:"created_at"`
+		IP        string `json:"ip,omitempty"`
+		UserAgent string `json:"user_agent,omitempty"`
+		RequestId string `json:"request_id,omitempty"`
+		Other     string `json:"other,omitempty"`
+	}{
+		UserId:    log.UserId,
+		Username:  log.Username,
+		CreatedAt: log.CreatedAt,
+		IP:        log.Ip,
+		UserAgent: log.UserAgent,
+		RequestId: log.RequestId,
+		Other:     log.Other,
+	}
+	data, err := common.Marshal(payload)
+	if err != nil {
+		return fmt.Sprintf("user_id=%d", log.UserId)
+	}
+	return string(data)
 }
 
 // RecordOperationAuditLog 记录管理和高危操作审计日志。userAgent 为操作者请求的
@@ -540,20 +604,93 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, userAgent string, ip string, sessionFilter LogSessionFilter, logLanguage ...string) (logs []*Log, total int64, err error) {
+// 日志查询作用域：scope=login 在登录审计视图里检索成功登录（type=7）与
+// 登录安全事件（type=8），并与其他筛选条件取交集。
+const LogScopeLogin = "login"
+
+var supportedLogScopes = map[string]struct{}{
+	"":            {},
+	LogScopeLogin: {},
+}
+
+// ValidateLogScope 校验 scope 参数；空串表示保持原有查询语义。
+func ValidateLogScope(scope string) error {
+	if _, ok := supportedLogScopes[scope]; ok {
+		return nil
+	}
+	return fmt.Errorf("unsupported log scope %q", scope)
+}
+
+// applyAdminLoginScope 限制管理员登录审计视图只能看到 type=7/8。
+func applyAdminLoginScope(tx *gorm.DB, scope string) *gorm.DB {
+	if scope != LogScopeLogin {
+		return tx
+	}
+	return tx.Where("logs.type IN ?", []int{LogTypeLogin, LogTypeLoginSecurity})
+}
+
+// loginAuditAdminFieldExpr 返回某日志库方言下从 logs.other 提取
+// other.admin_info.<field> 字段值的 SQL 表达式。
+//
+// 只提取字段值本身，任何历史行里的键名、login_method、user_agent 都不会命中
+// 账号筛选。历史 type=7 记录的 other 可能为空或不是 JSON，因此用 CASE 限定
+// 只有 type=8（由 RecordLoginSecurityEvents 保证写入合法 JSON）才求值；MySQL
+// 额外用 JSON_VALID 兜底，防止手工写入的脏行让整条查询报错。
+func loginAuditAdminFieldExpr(field string) string {
+	switch common.LogDatabaseType() {
+	case common.DatabaseTypeClickHouse:
+		return fmt.Sprintf("JSONExtractString(logs.other, 'admin_info', '%s')", field)
+	case common.DatabaseTypeMySQL:
+		return fmt.Sprintf(
+			"CASE WHEN logs.type = %d AND JSON_VALID(logs.other) THEN JSON_UNQUOTE(JSON_EXTRACT(logs.other, '$.admin_info.%s')) END",
+			LogTypeLoginSecurity, field,
+		)
+	case common.DatabaseTypePostgreSQL:
+		return fmt.Sprintf(
+			"CASE WHEN logs.type = %d THEN logs.other::jsonb #>> '{admin_info,%s}' END",
+			LogTypeLoginSecurity, field,
+		)
+	default: // sqlite
+		return fmt.Sprintf(
+			"CASE WHEN logs.type = %d THEN json_extract(logs.other, '$.admin_info.%s') END",
+			LogTypeLoginSecurity, field,
+		)
+	}
+}
+
+// applyAdminLoginScopeUsernameFilter 在登录审计视图里同时匹配 actor 用户名与
+// 失败事件记录的目标账号/输入账号（失败事件 user_id=0，username 列为空）。
+func applyAdminLoginScopeUsernameFilter(tx *gorm.DB, scope string, username string) *gorm.DB {
+	if username == "" {
+		return tx
+	}
+	if scope != LogScopeLogin {
+		return tx.Where("logs.username LIKE ?", username)
+	}
+	// 与 actor 账号筛选完全相同的 LIKE 语义：同一个模式值分别作用于
+	// username 列和两个 admin_info 字段值，不做跨字段拼接。
+	// 整个 OR 组必须自带括号，否则 AND 优先级会让其他筛选条件被绕过。
+	condition := fmt.Sprintf(
+		"(logs.username LIKE ? OR %s LIKE ? OR %s LIKE ?)",
+		loginAuditAdminFieldExpr("target_username"),
+		loginAuditAdminFieldExpr("attempted_identifier"),
+	)
+	return tx.Where(condition, username, username, username)
+}
+
+func GetAllLogs(logType int, scope string, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, userAgent string, ip string, sessionFilter LogSessionFilter, logLanguage ...string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB
 	} else {
 		tx = LOG_DB.Where("logs.type = ?", logType)
 	}
+	tx = applyAdminLoginScope(tx, scope)
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err
 	}
-	if username != "" {
-		tx = tx.Where("logs.username LIKE ?", username)
-	}
+	tx = applyAdminLoginScopeUsernameFilter(tx, scope, username)
 	if tokenName != "" {
 		tx = tx.Where("logs.token_name LIKE ?", tokenName)
 	}
@@ -646,12 +783,16 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, userAgent string, ip string, sessionFilter LogSessionFilter, logLanguage ...string) (logs []*Log, total int64, err error) {
+func GetUserLogs(userId int, logType int, scope string, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, userAgent string, ip string, sessionFilter LogSessionFilter, logLanguage ...string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.user_id = ?", userId)
 	} else {
 		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
+	}
+	if scope == LogScopeLogin {
+		// 普通用户的登录审计视图只有自己的成功登录，失败事件（user_id=0）永不返回。
+		tx = tx.Where("logs.user_id = ? AND logs.type = ?", userId, LogTypeLogin)
 	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {

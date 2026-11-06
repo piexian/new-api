@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@douyinfe/semi-ui';
 import {
@@ -38,10 +38,12 @@ import {
   renderModelPrice,
   renderTieredModelPrice,
   renderTaskBillingProcess,
+  buildUsageLogQuery,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
+import LoginAuditDetail from '../../components/table/usage-logs/LoginAuditDetail';
 
 export const useLogsData = () => {
   const { t } = useTranslation();
@@ -76,6 +78,12 @@ export const useLogsData = () => {
   const [logCount, setLogCount] = useState(0);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [logType, setLogType] = useState(0);
+  // 'all' 保持原查询；'login' 走 scope=login 登录审计范围
+  const [logScope, setLogScope] = useState('all');
+  // 登录审计视图与登录类日志没有消费统计口径
+  const showStatistics = logScope !== 'login' && logType !== 7 && logType !== 8;
+  // 只有最新一次日志请求可以回写结果，避免旧响应覆盖新范围
+  const logsRequestSeqRef = useRef(0);
 
   // User and admin
   const isAdminUser = isAdmin();
@@ -277,16 +285,9 @@ export const useLogsData = () => {
   };
 
   // Statistics functions
-  const getLogSelfStat = async () => {
-    const {
-      token_name,
-      model_name,
-      start_timestamp,
-      end_timestamp,
-      group,
-      logType: formLogType,
-    } = getFormValues();
-    const currentLogType = formLogType !== undefined ? formLogType : logType;
+  const getLogSelfStat = async (currentLogType) => {
+    const { token_name, model_name, start_timestamp, end_timestamp, group } =
+      getFormValues();
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
     let url = `/api/log/self/stat?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
@@ -300,7 +301,7 @@ export const useLogsData = () => {
     }
   };
 
-  const getLogStat = async () => {
+  const getLogStat = async (currentLogType) => {
     const {
       username,
       token_name,
@@ -309,9 +310,7 @@ export const useLogsData = () => {
       end_timestamp,
       channel,
       group,
-      logType: formLogType,
     } = getFormValues();
-    const currentLogType = formLogType !== undefined ? formLogType : logType;
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
     let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
@@ -325,15 +324,31 @@ export const useLogsData = () => {
     }
   };
 
-  const handleEyeClick = async () => {
+  const handleEyeClick = async (
+    scopeOverride = null,
+    logTypeOverride = null,
+  ) => {
+    const effectiveScope = scopeOverride === null ? logScope : scopeOverride;
+    const formValues = formApi ? formApi.getValues() : {};
+    const currentType =
+      logTypeOverride !== null
+        ? logTypeOverride
+        : formValues.logType !== undefined
+          ? parseInt(formValues.logType)
+          : logType;
+    // 登录审计视图与 7/8 类型先拦截，避免发出无意义的统计请求
+    if (effectiveScope === 'login' || currentType === 7 || currentType === 8) {
+      setShowStat(false);
+      return;
+    }
     if (loadingStat) {
       return;
     }
     setLoadingStat(true);
     if (isAdminUser) {
-      await getLogStat();
+      await getLogStat(currentType);
     } else {
-      await getLogSelfStat();
+      await getLogSelfStat(currentType);
     }
     setShowStat(true);
     setLoadingStat(false);
@@ -466,6 +481,22 @@ export const useLogsData = () => {
       let other = getLogOther(logs[i].other);
       let expandDataLocal = [];
 
+      // 登录成功与安全事件只展开登录审计详情，不套用消费计费字段
+      if (logs[i].type === 7 || logs[i].type === 8) {
+        expandDataLocal.push({
+          key: t('登录审计详情'),
+          value: (
+            <LoginAuditDetail
+              record={logs[i]}
+              other={other}
+              t={t}
+              isAdminUser={isAdminUser}
+            />
+          ),
+        });
+        expandDatesLocal[logs[i].key] = expandDataLocal;
+        continue;
+      }
       if (
         isAdminUser &&
         (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)
@@ -842,10 +873,16 @@ export const useLogsData = () => {
   };
 
   // Load logs function
-  const loadLogs = async (startIdx, pageSize, customLogType = null) => {
+  const loadLogs = async (
+    startIdx,
+    pageSize,
+    customLogType = null,
+    scopeOverride = null,
+  ) => {
+    const requestSeq = logsRequestSeqRef.current + 1;
+    logsRequestSeqRef.current = requestSeq;
     setLoading(true);
 
-    let url = '';
     const {
       username,
       token_name,
@@ -868,34 +905,49 @@ export const useLogsData = () => {
         : formLogType !== undefined
           ? formLogType
           : logType;
+    const effectiveScope = scopeOverride === null ? logScope : scopeOverride;
 
-    let localStartTimestamp = Date.parse(start_timestamp) / 1000;
-    let localEndTimestamp = Date.parse(end_timestamp) / 1000;
+    const url = buildUsageLogQuery({
+      isAdmin: isAdminUser,
+      page: startIdx,
+      pageSize,
+      logType: currentLogType,
+      scope: effectiveScope,
+      startTimestamp: Date.parse(start_timestamp) / 1000,
+      endTimestamp: Date.parse(end_timestamp) / 1000,
+      username,
+      tokenName: token_name,
+      modelName: model_name,
+      group,
+      channel,
+      requestId: request_id,
+      ip,
+      userAgent: user_agent,
+      sessionId: session_id,
+      cacheKey: cache_key,
+    });
 
-    const ipParam = ip ? ip.trim() : '';
-    const userAgentParam = user_agent ? `%${user_agent.trim()}%` : '';
-    const sessionIdParam = session_id ? session_id.trim() : '';
-    const cacheKeyParam = cache_key ? cache_key.trim() : '';
+    try {
+      const res = await API.get(url);
+      if (logsRequestSeqRef.current !== requestSeq) {
+        return;
+      }
+      const { success, message, data } = res.data;
+      if (success) {
+        const newPageData = data.items;
+        setActivePage(data.page);
+        setPageSize(data.page_size);
+        setLogCount(data.total);
 
-    if (isAdminUser) {
-      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}&ip=${ipParam}&user_agent=${userAgentParam}&session_id=${sessionIdParam}&cache_key=${cacheKeyParam}`;
-    } else {
-      url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}&ip=${ipParam}&user_agent=${userAgentParam}&session_id=${sessionIdParam}&cache_key=${cacheKeyParam}`;
+        setLogsFormat(newPageData);
+      } else {
+        showError(message);
+      }
+    } finally {
+      if (logsRequestSeqRef.current === requestSeq) {
+        setLoading(false);
+      }
     }
-    url = encodeURI(url);
-    const res = await API.get(url);
-    const { success, message, data } = res.data;
-    if (success) {
-      const newPageData = data.items;
-      setActivePage(data.page);
-      setPageSize(data.page_size);
-      setLogCount(data.total);
-
-      setLogsFormat(newPageData);
-    } else {
-      showError(message);
-    }
-    setLoading(false);
   };
 
   // Page handlers
@@ -920,6 +972,29 @@ export const useLogsData = () => {
     setActivePage(1);
     handleEyeClick();
     await loadLogs(1, pageSize);
+  };
+
+  // 切换查询范围：重置分页与类型，全部结果由后端过滤
+  const handleLogScopeChange = (scope) => {
+    if (scope === logScope) {
+      return;
+    }
+    setLogScope(scope);
+    setLogType(0);
+    setActivePage(1);
+    // 先清空旧范围的行、展开数据与总数，再由后端 scope 查询填充
+    setLogs([]);
+    setExpandData({});
+    setLogCount(0);
+    if (formApi) {
+      formApi.setValue('logType', '0');
+    }
+    if (scope !== 'login') {
+      handleEyeClick('all', 0);
+    }
+    loadLogs(1, pageSize, 0, scope).catch((reason) => {
+      showError(reason);
+    });
   };
 
   // Copy text function
@@ -971,6 +1046,9 @@ export const useLogsData = () => {
     logType,
     stat,
     isAdminUser,
+    logScope,
+    handleLogScopeChange,
+    showStatistics,
 
     // Form state
     formApi,

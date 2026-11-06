@@ -210,6 +210,11 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 
+	// 登录流程在兑换授权码之前先做空 UA 拦截：不消耗 code、不读上游、不建账号。
+	if blockLoginForMissingUserAgent(c, nil) {
+		return
+	}
+
 	// 5. Exchange code for token
 	code := c.Query("code")
 	token, err := provider.ExchangeToken(c.Request.Context(), code, c)

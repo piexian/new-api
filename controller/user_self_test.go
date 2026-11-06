@@ -154,6 +154,8 @@ func newSelfJSONContext(
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(method, target, bytes.NewReader(payload))
 	ctx.Request.Header.Set("Content-Type", "application/json")
+	// 缺少 UA 的请求会被浏览器环境校验阻断，正常浏览器 fixture 默认带上 UA。
+	ctx.Request.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 	ctx.Set("id", userID)
 	ctx.Set("role", role)
 	return ctx, recorder

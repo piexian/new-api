@@ -47,6 +47,7 @@ func TestLoginPasswordSetupFlow(t *testing.T) {
 		}
 		req := httptest.NewRequest(method, path, bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 		req.Header.Set("New-Api-User", strconv.Itoa(user.Id))
 		if session {
 			req.Header.Set("Cookie", cookieHeader)

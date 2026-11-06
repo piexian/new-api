@@ -24,6 +24,8 @@ export * from './base64';
 export * from './api';
 export * from './render';
 export * from './log';
+export * from './loginAudit';
+export * from './usageLogQuery';
 export * from './data';
 export * from './token';
 export * from './boolean';

@@ -9,12 +9,14 @@ import (
 
 // 数据保留窗口。
 const (
-	riskBanLogRetentionSeconds = 90 * 86400 // 封禁日志保留 90 天
-	riskStateRetentionSeconds  = 30 * 86400 // 已归零的状态记录保留 30 天
+	riskBanLogRetentionSeconds       = 90 * 86400 // 封禁日志保留 90 天
+	riskStateRetentionSeconds        = 30 * 86400 // 已归零的状态记录保留 30 天
+	loginSecurityLogRetentionSeconds = 90 * 86400 // 登录安全审计日志保留 90 天
 )
 
 // CleanupRiskData 清理过期的风控数据：
 //   - 90 天前的封禁日志；
+//   - 90 天前的登录安全审计日志（type=8）；
 //   - 30 天前且计数已归零的违规/窗口状态记录。
 func CleanupRiskData() {
 	now := common.GetTimestamp()
@@ -23,6 +25,13 @@ func CleanupRiskData() {
 		common.SysError("risk ban log cleanup failed: " + err.Error())
 	} else if deleted > 0 {
 		common.SysLog(fmt.Sprintf("risk retention: cleaned %d expired ban logs", deleted))
+	}
+
+	// 登录安全审计日志（type=8）保留 90 天；成功登录与消费日志不受影响。
+	if deleted, err := DeleteOldLoginSecurityLogsBefore(now - loginSecurityLogRetentionSeconds); err != nil {
+		common.SysError("login security log cleanup failed: " + err.Error())
+	} else if deleted > 0 {
+		common.SysLog(fmt.Sprintf("risk retention: cleaned %d expired login security logs", deleted))
 	}
 
 	stateBefore := now - riskStateRetentionSeconds

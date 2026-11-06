@@ -89,6 +89,9 @@ func TelegramLogin(c *gin.Context) {
 		})
 		return
 	}
+	if blockLoginForMissingUserAgent(c, nil) {
+		return
+	}
 	params := c.Request.URL.Query()
 	telegramId, err := verifyTelegramAuthorization(params, common.TelegramBotToken, time.Now())
 	if err != nil {

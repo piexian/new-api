@@ -170,6 +170,7 @@ func TestRecordLoginLogStoresUserAgentColumn(t *testing.T) {
 		"login_audit_user",
 		"登录成功",
 		"198.51.100.221",
+		"",
 		"login.success",
 		nil,
 		map[string]interface{}{"user_agent": userAgent},

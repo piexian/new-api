@@ -2,14 +2,17 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // Setup2FARequest 设置2FA请求结构
@@ -396,8 +399,12 @@ func RegenerateBackupCodes(c *gin.Context) {
 
 // Verify2FALogin 登录时验证2FA
 func Verify2FALogin(c *gin.Context) {
+	if blockLoginForMissingUserAgent(c, nil) {
+		return
+	}
 	var req Verify2FARequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageRequest, model.LoginAuditReasonInvalidRequest)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "参数错误",
@@ -409,6 +416,7 @@ func Verify2FALogin(c *gin.Context) {
 	session := sessions.Default(c)
 	pendingUserId := session.Get("pending_user_id")
 	if pendingUserId == nil {
+		middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonTwoFactorSessionExpired)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "会话已过期，请重新登录",
@@ -417,15 +425,23 @@ func Verify2FALogin(c *gin.Context) {
 	}
 	userId, ok := pendingUserId.(int)
 	if !ok {
+		middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonTwoFactorSessionExpired)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "会话数据无效，请重新登录",
 		})
 		return
 	}
-	// 获取用户信息
+	// 获取用户信息；数据库故障与账号不存在必须区分，前者不能计入撞库失败。
 	user, err := model.GetUserById(userId, false)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// pending 会话指向的账号已不存在：状态阻塞，不是验证码失败。
+			middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonUserNotFound)
+		} else {
+			middleware.MarkLoginAuditError(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonDatabaseError)
+			common.SysLog(fmt.Sprintf("2FA login failed to load user %d: %v", userId, err))
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "用户不存在",
@@ -433,13 +449,17 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
+	middleware.MarkLoginAuditTarget(c, user.Id, user.Username)
 	// 获取2FA记录
 	twoFA, err := model.GetTwoFAByUserId(user.Id)
 	if err != nil {
+		middleware.MarkLoginAuditError(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonDatabaseError)
 		common.ApiError(c, err)
 		return
 	}
 	if twoFA == nil || !twoFA.IsEnabled {
+		// 用户已进入 2FA 校验流程但记录缺失或未启用：状态阻塞，不是凭证失败。
+		middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonTwoFactorUnavailable)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "用户未启用2FA",
@@ -461,6 +481,17 @@ func Verify2FALogin(c *gin.Context) {
 		// 尝试验证备用码
 		isValidBackup, err = twoFA.ValidateBackupCodeAndUpdateUsage(req.Code)
 		if err != nil {
+			// 备用码校验错误分三种：已锁定、输入格式非法（如 6 位 TOTP 误当备用码）、
+			// 其余按数据库错误处理，避免把口令类失败混进成功事件。
+			switch {
+			case twoFA.IsLocked():
+				// 账号被 2FA 锁定属于状态阻塞，不是凭证失败。
+				middleware.MarkLoginAuditBlocked(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonTwoFactorLocked)
+			case !common.ValidateBackupCode(req.Code):
+				middleware.MarkLoginAuditFailure(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonTwoFactorInvalid)
+			default:
+				middleware.MarkLoginAuditError(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonDatabaseError)
+			}
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": err.Error(),
@@ -470,6 +501,7 @@ func Verify2FALogin(c *gin.Context) {
 	}
 
 	if !isValidTOTP && !isValidBackup {
+		middleware.MarkLoginAuditFailure(c, model.LoginAuditStageTwoFactor, model.LoginAuditReasonTwoFactorInvalid)
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "验证码或备用码错误，请重试",

@@ -60,6 +60,7 @@ export const LOG_TYPE_ENUM = {
   ERROR: 5,
   REFUND: 6,
   LOGIN: 7,
+  LOGIN_SECURITY: 8,
 } as const
 
 /**
@@ -98,6 +99,7 @@ export const LOG_TYPES = [
   { value: 5, label: 'Error', color: 'red' },
   { value: 6, label: 'Refund', color: 'blue' },
   { value: 7, label: 'Login', color: 'teal' },
+  { value: 8, label: 'Security Event', color: 'red' },
 ] as const
 
 /**
@@ -383,3 +385,93 @@ export const DISPLAYABLE_LOG_TYPES = [0, 2, 5, 6] as const
  * Log types that show timing info
  */
 export const TIMING_LOG_TYPES = [2, 5] as const
+
+// ============================================================================
+// Login Audit (type=7 success, type=8 security events)
+// ============================================================================
+
+/**
+ * Log types that belong to the login audit scope. Type 7 is a successful
+ * login, type 8 is a failed/blocked/challenge security event.
+ */
+export const LOGIN_AUDIT_LOG_TYPES = [7, 8] as const
+
+/**
+ * Result filter options for the login audit scope. `type` is the API type
+ * filter; `undefined` keeps both login types (administrators only).
+ */
+export const LOGIN_AUDIT_RESULT_FILTERS = [
+  { value: 'all', label: 'All Logins', type: undefined },
+  { value: 'success', label: 'Successful Logins', type: '7' },
+  { value: 'security', label: 'Security Events', type: '8' },
+] as const
+
+export type LoginAuditResultFilter =
+  (typeof LOGIN_AUDIT_RESULT_FILTERS)[number]['value']
+
+/**
+ * Security-event outcomes a type=8 record may report; anything else is unknown.
+ */
+export const LOGIN_AUDIT_SECURITY_EVENT_OUTCOMES = [
+  'failure',
+  'blocked',
+  'challenge',
+  'error',
+] as const
+
+export const LOGIN_AUDIT_UNKNOWN_OUTCOME = 'unknown'
+
+/** Login audit outcome mappings: type=7 is success, type=8 never is. */
+export const LOGIN_AUDIT_OUTCOME_MAPPINGS: Record<string, StatusMapping> = {
+  success: { label: 'Login succeeded', variant: 'green' },
+  failure: { label: 'Login failed', variant: 'red' },
+  blocked: { label: 'Login blocked', variant: 'orange' },
+  challenge: { label: 'Challenge required', variant: 'yellow' },
+  error: { label: 'Login error', variant: 'red' },
+  unknown: { label: 'Unknown', variant: 'neutral' },
+}
+
+/** Safe label for an outcome value produced by a newer backend. */
+export const LOGIN_AUDIT_UNKNOWN_OUTCOME_LABEL = 'Unknown'
+
+/** Stage labels for the login audit pipeline. */
+export const LOGIN_AUDIT_STAGE_LABELS: Record<string, string> = {
+  precheck: 'Precheck',
+  request: 'Request validation',
+  captcha: 'Captcha verification',
+  credentials: 'Credential verification',
+  two_factor: 'Two-factor verification',
+  session: 'Session creation',
+}
+
+/** Reason labels for login audit events. */
+export const LOGIN_AUDIT_REASON_LABELS: Record<string, string> = {
+  invalid_request: 'Invalid request',
+  user_agent_missing: 'Browser environment error',
+  password_encryption_required: 'Password encryption required',
+  password_decryption_failed: 'Password decryption failed',
+  user_not_found: 'User not found',
+  invalid_credentials: 'Invalid credentials',
+  account_disabled: 'Account disabled',
+  password_login_disabled: 'Password login disabled',
+  email_repair_required: 'Email repair required',
+  two_factor_required: 'Two-factor authentication required',
+  two_factor_session_expired: 'Two-factor session expired',
+  two_factor_invalid: 'Invalid two-factor code',
+  two_factor_locked: 'Two-factor authentication locked',
+  two_factor_unavailable: 'Two-factor authentication unavailable',
+  session_save_failed: 'Session save failed',
+  database_error: 'Database error',
+  ip_banned: 'IP banned',
+  rate_limited: 'Rate Limited',
+  captcha_missing: 'Captcha missing',
+  captcha_invalid: 'Captcha invalid',
+  captcha_error: 'Captcha verification failed',
+  internal_error: 'Internal error',
+}
+
+/** Safe label for a reason value produced by a newer backend. */
+export const LOGIN_AUDIT_UNKNOWN_REASON_LABEL = 'Unknown reason'
+
+/** Safe label for a stage value produced by a newer backend. */
+export const LOGIN_AUDIT_UNKNOWN_STAGE_LABEL = 'Unknown stage'

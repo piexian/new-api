@@ -23,12 +23,23 @@ func newGitHubOAuthTestContext(t *testing.T) (*gin.Context, sessions.Session) {
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/oauth/github", nil)
+	ctx.Request.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 	store := cookie.NewStore([]byte("github-email-test"))
 	sessions.Sessions("github-email-test", store)(ctx)
 	return ctx, sessions.Default(ctx)
 }
 
 func newOAuthOwnershipTransferTestContext(t *testing.T, body string) (*gin.Context, *httptest.ResponseRecorder, sessions.Session) {
+	t.Helper()
+	// 正常浏览器 fixture 默认带 UA；空串表示完全不带 User-Agent 头。
+	return newOAuthOwnershipTransferTestContextWithUserAgent(t, body, "Mozilla/5.0 (Test Browser)")
+}
+
+func newOAuthOwnershipTransferTestContextWithUserAgent(
+	t *testing.T,
+	body string,
+	userAgent string,
+) (*gin.Context, *httptest.ResponseRecorder, sessions.Session) {
 	t.Helper()
 	if err := newapii18n.Init(); err != nil {
 		t.Fatalf("initialize i18n: %v", err)
@@ -37,6 +48,9 @@ func newOAuthOwnershipTransferTestContext(t *testing.T, body string) (*gin.Conte
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/oauth/ownership/confirm", strings.NewReader(body))
 	ctx.Request.Header.Set("Content-Type", "application/json")
+	if userAgent != "" {
+		ctx.Request.Header.Set("User-Agent", userAgent)
+	}
 	store := cookie.NewStore([]byte("oauth-ownership-transfer-test"))
 	sessions.Sessions("oauth-ownership-transfer-test", store)(ctx)
 	return ctx, recorder, sessions.Default(ctx)
@@ -221,6 +235,17 @@ func TestExistingGitHubOAuthUserWithoutProviderEmailBlocksLogin(t *testing.T) {
 
 func prepareControllerOAuthOwnershipTransfer(t *testing.T, db *gorm.DB, codeSentAt int64) (*model.OAuthOwnershipTransfer, *model.User, *model.User) {
 	t.Helper()
+	return prepareControllerOAuthOwnershipTransferWithMode(t, db, codeSentAt, model.OAuthOwnershipTransferModeLogin)
+}
+
+// prepareControllerOAuthOwnershipTransferWithMode 复用同一条准备流程，仅切换模式。
+func prepareControllerOAuthOwnershipTransferWithMode(
+	t *testing.T,
+	db *gorm.DB,
+	codeSentAt int64,
+	mode string,
+) (*model.OAuthOwnershipTransfer, *model.User, *model.User) {
+	t.Helper()
 	if err := db.AutoMigrate(&model.RiskBanLog{}, &model.OAuthOwnershipTransfer{}); err != nil {
 		t.Fatalf("migrate ownership transfer tables: %v", err)
 	}
@@ -241,7 +266,7 @@ func prepareControllerOAuthOwnershipTransfer(t *testing.T, db *gorm.DB, codeSent
 		previous.Email,
 		previous.Id,
 		target.Id,
-		model.OAuthOwnershipTransferModeLogin,
+		mode,
 		"github_id",
 		0,
 		codeSentAt,

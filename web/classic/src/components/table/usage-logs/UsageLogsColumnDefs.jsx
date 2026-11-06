@@ -35,6 +35,14 @@ import {
   renderModelPriceSimple,
   renderTieredModelPriceSimple,
 } from '../../../helpers';
+import {
+  getLoginAudit,
+  getLoginAuditOutcome,
+  getLoginAuditOutcomeLabel,
+  getLoginAuditReasonLabel,
+  getLoginAuditUserAgent,
+  isLoginAuditLogType,
+} from '../../../helpers/loginAudit';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
 import { CircleAlert, Route, Sparkles } from 'lucide-react';
 
@@ -131,6 +139,18 @@ function renderType(type, t) {
       return (
         <Tag color='teal' shape='circle'>
           {t('退款')}
+        </Tag>
+      );
+    case 7:
+      return (
+        <Tag color='blue' shape='circle'>
+          {t('登录')}
+        </Tag>
+      );
+    case 8:
+      return (
+        <Tag color='orange' shape='circle'>
+          {t('安全事件')}
         </Tag>
       );
     default:
@@ -446,6 +466,20 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
   if (record.type === 6) {
     return {
       segments: [{ text: t('异步任务退款'), tone: 'primary' }],
+    };
+  }
+
+  if (isLoginAuditLogType(record.type)) {
+    const outcome = getLoginAuditOutcome(record);
+    const audit = getLoginAudit(other);
+    const reason = audit?.reason
+      ? getLoginAuditReasonLabel(audit.reason, t)
+      : '';
+    return {
+      segments: [
+        { text: getLoginAuditOutcomeLabel(outcome, t), tone: 'primary' },
+        reason ? { text: reason, tone: 'secondary' } : null,
+      ].filter(Boolean),
     };
   }
 
@@ -870,7 +904,8 @@ export const getLogsColumns = ({
         const showIp =
           (record.type === 2 ||
             record.type === 5 ||
-            (isAdminUser && record.type === 1)) &&
+            record.type === 7 ||
+            (isAdminUser && (record.type === 1 || record.type === 8))) &&
           text;
         return showIp ? (
           <Tooltip content={text}>
@@ -907,18 +942,25 @@ export const getLogsColumns = ({
       ),
       dataIndex: 'user_agent',
       render: (text, record, index) => {
+        const other = isLoginAuditLogType(record.type)
+          ? getLogOther(record.other)
+          : null;
+        const userAgent = other
+          ? getLoginAuditUserAgent(record, other)
+          : String(text || '').trim();
         const showUA =
           (record.type === 2 ||
             record.type === 5 ||
-            (isAdminUser && record.type === 1)) &&
-          text;
+            record.type === 7 ||
+            (isAdminUser && (record.type === 1 || record.type === 8))) &&
+          userAgent;
         return showUA ? (
           <Typography.Text
             ellipsis={{ showTooltip: true }}
-            copyable={{ content: text }}
+            copyable={{ content: userAgent }}
             style={{ width: 180, fontFamily: 'monospace', fontSize: '12px' }}
           >
-            {text}
+            {userAgent}
           </Typography.Text>
         ) : (
           <></>

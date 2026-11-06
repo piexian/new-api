@@ -196,6 +196,8 @@ export function buildApiParams(config: {
   const params: GetLogsParams = {
     p: page,
     page_size: pageSize,
+    // Login audit scope; the backend intersects it with type/ip/time filters.
+    ...(searchParams.scope === 'login' ? { scope: 'login' as const } : {}),
     ...(searchParams.type ? { type: processType(searchParams.type) } : {}),
     ...(searchParams.model ? { model_name: String(searchParams.model) } : {}),
     ...(searchParams.token ? { token_name: String(searchParams.token) } : {}),

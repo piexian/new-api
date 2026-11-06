@@ -24,6 +24,7 @@ func TestGetAllLogsUsesExactIpAndChannelFilters(t *testing.T) {
 
 	logs, total, err := GetAllLogs(
 		LogTypeUnknown,
+		"",
 		0,
 		0,
 		"",
@@ -59,6 +60,7 @@ func TestGetUserLogsUsesExactIpFilter(t *testing.T) {
 	logs, total, err := GetUserLogs(
 		7,
 		LogTypeUnknown,
+		"",
 		0,
 		0,
 		"",

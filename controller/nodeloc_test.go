@@ -55,6 +55,7 @@ func nodeLocCallback(t *testing.T, query string, sessionValues map[string]any) (
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/oauth/nodeloc?"+query, nil)
+	c.Request.Header.Set("User-Agent", "Mozilla/5.0 (Test Browser)")
 	c.Params = gin.Params{{Key: "provider", Value: "nodeloc"}}
 	sessions.Sessions("new-api-session", cookie.NewStore([]byte("nodeloc-oauth-test")))(c)
 	session := sessions.Default(c)
