@@ -449,6 +449,17 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		} else {
 			shouldSelectChannel = false
 		}
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/decisions") {
+		// Gemini Decisions API: 单端点,model 从 body 提取
+		c.Set("relay_mode", relayconstant.RelayModeDecisions)
+		decisionReq, parseErr := getModelFromRequest(c)
+		if parseErr != nil {
+			return nil, false, parseErr
+		}
+		if decisionReq.Model == "" {
+			return nil, false, errors.New(i18n.T(c, i18n.MsgDistributorInvalidParseModel))
+		}
+		modelRequest.Model = decisionReq.Model
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") || strings.HasPrefix(c.Request.URL.Path, "/pg/v1beta/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
 		relayMode := relayconstant.RelayModeGemini

@@ -19,6 +19,7 @@ const (
 	EndpointTypeEmbeddings            = kit_types.EndpointTypeEmbeddings
 	EndpointTypeGeminiEmbeddings      = kit_types.EndpointTypeGeminiEmbeddings
 	EndpointTypeGeminiInteractions    = kit_types.EndpointTypeGeminiInteractions
+	EndpointTypeGeminiDecisions       = kit_types.EndpointTypeGeminiDecisions
 	EndpointTypeOpenAIVideo           = kit_types.EndpointTypeOpenAIVideo
 	EndpointTypeVideoEdit             = kit_types.EndpointTypeVideoEdit
 	EndpointTypeVideoExtension        = kit_types.EndpointTypeVideoExtension

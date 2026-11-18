@@ -90,6 +90,9 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 			return string(constant.EndpointTypeEmbeddings)
 		}
 	}
+	if channel != nil && channel.Type == constant.ChannelTypeGemini && strings.HasPrefix(modelName, "gemini-decision") {
+		return string(constant.EndpointTypeGeminiDecisions)
+	}
 	return normalized
 }
 
@@ -106,7 +109,7 @@ func channelTestEndpointRelayFormat(endpointType constant.EndpointType) types.Re
 		relayFormat = types.RelayFormatOpenAIResponsesCompaction
 	case constant.EndpointTypeAnthropic:
 		relayFormat = types.RelayFormatClaude
-	case constant.EndpointTypeGemini, constant.EndpointTypeGeminiInteractions:
+	case constant.EndpointTypeGemini, constant.EndpointTypeGeminiInteractions, constant.EndpointTypeGeminiDecisions:
 		relayFormat = types.RelayFormatGemini
 	case constant.EndpointTypeJinaRerank, constant.EndpointTypeCohereRerank:
 		relayFormat = types.RelayFormatRerank
@@ -481,6 +484,17 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				context:     c,
 				localErr:    errors.New("invalid gemini interactions request type"),
 				newAPIError: types.NewError(errors.New("invalid gemini interactions request type"), types.ErrorCodeConvertRequestFailed),
+			}
+		}
+	case relayconstant.RelayModeDecisions:
+		// 原生 decisions 测试请求直接透传,与入站 relay 行为一致
+		if decisionsReq, ok := request.(*kitdto.GeminiDecisionsRequest); ok {
+			convertedRequest = decisionsReq
+		} else {
+			return testResult{
+				context:     c,
+				localErr:    errors.New("invalid gemini decisions request type"),
+				newAPIError: types.NewError(errors.New("invalid gemini decisions request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	case relayconstant.RelayModeTypeSafeNative:
@@ -993,6 +1007,8 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 			return &kitdto.EmbeddingRequest{Model: model, Input: []any{"hello world"}}
 		case constant.EndpointTypeGeminiInteractions:
 			return &dto.GeminiInteractionsRequest{Model: model, Input: json.RawMessage(`"Hi"`)}
+		case constant.EndpointTypeGeminiDecisions:
+			return &kitdto.GeminiDecisionsRequest{Model: model, Input: json.RawMessage(`"Hi"`), Questions: json.RawMessage(`{"ok":{"type":"noul","instructions":"Is the user greeting someone?"}}`)}
 		case constant.EndpointTypeOpenAIVideo:
 			return buildTestVideoRequest(model, channel)
 		case constant.EndpointTypeVideoEdit, constant.EndpointTypeVideoExtension:

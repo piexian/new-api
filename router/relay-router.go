@@ -416,6 +416,20 @@ func SetRelayRouter(router *gin.Engine) {
 			interactionsRouter.DELETE("/:id", controller.RelayGeminiInteractionState)
 		}
 	}
+
+	// Gemini Decisions API(Beta):官方仅 v1beta 单端点,无流式
+	decisionsRouter := router.Group("/v1beta/decisions")
+	decisionsRouter.Use(middleware.RouteTag("relay"))
+	decisionsRouter.Use(middleware.SystemPerformanceCheck())
+	decisionsRouter.Use(middleware.TokenAuth())
+	decisionsRouter.Use(middleware.ModelRequestRateLimit())
+	decisionsRouter.Use(middleware.TokenRateLimit())
+	decisionsRouter.Use(middleware.Distribute(), middleware.GroupConcurrencyLimit())
+	{
+		decisionsRouter.POST("", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatGemini)
+		})
+	}
 }
 
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {

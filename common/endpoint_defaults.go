@@ -28,6 +28,7 @@ var defaultEndpointInfoMap = map[constant.EndpointType]EndpointInfo{
 	constant.EndpointTypeEmbeddings:            {Path: "/v1/embeddings", Method: "POST"},
 	constant.EndpointTypeGeminiEmbeddings:      {Path: "/v1beta/models/{model}:embedContent", Method: "POST"},
 	constant.EndpointTypeGeminiInteractions:    {Path: "/v1beta/interactions", Method: "POST"},
+	constant.EndpointTypeGeminiDecisions:       {Path: "/v1beta/decisions", Method: "POST"},
 	constant.EndpointTypeOpenAIVideo:           {Path: "/v1/videos", Method: "POST"},
 	constant.EndpointTypeVideoEdit:             {Path: "/v1/videos/edits", Method: "POST"},
 	constant.EndpointTypeVideoExtension:        {Path: "/v1/videos/extensions", Method: "POST"},

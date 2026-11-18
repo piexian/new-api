@@ -22,6 +22,7 @@ var ModelList = []string{
 	// Gemini 4 与 3.8 TTS(官方 models 页 2026-11)
 	"gemini-4-carbon", "gemini-4-argon", "gemini-4-hydrogen",
 	"gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts",
+	"gemini-decision-1",
 	// image generation
 	"gemini-3-pro-image", "gemini-3.1-flash-image", "gemini-3.1-flash-lite-image",
 	"gemini-nano-banana-2.1",

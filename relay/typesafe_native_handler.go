@@ -22,6 +22,10 @@ import (
 // TypeSafeNativeHelper 透传 TypeSafe 和 OpenCode Zen 的 System One 请求及响应。
 func TypeSafeNativeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
+	// Gemini 渠道上的 systemone 协议仅服务 Decisions 模型:state→input 转换
+	if info.ChannelType == constant.ChannelTypeGemini {
+		return GeminiDecisionsViaSystemOneHelper(c, info)
+	}
 	if info.ChannelType != constant.ChannelTypeTypeSafe && info.ChannelType != constant.ChannelTypeOpenCode {
 		return types.NewErrorWithStatusCode(fmt.Errorf("native endpoint is not supported by the selected channel"), types.ErrorCodeInvalidApiType, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}

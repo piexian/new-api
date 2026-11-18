@@ -16,8 +16,8 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/service"
 	forkrelayconvert "github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
@@ -180,6 +180,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayMode == constant.RelayModeGeminiInteractions {
 		return geminiInteractionsRequestURL(info)
 	}
+	if info.RelayMode == constant.RelayModeDecisions ||
+		(info.RelayMode == constant.RelayModeTypeSafeNative && kitdto.IsGeminiDecisionsModel(info.UpstreamModelName)) {
+		return fmt.Sprintf("%s/v1beta/decisions", strings.TrimRight(info.ChannelBaseUrl, "/")), nil
+	}
 
 	// 渠道级开关:OpenAI Chat 入站直传上游 OpenAI 兼容端点,省去 OpenAI->Gemini 转换
 	if info.UpstreamOpenAICompatChat() {
@@ -322,6 +326,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			return GeminiInteractionsStreamHandler(c, info, resp)
 		}
 		return GeminiInteractionsHandler(c, info, resp)
+	}
+	if info.RelayMode == constant.RelayModeDecisions {
+		return GeminiDecisionsHandler(c, info, resp)
+	}
+	if info.RelayMode == constant.RelayModeTypeSafeNative && kitdto.IsGeminiDecisionsModel(info.UpstreamModelName) {
+		return GeminiDecisionsSystemOneHandler(c, info, resp)
 	}
 
 	if info.RelayMode == constant.RelayModeResponses {

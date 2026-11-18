@@ -28,6 +28,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request ki
 	case types.RelayFormatGemini:
 		if relayMode == relayconstant.RelayModeGeminiInteractions {
 			request, err = GetAndValidateGeminiInteractionsRequest(c)
+		} else if relayMode == relayconstant.RelayModeDecisions {
+			request, err = GetAndValidateGeminiDecisionsRequest(c)
 		} else if strings.Contains(c.Request.URL.Path, ":embedContent") {
 			request, err = GetAndValidateGeminiEmbeddingRequest(c)
 		} else if strings.Contains(c.Request.URL.Path, ":batchEmbedContents") {
@@ -455,6 +457,24 @@ func GetAndValidateGeminiInteractionsRequest(c *gin.Context) (*dto.GeminiInterac
 	}
 	if len(request.Input) == 0 {
 		return nil, errors.New("input is required")
+	}
+	return request, nil
+}
+
+// GetAndValidateGeminiDecisionsRequest 校验 Gemini Decisions 原生请求,input/questions 保持原始 JSON 透传
+func GetAndValidateGeminiDecisionsRequest(c *gin.Context) (*kitdto.GeminiDecisionsRequest, error) {
+	request := &kitdto.GeminiDecisionsRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		return nil, errors.New("model is required")
+	}
+	if len(request.Input) == 0 {
+		return nil, errors.New("input is required")
+	}
+	if len(request.Questions) == 0 {
+		return nil, errors.New("questions is required")
 	}
 	return request, nil
 }

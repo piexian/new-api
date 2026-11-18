@@ -247,6 +247,7 @@ var defaultModelRatio = map[string]float64{
 	"gemini-4-carbon":                           1.0,   // $2/M in,$10/M out(官方定价页暂无条目,暂同 argon)
 	"gemini-4-argon":                            1.0,   // $2/M in,$10/M out(2026 促销价,2026-12-01 起翻倍 $4/$20)
 	"gemini-4-hydrogen":                         0.75,  // $1.5/M in,$7.5/M out
+	"gemini-decision-1":                         0,     // 官方 Decisions API(Beta)未发布定价,免费层
 	"gemini-nano-banana-2.1":                    0.75,  // $1.5/M in,text 出 $7.5/M,图像出 $30/M
 	"gemini-3.8-flash-tts":                      0.25,  // $0.5/M 文本入,音频出 $9/M(2026 促销价,2027-01-01 起翻倍)
 	"gemini-3.8-flash-lite-tts":                 0.25,  // $0.5/M 文本入,音频出 $6/M(2026 促销价,2027-01-01 起翻倍)
