@@ -122,6 +122,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 		return bytes.NewBuffer(body), nil
 	}
+	if isMiniMaxH3ImageModel(info.UpstreamModelName) {
+		return oaiImage2H3ImageRequest(request), nil
+	}
 	return oaiImage2MiniMaxImageRequest(request), nil
 }
 
@@ -212,6 +215,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if info.RelayMode == constant.RelayModeImagesGenerations || info.RelayMode == constant.RelayModeImagesEdits {
 		if isMiniMaxNativeImageEndpoint(c) {
 			return miniMaxNativeImageHandler(c, resp)
+		}
+		if isMiniMaxH3ImageModel(info.UpstreamModelName) {
+			return miniMaxH3ImageHandler(c, resp, info)
 		}
 		return miniMaxImageHandler(c, resp, info)
 	}

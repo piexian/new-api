@@ -79,6 +79,91 @@ type FileObject struct {
 	DownloadURL string `json:"download_url"`
 }
 
+// ── V2 接口(H3 家族)类型 ──────────────────────────────────────────
+
+// ContentItemV2 是 V2 请求的 content 数组元素;text 必填,媒体经 role 标注用途
+type ContentItemV2 struct {
+	Type     string      `json:"type"`
+	Text     string      `json:"text,omitempty"`
+	ImageURL *MediaURLV2 `json:"image_url,omitempty"`
+	VideoURL *MediaURLV2 `json:"video_url,omitempty"`
+	AudioURL *MediaURLV2 `json:"audio_url,omitempty"`
+	Role     string      `json:"role,omitempty"`
+}
+
+// MediaURLV2 对齐 V2 媒体对象:公网 URL / mm_file:// / data: URI
+type MediaURLV2 struct {
+	URL string `json:"url"`
+}
+
+// VideoRequestV2 是 POST /v2/video_generation 的请求体
+type VideoRequestV2 struct {
+	Model         string          `json:"model"`
+	Content       []ContentItemV2 `json:"content"`
+	Resolution    string          `json:"resolution"`
+	Duration      int             `json:"duration"`
+	Ratio         string          `json:"ratio,omitempty"`
+	CallbackURL   string          `json:"callback_url,omitempty"`
+	AigcWatermark *bool           `json:"aigc_watermark,omitempty"`
+	Extra         *VideoExtraV2   `json:"extra,omitempty"`
+}
+
+// VideoExtraV2 仅 H3-Max 支持 prompt_expansion_mode
+type VideoExtraV2 struct {
+	PromptExpansionMode string `json:"prompt_expansion_mode,omitempty"`
+}
+
+// VideoResponseV2 是 V2 提交响应:{task_id};失败为 OpenAI 错误体
+type VideoResponseV2 struct {
+	TaskID string `json:"task_id"`
+}
+
+// VideoTaskV2 是 V2 查询响应中的任务对象(task 包裹或 flat)
+type VideoTaskV2 struct {
+	ID         string              `json:"id"`
+	Model      string              `json:"model"`
+	Status     string              `json:"status"`
+	Error      *VideoTaskErrorV2   `json:"error,omitempty"`
+	CreatedAt  int64               `json:"created_at,omitempty"`
+	UpdatedAt  int64               `json:"updated_at,omitempty"`
+	Content    *VideoTaskContentV2 `json:"content,omitempty"`
+	Resolution string              `json:"resolution,omitempty"`
+	Duration   int                 `json:"duration,omitempty"`
+	Usage      *VideoTaskUsageV2   `json:"usage,omitempty"`
+	Ratio      string              `json:"ratio,omitempty"`
+	TaskType   string              `json:"task_type,omitempty"`
+	Modality   string              `json:"modality,omitempty"`
+}
+
+// VideoTaskErrorV2 任务失败时的错误信息
+type VideoTaskErrorV2 struct {
+	Code    string `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+// VideoTaskContentV2 成功任务产物:视频 url 或 Context-IR prompt
+type VideoTaskContentV2 struct {
+	URL    string `json:"url,omitempty"`
+	Prompt string `json:"prompt,omitempty"`
+}
+
+// VideoTaskUsageV2 视频任务按秒/张计量,Context-IR 按 token
+type VideoTaskUsageV2 struct {
+	TotalSeconds      int `json:"total_seconds,omitempty"`
+	InputSeconds      int `json:"input_seconds,omitempty"`
+	OutputSeconds     int `json:"output_seconds,omitempty"`
+	InputImageCount   int `json:"input_image_count,omitempty"`
+	InputAudioSeconds int `json:"input_audio_seconds,omitempty"`
+	TotalTokens       int `json:"total_tokens,omitempty"`
+	PromptTokens      int `json:"prompt_tokens,omitempty"`
+	CompletionTokens  int `json:"completion_tokens,omitempty"`
+}
+
+// GetVideoTaskV2Response 是 response_format=task 的查询响应
+type GetVideoTaskV2Response struct {
+	Task *VideoTaskV2 `json:"task"`
+}
+
 func GetModelConfig(model string) ModelConfig {
 	configs := map[string]ModelConfig{
 		"MiniMax-Hailuo-2.3": {
@@ -152,6 +237,30 @@ func GetModelConfig(model string) ModelConfig {
 			SupportedResolutions: []string{Resolution720P},
 			HasPromptOptimizer:   true,
 			HasFastPretreatment:  false,
+		},
+		"MiniMax-H3": {
+			Name:                 "MiniMax-H3",
+			DefaultResolution:    Resolution768P,
+			SupportedDurations:   []int{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+			SupportedResolutions: []string{Resolution480P, Resolution768P, Resolution2K},
+		},
+		"MiniMax-H3-Highspeed": {
+			Name:                 "MiniMax-H3-Highspeed",
+			DefaultResolution:    Resolution768P,
+			SupportedDurations:   []int{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+			SupportedResolutions: []string{Resolution480P, Resolution768P},
+		},
+		"MiniMax-H3-Lite": {
+			Name:                 "MiniMax-H3-Lite",
+			DefaultResolution:    Resolution768P,
+			SupportedDurations:   []int{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+			SupportedResolutions: []string{Resolution480P, Resolution768P},
+		},
+		"MiniMax-H3-Max": {
+			Name:                 "MiniMax-H3-Max",
+			DefaultResolution:    Resolution768P,
+			SupportedDurations:   []int{5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+			SupportedResolutions: []string{Resolution480P, Resolution768P},
 		},
 	}
 

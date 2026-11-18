@@ -5,39 +5,36 @@ import "strings"
 // https://platform.minimaxi.com/docs/api-reference/api-overview
 
 var ModelList = []string{
+	// 语言模型
+	"MiniMax-M3.1-Flash",
 	"MiniMax-M3",
-	"MiniMax-M2.7",
-	"MiniMax-M2.7-highspeed",
-	"MiniMax-M2.5",
-	"MiniMax-M2.5-highspeed",
-	"MiniMax-M2.1",
-	"MiniMax-M2.1-highspeed",
-	"MiniMax-M2",
+	// 语音模型
 	"speech-2.8-hd",
 	"speech-2.8-turbo",
 	"speech-2.6-hd",
 	"speech-2.6-turbo",
 	"speech-02-hd",
 	"speech-02-turbo",
-	"speech-01-hd",
-	"speech-01-turbo",
+	// 图片模型
+	"MiniMax-H3-Image",
+	"MiniMax-H3-Image-Highspeed",
 	"image-01",
 	"image-01-live",
+	// 视频模型(视频任务接口)
+	"MiniMax-H3",
+	"MiniMax-H3-Highspeed",
+	"MiniMax-H3-Lite",
+	"MiniMax-H3-Max",
+	"MiniMax-Hailuo-2.3",
+	"MiniMax-Hailuo-2.3-Fast",
+	"MiniMax-Hailuo-02",
+	// 音乐模型:官方 2026-08-20 停止新用户提供,历史付费用户仍可调用
 	"music-2.6",
 	"music-cover",
 	"music-2.6-free",
 	"music-cover-free",
 	MusicCoverPreprocessModel,
 	LyricsGenerationModel,
-	"MiniMax-Hailuo-2.3",
-	"MiniMax-Hailuo-2.3-Fast",
-	"MiniMax-Hailuo-02",
-	"T2V-01-Director",
-	"T2V-01",
-	"I2V-01-Director",
-	"I2V-01-live",
-	"I2V-01",
-	"S2V-01",
 }
 
 var ChannelName = "minimax"

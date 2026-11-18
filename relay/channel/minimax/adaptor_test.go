@@ -178,6 +178,7 @@ func TestConvertImageRequest(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode:       relayconstant.RelayModeImagesGenerations,
 		OriginModelName: "image-01",
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "image-01"},
 	}
 	request := dto.ImageRequest{
 		Model:          "image-01",
@@ -226,6 +227,7 @@ func TestConvertImageRequestPreservesMiniMaxExtraFields(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode:       relayconstant.RelayModeImagesGenerations,
 		OriginModelName: "image-01",
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "image-01"},
 	}
 	request := dto.ImageRequest{
 		Model:  "image-01",
@@ -273,6 +275,7 @@ func TestConvertImageRequestPassesThroughNativeEndpoint(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode:       relayconstant.RelayModeImagesGenerations,
 		OriginModelName: "image-01",
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "image-01"},
 	}
 	body := `{"model":"image-01","prompt":"a portrait","width":1024,"height":768,"prompt_optimizer":false}`
 	recorder := httptest.NewRecorder()
@@ -317,6 +320,7 @@ func TestConvertImageRequestMapsEditsImageToSubjectReference(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode:       relayconstant.RelayModeImagesEdits,
 		OriginModelName: "image-01",
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "image-01"},
 	}
 	request := dto.ImageRequest{
 		Model:  "image-01",
@@ -354,6 +358,7 @@ func TestConvertImageRequestPrefersExplicitSubjectReference(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		RelayMode:       relayconstant.RelayModeImagesEdits,
 		OriginModelName: "image-01",
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "image-01"},
 	}
 	request := dto.ImageRequest{
 		Model:  "image-01",
@@ -560,8 +565,9 @@ func TestDoResponseForImageGeneration(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 
 	info := &relaycommon.RelayInfo{
-		RelayMode: relayconstant.RelayModeImagesGenerations,
-		StartTime: time.Unix(1700000000, 0),
+		RelayMode:   relayconstant.RelayModeImagesGenerations,
+		StartTime:   time.Unix(1700000000, 0),
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "image-01"},
 	}
 	resp := &http.Response{
 		StatusCode: http.StatusOK,

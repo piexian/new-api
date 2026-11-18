@@ -30,7 +30,15 @@ func GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return fmt.Sprintf("%s/v1/responses", baseURL), nil
 	case constant.RelayModeResponsesInputTokens:
 		return fmt.Sprintf("%s/v1/responses/input_tokens", baseURL), nil
-	case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
+	case constant.RelayModeImagesGenerations:
+		if isMiniMaxH3ImageModel(info.UpstreamModelName) {
+			return fmt.Sprintf("%s/v1/images/generations", baseURL), nil
+		}
+		return fmt.Sprintf("%s/v1/image_generation", baseURL), nil
+	case constant.RelayModeImagesEdits:
+		if isMiniMaxH3ImageModel(info.UpstreamModelName) {
+			return fmt.Sprintf("%s/v1/images/edits", baseURL), nil
+		}
 		return fmt.Sprintf("%s/v1/image_generation", baseURL), nil
 	case constant.RelayModeMiniMaxMusicGeneration:
 		return fmt.Sprintf("%s/v1/music_generation", baseURL), nil

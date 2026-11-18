@@ -5,20 +5,23 @@ const (
 )
 
 var ModelList = []string{
+	// H3 家族走 V2 接口(POST /v2/video_generation)
+	"MiniMax-H3",
+	"MiniMax-H3-Highspeed",
+	"MiniMax-H3-Lite",
+	"MiniMax-H3-Max",
+	// Hailuo 走 V1 接口
 	"MiniMax-Hailuo-2.3",
 	"MiniMax-Hailuo-2.3-Fast",
 	"MiniMax-Hailuo-02",
-	"T2V-01-Director",
-	"T2V-01",
-	"I2V-01-Director",
-	"I2V-01-live",
-	"I2V-01",
-	"S2V-01",
 }
 
 const (
 	TextToVideoEndpoint = "/v1/video_generation"
 	QueryTaskEndpoint   = "/v1/query/video_generation"
+
+	TextToVideoV2Endpoint = "/v2/video_generation"
+	QueryTaskV2Endpoint   = "/v2/query/video_generation"
 )
 
 const (
@@ -41,9 +44,11 @@ const (
 
 const (
 	Resolution512P  = "512P"
+	Resolution480P  = "480P"
 	Resolution720P  = "720P"
 	Resolution768P  = "768P"
 	Resolution1080P = "1080P"
+	Resolution2K    = "2K"
 )
 
 const (

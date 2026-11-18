@@ -305,22 +305,17 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-coder":         0.27 / 2,
 	"deepseek-reasoner":      0.55 / 2, // 0.55 / 1k tokens
 	// MiniMax: https://platform.minimaxi.com/docs/guides/pricing-paygo (June 2026 update)
-	"MiniMax-M3":             0.15,       // $0.30/M input (standard ≤512K)
-	"MiniMax-M2.7":           0.15,       // $0.30/M input
-	"MiniMax-M2.7-highspeed": 0.30,       // $0.60/M input
-	"MiniMax-M2.5":           0.15,       // $0.30/M input
-	"MiniMax-M2.5-highspeed": 0.30,       // $0.60/M input
-	"MiniMax-M2.1":           0.15,       // $0.30/M input
-	"MiniMax-M2.1-highspeed": 0.30,       // $0.60/M input
-	"MiniMax-M2":             0.15,       // $0.30/M input
-	"speech-2.8-hd":          0.35 * RMB, // ￥3.5 / 10K characters
-	"speech-2.6-hd":          0.35 * RMB,
-	"speech-02-hd":           0.35 * RMB,
-	"speech-01-hd":           0.35 * RMB,
-	"speech-2.8-turbo":       0.2 * RMB, // ￥2 / 10K characters
-	"speech-2.6-turbo":       0.2 * RMB,
-	"speech-02-turbo":        0.2 * RMB,
-	"speech-01-turbo":        0.2 * RMB,
+	"MiniMax-M3.1-Flash": 1.00 / USD2RMB / 2, // ¥1.00/M input
+	"MiniMax-M3":         0.15,               // $0.30/M input (standard ≤512K)
+	// MiniMax-M2 全系(M2.7/M2.5/M2.1/M2)官方 2026-11-18 正式下线
+	"speech-2.8-hd":    0.35 * RMB, // ￥3.5 / 10K characters
+	"speech-2.6-hd":    0.35 * RMB,
+	"speech-02-hd":     0.35 * RMB,
+	"speech-01-hd":     0.35 * RMB,
+	"speech-2.8-turbo": 0.2 * RMB, // ￥2 / 10K characters
+	"speech-2.6-turbo": 0.2 * RMB,
+	"speech-02-turbo":  0.2 * RMB,
+	"speech-01-turbo":  0.2 * RMB,
 	// Perplexity online 模型对搜索额外收费，有需要应自行调整，此处不计入搜索费用
 	"llama-3-sonar-small-32k-chat":   0.2 / 1000 * USD,
 	"llama-3-sonar-small-32k-online": 0.2 / 1000 * USD,
@@ -519,15 +514,23 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.1-fast-generate-preview":  0.15,
 	"image-01":                       0.025 / USD2RMB,
 	"image-01-live":                  0.025 / USD2RMB,
-	"MiniMax-Hailuo-2.3":             2.00 / USD2RMB,
-	"MiniMax-Hailuo-2.3-Fast":        1.35 / USD2RMB,
-	"MiniMax-Hailuo-02":              2.00 / USD2RMB,
-	"music-2.6":                      1.00 / USD2RMB,
-	"music-cover":                    1.00 / USD2RMB,
-	"music-2.6-free":                 0,
-	"music-cover-free":               0,
-	"music_cover_preprocess":         0,
-	"lyrics_generation":              0.05 / USD2RMB,
+	// MiniMax H3-Image:文本输入 ¥15/M 基准;图片输入走 ImageRatio、图片输出走 completion
+	"MiniMax-H3-Image":           15.00 / USD2RMB / 2,
+	"MiniMax-H3-Image-Highspeed": 15.00 / USD2RMB / 2,
+	// MiniMax H3 视频:基准 = 768P 每秒单价,时长/分辨率/输入素材经 EstimateBilling 乘数计价
+	"MiniMax-H3":              0.50 / USD2RMB,
+	"MiniMax-H3-Highspeed":    0.40 / USD2RMB,
+	"MiniMax-H3-Lite":         0.26 / USD2RMB,
+	"MiniMax-H3-Max":          0.50 / USD2RMB,
+	"MiniMax-Hailuo-2.3":      2.00 / USD2RMB,
+	"MiniMax-Hailuo-2.3-Fast": 1.35 / USD2RMB,
+	"MiniMax-Hailuo-02":       2.00 / USD2RMB,
+	"music-2.6":               1.00 / USD2RMB,
+	"music-cover":             1.00 / USD2RMB,
+	"music-2.6-free":          0,
+	"music-cover-free":        0,
+	"music_cover_preprocess":  0,
+	"lyrics_generation":       0.05 / USD2RMB,
 	// Grok Imagine (June 2026 pricing)
 	"grok-imagine-image":             0.02, // ~$0.02/image (standard)
 	"grok-imagine-image-quality":     0.07, // ~$0.07/image (quality/pro)
@@ -567,26 +570,22 @@ var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 
 var defaultCompletionRatio = map[string]float64{
-	"gpt-4-gizmo-*":          2,
-	"gpt-4o-gizmo-*":         3,
-	"gpt-4-all":              2,
-	"gpt-image-1":            8,
-	"gpt-image-1.5":          6.4, // $32/$5
-	"gpt-image-2":            6,   // $30/$5
-	"gpt-image-2.5-sunburst": 6,
-	"gpt-image-2.5-flare":    6,
-	"gpt-image-2.6-sunburst": 6,
-	"gpt-image-2.6-flare":    6,
-	"agnes-1.5-flash":        15.0 / 7.0,
-	"agnes-2.0-flash":        2,
-	"MiniMax-M3":             4,
-	"MiniMax-M2.7":           4,
-	"MiniMax-M2.7-highspeed": 4,
-	"MiniMax-M2.5":           4,
-	"MiniMax-M2.5-highspeed": 4,
-	"MiniMax-M2.1":           4,
-	"MiniMax-M2.1-highspeed": 4,
-	"MiniMax-M2":             4,
+	"gpt-4-gizmo-*":              2,
+	"gpt-4o-gizmo-*":             3,
+	"gpt-4-all":                  2,
+	"gpt-image-1":                8,
+	"gpt-image-1.5":              6.4, // $32/$5
+	"gpt-image-2":                6,   // $30/$5
+	"gpt-image-2.5-sunburst":     6,
+	"gpt-image-2.5-flare":        6,
+	"gpt-image-2.6-sunburst":     6,
+	"gpt-image-2.6-flare":        6,
+	"agnes-1.5-flash":            15.0 / 7.0,
+	"agnes-2.0-flash":            2,
+	"MiniMax-M3":                 4,
+	"MiniMax-M3.1-Flash":         4,
+	"MiniMax-H3-Image":           5.0 / 3.0,  // 图片输出 ¥25/M = 文本输入 ¥15/M × 5/3
+	"MiniMax-H3-Image-Highspeed": 10.0 / 3.0, // 图片输出 ¥50/M = 文本输入 ¥15/M × 10/3
 	// Mistral 系（ministral 输出=输入，默认 1 无需配置）
 	"codestral-2508":           3,
 	"codestral-2501":           3,
@@ -984,13 +983,15 @@ func ModelRatio2JSONString() string {
 }
 
 var defaultImageRatio = map[string]float64{
-	"gpt-image-1":            2,
-	"gpt-image-1.5":          2,
-	"gpt-image-2":            2,
-	"gpt-image-2.5-sunburst": 2,
-	"gpt-image-2.5-flare":    2,
-	"gpt-image-2.6-sunburst": 2,
-	"gpt-image-2.6-flare":    2,
+	"gpt-image-1":                2,
+	"gpt-image-1.5":              2,
+	"gpt-image-2":                2,
+	"gpt-image-2.5-sunburst":     2,
+	"gpt-image-2.5-flare":        2,
+	"gpt-image-2.6-sunburst":     2,
+	"gpt-image-2.6-flare":        2,
+	"MiniMax-H3-Image":           2.0 / 3.0, // 图片输入 ¥10/M = 文本输入 ¥15/M × 2/3
+	"MiniMax-H3-Image-Highspeed": 4.0 / 3.0, // 图片输入 ¥20/M = 文本输入 ¥15/M × 4/3
 }
 var imageRatioMap = types.NewRWMap[string, float64]()
 var audioRatioMap = types.NewRWMap[string, float64]()
