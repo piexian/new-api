@@ -66,6 +66,8 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 		err = relay.StepFunNativeHelper(c, info)
 	case relayconstant.RelayModeCohereNative:
 		err = relay.CohereNativeHelper(c, info)
+	case relayconstant.RelayModeDeepSeekTools:
+		err = relay.DeepSeekToolsHelper(c, info)
 	case relayconstant.RelayModeOpenAIDecisions:
 		err = relay.OpenAIDecisionsHelper(c, info)
 	case relayconstant.RelayModeTypeSafeNative:

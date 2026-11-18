@@ -301,9 +301,9 @@ var defaultModelRatio = map[string]float64{
 	"command-r-plus":         1.5,
 	"command-r-08-2024":      0.075,
 	"command-r-plus-08-2024": 1.25,
-	"deepseek-chat":          0.27 / 2,
+	"deepseek-chat":          0.15, // V3 旧名:上游路由至 deepseek-flash,按 Flash 峰价计费
 	"deepseek-coder":         0.27 / 2,
-	"deepseek-reasoner":      0.55 / 2, // 0.55 / 1k tokens
+	"deepseek-reasoner":      0.15, // V3 旧名:上游路由至 deepseek-flash(思考),按 Flash 峰价计费
 	// MiniMax: https://platform.minimaxi.com/docs/guides/pricing-paygo (June 2026 update)
 	"MiniMax-M3.1-Flash": 1.00 / USD2RMB / 2, // ¥1.00/M input
 	"MiniMax-M3":         0.15,               // $0.30/M input (standard ≤512K)
@@ -346,10 +346,13 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-ai/DeepSeek-R1":                 0.8,
 	"deepseek-ai/DeepSeek-V3-0324":            0.8,
 	"deepseek-ai/DeepSeek-V3.1":               0.8,
-	// DeepSeek V4 (June 2026 pricing)
-	"deepseek-v4-flash": 0.07,   // $0.14/M input
-	"deepseek-v4-pro":   0.2175, // $0.435/M input
-	"deepseek-v3.2":     0.07,   // $0.14/M input (deprecated, mapped to V4 Flash)
+	// DeepSeek V4(2026-11 定价,峰谷双档取峰价;谷时半价经分层表达式配置)
+	"deepseek-flash":    0.15,               // DeepSeek-V4.1-Flash-1017,peak $0.30/M in
+	"deepseek-v4-flash": 0.15,               // 退役旧名,上游路由 Flash,按 Flash 价
+	"deepseek-v4-pro":   0.66,               // peak $1.32/M in
+	"deepseek-v3.2":     0.15,               // deprecated,映射至 Flash 价
+	"deepseek-tts":      0.45 * USD / 10,    // $0.45/万字符(限时五折 $0.225),1 字符=1 计费 token
+	"deepseek-asr":      0.116 * USD / 3600, // $0.116/小时,1 秒=1 计费 token
 	// Kimi (官方 2026-11 定价;K2 系 2026-12 底退役,存量用户过渡保留)
 	"kimi-k3.1-pro":           1.0,    // $2/M in,$10/M out
 	"kimi-k3.1-pro-highspeed": 2.0,    // $4/M in,$20/M out
@@ -479,7 +482,9 @@ var defaultModelRatio = map[string]float64{
 var defaultModelPrice = map[string]float64{
 	"suno_music":                     0.1,
 	"suno_lyrics":                    0.01,
-	"music-3.0":                      0.137, // MiniMax 音乐 ¥1/首(MiniMax Code 订阅经 MCP 生成)
+	"music-3.0":                      0.137,   // MiniMax 音乐 ¥1/首(MiniMax Code 订阅经 MCP 生成)
+	"deepseek-search":                0.00075, // $0.75/千次成功请求
+	"deepseek-fetch":                 0.00075, // $0.75/千次成功请求
 	"dall-e-3":                       0.04,
 	"agnes-image-2.0-flash":          0,
 	"agnes-image-2.1-flash":          0.003,
@@ -780,6 +785,14 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		return 2, false
 	}
 
+	// DeepSeek 2026-11 定价:flash 输出 $1.20/M = 输入 $0.30/M × 4,pro $3.96 = $1.32 × 3;
+	// 前缀匹配覆盖 -none/-max 思考后缀变体
+	if strings.HasPrefix(name, "deepseek-flash") || strings.HasPrefix(name, "deepseek-v4-flash") || strings.HasPrefix(name, "deepseek-v3.2") {
+		return 4, false
+	}
+	if strings.HasPrefix(name, "deepseek-v4-pro") {
+		return 3, false
+	}
 	if strings.HasPrefix(name, "gpt-") {
 		if strings.HasPrefix(name, "gpt-4o") {
 			if name == "gpt-4o-2024-05-13" {

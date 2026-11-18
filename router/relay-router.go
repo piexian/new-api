@@ -271,6 +271,14 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAI)
 		})
 
+		// DeepSeek 工具端点(POST /v1/tools/{search,fetch},按次计费)
+		httpRouter.POST("/tools/search", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAI)
+		})
+		httpRouter.POST("/tools/fetch", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAI)
+		})
+
 		// xAI native voice routes
 		httpRouter.POST("/realtime/client_secrets", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatXAI)

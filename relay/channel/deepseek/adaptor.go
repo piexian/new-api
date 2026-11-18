@@ -80,8 +80,7 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	return convertDeepSeekAudioRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
@@ -98,6 +97,22 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return fmt.Sprintf("%s/anthropic/v1/messages", baseURL), nil
 	}
 	switch info.RelayMode {
+	case relayconstant.RelayModeAudioSpeech:
+		if !isDeepSeekTTSModel(info.UpstreamModelName) {
+			return "", errors.New("deepseek channel only supports deepseek-tts for speech generation")
+		}
+		return fmt.Sprintf("%s/v1/tools/tts", baseURL), nil
+	case relayconstant.RelayModeAudioTranslation, relayconstant.RelayModeAudioTranscription:
+		if !isDeepSeekASRModel(info.UpstreamModelName) {
+			return "", errors.New("deepseek channel only supports deepseek-asr for transcription")
+		}
+		return fmt.Sprintf("%s/v1/tools/asr", baseURL), nil
+	case relayconstant.RelayModeDeepSeekTools:
+		toolsPath, err := DeepSeekToolsUpstreamPath(info.RequestURLPath, info.UpstreamModelName)
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%s%s", baseURL, toolsPath), nil
 	case relayconstant.RelayModeCompletions:
 		return fmt.Sprintf("%s/beta/completions", baseURL), nil
 	case relayconstant.RelayModeResponses:
@@ -113,6 +128,10 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 		return nil
 	}
 	channel.SetupApiRequestHeader(info, c, req)
+	// ASR 上游请求需带重建后的 multipart boundary
+	if contentType := c.GetString("deepseek_asr_content_type"); contentType != "" {
+		req.Set("Content-Type", contentType)
+	}
 	req.Set("Authorization", "Bearer "+info.ApiKey)
 	return nil
 }
@@ -249,6 +268,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	switch {
+	case info.RelayMode == relayconstant.RelayModeAudioSpeech && isDeepSeekTTSModel(info.UpstreamModelName):
+		usage, ttsErr := doDeepSeekTTSResponse(c, resp, info)
+		return usage, ttsErr
+	case (info.RelayMode == relayconstant.RelayModeAudioTranscription || info.RelayMode == relayconstant.RelayModeAudioTranslation) && isDeepSeekASRModel(info.UpstreamModelName):
+		usage, asrErr := doDeepSeekASRResponse(c, resp, info)
+		return usage, asrErr
 	case shouldUseDeepSeekClaudeCompatibleAPI(info):
 		adaptor := claude.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)

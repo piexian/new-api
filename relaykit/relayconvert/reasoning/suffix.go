@@ -276,7 +276,11 @@ func parseProviderModelSuffix(modelName string, requiredPrefix string, allowSuff
 
 func ParseDeepSeekV4ThinkingSuffix(modelName string) (baseModel string, thinkingType string, effort string, ok bool) {
 	baseModel, suffix, ok := TrimEffortSuffixWithSuffixes(modelName, DeepSeekV4EffortSuffixes)
-	if !ok || !strings.HasPrefix(baseModel, "deepseek-v4-") {
+	if !ok {
+		return modelName, "", "", false
+	}
+	// 旗舰名 deepseek-flash 与 deepseek-v4-* 系均接受思考后缀
+	if !strings.HasPrefix(baseModel, "deepseek-v4-") && baseModel != "deepseek-flash" {
 		return modelName, "", "", false
 	}
 	switch suffix {

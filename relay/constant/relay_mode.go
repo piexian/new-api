@@ -70,6 +70,8 @@ const (
 
 	RelayModeOpenAIDecisions
 
+	RelayModeDeepSeekTools
+
 	RelayModeStepFunNative
 	RelayModeCohereNative
 
@@ -159,6 +161,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeVideoFetchByID
 	} else if strings.HasPrefix(path, "/v1beta/interactions") || strings.HasPrefix(path, "/v1beta2/interactions") || strings.HasPrefix(path, "/v1/interactions") {
 		relayMode = RelayModeGeminiInteractions
+	} else if strings.HasPrefix(path, "/v1/tools/search") || strings.HasPrefix(path, "/v1/tools/fetch") {
+		relayMode = RelayModeDeepSeekTools
 	} else if strings.HasPrefix(path, "/v1beta/decisions") {
 		relayMode = RelayModeDecisions
 	} else if strings.HasPrefix(path, "/v1/decisions") {

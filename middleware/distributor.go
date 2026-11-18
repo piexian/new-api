@@ -514,6 +514,18 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			}
 		}
 	}
+	// DeepSeek 工具端点(/v1/tools/search|fetch):模型从 body 提取(deepseek-search/deepseek-fetch)
+	if strings.HasPrefix(c.Request.URL.Path, "/v1/tools/search") || strings.HasPrefix(c.Request.URL.Path, "/v1/tools/fetch") {
+		req, parseErr := getModelFromRequest(c)
+		if parseErr != nil {
+			return nil, false, parseErr
+		}
+		if req.Model == "" {
+			return nil, false, errors.New(i18n.T(c, i18n.MsgDistributorInvalidParseModel))
+		}
+		modelRequest.Model = req.Model
+		c.Set("relay_mode", relayconstant.RelayModeDeepSeekTools)
+	}
 	// StepFun 原生音频端点（/v1/audio/generate、music/*、asr/*、voices* 等）在上面的分支里已解析好
 	// 模型与 relay_mode，不能被这里的 AudioSpeech 默认值覆盖，否则会被派发到 AudioHelper。
 	if strings.HasPrefix(c.Request.URL.Path, "/v1/audio") && !isStepFunNativeRoute(c.Request.Method, c.Request.URL.Path) {

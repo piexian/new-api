@@ -24,7 +24,9 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request ki
 
 	switch format {
 	case types.RelayFormatOpenAI:
-		if relayMode == relayconstant.RelayModeOpenAIDecisions {
+		if relayMode == relayconstant.RelayModeDeepSeekTools {
+			request, err = GetAndValidateDeepSeekToolsRequest(c)
+		} else if relayMode == relayconstant.RelayModeOpenAIDecisions {
 			request, err = GetAndValidateOpenAIDecisionsRequest(c)
 		} else {
 			request, err = GetAndValidateTextRequest(c, relayMode)
@@ -479,6 +481,28 @@ func GetAndValidateGeminiDecisionsRequest(c *gin.Context) (*kitdto.GeminiDecisio
 	}
 	if len(request.Questions) == 0 {
 		return nil, errors.New("questions is required")
+	}
+	return request, nil
+}
+
+// GetAndValidateDeepSeekToolsRequest 校验 /v1/tools/{search,fetch} 请求:
+// model 必填;search 端点 query 必填,fetch 端点 url 必填
+func GetAndValidateDeepSeekToolsRequest(c *gin.Context) (*kitdto.DeepSeekToolsRequest, error) {
+	request := &kitdto.DeepSeekToolsRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		return nil, errors.New("model is required")
+	}
+	if strings.HasSuffix(c.Request.URL.Path, "/tools/search") {
+		if strings.TrimSpace(request.Query) == "" {
+			return nil, errors.New("query is required")
+		}
+	} else if strings.HasSuffix(c.Request.URL.Path, "/tools/fetch") {
+		if strings.TrimSpace(request.URL) == "" {
+			return nil, errors.New("url is required")
+		}
 	}
 	return request, nil
 }
