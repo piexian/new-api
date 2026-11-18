@@ -43,6 +43,17 @@ const (
 	modelsDevHost               = "models.dev"
 	modelsDevPath               = "/api.json"
 	modelsDevInputCostRatioBase = 1000.0
+	geminiPresetID              = -102
+	geminiPresetName            = "Google Gemini 价格预设"
+	geminiPresetBaseURL         = modelsDevPresetBaseURL
+	openRouterPresetID          = -103
+	openRouterPresetName        = "OpenRouter 价格预设"
+	openRouterPresetBaseURL     = "https://openrouter.ai"
+	litellmPresetID             = -104
+	litellmPresetName           = "LiteLLM 价格预设"
+	litellmPresetBaseURL        = "https://raw.githubusercontent.com/BerriAI/litellm"
+	litellmCatalogURL           = litellmPresetBaseURL + "/main/model_prices_and_context_window.json"
+	modelsDevGoogleProvider     = "google"
 )
 
 func nearlyEqual(a, b float64) bool {
@@ -258,8 +269,12 @@ func FetchUpstreamRatios(c *gin.Context) {
 				return
 			}
 
-			// OpenRouter requires Bearer token auth
-			if isOpenRouter && chItem.ID != 0 {
+			// OpenRouter requires Bearer token auth; the built-in preset uses the public models endpoint without a key
+			if isOpenRouter && chItem.ID == 0 {
+				ch <- upstreamResult{Name: uniqueName, Err: "OpenRouter requires a valid channel with API key"}
+				return
+			}
+			if isOpenRouter && chItem.ID != openRouterPresetID {
 				dbCh, err := model.GetChannelById(chItem.ID, true)
 				if err != nil {
 					ch <- upstreamResult{Name: uniqueName, Err: "failed to get channel key: " + err.Error()}
@@ -275,9 +290,6 @@ func FetchUpstreamRatios(c *gin.Context) {
 					return
 				}
 				httpReq.Header.Set("Authorization", "Bearer "+strings.TrimSpace(key))
-			} else if isOpenRouter {
-				ch <- upstreamResult{Name: uniqueName, Err: "OpenRouter requires a valid channel with API key"}
-				return
 			}
 
 			// 简单重试：最多 3 次，指数退避
@@ -328,9 +340,25 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 			// type4: models.dev /api.json -> convert provider model pricing to ratios
 			if isModelsDev {
-				converted, err := convertModelsDevToRatioData(bytes.NewReader(bodyBytes))
+				providerFilter := ""
+				if chItem.ID == geminiPresetID {
+					providerFilter = modelsDevGoogleProvider
+				}
+				converted, err := convertModelsDevToRatioData(bytes.NewReader(bodyBytes), providerFilter)
 				if err != nil {
 					logger.LogWarn(c.Request.Context(), "models.dev parse failed from "+chItem.Name+": "+err.Error())
+					ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
+					return
+				}
+				ch <- upstreamResult{Name: uniqueName, Data: converted}
+				return
+			}
+
+			// type5: LiteLLM model_prices_and_context_window.json -> convert per-token pricing to ratios
+			if fullURL == litellmCatalogURL {
+				converted, err := convertLiteLLMToRatioData(bytes.NewReader(bodyBytes))
+				if err != nil {
+					logger.LogWarn(c.Request.Context(), "LiteLLM parse failed from "+chItem.Name+": "+err.Error())
 					ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 					return
 				}
@@ -902,8 +930,8 @@ func shouldReplaceModelsDevCandidate(current, next modelsDevCandidate) bool {
 //
 // Duplicate model keys across providers are resolved by selecting the
 // cheapest non-zero input cost. If only zero-priced candidates exist,
-// a zero ratio is kept.
-func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
+// a zero ratio is kept. providerFilter 非空时仅转换该 provider 的条目。
+func convertModelsDevToRatioData(reader io.Reader, providerFilter string) (map[string]any, error) {
 	var upstreamData map[string]modelsDevProvider
 	if err := common.DecodeJson(reader, &upstreamData); err != nil {
 		return nil, fmt.Errorf("failed to decode models.dev response: %w", err)
@@ -920,6 +948,9 @@ func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
 
 	selectedCandidates := make(map[string]modelsDevCandidate)
 	for _, provider := range providers {
+		if providerFilter != "" && provider != providerFilter {
+			continue
+		}
 		providerData := upstreamData[provider]
 		if len(providerData.Models) == 0 {
 			continue
@@ -984,6 +1015,83 @@ func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
 	return converted, nil
 }
 
+// convertLiteLLMToRatioData parses LiteLLM's model_prices_and_context_window.json
+// and converts per-token USD pricing into local ratio format.
+// LiteLLM costs are USD per token, scaled to per-1M first:
+//
+//	model_ratio = input_cost_per_token * 1_000_000 / 2
+//	completion_ratio = output_cost / input_cost
+//	cache_ratio = cache_read_cost / input_cost
+//
+// Only chat and embedding entries are converted; zero-cost models keep a zero
+// ratio, and entries with input=0/output>0 cannot derive a base ratio and are
+// skipped.
+func convertLiteLLMToRatioData(reader io.Reader) (map[string]any, error) {
+	var upstream map[string]litellmModelEntry
+	if err := common.DecodeJson(reader, &upstream); err != nil {
+		return nil, fmt.Errorf("failed to decode LiteLLM response: %w", err)
+	}
+	if len(upstream) == 0 {
+		return nil, fmt.Errorf("empty LiteLLM response")
+	}
+
+	modelRatioMap := make(map[string]any)
+	completionRatioMap := make(map[string]any)
+	cacheRatioMap := make(map[string]any)
+
+	names := make([]string, 0, len(upstream))
+	for name := range upstream {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		entry := upstream[name]
+		if entry.Mode != "chat" && entry.Mode != "embedding" {
+			continue
+		}
+		input, output := entry.InputCostPerToken, entry.OutputCostPerToken
+		if !isValidNonNegativeCost(input) || !isValidNonNegativeCost(output) {
+			continue
+		}
+		if input == 0 {
+			if output == 0 {
+				modelRatioMap[name] = 0.0
+			}
+			continue
+		}
+		modelRatioMap[name] = roundRatioValue(input * 1e6 * float64(ratio_setting.USD) / modelsDevInputCostRatioBase)
+		if output > 0 {
+			completionRatioMap[name] = roundRatioValue(output / input)
+		}
+		if entry.CacheReadInputTokenCost != nil && *entry.CacheReadInputTokenCost >= 0 {
+			cacheRatioMap[name] = roundRatioValue(*entry.CacheReadInputTokenCost / input)
+		}
+	}
+
+	if len(modelRatioMap) == 0 {
+		return nil, fmt.Errorf("no valid LiteLLM pricing entries found")
+	}
+
+	converted := make(map[string]any)
+	converted["model_ratio"] = modelRatioMap
+	if len(completionRatioMap) > 0 {
+		converted["completion_ratio"] = completionRatioMap
+	}
+	if len(cacheRatioMap) > 0 {
+		converted["cache_ratio"] = cacheRatioMap
+	}
+	return converted, nil
+}
+
+// litellmModelEntry 只解析价格换算所需字段;cache 读成本用指针区分缺省与 0
+type litellmModelEntry struct {
+	Mode                    string   `json:"mode"`
+	InputCostPerToken       float64  `json:"input_cost_per_token"`
+	OutputCostPerToken      float64  `json:"output_cost_per_token"`
+	CacheReadInputTokenCost *float64 `json:"cache_read_input_token_cost"`
+}
+
 func GetSyncableChannels(c *gin.Context) {
 	channels, err := model.GetAllChannels(0, 0, true, false)
 	if err != nil {
@@ -1021,6 +1129,26 @@ func GetSyncableChannels(c *gin.Context) {
 		Status:  1,
 	})
 
+	syncableChannels = append(syncableChannels, dto.SyncableChannel{
+		ID:      geminiPresetID,
+		Name:    geminiPresetName,
+		BaseURL: geminiPresetBaseURL,
+		Status:  1,
+	})
+
+	syncableChannels = append(syncableChannels, dto.SyncableChannel{
+		ID:      openRouterPresetID,
+		Name:    openRouterPresetName,
+		BaseURL: openRouterPresetBaseURL,
+		Status:  1,
+	})
+
+	syncableChannels = append(syncableChannels, dto.SyncableChannel{
+		ID:      litellmPresetID,
+		Name:    litellmPresetName,
+		BaseURL: litellmPresetBaseURL,
+		Status:  1,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

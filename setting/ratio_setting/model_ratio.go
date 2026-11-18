@@ -201,11 +201,20 @@ var defaultModelRatio = map[string]float64{
 	"gemini-3.1-flash-lite":                     0.125, // $0.25/M input
 	"gemini-3.1-pro":                            1.0,   // $2.00/M input (≤200K)
 	"gemini-3.5-flash":                          0.75,  // $1.50/M input
-	"gemini-3.5-flash-lite":                     0.125, // $0.25/M input,待与官方定价页核对
-	"gemini-3.7-flash":                          0.75,  // $1.50/M input,待与官方定价页核对
+	"gemini-3.5-flash-lite":                     0.15,  // $0.30/M in,$2.50/M out
+	"gemini-3.7-flash":                          0.375, // $0.75/M in,$3.75/M out(官方定价页无独立条目,采 models.dev/google)
 	"gemini-3.6-flash":                          0.375, // $0.75/M in,$3.75/M out(2026 促销价,2027-01-01 起翻倍)
 	"gemini-3.8-flash":                          0.375, // $0.75/M in,$3.75/M out(2026 促销价,2027-01-01 起翻倍)
 	"gemini-3.8-flash-cyber":                    0.375, // 同 3.8 Flash 计费,门禁准入
+	"gemini-4-carbon":                           1.0,   // $2/M in,$10/M out(官方定价页暂无条目,暂同 argon)
+	"gemini-4-argon":                            1.0,   // $2/M in,$10/M out(2026 促销价,2026-12-01 起翻倍 $4/$20)
+	"gemini-4-hydrogen":                         0.75,  // $1.5/M in,$7.5/M out
+	"gemini-nano-banana-2.1":                    0.75,  // $1.5/M in,text 出 $7.5/M,图像出 $30/M
+	"gemini-3.8-flash-tts":                      0.25,  // $0.5/M 文本入,音频出 $9/M(2026 促销价,2027-01-01 起翻倍)
+	"gemini-3.8-flash-lite-tts":                 0.25,  // $0.5/M 文本入,音频出 $6/M(2026 促销价,2027-01-01 起翻倍)
+	"gemini-omni-1.2-flash":                     0.75,  // $1.5/M in,text 出 $9/M,视频出 $17.5/M
+	"gemma-4-31b-it":                            0,     // 官方仅免费层,付费层未开放
+	"gemma-4-26b-a4b-it":                        0,     // 官方仅免费层,付费层未开放
 	"text-embedding-004":                        0.001,
 	"chatglm_turbo":                             0.3572,     // ￥0.005 / 1k tokens
 	"chatglm_pro":                               0.7143,     // ￥0.01 / 1k tokens
@@ -816,6 +825,16 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				return 60, false
 			}
 			return 6, false
+		} else if strings.HasPrefix(name, "gemini-3.8-flash-tts") {
+			return 18, false // $0.5/M 文本入,音频出 $9/M
+		} else if strings.HasPrefix(name, "gemini-4") {
+			return 5, false // $2/M in,$10/M out(argon 现价;carbon 官方未定价暂同 argon)
+		} else if strings.HasPrefix(name, "gemini-nano-banana-2") {
+			return 5, false // $1.5/M in,text 出 $7.5/M
+		} else if strings.HasPrefix(name, "gemini-3.5-flash-lite") {
+			return 25.0 / 3.0, false // $0.3/M in,$2.5/M out
+		} else if strings.HasPrefix(name, "gemini-omni") {
+			return 6, false // $1.5/M in,text 出 $9/M
 		} else if strings.HasPrefix(name, "gemini-3.8") || strings.HasPrefix(name, "gemini-3.6") {
 			return 5, false // $0.75/M in,$3.75/M out
 		}

@@ -45,8 +45,11 @@ import {
   CHANNEL_STATUS_CONFIG,
   DEFAULT_ENDPOINT,
   ENDPOINT_OPTIONS,
+  GEMINI_PRESET_ID,
+  LITELLM_PRESET_ID,
   MODELS_DEV_PRESET_ID,
   OFFICIAL_CHANNEL_ID,
+  OPENROUTER_PRESET_ID,
 } from './constants'
 
 type ChannelSelectorDialogProps = {
@@ -64,7 +67,11 @@ type ChannelSelectorDialogProps = {
 // negative IDs, so matching by ID alone is reliable and self-documenting.
 function isOfficialChannel(channel: UpstreamChannel): boolean {
   return (
-    channel.id === OFFICIAL_CHANNEL_ID || channel.id === MODELS_DEV_PRESET_ID
+    channel.id === OFFICIAL_CHANNEL_ID ||
+    channel.id === MODELS_DEV_PRESET_ID ||
+    channel.id === GEMINI_PRESET_ID ||
+    channel.id === OPENROUTER_PRESET_ID ||
+    channel.id === LITELLM_PRESET_ID
   )
 }
 

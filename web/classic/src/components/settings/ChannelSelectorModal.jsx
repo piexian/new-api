@@ -41,6 +41,15 @@ const OFFICIAL_RATIO_PRESET_NAME = '官方倍率预设';
 const MODELS_DEV_PRESET_NAME = 'models.dev 价格预设';
 const OFFICIAL_RATIO_PRESET_BASE_URL = 'https://basellm.github.io';
 const MODELS_DEV_PRESET_BASE_URL = 'https://models.dev';
+const GEMINI_PRESET_ID = -102;
+const GEMINI_PRESET_NAME = 'Google Gemini 价格预设';
+const OPENROUTER_PRESET_ID = -103;
+const OPENROUTER_PRESET_NAME = 'OpenRouter 价格预设';
+const OPENROUTER_PRESET_BASE_URL = 'https://openrouter.ai';
+const LITELLM_PRESET_ID = -104;
+const LITELLM_PRESET_NAME = 'LiteLLM 价格预设';
+const LITELLM_PRESET_BASE_URL =
+  'https://raw.githubusercontent.com/BerriAI/litellm';
 
 const ChannelSelectorModal = forwardRef(
   (
@@ -79,10 +88,18 @@ const ChannelSelectorModal = forwardRef(
       return (
         id === OFFICIAL_RATIO_PRESET_ID ||
         id === MODELS_DEV_PRESET_ID ||
+        id === GEMINI_PRESET_ID ||
+        id === OPENROUTER_PRESET_ID ||
+        id === LITELLM_PRESET_ID ||
         base === OFFICIAL_RATIO_PRESET_BASE_URL ||
         base === MODELS_DEV_PRESET_BASE_URL ||
+        base === OPENROUTER_PRESET_BASE_URL ||
+        base === LITELLM_PRESET_BASE_URL ||
         name === OFFICIAL_RATIO_PRESET_NAME ||
-        name === MODELS_DEV_PRESET_NAME
+        name === MODELS_DEV_PRESET_NAME ||
+        name === GEMINI_PRESET_NAME ||
+        name === OPENROUTER_PRESET_NAME ||
+        name === LITELLM_PRESET_NAME
       );
     };
 

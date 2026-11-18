@@ -2,8 +2,7 @@ package gemini
 
 var ModelList = []string{
 	// stable version
-	"gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash",
-	"gemini-2.0-flash-001", "gemini-2.0-flash-lite-001", "gemini-2.0-flash-lite",
+	"gemini-2.5-flash", "gemini-2.5-pro",
 	"gemini-2.5-flash-lite",
 	"gemini-3-pro-image", "gemini-3.1-flash-image",
 	// latest version
@@ -12,33 +11,35 @@ var ModelList = []string{
 	// preview version
 	"gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts",
 	"gemini-2.5-flash-image", "gemini-2.5-flash-lite-preview-09-2025",
-	"gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-3.1-pro-preview",
-	"gemini-3.1-pro-preview-customtools", "gemini-3.1-flash-lite-preview",
+	"gemini-3-flash-preview", "gemini-3.1-pro-preview",
+	"gemini-3.1-pro-preview-customtools",
 	"gemini-3-pro-image-preview", "nano-banana-pro-preview",
-	"gemini-3.1-flash-image-preview", "gemini-robotics-er-1.5-preview",
+	"gemini-3.1-flash-image-preview",
 	// stable version (Gemini 3.x GA,按官方模型页 google-models 映射)
 	"gemini-3-flash", "gemini-3.1-pro", "gemini-3.1-flash-lite",
 	"gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.7-flash",
 	"gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.8-flash-cyber",
+	// Gemini 4 与 3.8 TTS(官方 models 页 2026-11)
+	"gemini-4-carbon", "gemini-4-argon", "gemini-4-hydrogen",
+	"gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts",
 	// image generation
 	"gemini-3-pro-image", "gemini-3.1-flash-image", "gemini-3.1-flash-lite-image",
+	"gemini-nano-banana-2.1",
 	// multimodal / live
-	"gemini-omni-flash-preview", "gemini-omni-1.1-flash",
+	"gemini-omni-flash-preview", "gemini-omni-1.1-flash", "gemini-omni-1.2-flash",
 	"gemini-2.5-flash-live-api",
 	// transcribe / translate
 	"gemini-3.5-transcribe", "gemini-3.5-live-translate",
 	// embedding / robotics
 	"gemini-embedding-2", "gemini-robotics-er-2",
-	"gemini-2.5-computer-use-preview-10-2025", "deep-research-pro-preview-12-2025",
+	"deep-research-pro-preview-12-2025",
 	"gemini-2.5-flash-native-audio-preview-09-2025", "gemini-2.5-flash-native-audio-preview-12-2025",
 	// gemma models
 	"gemma-3-1b-it", "gemma-3-4b-it", "gemma-3-12b-it",
 	"gemma-3-27b-it", "gemma-3n-e4b-it", "gemma-3n-e2b-it",
+	"gemma-4-31b-it", "gemma-4-26b-a4b-it",
 	// embedding models
 	"gemini-embedding-001", "gemini-embedding-2-preview",
-	// imagen models
-	"imagen-4.0-generate-001", "imagen-4.0-ultra-generate-001",
-	"imagen-4.0-fast-generate-001",
 	// veo models
 	"veo-2.0-generate-001", "veo-3.0-generate-001", "veo-3.0-fast-generate-001",
 	"veo-3.1-generate-preview", "veo-3.1-fast-generate-preview",

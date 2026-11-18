@@ -18,8 +18,8 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	dto "github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/service"
 	forkrelayconvert "github.com/QuantumNous/new-api/service/relayconvert"
 	"github.com/QuantumNous/new-api/types"
 
@@ -32,6 +32,8 @@ const ChannelName = "Gemini Interactions"
 
 // ModelList Interactions 专属模型
 var ModelList = []string{
+	"gemini-4-argon",
+	"gemini-3.8-flash",
 	"gemini-3.7-flash",
 	"gemini-3.6-flash",
 	"gemini-3.5-flash",
@@ -46,6 +48,9 @@ var ModelList = []string{
 	"deep-research-preview-04-2026",
 	"deep-research-max-preview-04-2026",
 	"antigravity-preview-05-2026",
+	"antigravity-preview-09-2026",
+	"gemma-4-31b-it",
+	"gemma-4-26b-a4b-it",
 	// embedding 不在 Interactions 协议内,仍走原生 embedContent 老路径
 	"gemini-embedding-001",
 	"gemini-embedding-2-preview",

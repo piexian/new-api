@@ -21,7 +21,7 @@ export const DEFAULT_ENDPOINT = '/api/pricing'
 // ---------------------------------------------------------------------------
 // Built-in upstream ratio presets
 //
-// The backend (`controller/ratio_sync.go`) synthesizes two virtual channels and
+// The backend (`controller/ratio_sync.go`) synthesizes five virtual channels and
 // returns them in the syncable channels response. The constants below mirror
 // the backend literals one-to-one; do NOT translate the *_NAME values because
 // they are wire-protocol identifiers, not user-facing labels.
@@ -43,6 +43,23 @@ export const MODELS_DEV_PRESET_BASE_URL = 'https://models.dev'
 export const MODELS_DEV_PRESET_ENDPOINT = 'https://models.dev/api.json'
 
 export const OPENROUTER_ENDPOINT = 'openrouter'
+
+export const GEMINI_PRESET_ID = -102
+export const GEMINI_PRESET_NAME = 'Google Gemini 价格预设'
+export const GEMINI_PRESET_BASE_URL = 'https://models.dev'
+export const GEMINI_PRESET_ENDPOINT = 'https://models.dev/api.json'
+
+export const OPENROUTER_PRESET_ID = -103
+export const OPENROUTER_PRESET_NAME = 'OpenRouter 价格预设'
+export const OPENROUTER_PRESET_BASE_URL = 'https://openrouter.ai'
+export const OPENROUTER_PRESET_ENDPOINT = OPENROUTER_ENDPOINT
+
+export const LITELLM_PRESET_ID = -104
+export const LITELLM_PRESET_NAME = 'LiteLLM 价格预设'
+export const LITELLM_PRESET_BASE_URL =
+  'https://raw.githubusercontent.com/BerriAI/litellm'
+export const LITELLM_PRESET_ENDPOINT =
+  'https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json'
 
 // Backend channel type for OpenRouter (see constant/channel.go: ChannelTypeOpenRouter = 20)
 export const OPENROUTER_CHANNEL_TYPE = 20
