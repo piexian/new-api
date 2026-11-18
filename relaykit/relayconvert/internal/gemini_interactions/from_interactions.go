@@ -38,9 +38,19 @@ func InteractionToGeminiChatResponse(interaction *kitdto.GeminiInteraction, fall
 				}
 			}
 		case kitdto.GeminiInteractionStepThought:
-			for _, block := range step.Content {
+			// 官方非流式 thought 摘要位于 summary;兼容旧 content 形态
+			blocks := step.Summary
+			if len(blocks) == 0 {
+				blocks = step.Content
+			}
+			for _, block := range blocks {
 				if block.Text != "" {
 					candidate.Content.Parts = append(candidate.Content.Parts, kitdto.GeminiPart{Text: block.Text, Thought: true})
+				}
+			}
+			if step.Signature != "" {
+				if data, err := kitutil.Marshal(step.Signature); err == nil {
+					candidate.Content.Parts = append(candidate.Content.Parts, kitdto.GeminiPart{Thought: true, ThoughtSignature: data})
 				}
 			}
 		case kitdto.GeminiInteractionStepFunctionCall:
@@ -151,6 +161,7 @@ type InteractionsSSEToGeminiSSE struct {
 	pending  []byte // 待输出的完整行(含 \n)
 	curStep  kitdto.GeminiInteractionStep
 	argsBuf  []byte
+	sigBuf   string
 	sentRole bool
 	err      error
 	// onPending: requires_action/completed 时回调(interaction id + 待续链的 function_call id),
@@ -244,9 +255,15 @@ func (t *InteractionsSSEToGeminiSSE) handleStepDelta(payload string) {
 		Delta *struct {
 			Type             string `json:"type"`
 			Text             string `json:"text"`
+			Arguments        string `json:"arguments"`
 			PartialArguments string `json:"partial_arguments"`
+			Signature        string `json:"signature"`
 			Data             string `json:"data"`
 			MimeType         string `json:"mime_type"`
+			Content          *struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
 		} `json:"delta"`
 	}
 	if err := kitutil.UnmarshalJsonStr(payload, &envelope); err != nil || envelope.Delta == nil {
@@ -259,12 +276,21 @@ func (t *InteractionsSSEToGeminiSSE) handleStepDelta(payload string) {
 			t.emitPart(kitdto.GeminiPart{Text: delta.Text})
 		}
 	case "thought", "thought_summary":
-		if delta.Text != "" {
-			t.emitPart(kitdto.GeminiPart{Text: delta.Text, Thought: true})
+		// thought_summary 官方为 content 包装;兼容旧平铺 text 形态
+		text := delta.Text
+		if text == "" && delta.Content != nil {
+			text = delta.Content.Text
 		}
-	case "arguments":
+		if text != "" {
+			t.emitPart(kitdto.GeminiPart{Text: text, Thought: true})
+		}
+	case "arguments", "arguments_delta":
 		// function_call 参数分片(JSON 字符串):累积到 step 结束一次性吐出
+		t.argsBuf = append(t.argsBuf, delta.Arguments...)
 		t.argsBuf = append(t.argsBuf, delta.PartialArguments...)
+	case "thought_signature":
+		// 思考签名是 step 内最后一个 delta,step.stop 时以独立 part 吐出
+		t.sigBuf = delta.Signature
 	case "image", "audio", "video":
 		// 媒体增量按整块到达时透传
 		if delta.Data != "" {
@@ -306,6 +332,14 @@ func (t *InteractionsSSEToGeminiSSE) handleStepStop(payload string) {
 					t.emitPart(*part)
 				}
 			}
+		}
+	case kitdto.GeminiInteractionStepThought:
+		// 思考签名以独立 part 吐出,与官方流式最后一个 delta 对齐
+		if t.sigBuf != "" {
+			if data, err := kitutil.Marshal(t.sigBuf); err == nil {
+				t.emitPart(kitdto.GeminiPart{Thought: true, ThoughtSignature: data})
+			}
+			t.sigBuf = ""
 		}
 	}
 }

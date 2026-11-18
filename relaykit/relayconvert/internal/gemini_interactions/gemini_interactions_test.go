@@ -318,3 +318,88 @@ func TestInteractionsSSETranslatorFunctionCall(t *testing.T) {
 		}
 	}
 }
+
+// 官方现行非流式 steps schema:thought 摘要在 summary,签名为独立字段
+func TestInteractionToGeminiChatResponseThoughtSummary(t *testing.T) {
+	interaction := &kitdto.GeminiInteraction{
+		Status: "completed",
+		Steps: []kitdto.GeminiInteractionStep{
+			{
+				Type:      kitdto.GeminiInteractionStepThought,
+				Summary:   []kitdto.GeminiInteractionContent{{Type: "text", Text: "thinking hard"}},
+				Signature: "sig_abc",
+			},
+			{Type: kitdto.GeminiInteractionStepModelOutput, Content: []kitdto.GeminiInteractionContent{{Type: "text", Text: "answer"}}},
+		},
+	}
+	resp := InteractionToGeminiChatResponse(interaction, 0)
+	parts := resp.Candidates[0].Content.Parts
+	if len(parts) != 3 {
+		t.Fatalf("parts = %d, want 3 (thought/signature/text)", len(parts))
+	}
+	if !parts[0].Thought || parts[0].Text != "thinking hard" {
+		t.Fatalf("thought part = %+v", parts[0])
+	}
+	if !parts[1].Thought || string(parts[1].ThoughtSignature) != `"sig_abc"` {
+		t.Fatalf("signature part = %+v", parts[1])
+	}
+	if parts[2].Text != "answer" {
+		t.Fatalf("text part = %+v", parts[2])
+	}
+}
+
+// 官方现行 delta 形状:arguments_delta / thought_summary(content 包装) / thought_signature
+func TestInteractionsSSETranslatorCurrentDeltaShapes(t *testing.T) {
+	upstream := strings.Join([]string{
+		`data: {"event_type": "step.start", "index": 0, "step": {"type": "thought"}}`,
+		`data: {"event_type": "step.delta", "index": 0, "delta": {"type": "thought_summary", "content": {"type": "text", "text": "I need weather data."}}}`,
+		`data: {"event_type": "step.delta", "index": 0, "delta": {"type": "thought_signature", "signature": "sig_1"}}`,
+		`data: {"event_type": "step.stop", "index": 0}`,
+		`data: {"event_type": "step.start", "index": 1, "step": {"type": "function_call", "id": "fc_1", "name": "get_weather", "arguments": {}}}`,
+		`data: {"event_type": "step.delta", "index": 1, "delta": {"type": "arguments_delta", "arguments": "{\"location\": "}}`,
+		`data: {"event_type": "step.delta", "index": 1, "delta": {"type": "arguments_delta", "arguments": "\"Boston\"}"}}`,
+		`data: {"event_type": "step.stop", "index": 1}`,
+		`data: {"event_type": "interaction.requires_action", "interaction": {"id": "int_9", "status": "requires_action"}}`,
+	}, "\n")
+
+	reader := NewInteractionsSSEToGeminiSSEWithCallback(strings.NewReader(upstream), func(interactionID string, callIDs []string) {
+		if interactionID != "int_9" || len(callIDs) != 1 || callIDs[0] != "fc_1" {
+			t.Fatalf("bridge callback = %s %v", interactionID, callIDs)
+		}
+	})
+	out, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+
+	var thoughtText, signature string
+	var fcArgs map[string]any
+	for _, line := range strings.Split(string(out), "\n") {
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		var r kitdto.GeminiChatResponse
+		if err := kitutil.UnmarshalJsonStr(strings.TrimPrefix(line, "data: "), &r); err != nil || len(r.Candidates) == 0 {
+			continue
+		}
+		for _, part := range r.Candidates[0].Content.Parts {
+			switch {
+			case part.FunctionCall != nil:
+				fcArgs, _ = part.FunctionCall.Arguments.(map[string]any)
+			case part.Thought && part.ThoughtSignature != nil:
+				signature = string(part.ThoughtSignature)
+			case part.Thought:
+				thoughtText = part.Text
+			}
+		}
+	}
+	if thoughtText != "I need weather data." {
+		t.Fatalf("thought_summary = %q", thoughtText)
+	}
+	if signature != `"sig_1"` {
+		t.Fatalf("thought_signature = %q", signature)
+	}
+	if fcArgs["location"] != "Boston" {
+		t.Fatalf("arguments_delta aggregated = %v", fcArgs)
+	}
+}

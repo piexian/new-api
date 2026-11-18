@@ -281,7 +281,8 @@ func (u *GeminiInteractionUsage) ToUsage(fallbackPromptTokens int) *Usage {
 
 // GeminiInteractionStep 构建请求时的强类型 Step。
 // Result 用 RawMessage 容错:function_result 为 Content 数组,
-// code_execution_result 等原生工具结果为纯字符串
+// code_execution_result 等原生工具结果为纯字符串。
+// thought 步骤的非流式摘要位于 summary,签名位于 signature(官方 steps schema)。
 type GeminiInteractionStep struct {
 	Type      string                     `json:"type"`
 	ID        string                     `json:"id,omitempty"`
@@ -290,6 +291,8 @@ type GeminiInteractionStep struct {
 	Arguments json.RawMessage            `json:"arguments,omitempty"`
 	Content   []GeminiInteractionContent `json:"content,omitempty"`
 	Result    json.RawMessage            `json:"result,omitempty"`
+	Summary   []GeminiInteractionContent `json:"summary,omitempty"`
+	Signature string                     `json:"signature,omitempty"`
 }
 
 // GeminiInteractionContent 构建请求时的强类型 Content 块
