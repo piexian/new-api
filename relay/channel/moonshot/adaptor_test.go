@@ -396,9 +396,9 @@ func TestSetupRequestHeaderAppliesKimiCLICompatibilityHeaders(t *testing.T) {
 		"Authorization":  "Bearer kimi-key",
 		"Content-Type":   gin.MIMEJSON,
 		"Accept":         gin.MIMEJSON,
-		"User-Agent":     "kimi-code-cli/2.0.0",
+		"User-Agent":     "kimi-code-cli/" + kimiCodeCLICompatibilityVersion,
 		"X-Msh-Platform": "kimi_code_cli",
-		"X-Msh-Version":  "2.0.0",
+		"X-Msh-Version":  kimiCodeCLICompatibilityVersion,
 	}
 	for name, want := range wantHeaders {
 		if got := headers.Get(name); got != want {
@@ -480,7 +480,7 @@ func TestDoRequestAppliesKimiCodingHeaderPolicy(t *testing.T) {
 		{
 			name:              "empty override uses built-in headers",
 			headerOverride:    map[string]interface{}{},
-			wantUserAgent:     "kimi-code-cli/2.0.0",
+			wantUserAgent:     "kimi-code-cli/" + kimiCodeCLICompatibilityVersion,
 			wantAnthropicBeta: "",
 		},
 		{
@@ -684,6 +684,36 @@ func TestNormalizeKimiK3Effort(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if got := normalizeKimiK3Effort(test.given); got != test.wanted {
 				t.Fatalf("normalizeKimiK3Effort(%q) = %q, want %q", test.given, got, test.wanted)
+			}
+		})
+	}
+}
+
+func TestClassifyKimiModel(t *testing.T) {
+	tests := []struct {
+		name  string
+		model string
+		base  bool
+		want  kimiModelFamily
+	}{
+		{"kimi-k3", "kimi-k3", false, kimiModelK3},
+		{"kimi-k3.1-pro", "kimi-k3.1-pro", false, kimiModelK3},
+		{"kimi-k3.1-pro-highspeed", "kimi-k3.1-pro-highspeed", false, kimiModelK3},
+		{"kimi-k3-prefix", "kimi-k3-256k", false, kimiModelK3},
+		{"kimi-k2.8-preview-is-k3-family", "kimi-k2.8-preview", false, kimiModelK3},
+		{"kimi-for-coding", "kimi-for-coding", false, kimiModelK3},
+		{"coding-base-k3-alias", "k3", true, kimiModelK3},
+		{"k3-alias-outside-coding-base", "k3", false, kimiModelUnknown},
+		{"kimi-k2.7-code", "kimi-k2.7-code", false, kimiModelK27},
+		{"kimi-for-coding-highspeed", "kimi-for-coding-highspeed", false, kimiModelK27},
+		{"kimi-k2.6", "kimi-k2.6", false, kimiModelK26},
+		{"kimi-k2.5", "kimi-k2.5", false, kimiModelK25},
+		{"unknown-model", "gpt-4o", false, kimiModelUnknown},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := classifyKimiModel(test.model, test.base); got != test.want {
+				t.Fatalf("classifyKimiModel(%q, %v) = %v, want %v", test.model, test.base, got, test.want)
 			}
 		})
 	}

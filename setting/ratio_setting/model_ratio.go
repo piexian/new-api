@@ -316,8 +316,12 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-v4-flash": 0.07,   // $0.14/M input
 	"deepseek-v4-pro":   0.2175, // $0.435/M input
 	"deepseek-v3.2":     0.07,   // $0.14/M input (deprecated, mapped to V4 Flash)
-	// Kimi (June 2026)
-	"kimi-k2.7-code": 0.4452, // ¥6.50/M input (~$0.89/M)
+	// Kimi (官方 2026-11 定价;K2 系 2026-12 底退役,存量用户过渡保留)
+	"kimi-k3.1-pro":           1.0,    // $2/M in,$10/M out
+	"kimi-k3.1-pro-highspeed": 2.0,    // $4/M in,$20/M out
+	"kimi-k3":                 1.5,    // $3/M in,$15/M out
+	"kimi-k2.6":               0.475,  // $0.95/M in,$4/M out
+	"kimi-k2.7-code":          0.4452, // ¥6.50/M input(~$0.89/M)
 	// GLM (June 2026)
 	"glm-5":         0.411, // ¥6.00/M input
 	"glm-5-turbo":   0.411, // ¥6.00/M input
@@ -799,6 +803,18 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 	}
 	if strings.HasPrefix(name, "mistral-") {
 		return 3, true
+	}
+	if strings.HasPrefix(name, "kimi-k3.1") {
+		return 5, false // k3.1-pro $2/$10、k3.1-pro-highspeed $4/$20,输出均为输入 5 倍
+	}
+	if strings.HasPrefix(name, "kimi-k3") {
+		return 5, false // $3/M in,$15/M out
+	}
+	if strings.HasPrefix(name, "kimi-k2.7-code") {
+		return 4, false // ¥6.5/M in,¥26/M out
+	}
+	if strings.HasPrefix(name, "kimi-k2.6") {
+		return 4.21, false // $0.95/M in,$4/M out
 	}
 	if strings.HasPrefix(name, "gemini-") {
 		if strings.HasPrefix(name, "gemini-1.5") {

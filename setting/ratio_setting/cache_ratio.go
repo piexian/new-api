@@ -20,6 +20,11 @@ var defaultCacheRatio = map[string]float64{
 	"gemini-4-argon":                      0.05,
 	"gemini-4-carbon":                     0.05,
 	"gemini-4-hydrogen":                   0.05,
+	"kimi-k3.1-pro":                       0.1,  // $0.2/M cache,$2/M in
+	"kimi-k3.1-pro-highspeed":             0.05, // $0.2/M cache,$4/M in
+	"kimi-k3":                             0.1,  // $0.3/M cache,$3/M in
+	"kimi-k2.6":                           0.17, // $0.16/M cache,$0.95/M in
+	"kimi-k2.7-code":                      0.2,  // ¥1.9/M cache,¥6.5/M in
 	"gpt-4":                               0.5,
 	"o1":                                  0.5,
 	"o1-2024-12-17":                       0.5,

@@ -17,9 +17,15 @@ import (
 )
 
 // Keep this aligned with the Kimi Code release used when building the service.
-// Source: @moonshot-ai/kimi-code v2.0.0 (npm latest). The X-Msh-* identity header
-// scheme is unchanged in 2.0.0; only the version moved.
-const kimiCodeCLICompatibilityVersion = "2.0.0"
+// Source: @moonshot-ai/kimi-code v2.6.2 (npm latest). The X-Msh-* identity header
+// scheme is unchanged since 2.0.0; 2.6.x additionally sends X-Msh-Client-Metadata.
+const kimiCodeCLICompatibilityVersion = "2.6.2"
+
+// kimiClientMetadataValue 镜像 Kimi Code CLI 2.6.x 普通回合的请求元数据:
+// agent_role=main、turn_trigger=turn、step_reason=turn_start。CLI 对缺失的
+// user_input_id/parent_request_id 会因 undefined 被 JSON.stringify 省略,
+// 网关同样省略这两个字段。
+const kimiClientMetadataValue = `{"agent_role":"main","turn_trigger":"turn","step_reason":"turn_start"}`
 
 var (
 	kimiCLIHeadersOnce sync.Once
@@ -34,6 +40,7 @@ var kimiCLIHeaderNames = []string{
 	"X-Msh-Device-Model",
 	"X-Msh-Os-Version",
 	"X-Msh-Device-Id",
+	"X-Msh-Client-Metadata",
 }
 
 // kimiCacheAffinityHeaderNames 是唯一允许从客户端透传的缓存亲和请求头；
@@ -67,13 +74,14 @@ func getKimiCLIHeaders() map[string]string {
 		deviceModel = sanitizeKimiHeaderValue(deviceModel, "unknown")
 
 		kimiCLIHeaders = map[string]string{
-			"User-Agent":         "kimi-code-cli/" + kimiCodeCLICompatibilityVersion,
-			"X-Msh-Platform":     "kimi_code_cli",
-			"X-Msh-Version":      kimiCodeCLICompatibilityVersion,
-			"X-Msh-Device-Name":  hostname,
-			"X-Msh-Device-Model": deviceModel,
-			"X-Msh-Os-Version":   osRelease,
-			"X-Msh-Device-Id":    localKimiDeviceID(hostname, deviceModel),
+			"User-Agent":            "kimi-code-cli/" + kimiCodeCLICompatibilityVersion,
+			"X-Msh-Platform":        "kimi_code_cli",
+			"X-Msh-Version":         kimiCodeCLICompatibilityVersion,
+			"X-Msh-Device-Name":     hostname,
+			"X-Msh-Device-Model":    deviceModel,
+			"X-Msh-Os-Version":      osRelease,
+			"X-Msh-Device-Id":       localKimiDeviceID(hostname, deviceModel),
+			"X-Msh-Client-Metadata": kimiClientMetadataValue,
 		}
 	})
 	return kimiCLIHeaders

@@ -45,13 +45,13 @@ func normalizeKimiOpenAIRequest(info *relaycommon.RelayInfo, request *dto.Genera
 	return family
 }
 
-// classifyKimiModel 归类模型族。kimi-for-coding 自 K2.8 Preview 起与 K3 同参数面
-// （支持 low/high/max/none effort、1M 上下文）；kimi-for-coding-highspeed 仍是
-// K2.7 HighSpeed（思考恒开、无档位）。
+// classifyKimiModel 归类模型族。kimi-for-coding 与 kimi-k2.8*(CLI 2.6.2 目录实体
+// 模型名 kimi-k2.8-preview)自 K2.8 Preview 起与 K3 同参数面(支持 low/high/max/none
+// effort、1M 上下文);kimi-for-coding-highspeed 仍是 K2.7 HighSpeed(思考恒开、无档位)。
 func classifyKimiModel(model string, kimiCodingBase bool) kimiModelFamily {
 	model = strings.ToLower(strings.TrimSpace(model))
 	switch {
-	case model == "kimi-k3", strings.HasPrefix(model, "kimi-k3-"), model == "kimi-for-coding", kimiCodingBase && (model == "k3" || model == "k3-256k"):
+	case model == "kimi-k3", strings.HasPrefix(model, "kimi-k3-"), strings.HasPrefix(model, "kimi-k3.1"), strings.HasPrefix(model, "kimi-k2.8"), model == "kimi-for-coding", kimiCodingBase && (model == "k3" || model == "k3-256k"):
 		return kimiModelK3
 	case model == "kimi-for-coding-highspeed", strings.HasPrefix(model, "kimi-k2.7-code"):
 		return kimiModelK27
