@@ -17,7 +17,8 @@ func TestFetchGeminiModelsFollowsOfficialPagination(t *testing.T) {
 		require.Equal(t, http.MethodGet, r.Method)
 		require.Equal(t, "/v1beta/models", r.URL.Path)
 		require.Equal(t, "test-key", r.URL.Query().Get("key"))
-		require.Equal(t, "1000", r.URL.Query().Get("pageSize"))
+		// 260fbbc6b:去掉 pageSize 对齐代理可用请求,分页走上游默认页大小
+		require.Empty(t, r.URL.Query().Get("pageSize"))
 		require.Empty(t, r.Header.Get("x-goog-api-key"))
 
 		switch requestCount {
