@@ -479,6 +479,7 @@ var defaultModelRatio = map[string]float64{
 var defaultModelPrice = map[string]float64{
 	"suno_music":                     0.1,
 	"suno_lyrics":                    0.01,
+	"music-3.0":                      0.137, // MiniMax 音乐 ¥1/首(MiniMax Code 订阅经 MCP 生成)
 	"dall-e-3":                       0.04,
 	"agnes-image-2.0-flash":          0,
 	"agnes-image-2.1-flash":          0.003,

@@ -46,11 +46,11 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	return nil, errors.New("minimax code does not support audio endpoints")
+	return convertMCPAudioRequest(info, request)
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	return nil, errors.New("minimax code does not support image endpoints")
+	return convertMCPImageRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -62,10 +62,20 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	baseURL := NormalizeBaseURL(info.ChannelBaseUrl)
+	if info != nil && info.RelayMode == relayconstant.RelayModeImagesGenerations {
+		return baseURL + MCPImagePath, nil
+	}
+	if info != nil && info.RelayMode == relayconstant.RelayModeAudioSpeech {
+		if isMiniMaxCodeMusicModel(info.UpstreamModelName) {
+			return baseURL + MCPMusicPath, nil
+		}
+		return baseURL + MCPSpeechPath, nil
+	}
 	if info != nil && info.RelayMode == relayconstant.RelayModeClaudeCountTokens {
 		return "", errors.New("minimax code does not support the count_tokens endpoint")
 	}
-	return NormalizeBaseURL(info.ChannelBaseUrl) + MessagesPath, nil
+	return baseURL + MessagesPath, nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
@@ -107,6 +117,15 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info != nil && info.RelayMode == relayconstant.RelayModeImagesGenerations {
+		return doMCPImageResponse(c, resp, info)
+	}
+	if info != nil && info.RelayMode == relayconstant.RelayModeAudioSpeech {
+		if isMiniMaxCodeMusicModel(info.UpstreamModelName) {
+			return doMCPMusicResponse(c, resp, info)
+		}
+		return doMCPSpeechResponse(c, resp, info)
+	}
 	claudeAdaptor := claude.Adaptor{}
 	return claudeAdaptor.DoResponse(c, resp, info)
 }
