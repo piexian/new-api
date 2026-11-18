@@ -121,6 +121,10 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if info.RelayMode == relayconstant.RelayModeOpenAIDecisions ||
+		(info.RelayMode == relayconstant.RelayModeTypeSafeNative && info.ChannelType == constant.ChannelTypeOpenAI) {
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/decisions", info.ChannelType), nil
+	}
 	if info.RelayMode == relayconstant.RelayModeRealtime {
 		if strings.HasPrefix(info.ChannelBaseUrl, "https://") {
 			baseUrl := strings.TrimPrefix(info.ChannelBaseUrl, "https://")
@@ -675,6 +679,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		} else {
 			usage, err = OpenaiImageHandler(c, info, resp)
 		}
+	case relayconstant.RelayModeOpenAIDecisions:
+		usage, err = OpenAIDecisionsHandler(c, info, resp)
+	case relayconstant.RelayModeTypeSafeNative:
+		usage, err = OpenAIDecisionsSystemOneHandler(c, info, resp)
 	case relayconstant.RelayModeRerank:
 		usage, err = common_handler.RerankHandler(c, info, resp)
 	case relayconstant.RelayModeEmbeddings:

@@ -67,7 +67,7 @@ func TestTypeSafeNativeHelperRejectsNonTypeSafeChannel(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/systemone", strings.NewReader("{}"))
 	c.Request.Header.Set("Content-Type", "application/json")
-	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeAnthropic)
 
 	newAPIError := TypeSafeNativeHelper(c, &relaycommon.RelayInfo{})
 	require.NotNil(t, newAPIError)

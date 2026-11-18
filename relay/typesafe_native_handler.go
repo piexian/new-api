@@ -26,6 +26,10 @@ func TypeSafeNativeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIEr
 	if info.ChannelType == constant.ChannelTypeGemini {
 		return GeminiDecisionsViaSystemOneHelper(c, info)
 	}
+	// OpenAI 渠道上的 systemone 协议转 OpenAI Decisions(state/questions 映射转换)
+	if info.ChannelType == constant.ChannelTypeOpenAI {
+		return OpenAIDecisionsViaSystemOneHelper(c, info)
+	}
 	if info.ChannelType != constant.ChannelTypeTypeSafe && info.ChannelType != constant.ChannelTypeOpenCode {
 		return types.NewErrorWithStatusCode(fmt.Errorf("native endpoint is not supported by the selected channel"), types.ErrorCodeInvalidApiType, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}

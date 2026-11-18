@@ -24,7 +24,11 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request ki
 
 	switch format {
 	case types.RelayFormatOpenAI:
-		request, err = GetAndValidateTextRequest(c, relayMode)
+		if relayMode == relayconstant.RelayModeOpenAIDecisions {
+			request, err = GetAndValidateOpenAIDecisionsRequest(c)
+		} else {
+			request, err = GetAndValidateTextRequest(c, relayMode)
+		}
 	case types.RelayFormatGemini:
 		if relayMode == relayconstant.RelayModeGeminiInteractions {
 			request, err = GetAndValidateGeminiInteractionsRequest(c)
@@ -464,6 +468,24 @@ func GetAndValidateGeminiInteractionsRequest(c *gin.Context) (*dto.GeminiInterac
 // GetAndValidateGeminiDecisionsRequest 校验 Gemini Decisions 原生请求,input/questions 保持原始 JSON 透传
 func GetAndValidateGeminiDecisionsRequest(c *gin.Context) (*kitdto.GeminiDecisionsRequest, error) {
 	request := &kitdto.GeminiDecisionsRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		return nil, errors.New("model is required")
+	}
+	if len(request.Input) == 0 {
+		return nil, errors.New("input is required")
+	}
+	if len(request.Questions) == 0 {
+		return nil, errors.New("questions is required")
+	}
+	return request, nil
+}
+
+// GetAndValidateOpenAIDecisionsRequest 校验 OpenAI Decisions 原生请求,input/questions 保持原始 JSON 透传
+func GetAndValidateOpenAIDecisionsRequest(c *gin.Context) (*kitdto.OpenAIDecisionsRequest, error) {
+	request := &kitdto.OpenAIDecisionsRequest{}
 	if err := common.UnmarshalBodyReusable(c, request); err != nil {
 		return nil, err
 	}

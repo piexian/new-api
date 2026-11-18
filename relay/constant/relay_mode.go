@@ -68,6 +68,8 @@ const (
 
 	RelayModeDecisions
 
+	RelayModeOpenAIDecisions
+
 	RelayModeStepFunNative
 	RelayModeCohereNative
 
@@ -159,6 +161,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeGeminiInteractions
 	} else if strings.HasPrefix(path, "/v1beta/decisions") {
 		relayMode = RelayModeDecisions
+	} else if strings.HasPrefix(path, "/v1/decisions") {
+		relayMode = RelayModeOpenAIDecisions
 	} else if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
 		relayMode = RelayModeGemini
 	} else if strings.HasPrefix(path, "/mj") {

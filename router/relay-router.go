@@ -266,6 +266,11 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatTypeSafe)
 		})
 
+		// OpenAI Decisions 原生端点(POST /v1/decisions,gpt-6-luna)
+		httpRouter.POST("/decisions", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAI)
+		})
+
 		// xAI native voice routes
 		httpRouter.POST("/realtime/client_secrets", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatXAI)
