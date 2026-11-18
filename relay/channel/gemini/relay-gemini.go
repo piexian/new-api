@@ -20,9 +20,9 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	dto "github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/geminithought"
-	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/QuantumNous/new-api/types"
@@ -1596,14 +1596,14 @@ func FetchGeminiModels(baseURL, apiKey, proxyURL string) ([]string, error) {
 	baseURL = strings.TrimRight(baseURL, "/")
 
 	for page := 0; page < maxPages; page++ {
+		// 对齐实测可用请求:key 走查询参数(gptload 代理与官方端点均认),
+		// 不带 pageSize——部分代理后端拒绝大页参数,上游默认页大小逐页跟随即可
 		query := url.Values{}
 		query.Set("key", apiKey)
-		query.Set("pageSize", strconv.Itoa(1000))
 		if nextPageToken != "" {
 			query.Set("pageToken", nextPageToken)
 		}
 		requestURL := fmt.Sprintf("%s/v1beta/models?%s", baseURL, query.Encode())
-
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 		if err != nil {
