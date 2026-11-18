@@ -6806,7 +6806,8 @@
     "No login records found": "Записи о входах не найдены",
     "No login records match the current filters.": "Нет записей о входах, соответствующих текущим фильтрам.",
     "Two-factor authentication unavailable": "Двухфакторная аутентификация недоступна",
-    "Browser environment error": "Ошибка окружения браузера"
+    "Browser environment error": "Ошибка окружения браузера",
+    "Monthly quota": "Месячная квота"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

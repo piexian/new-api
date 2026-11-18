@@ -7,7 +7,6 @@ import React, {
 } from 'react';
 import {
   Button,
-  Collapse,
   InputNumber,
   Modal,
   Progress,
@@ -482,14 +481,6 @@ const ZhipuCodingPlanUsageView = ({ t, record, payload, onRefresh }) => {
           )}
         </div>
       )}
-
-      <Collapse>
-        <Collapse.Panel header={t('原始响应')} itemKey='raw'>
-          <pre className='max-h-80 overflow-auto rounded bg-semi-color-fill-0 p-3 text-xs leading-5'>
-            {rawJSON || '-'}
-          </pre>
-        </Collapse.Panel>
-      </Collapse>
     </div>
   );
 };

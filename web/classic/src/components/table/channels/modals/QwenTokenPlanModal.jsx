@@ -20,7 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
-  Collapse,
   Modal,
   Progress,
   Spin,
@@ -96,8 +95,7 @@ const QwenTokenPlanUsage = ({ t, record }) => {
   }
 
   const usage = payload?.data || {};
-  const per5Hour = usage.per_5_hour || {};
-  const per1Week = usage.per_1_week || {};
+  const per1Month = usage.per_1_month || {};
 
   const renderWindow = (label, window) => {
     const present = window.present === true;
@@ -136,15 +134,7 @@ const QwenTokenPlanUsage = ({ t, record }) => {
           {usage.subscribed ? t('有效') : t('未订阅或已失效')}
         </Tag>
       </div>
-      {renderWindow(t('5 小时窗口额度'), per5Hour)}
-      {renderWindow(t('1 周窗口额度'), per1Week)}
-      <Collapse>
-        <Collapse.Panel header={t('原始响应')} itemKey='raw'>
-          <pre className='overflow-auto whitespace-pre-wrap break-all text-xs'>
-            {JSON.stringify(payload, null, 2)}
-          </pre>
-        </Collapse.Panel>
-      </Collapse>
+      {renderWindow(t('月度额度'), per1Month)}
     </div>
   );
 };

@@ -18,12 +18,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
-  Check,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
-  Copy,
   Loader2,
   RefreshCw,
 } from 'lucide-react'
@@ -45,7 +41,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Switch } from '@/components/ui/switch'
-import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import dayjs from '@/lib/dayjs'
 import { formatTimestampToDate } from '@/lib/format'
 
@@ -1665,8 +1660,7 @@ function QwenTokenPlanUsageView({
   const { t } = useTranslation()
   const usage = toRecord(response?.data)
   const subscribed = usage?.subscribed === true
-  const per5Hour = toRecord(usage?.per_5_hour)
-  const per1Week = toRecord(usage?.per_1_week)
+  const per1Month = toRecord(usage?.per_1_month)
 
   const renderWindow = (
     label: string,
@@ -1743,8 +1737,7 @@ function QwenTokenPlanUsageView({
 
       {usage && response?.success !== false && (
         <div className='space-y-3'>
-          {renderWindow(t('5-hour quota'), per5Hour)}
-          {renderWindow(t('1-week quota'), per1Week)}
+          {renderWindow(t('Monthly quota'), per1Month)}
         </div>
       )}
     </div>
@@ -1874,10 +1867,6 @@ export function ChannelPlanUsageDialog({
   isRefreshing,
 }: ChannelPlanUsageDialogProps) {
   const { t } = useTranslation()
-  const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
-  const [showRawJson, setShowRawJson] = useState(false)
-  // MiniMax Code 的上游账户响应可能带凭据，只展示后端整理过的字段。
-  const showRawJsonSection = kind !== 'minimaxcode'
 
   let title = t('Zhipu Coding Plan Usage')
   if (kind === 'minimax') {
@@ -1890,14 +1879,6 @@ export function ChannelPlanUsageDialog({
     title = t('Qwen Token Plan Usage')
   }
 
-  const rawJsonText = useMemo(() => {
-    if (!response) return ''
-    try {
-      return JSON.stringify(response, null, 2)
-    } catch {
-      return String(response?.data ?? '')
-    }
-  }, [response])
   const refreshCurrentKey = () => onRefresh(currentKeyIndex)
   let usageView = (
     <ZhipuUsageView
@@ -1970,47 +1951,6 @@ export function ChannelPlanUsageDialog({
 
               {usageView}
 
-              {showRawJsonSection && (
-                <div className='rounded-lg border'>
-                  <button
-                    type='button'
-                    className='hover:bg-muted/40 flex w-full items-center justify-between gap-2 p-3 transition-colors'
-                    onClick={() => setShowRawJson((v) => !v)}
-                  >
-                    <div className='text-sm font-medium'>{t('Raw JSON')}</div>
-                    {showRawJson ? (
-                      <ChevronUp className='text-muted-foreground h-4 w-4' />
-                    ) : (
-                      <ChevronDown className='text-muted-foreground h-4 w-4' />
-                    )}
-                  </button>
-                  {showRawJson && (
-                    <>
-                      <div className='flex justify-end border-t px-3 py-2'>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          onClick={() => copyToClipboard(rawJsonText)}
-                          disabled={!rawJsonText}
-                        >
-                          {copiedText === rawJsonText ? (
-                            <Check className='mr-1.5 h-3.5 w-3.5 text-green-600' />
-                          ) : (
-                            <Copy className='mr-1.5 h-3.5 w-3.5' />
-                          )}
-                          {t('Copy')}
-                        </Button>
-                      </div>
-                      <div className='max-h-[42vh] overflow-y-auto'>
-                        <pre className='bg-muted/30 m-0 p-3 text-xs break-words whitespace-pre-wrap'>
-                          {rawJsonText || '-'}
-                        </pre>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
             </div>
           )}
         </div>

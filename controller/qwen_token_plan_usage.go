@@ -47,16 +47,15 @@ var (
 	qwenTokenPlanTokenURL   = "https://modelstudio.cn-beijing.aliyuncs.com/modelstudio/cli/generateAccessToken"
 )
 
+type qwenTokenPlanUsage struct {
+	Subscribed bool                     `json:"subscribed"`
+	Per1Month  qwenTokenPlanUsageWindow `json:"per_1_month"`
+}
+
 type qwenTokenPlanUsageWindow struct {
 	Present     bool    `json:"present"`
 	UsedPercent float64 `json:"used_percent"`
 	ResetAt     int64   `json:"reset_at,omitempty"`
-}
-
-type qwenTokenPlanUsage struct {
-	Subscribed bool                     `json:"subscribed"`
-	Per5Hour   qwenTokenPlanUsageWindow `json:"per_5_hour"`
-	Per1Week   qwenTokenPlanUsageWindow `json:"per_1_week"`
 }
 
 func GetQwenTokenPlanUsage(c *gin.Context) {
@@ -243,9 +242,9 @@ func parseQwenTokenPlanUsageResponse(statusCode int, body []byte) (usage qwenTok
 		return usage, false, false, fmt.Sprintf("Qwen token plan usage error: %s", detail)
 	}
 
-	usage.Per5Hour = qwenTokenPlanWindow(raw, "per5Hour")
-	usage.Per1Week = qwenTokenPlanWindow(raw, "per1Week")
-	usage.Subscribed = usage.Per5Hour.Present || usage.Per1Week.Present
+	// 2026-11 起套餐仅保留月限额(per1Month),5 小时/周窗口字段已从上游响应移除
+	usage.Per1Month = qwenTokenPlanWindow(raw, "per1Month")
+	usage.Subscribed = usage.Per1Month.Present
 	return usage, false, true, ""
 }
 

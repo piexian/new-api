@@ -6806,7 +6806,8 @@
     "No login records found": "Không có bản ghi đăng nhập",
     "No login records match the current filters.": "Không có bản ghi đăng nhập nào khớp với bộ lọc hiện tại.",
     "Two-factor authentication unavailable": "Không thể sử dụng xác thực hai lớp",
-    "Browser environment error": "Môi trường trình duyệt bất thường"
+    "Browser environment error": "Môi trường trình duyệt bất thường",
+    "Monthly quota": "Hạn mức hàng tháng"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

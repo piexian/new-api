@@ -6806,7 +6806,8 @@
     "No login records found": "No login records found",
     "No login records match the current filters.": "No login records match the current filters.",
     "Two-factor authentication unavailable": "Two-factor authentication unavailable",
-    "Browser environment error": "Browser environment error"
+    "Browser environment error": "Browser environment error",
+    "Monthly quota": "Monthly quota"
   },
   "Open external link?": "Open external link?",
   "This link will open in a new window. Do you want to continue?": "This link will open in a new window. Do you want to continue?",

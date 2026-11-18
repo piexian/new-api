@@ -6806,7 +6806,8 @@
     "No login records found": "Aucune connexion trouvée",
     "No login records match the current filters.": "Aucune connexion ne correspond aux filtres actuels.",
     "Two-factor authentication unavailable": "Authentification à deux facteurs indisponible",
-    "Browser environment error": "Environnement du navigateur en erreur"
+    "Browser environment error": "Environnement du navigateur en erreur",
+    "Monthly quota": "Quota mensuel"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

@@ -23,10 +23,8 @@ func TestParseQwenTokenPlanUsageResponse(t *testing.T) {
 					"msg":"Success.",
 					"code":"SUCCESS",
 					"data":{
-						"per5HourPercentage":0.32,
-						"per5HourResetTime":1788364680000,
-						"per1WeekPercentage":1.0,
-						"per1WeekResetTime":1788364680000
+						"per1MonthPercentage":0.32,
+						"per1MonthResetTime":1788364680000
 					},
 					"requestId":"req-1",
 					"success":true
@@ -48,20 +46,18 @@ func TestParseQwenTokenPlanUsageResponse(t *testing.T) {
 	require.Empty(t, message)
 	require.False(t, notLogined)
 	require.True(t, usage.Subscribed)
-	require.True(t, usage.Per5Hour.Present)
-	require.InDelta(t, 32, usage.Per5Hour.UsedPercent, 0.001)
-	require.EqualValues(t, 1788364680000, usage.Per5Hour.ResetAt)
-	require.True(t, usage.Per1Week.Present)
-	require.InDelta(t, 100, usage.Per1Week.UsedPercent, 0.001)
+	require.True(t, usage.Per1Month.Present)
+	require.InDelta(t, 32, usage.Per1Month.UsedPercent, 0.001)
+	require.EqualValues(t, 1788364680000, usage.Per1Month.ResetAt)
 }
 
-func TestParseQwenTokenPlanUsageResponseWeeklyOnly(t *testing.T) {
+func TestParseQwenTokenPlanUsageResponseNoWindow(t *testing.T) {
 	t.Parallel()
 
 	body := []byte(`{
 		"code":"200",
 		"data":{
-			"DataV2":{"data":{"success":true,"data":{"per1WeekPercentage":0.05,"per1WeekResetTime":1788364680000}}},
+			"DataV2":{"data":{"success":true,"data":{}}},
 			"success":true,"httpStatus":200,"errorCode":"","errorMsg":""
 		},
 		"successResponse":true
@@ -69,11 +65,9 @@ func TestParseQwenTokenPlanUsageResponseWeeklyOnly(t *testing.T) {
 
 	usage, _, success, _ := parseQwenTokenPlanUsageResponse(http.StatusOK, body)
 	require.True(t, success)
-	require.True(t, usage.Subscribed)
-	require.False(t, usage.Per5Hour.Present)
-	require.Zero(t, usage.Per5Hour.UsedPercent)
-	require.True(t, usage.Per1Week.Present)
-	require.InDelta(t, 5, usage.Per1Week.UsedPercent, 0.001)
+	require.False(t, usage.Subscribed)
+	require.False(t, usage.Per1Month.Present)
+	require.Zero(t, usage.Per1Month.UsedPercent)
 }
 
 func TestParseQwenTokenPlanUsageResponseNotLogined(t *testing.T) {
