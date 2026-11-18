@@ -98,8 +98,46 @@ var defaultModelRatio = map[string]float64{
 	"gpt-5-mini-2025-08-07":            0.125,
 	"gpt-5-nano":                       0.025,
 	"gpt-5-nano-2025-08-07":            0.025,
-	"agnes-1.5-flash":                  0.035,
-	"agnes-2.0-flash":                  0.05,
+	// OpenAI 2026-11 定价(标准档、272K 内短上下文)
+	"gpt-5-pro":                   7.5,   // $15/M in,$120/M out
+	"gpt-5.1":                     0.625, // $1.25/M in,$10/M out
+	"gpt-5.1-2025-11-13":          0.625,
+	"gpt-5.2":                     0.875, // $1.75/M in,$14/M out
+	"gpt-5.2-2025-12-11":          0.875,
+	"gpt-5.2-pro":                 10.5, // $21/M in,$168/M out
+	"gpt-5.2-pro-2025-12-11":      10.5,
+	"gpt-5.3-codex":               0.875, // $1.75/M in,$14/M out
+	"gpt-5-search-api":            0.625, // $1.25/M in,$10/M out
+	"gpt-5-search-api-2025-10-14": 0.625,
+	"gpt-5.4":                     1.25, // $2.5/M in,$15/M out
+	"gpt-5.4-2026-03-05":          1.25,
+	"gpt-5.4-pro":                 15, // $30/M in,$180/M out
+	"gpt-5.4-pro-2026-03-05":      15,
+	"gpt-5.4-mini":                0.375, // $0.75/M in,$4.5/M out
+	"gpt-5.4-nano":                0.1,   // $0.2/M in,$1.25/M out
+	"gpt-5.5":                     2.5,   // $5/M in,$30/M out
+	"gpt-5.5-pro":                 15,    // $30/M in,$180/M out
+	"gpt-5.6-sol":                 2.0,   // $4/M in,$20/M out(官方促销价至 2026-11-21)
+	"gpt-5.6-terra":               1.0,   // $2/M in,$12/M out
+	"gpt-5.6-luna":                0.1,   // $0.2/M in,$1.2/M out
+	"gpt-5.6-cyber":               6.25,  // $12.5/M in,$75/M out
+	"gpt-6-astra":                 5.0,   // $10/M in,$50/M out
+	"gpt-6-sol":                   1.0,   // $2/M in,$10/M out
+	"gpt-6.1-sol":                 1.0,   // $2/M in,$10/M out
+	"gpt-6.1-terra":               0.5,   // $1/M in,$5/M out
+	"gpt-6-luna":                  0.05,  // $0.1/M in,$0.5/M out
+	"gpt-6-cyber":                 10.0,  // $20/M in,$100/M out
+	"chat-latest":                 2.5,   // $5/M in,$30/M out
+	"gpt-rosalind-research":       2.5,   // $5/M in,$25/M out
+	"gpt-rosalind-discovery":      2.5,   // $5/M in,$25/M out
+	"gpt-image-1.5":               2.5,   // 文本入 $5/M tokens,图像出 $32/M
+	"gpt-image-2":                 2.5,   // 文本入 $5/M tokens,图像出 $30/M
+	"gpt-image-2.5-sunburst":      2.5,
+	"gpt-image-2.5-flare":         2.5,
+	"gpt-image-2.6-sunburst":      2.5,
+	"gpt-image-2.6-flare":         2.5,
+	"agnes-1.5-flash":             0.035,
+	"agnes-2.0-flash":             0.05,
 	//"gpt-3.5-turbo-0301":           0.75, //deprecated
 	"gpt-3.5-turbo":          0.25,
 	"gpt-3.5-turbo-0613":     0.75,
@@ -532,6 +570,12 @@ var defaultCompletionRatio = map[string]float64{
 	"gpt-4o-gizmo-*":         3,
 	"gpt-4-all":              2,
 	"gpt-image-1":            8,
+	"gpt-image-1.5":          6.4, // $32/$5
+	"gpt-image-2":            6,   // $30/$5
+	"gpt-image-2.5-sunburst": 6,
+	"gpt-image-2.5-flare":    6,
+	"gpt-image-2.6-sunburst": 6,
+	"gpt-image-2.6-flare":    6,
 	"agnes-1.5-flash":        15.0 / 7.0,
 	"agnes-2.0-flash":        2,
 	"MiniMax-M3":             4,
@@ -745,6 +789,9 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			}
 			return 4, false
 		}
+		if strings.HasPrefix(name, "gpt-6") {
+			return 5, false // astra $50/$10,sol/terra/luna/cyber 输出均为输入 5 倍
+		}
 		// gpt-5 匹配
 		if strings.HasPrefix(name, "gpt-5") {
 			if !strings.Contains(name, ".") {
@@ -756,6 +803,12 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				}
 				return 6, true
 			}
+			if strings.HasPrefix(name, "gpt-5.1") || strings.HasPrefix(name, "gpt-5.2") || strings.HasPrefix(name, "gpt-5.3") {
+				return 8, false // $10/$1.25、$14/$1.75
+			}
+			if strings.HasPrefix(name, "gpt-5.6-sol") {
+				return 5, false // $20/$4
+			}
 			// gpt-5.5 and later models are unlocked
 			return 6, false
 		}
@@ -763,11 +816,17 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 		if strings.HasPrefix(name, "gpt-4.5-preview") {
 			return 2, true
 		}
+		if strings.HasPrefix(name, "gpt-rosalind") {
+			return 5, false // $25/$5
+		}
 		if strings.HasPrefix(name, "gpt-4-turbo") || strings.HasSuffix(name, "gpt-4-1106") || strings.HasSuffix(name, "gpt-4-1105") {
 			return 3, true
 		}
 		// 没有特殊标记的 gpt-4 模型默认倍率为 2
 		return 2, false
+	}
+	if name == "chat-latest" {
+		return 6, false // $30/$5
 	}
 	if strings.HasPrefix(name, "o1") || strings.HasPrefix(name, "o3") {
 		return 4, true
@@ -924,7 +983,13 @@ func ModelRatio2JSONString() string {
 }
 
 var defaultImageRatio = map[string]float64{
-	"gpt-image-1": 2,
+	"gpt-image-1":            2,
+	"gpt-image-1.5":          2,
+	"gpt-image-2":            2,
+	"gpt-image-2.5-sunburst": 2,
+	"gpt-image-2.5-flare":    2,
+	"gpt-image-2.6-sunburst": 2,
+	"gpt-image-2.6-flare":    2,
 }
 var imageRatioMap = types.NewRWMap[string, float64]()
 var audioRatioMap = types.NewRWMap[string, float64]()
