@@ -756,8 +756,14 @@ func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
 		"cat-jam-free",
 		"omen-alpha",
 		"space-bunny",
+		"kimi-k3.1-pro",
+		"hy4",
+		"minimax-m3.1-flash",
+		"longcat-2.5-free",
+		"iceman-contributor-free",
 	}, channelconstant.OpenCodeGoChatModels)
 	require.Contains(t, channelconstant.OpenCodeGoChatRouteOnlyModels, "space-bunny-free")
+	require.Contains(t, channelconstant.OpenCodeGoChatRouteOnlyModels, "hy4-flash-free")
 	require.NotContains(t, StaticModelListForBase(channelconstant.OpenCodeGoBaseURLAlias), "space-bunny-free")
 	require.Contains(t, channelconstant.OpenCodeGoClaudeModels, "minimax-m3")
 	require.Contains(t, channelconstant.OpenCodeZenResponsesModels, "gpt-5.6-sol")

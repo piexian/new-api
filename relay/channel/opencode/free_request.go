@@ -27,6 +27,11 @@ func (a *Adaptor) needsFreeCompatibility(info *relaycommon.RelayInfo) bool {
 	if info.RelayMode != relayconstant.RelayModeUnknown && info.RelayMode != relayconstant.RelayModeChatCompletions && info.RelayMode != relayconstant.RelayModeResponses {
 		return false
 	}
+	// Go 免费档不做 Zen 的工具/流整形:beam-free 等既有 Go 免费模型一直按普通
+	// chat 转发且可用,Zen 免费档才强制 OpenCode 客户端契约。
+	if IsGoBase(info.ChannelBaseUrl) {
+		return false
+	}
 	if a.RequestMode != requestModeOpenAI && a.RequestMode != requestModeResponses {
 		return false
 	}

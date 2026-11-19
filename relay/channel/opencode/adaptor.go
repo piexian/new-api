@@ -264,6 +264,7 @@ func (a *Adaptor) convertRequest(c *gin.Context, info *relaycommon.RelayInfo, re
 	if info != nil {
 		info.FinalRequestRelayFormat = target
 	}
+	a.normalizeOutboundReasoningEffort(c, info, result.Value)
 	return result.Value, nil
 }
 

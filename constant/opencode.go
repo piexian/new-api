@@ -44,6 +44,9 @@ var OpenCodeZenResponsesModels = []string{
 	"muse-spark-1.2",
 	"muse-spark-1.2-contributor-free",
 	"muse-spark-1.3-contributor-free",
+	"gpt-6.2-sol",
+	"gpt-6.2-astra",
+	"muse-ember-1.0",
 }
 
 var OpenCodeZenClaudeModels = []string{
@@ -65,6 +68,7 @@ var OpenCodeZenClaudeModels = []string{
 	"qwen3.8-flash",
 	"qwen3.6-plus",
 	"qwen3.5-plus",
+	"claude-fable-5-2",
 }
 var OpenCodeZenGeminiModels = []string{
 	"gemini-4-argon",
@@ -75,6 +79,9 @@ var OpenCodeZenGeminiModels = []string{
 	"gemini-3.5-flash-lite",
 	"gemini-3.1-pro",
 	"gemini-3-flash",
+	"gemini-4-carbon",
+	"gemini-4-hydrogen",
+	"gemini-4-neon",
 }
 
 var OpenCodeZenChatModels = []string{
@@ -105,6 +112,14 @@ var OpenCodeZenChatModels = []string{
 	"nemotron-3.5-super-vl-free",
 	"glm-5.3-flash-free",
 	"ll-alpha-free",
+	// 2026-10~11 新增(zen /v1/models)
+	"beam-free",
+	"hy4-flash-free",
+	"tidepool-alpha-free",
+	"inkling-2-small-free",
+	"flint-40b-free",
+	"iceman-free",
+	"longcat-2.5-free",
 }
 
 var OpenCodeZenSystemOneModels = []string{
@@ -146,11 +161,19 @@ var OpenCodeGoChatModels = []string{
 	"cat-jam-free",
 	"omen-alpha",
 	"space-bunny",
+	// 2026-10~11 新增(go /v1/models 与控制台清单)
+	"kimi-k3.1-pro",
+	"hy4",
+	"minimax-m3.1-flash",
+	"longcat-2.5-free",
+	"iceman-contributor-free",
 }
 
 // Go accepts this model on Chat, but does not list it in its public /v1/models inventory.
 var OpenCodeGoChatRouteOnlyModels = []string{
 	"space-bunny-free",
+	// 控制台在售但未列入 go /v1/models(2026-11-16 上架)
+	"hy4-flash-free",
 }
 
 var OpenCodeGoClaudeModels = []string{
@@ -163,9 +186,11 @@ var OpenCodeGoClaudeModels = []string{
 	"qwen3.7-max",
 	"qwen3.7-plus",
 	"qwen3.6-plus",
+	"qwen4-max",
 }
 var OpenCodeGoGeminiModels = []string{
 	"gemini-4-argon-contributor",
+	"gemini-4-argon",
 }
 var OpenCodeGoModels = uniqueStringList(
 	OpenCodeGoResponsesModels,
