@@ -20,6 +20,17 @@ var awsModelIDMap = map[string]string{
 	"claude-opus-4-6":            "anthropic.claude-opus-4-6-v1",
 	"claude-opus-4-7":            "anthropic.claude-opus-4-7",
 	"claude-opus-4-8":            "anthropic.claude-opus-4-8",
+	// 5.x/5.5 代与 mantle 端点共用基础 ID;mythos-5/5-1 未列入官方 InvokeModel 可达清单,暂不接入
+	"claude-opus-5-5":   "anthropic.claude-opus-5-5",
+	"claude-opus-5":     "anthropic.claude-opus-5",
+	"claude-sonnet-5-5": "anthropic.claude-sonnet-5-5",
+	"claude-sonnet-5":   "anthropic.claude-sonnet-5",
+	"claude-haiku-5-5":  "anthropic.claude-haiku-5-5",
+	"claude-fable-5-1":  "anthropic.claude-fable-5-1",
+	"claude-fable-5":    "anthropic.claude-fable-5",
+	// fable/mythos 5.2 仅 bedrock-runtime 端点提供
+	"claude-fable-5-2":  "anthropic.claude-fable-5-2",
+	"claude-mythos-5-2": "anthropic.claude-mythos-5-2",
 	// Nova models
 	"nova-micro-v1:0":   "amazon.nova-micro-v1:0",
 	"nova-lite-v1:0":    "amazon.nova-lite-v1:0",
@@ -102,6 +113,48 @@ var awsModelCanCrossRegionMap = map[string]map[string]bool{
 		"us": true,
 		"ap": true,
 		"eu": true,
+	},
+	"anthropic.claude-opus-5-5": {
+		"us": true,
+		"ap": true,
+		"eu": true,
+	},
+	"anthropic.claude-opus-5": {
+		"us": true,
+		"ap": true,
+		"eu": true,
+	},
+	"anthropic.claude-sonnet-5-5": {
+		"us": true,
+		"ap": true,
+		"eu": true,
+	},
+	"anthropic.claude-sonnet-5": {
+		"us": true,
+		"ap": true,
+		"eu": true,
+	},
+	"anthropic.claude-haiku-5-5": {
+		"us": true,
+		"ap": true,
+		"eu": true,
+	},
+	"anthropic.claude-fable-5-1": {
+		"us": true,
+		"ap": true,
+		"eu": true,
+	},
+	"anthropic.claude-fable-5": {
+		"us": true,
+		"ap": true,
+		"eu": true,
+	},
+	// fable/mythos 5.2 跨区仅 us 前缀可用(官方表 global/us 为 Yes)
+	"anthropic.claude-fable-5-2": {
+		"us": true,
+	},
+	"anthropic.claude-mythos-5-2": {
+		"us": true,
 	},
 	"anthropic.claude-haiku-4-5-20251001-v1:0": {
 		"us": true,

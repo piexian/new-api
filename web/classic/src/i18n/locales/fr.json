@@ -5351,7 +5351,9 @@
     "默认智谱地址": "Adresse Zhipu par défaut",
     "默认测试模型": "Modèle de test par défaut",
     "默认用户消息": "Bonjour",
-    "默认补全倍率": "Taux de complétion par défaut"
+    "默认补全倍率": "Taux de complétion par défaut",
+    "允许用户上下文头透传": "Autoriser les en-têtes de contexte utilisateur",
+    "控制 anthropic-user-profile-id 与 anthropic-workspace-id 归属头透传。默认关闭": "Contrôle la transmission des en-têtes d'attribution anthropic-user-profile-id et anthropic-workspace-id. Désactivé par défaut"
   },
   "RPM/并发": "RPM / Concurrence",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

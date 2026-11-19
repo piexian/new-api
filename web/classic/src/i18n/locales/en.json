@@ -5453,7 +5453,9 @@
     "默认智谱地址": "Default Zhipu Address",
     "默认测试模型": "Default Test Model",
     "默认用户消息": "Default User Message",
-    "默认补全倍率": "Default completion ratio"
+    "默认补全倍率": "Default completion ratio",
+    "允许用户上下文头透传": "Allow user context headers passthrough",
+    "控制 anthropic-user-profile-id 与 anthropic-workspace-id 归属头透传。默认关闭": "Controls anthropic-user-profile-id and anthropic-workspace-id attribution headers passthrough. Off by default"
   },
   "RPM/并发": "RPM / Concurrency",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

@@ -6807,7 +6807,9 @@
     "No login records match the current filters.": "現在のフィルターに一致するログイン記録はありません。",
     "Two-factor authentication unavailable": "二段階認証を利用できません",
     "Browser environment error": "ブラウザ環境の異常",
-    "Monthly quota": "月間クォータ"
+    "Monthly quota": "月間クォータ",
+    "Allow user context headers passthrough": "ユーザーコンテキストヘッダーのパススルーを許可",
+    "Pass through anthropic-user-profile-id and anthropic-workspace-id headers for Claude attribution": "Claude の帰属用に anthropic-user-profile-id と anthropic-workspace-id ヘッダーを透過します"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

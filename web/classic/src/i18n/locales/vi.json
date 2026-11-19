@@ -5850,7 +5850,9 @@
     "默认智谱地址": "Địa chỉ Zhipu mặc định",
     "默认测试模型": "Mô hình kiểm tra mặc định",
     "默认用户消息": "Xin chào",
-    "默认补全倍率": "Tỷ lệ hoàn thành mặc định"
+    "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
+    "允许用户上下文头透传": "Cho phép truyền qua tiêu đề ngữ cảnh người dùng",
+    "控制 anthropic-user-profile-id 与 anthropic-workspace-id 归属头透传。默认关闭": "Điều khiển truyền qua các tiêu đề quy thuộc anthropic-user-profile-id và anthropic-workspace-id. Mặc định tắt"
   },
   "RPM/并发": "RPM / Đồng thời",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

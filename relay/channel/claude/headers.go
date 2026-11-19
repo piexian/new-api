@@ -13,9 +13,12 @@ import (
 )
 
 const (
-	claudeCodeVersion     = "2.1.165"
-	claudeAgentSDKVersion = "0.3.165"
-	claudeClientVersion   = "1.11187.4"
+	// 与 @anthropic-ai/claude-code CLI 同步:CLI 与内嵌 @anthropic-ai/claude-agent-sdk
+	// 构建号成对发布(2.1.165 ↔ 0.3.165),当前对齐 2.1.328 ↔ 0.3.328。
+	claudeCodeVersion     = "2.1.328"
+	claudeAgentSDKVersion = "0.3.328"
+	// claudeClientVersion 是 Claude Desktop(desktop_app 平台)版本,与 CLI 发布线无关。
+	claudeClientVersion = "1.11187.4"
 )
 
 var claudeCodeFingerprintHeaderNames = []string{
@@ -36,6 +39,9 @@ var claudeCodeFingerprintHeaderNames = []string{
 	"anthropic-beta",
 	"X-Claude-Code-Session-Id",
 	"x-client-request-id",
+	// 组织/工作区归属可选头;非透传模式默认过滤,由渠道开关 allow_user_context_headers 控制
+	"anthropic-user-profile-id",
+	"anthropic-workspace-id",
 }
 
 func CommonClaudeHeadersOperation(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
@@ -47,6 +53,10 @@ func CommonClaudeHeadersOperation(c *gin.Context, req *http.Header, info *relayc
 
 	applyClaudeCodeFingerprint(req)
 	copyIncomingHeaders(c, req, []string{"anthropic-beta", "X-Claude-Code-Session-Id"})
+	// 归属可选头默认不透传,渠道开启 allow_user_context_headers 后放行
+	if info != nil && info.ChannelMeta != nil && info.ChannelMeta.ChannelOtherSettings.AllowUserContextHeaders {
+		copyIncomingHeaders(c, req, []string{"anthropic-user-profile-id", "anthropic-workspace-id"})
+	}
 	originModel := ""
 	if info != nil {
 		originModel = info.OriginModelName
@@ -70,6 +80,8 @@ func applyClaudeCodeFingerprint(req *http.Header) {
 	req.Set("anthropic-client-version", claudeClientVersion)
 	req.Set("anthropic-dangerous-direct-browser-access", "true")
 	req.Set("x-app", "cli")
+	// agent-sdk 0.3.328 内嵌客户端仍 pin 2023-06-01(独立 @anthropic-ai/sdk 1.10.0 已发
+	// 2026-10-21,但 CLI 不用它),指纹与真实 CLI 保持一致故不升级。
 	req.Set("anthropic-version", "2023-06-01")
 	req.Set("x-client-request-id", uuid.NewString())
 }

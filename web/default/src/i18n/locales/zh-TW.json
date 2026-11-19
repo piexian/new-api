@@ -6807,7 +6807,9 @@
     "No login records match the current filters.": "沒有符合目前篩選條件的登入記錄。",
     "Two-factor authentication unavailable": "無法使用兩步驗證",
     "Browser environment error": "瀏覽器環境異常",
-    "Monthly quota": "月度額度"
+    "Monthly quota": "月度額度",
+    "Allow user context headers passthrough": "允許使用者上下文頭透傳",
+    "Pass through anthropic-user-profile-id and anthropic-workspace-id headers for Claude attribution": "透傳 anthropic-user-profile-id 與 anthropic-workspace-id 歸屬頭（僅 Claude）"
   },
   "Open external link?": "開啟外部連結？",
   "This link will open in a new window. Do you want to continue?": "此連結將在新視窗中開啟。是否繼續？",

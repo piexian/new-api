@@ -56,13 +56,56 @@ func TestSetupRequestHeaderAppliesOMPClaudeCodeFingerprint(t *testing.T) {
 			t.Errorf("%s = %q, want %q", name, got, want)
 		}
 	}
-	if got := headers.Get("User-Agent"); !strings.HasPrefix(got, "claude-cli/2.1.165 ") {
+	if got := headers.Get("User-Agent"); !strings.HasPrefix(got, "claude-cli/2.1.328 (external, local-agent, agent-sdk/0.3.328)") {
 		t.Errorf("User-Agent = %q, want OMP Claude Code fingerprint", got)
 	}
 	for _, name := range []string{"X-Stainless-Arch", "X-Stainless-OS", "x-client-request-id"} {
 		if headers.Get(name) == "" {
 			t.Errorf("%s should not be empty", name)
 		}
+	}
+}
+
+func TestSetupRequestHeaderUserContextHeadersFollowChannelSwitch(t *testing.T) {
+	newContext := func() *gin.Context {
+		gin.SetMode(gin.TestMode)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+		c.Request.Header.Set("anthropic-user-profile-id", "uprof-123")
+		c.Request.Header.Set("anthropic-workspace-id", "wrkspc-456")
+		return c
+	}
+
+	build := func(otherSettings dto.ChannelOtherSettings) http.Header {
+		headers := make(http.Header)
+		err := (&Adaptor{}).SetupRequestHeader(newContext(), &headers, &relaycommon.RelayInfo{
+			RelayMode:       relayconstant.RelayModeChatCompletions,
+			RelayFormat:     types.RelayFormatClaude,
+			OriginModelName: "claude-opus-5-5",
+			ChannelMeta: &relaycommon.ChannelMeta{
+				ApiKey:               "claude-key",
+				ChannelOtherSettings: otherSettings,
+			},
+		})
+		if err != nil {
+			t.Fatalf("SetupRequestHeader returned error: %v", err)
+		}
+		return headers
+	}
+
+	if got := build(dto.ChannelOtherSettings{}).Get("anthropic-user-profile-id"); got != "" {
+		t.Errorf("anthropic-user-profile-id = %q, want filtered by default", got)
+	}
+	if got := build(dto.ChannelOtherSettings{}).Get("anthropic-workspace-id"); got != "" {
+		t.Errorf("anthropic-workspace-id = %q, want filtered by default", got)
+	}
+
+	allowed := build(dto.ChannelOtherSettings{AllowUserContextHeaders: true})
+	if got := allowed.Get("anthropic-user-profile-id"); got != "uprof-123" {
+		t.Errorf("anthropic-user-profile-id = %q, want forwarded", got)
+	}
+	if got := allowed.Get("anthropic-workspace-id"); got != "wrkspc-456" {
+		t.Errorf("anthropic-workspace-id = %q, want forwarded", got)
 	}
 }
 

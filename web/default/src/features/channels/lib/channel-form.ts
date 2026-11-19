@@ -314,6 +314,7 @@ export const channelFormSchema = z
     allow_include_obfuscation: z.boolean().optional(), // OpenAI: include usage obfuscation
     allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
     allow_speed: z.boolean().optional(), // Anthropic: speed mode control
+    allow_user_context_headers: z.boolean().optional(), // Anthropic: attribution headers
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
     xai_codex_compatibility_enabled: z.boolean().optional(), // xAI: Codex Responses compatibility
     disable_task_polling_sleep: z.boolean().optional(),
@@ -510,6 +511,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_include_obfuscation: false,
   allow_inference_geo: false,
   allow_speed: false,
+  allow_user_context_headers: false,
   claude_beta_query: false,
   xai_codex_compatibility_enabled: false,
   disable_task_polling_sleep: false,
@@ -660,6 +662,7 @@ export function transformChannelToFormDefaults(
   let allowIncludeObfuscation = false
   let allowInferenceGeo = false
   let allowSpeed = false
+  let allowUserContextHeaders = false
   let claudeBetaQuery = false
   let xaiCodexCompatibilityEnabled = false
   let disableTaskPollingSleep = false
@@ -681,6 +684,7 @@ export function transformChannelToFormDefaults(
       allowIncludeObfuscation = parsed.allow_include_obfuscation === true
       allowInferenceGeo = parsed.allow_inference_geo === true
       allowSpeed = parsed.allow_speed === true
+      allowUserContextHeaders = parsed.allow_user_context_headers === true
       claudeBetaQuery = parsed.claude_beta_query === true
       xaiCodexCompatibilityEnabled =
         parsed.xai_codex_compatibility_enabled === true
@@ -741,6 +745,7 @@ export function transformChannelToFormDefaults(
     allow_include_obfuscation: allowIncludeObfuscation,
     allow_inference_geo: allowInferenceGeo,
     allow_speed: allowSpeed,
+    allow_user_context_headers: allowUserContextHeaders,
     claude_beta_query: claudeBetaQuery,
     xai_codex_compatibility_enabled: xaiCodexCompatibilityEnabled,
     disable_task_polling_sleep: disableTaskPollingSleep,
@@ -905,9 +910,14 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   if (formData.type === 14) {
     settingsObj.allow_inference_geo = formData.allow_inference_geo === true
     settingsObj.allow_speed = formData.allow_speed === true
+    settingsObj.allow_user_context_headers =
+      formData.allow_user_context_headers === true
     settingsObj.claude_beta_query = formData.claude_beta_query === true
   } else {
     if ('allow_speed' in settingsObj) delete settingsObj.allow_speed
+    if ('allow_user_context_headers' in settingsObj) {
+      delete settingsObj.allow_user_context_headers
+    }
     if ('claude_beta_query' in settingsObj) delete settingsObj.claude_beta_query
   }
 

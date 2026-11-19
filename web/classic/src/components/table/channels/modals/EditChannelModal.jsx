@@ -2,6 +2,22 @@
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
+
+                      <Form.Switch
+                        field='allow_user_context_headers'
+                        label={t('允许用户上下文头透传')}
+                        checkedText={t('开')}
+                        uncheckedText={t('关')}
+                        onChange={(value) =>
+                          handleChannelOtherSettingsChange(
+                            'allow_user_context_headers',
+                            value,
+                          )
+                        }
+                        extraText={t(
+                          '控制 anthropic-user-profile-id 与 anthropic-workspace-id 归属头透传。默认关闭',
+                        )}
+                      />
 it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
@@ -284,6 +300,7 @@ const EditChannelModal = (props) => {
     allow_include_obfuscation: false,
     allow_inference_geo: false,
     allow_speed: false,
+    allow_user_context_headers: false,
     claude_beta_query: false,
     xai_codex_compatibility_enabled: false,
     upstream_model_update_check_enabled: false,
@@ -1267,6 +1284,8 @@ const EditChannelModal = (props) => {
           data.allow_inference_geo =
             parsedSettings.allow_inference_geo || false;
           data.allow_speed = parsedSettings.allow_speed || false;
+          data.allow_user_context_headers =
+            parsedSettings.allow_user_context_headers || false;
           data.claude_beta_query = parsedSettings.claude_beta_query || false;
           data.xai_codex_compatibility_enabled =
             parsedSettings.xai_codex_compatibility_enabled === true;
@@ -1299,6 +1318,7 @@ const EditChannelModal = (props) => {
           data.allow_include_obfuscation = false;
           data.allow_inference_geo = false;
           data.allow_speed = false;
+          data.allow_user_context_headers = false;
           data.claude_beta_query = false;
           data.xai_codex_compatibility_enabled = false;
           data.upstream_model_update_check_enabled = false;
@@ -1318,6 +1338,7 @@ const EditChannelModal = (props) => {
         data.allow_include_obfuscation = false;
         data.allow_inference_geo = false;
         data.allow_speed = false;
+        data.allow_user_context_headers = false;
         data.claude_beta_query = false;
         data.xai_codex_compatibility_enabled = false;
         data.upstream_model_update_check_enabled = false;
@@ -2342,6 +2363,8 @@ const EditChannelModal = (props) => {
       if (localInputs.type === 14) {
         settings.allow_inference_geo = localInputs.allow_inference_geo === true;
         settings.allow_speed = localInputs.allow_speed === true;
+        settings.allow_user_context_headers =
+          localInputs.allow_user_context_headers === true;
         settings.claude_beta_query = localInputs.claude_beta_query === true;
       }
     }
@@ -2408,6 +2431,7 @@ const EditChannelModal = (props) => {
     delete localInputs.allow_include_obfuscation;
     delete localInputs.allow_inference_geo;
     delete localInputs.allow_speed;
+    delete localInputs.allow_user_context_headers;
     delete localInputs.claude_beta_query;
     delete localInputs.xai_codex_compatibility_enabled;
     delete localInputs.upstream_model_update_check_enabled;

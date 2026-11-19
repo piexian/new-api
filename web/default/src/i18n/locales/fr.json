@@ -6807,7 +6807,9 @@
     "No login records match the current filters.": "Aucune connexion ne correspond aux filtres actuels.",
     "Two-factor authentication unavailable": "Authentification à deux facteurs indisponible",
     "Browser environment error": "Environnement du navigateur en erreur",
-    "Monthly quota": "Quota mensuel"
+    "Monthly quota": "Quota mensuel",
+    "Allow user context headers passthrough": "Autoriser la transparence des en-têtes de contexte utilisateur",
+    "Pass through anthropic-user-profile-id and anthropic-workspace-id headers for Claude attribution": "Transmettre les en-têtes anthropic-user-profile-id et anthropic-workspace-id pour l'attribution Claude"
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

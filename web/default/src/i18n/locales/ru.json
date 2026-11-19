@@ -6807,7 +6807,9 @@
     "No login records match the current filters.": "Нет записей о входах, соответствующих текущим фильтрам.",
     "Two-factor authentication unavailable": "Двухфакторная аутентификация недоступна",
     "Browser environment error": "Ошибка окружения браузера",
-    "Monthly quota": "Месячная квота"
+    "Monthly quota": "Месячная квота",
+    "Allow user context headers passthrough": "Разрешить сквозную передачу заголовков контекста пользователя",
+    "Pass through anthropic-user-profile-id and anthropic-workspace-id headers for Claude attribution": "Проксирует заголовки anthropic-user-profile-id и anthropic-workspace-id для атрибуции Claude"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

@@ -5335,7 +5335,9 @@
     "默认智谱地址": "預設智譜位址",
     "默认测试模型": "預設測試模型",
     "默认用户消息": "你好",
-    "默认补全倍率": "預設補全倍率"
+    "默认补全倍率": "預設補全倍率",
+    "允许用户上下文头透传": "允許使用者上下文頭透傳",
+    "控制 anthropic-user-profile-id 与 anthropic-workspace-id 归属头透传。默认关闭": "控制 anthropic-user-profile-id 與 anthropic-workspace-id 歸屬頭透傳。預設關閉"
   },
   "RPM/并发": "RPM/並發",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",
