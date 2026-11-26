@@ -250,6 +250,14 @@ func DefaultChannelProtocolSupport(channelType int, baseURL string, setting dto.
 			Messages:  false,
 			Gemini:    true,
 		}
+	case constant.ChannelTypeMistral:
+		// 原生 /v1/responses 与公开预览的 OpenAI 兼容 chat 端点
+		return ResolvedProtocolSupport{
+			Chat:      true,
+			Responses: true,
+			Messages:  false,
+			Gemini:    false,
+		}
 	case constant.ChannelTypePaLM,
 		constant.ChannelTypeBaidu,
 		constant.ChannelTypeXunfei,
@@ -258,7 +266,6 @@ func DefaultChannelProtocolSupport(channelType int, baseURL string, setting dto.
 		constant.ChannelTypeDify,
 		constant.ChannelTypeJina,
 		constant.ChannelTypeSiliconFlow,
-		constant.ChannelTypeMistral,
 		constant.ChannelTypeMokaAI,
 		constant.ChannelTypeCoze,
 		constant.ChannelTypeJimeng,

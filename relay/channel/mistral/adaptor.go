@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
@@ -12,7 +13,6 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	dto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/service/responsescompat"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -63,9 +63,25 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/moderations", info.ChannelType), nil
 	}
 	if info != nil && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
-		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/chat/completions", info.ChannelType), nil
+		// chat 端点：官方主机走公开预览的 OpenAI 兼容端点；代理/自定义 base 只保证原生路径
+		chatPath := "/v1/chat/completions"
+		if isOfficialMistralBase(info.ChannelBaseUrl) {
+			chatPath = "/openai/v1/chat/completions"
+		}
+		return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, chatPath, info.ChannelType), nil
 	}
+	// Responses 及 input_tokens 走原生 /v1/responses*，OCR/embeddings/audio 直接透传入站路径
 	return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, info.RequestURLPath, info.ChannelType), nil
+}
+
+// isOfficialMistralBase 判断 base 是否为官方 API 主机；代理与自定义网关只有
+// 原生 /v1/chat/completions 路由，OpenAI 兼容端点仅官方主机可用。
+func isOfficialMistralBase(baseURL string) bool {
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return false
+	}
+	return parsed.Hostname() == "api.mistral.ai"
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
@@ -82,12 +98,12 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		// ClassificationRequest 仅收 model/input，独立类型避免聊天字段混入（additionalProperties: false）
 		return moderationRequest{Model: request.Model, Input: request.Input}, nil
 	}
-	convertedRequest := requestOpenAI2Mistral(request)
+	// chat 端点即 OpenAI 兼容端点，请求原样透传
 	if info != nil {
-		info.ReasoningEffort = convertedRequest.ReasoningEffort
+		info.ReasoningEffort = request.ReasoningEffort
 		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
 	}
-	return convertedRequest, nil
+	return request, nil
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -99,16 +115,18 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	chatRequest, err := responsescompat.ConvertToOpenAIChatRequest(request)
-	if err != nil {
-		return nil, err
-	}
-	// responsescompat 只保留 function 工具，这里补回 Mistral 支持的内置工具（web_search 系列）
-	chatRequest.Tools = append(chatRequest.Tools, mistralBuiltInToolsFromResponses(request.Tools)...)
+	// Mistral 原生支持 OpenAI Responses，请求直传。无状态端点：带状态字段一律
+	// 清空，携带非法值会被上游 422 拒绝
+	request.Conversation = nil
+	request.Prompt = nil
+	request.Moderation = nil
+	request.Store = nil
+	request.Truncation = nil
+	request.PreviousResponseID = ""
 	if info != nil {
-		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+		info.FinalRequestRelayFormat = types.RelayFormatOpenAIResponses
 	}
-	return requestOpenAI2Mistral(chatRequest), nil
+	return request, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -127,13 +145,15 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return sttUsage, sttErr
 	case relayconstant.RelayModeOCR:
 		return MistralOCRHandler(c, resp, info)
+	case relayconstant.RelayModeResponses:
+		// 原生 Responses 端点的事件流与响应对象均为 OpenAI 形状，openai 处理器可直接渲染
+		adaptor := openai.Adaptor{}
+		return adaptor.DoResponse(c, resp, info)
+	case relayconstant.RelayModeResponsesInputTokens:
+		return mistralResponsesInputTokensHandler(c, resp)
 	}
-	if info != nil && info.RelayMode == relayconstant.RelayModeResponses && info.GetFinalRequestRelayFormat() == types.RelayFormatOpenAI {
-		if info.IsStream {
-			return openai.ChatCompletionResponsesStreamHandlerWithDataTransformer(c, info, resp, normalizeMistralStreamData)
-		}
-		return openai.ChatCompletionResponsesHandlerWithBodyTransformer(c, info, resp, normalizeMistralResponseData)
-	}
+	// chat（含 Claude 转 chat）走 OpenAI 兼容端点，响应即 OpenAI 格式；
+	// normalizeMistral* 仅在上游回吐原生 content 块时改写，正常情况零改动
 	if info.IsStream {
 		usage, err = openai.OaiStreamHandlerWithDataTransformer(c, info, resp, normalizeMistralStreamData)
 	} else {

@@ -1,7 +1,6 @@
 package mistral
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -14,73 +13,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRequestOpenAI2MistralPreservesReasoningEffort(t *testing.T) {
+func TestConvertOpenAIRequestPassesThroughOpenAIBody(t *testing.T) {
+	t.Parallel()
+
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeChatCompletions,
+		RelayFormat: types.RelayFormatOpenAI,
+	}
 	request := &dto.GeneralOpenAIRequest{
 		Model:           "mistral-small-latest",
-		ReasoningEffort: "max",
+		ReasoningEffort: "high",
+		Messages:        []dto.Message{{Role: "user", Content: "hello"}},
+		Tools:           []dto.ToolCallRequest{{Type: "function", Function: dto.FunctionRequest{Name: "lookup"}}},
 	}
 
-	converted := requestOpenAI2Mistral(request)
-
-	require.Equal(t, "max", converted.ReasoningEffort)
-}
-
-func TestRequestOpenAI2MistralPreservesEmptyTextContent(t *testing.T) {
-	request := &dto.GeneralOpenAIRequest{
-		Model: "mistral-small-latest",
-		Messages: []dto.Message{
-			{Role: "user", Content: ""},
-			{Role: "tool", Content: "", ToolCallId: "123456789"},
-			{Role: "assistant", Content: "", ToolCalls: json.RawMessage(`[{"id":"123456789"}]`)},
-		},
-	}
-
-	converted := requestOpenAI2Mistral(request)
-
-	if got := converted.Messages[0].Content; got != "" {
-		t.Fatalf("user content = %#v, want empty string", got)
-	}
-	if got := converted.Messages[1].Content; got != "" {
-		t.Fatalf("tool content = %#v, want empty string", got)
-	}
-	if got := converted.Messages[2].Content; got == "" {
-		t.Fatalf("assistant tool-call content = %#v, want an empty array", got)
-	}
-
-	body, err := common.Marshal(converted)
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(nil, info, request)
 	require.NoError(t, err)
-	require.NotContains(t, string(body), `{"type":"text"}`)
-	require.Contains(t, string(body), `"content":""`)
-	require.Contains(t, string(body), `"content":[]`)
-}
-
-func TestRequestOpenAI2MistralNormalizesEmptyTextBlocks(t *testing.T) {
-	request := &dto.GeneralOpenAIRequest{
-		Model: "mistral-small-latest",
-		Messages: []dto.Message{
-			{Role: "user", Content: []any{
-				map[string]any{"type": "text", "text": ""},
-			}},
-			{Role: "user", Content: []any{
-				map[string]any{"type": "text", "text": ""},
-				map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/a.png"}},
-			}},
-		},
-	}
-
-	converted := requestOpenAI2Mistral(request)
-	require.Equal(t, "", converted.Messages[0].Content)
-	content := converted.Messages[1].ParseContent()
-	require.Len(t, content, 1)
-	require.Equal(t, dto.ContentTypeImageURL, content[0].Type)
-	require.NotContains(t, string(mustMarshal(t, converted)), `{"type":"text"}`)
-}
-
-func mustMarshal(t *testing.T, value any) []byte {
-	t.Helper()
-	body, err := common.Marshal(value)
-	require.NoError(t, err)
-	return body
+	require.Same(t, request, converted)
+	require.Equal(t, types.RelayFormatOpenAI, info.FinalRequestRelayFormat)
+	require.Equal(t, "high", info.ReasoningEffort)
 }
 
 func TestNormalizeMistralNonStreamThinkingContent(t *testing.T) {
@@ -147,39 +98,6 @@ func TestNormalizeMistralMixedAndStringContent(t *testing.T) {
 func TestNormalizeMistralResponseRejectsInvalidJSON(t *testing.T) {
 	_, err := normalizeMistralResponseData([]byte(`{"choices":`))
 	require.Error(t, err)
-}
-
-func TestRequestOpenAI2MistralNormalizesBuiltInToolTypes(t *testing.T) {
-	request := &dto.GeneralOpenAIRequest{
-		Model: "mistral-large-latest",
-		Tools: []dto.ToolCallRequest{
-			{Type: "web_search_preview"},
-			{Type: "web_search_preview_2025_03_11"},
-			{Type: "web_search_20250305"},
-			{Type: "web_search"},
-			{Type: "web_search_premium"},
-			{Type: "function", Function: dto.FunctionRequest{Name: "get_weather"}},
-		},
-	}
-
-	converted := requestOpenAI2Mistral(request)
-
-	got := make([]string, len(converted.Tools))
-	for i, tool := range converted.Tools {
-		got[i] = tool.Type
-	}
-	require.Equal(t, []string{
-		"web_search",
-		"web_search",
-		"web_search",
-		"web_search",
-		"web_search_premium",
-		"function",
-	}, got)
-
-	// 转换不应改写调用方的 request.Tools
-	require.Equal(t, "web_search_preview", request.Tools[0].Type)
-	require.Equal(t, "web_search_20250305", request.Tools[2].Type)
 }
 
 func TestConvertOpenAIRequestModerationUsesClassificationRequest(t *testing.T) {

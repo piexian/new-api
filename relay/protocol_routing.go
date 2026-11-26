@@ -107,7 +107,6 @@ func usesInternalResponsesChatConversion(channelType int) bool {
 		constant.ChannelTypeSubmodel,
 		constant.ChannelTypeZhipu,
 		constant.ChannelTypeSiliconFlow,
-		constant.ChannelTypeMistral,
 		constant.ChannelTypeCerebras,
 		constant.ChannelTypeGMICloud:
 		return true

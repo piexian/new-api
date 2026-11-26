@@ -50,10 +50,16 @@ func TestResolveChannelProtocolSupportDefaults(t *testing.T) {
 		assert.True(t, support.Responses, "channel type %d", channelType)
 	}
 
+	// Mistral 原生支持 /v1/responses，chat 走公开预览的 OpenAI 兼容端点。
+	mistral := relaycommon.ResolveChannelProtocolSupport(constant.ChannelTypeMistral, "", dto.ChannelSettings{})
+	assert.True(t, mistral.Chat)
+	assert.True(t, mistral.Responses)
+	assert.False(t, mistral.Messages)
+	assert.False(t, mistral.Gemini)
+
 	// Own adaptors without a native /v1/responses endpoint.
 	for _, channelType := range []int{
 		constant.ChannelTypeSiliconFlow,
-		constant.ChannelTypeMistral,
 		constant.ChannelTypeCerebras,
 		constant.ChannelTypeBaidu,
 	} {
