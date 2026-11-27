@@ -102,6 +102,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if info != nil {
 		info.ReasoningEffort = request.ReasoningEffort
 		info.FinalRequestRelayFormat = types.RelayFormatOpenAI
+		// OpenAI 兼容端点的流式响应只在 stream_options.include_usage 时返回真实
+		// usage，不带该参数时上游会回吐输出侧全 0 的 usage，统一注入
+		if info.IsStream && isOfficialMistralBase(info.ChannelBaseUrl) && request.StreamOptions == nil {
+			request.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+		}
 	}
 	return request, nil
 }

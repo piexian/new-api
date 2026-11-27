@@ -34,6 +34,50 @@ func TestConvertOpenAIRequestPassesThroughOpenAIBody(t *testing.T) {
 	require.Equal(t, "high", info.ReasoningEffort)
 }
 
+func TestConvertOpenAIRequestInjectsStreamUsageOnCompatEndpoint(t *testing.T) {
+	t.Parallel()
+
+	buildInfo := func(isStream bool, baseURL string) *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			RelayMode:   relayconstant.RelayModeChatCompletions,
+			RelayFormat: types.RelayFormatOpenAI,
+			IsStream:    isStream,
+			ChannelMeta: &relaycommon.ChannelMeta{
+				ChannelBaseUrl: baseURL,
+			},
+		}
+	}
+
+	// 官方主机流式请求注入 include_usage，拿回真实 usage
+	request := &dto.GeneralOpenAIRequest{Model: "mistral-large-4"}
+	_, err := (&Adaptor{}).ConvertOpenAIRequest(nil, buildInfo(true, "https://api.mistral.ai"), request)
+	require.NoError(t, err)
+	require.NotNil(t, request.StreamOptions)
+	require.True(t, request.StreamOptions.IncludeUsage)
+
+	// 代理 base 走原生端点，流式末块自带 usage，不注入
+	proxyRequest := &dto.GeneralOpenAIRequest{Model: "mistral-large-4"}
+	_, err = (&Adaptor{}).ConvertOpenAIRequest(nil, buildInfo(true, "https://gptload.elycyrene.net/proxy/mistral"), proxyRequest)
+	require.NoError(t, err)
+	require.Nil(t, proxyRequest.StreamOptions)
+
+	// 非流式响应体自带 usage，不注入
+	nonStreamRequest := &dto.GeneralOpenAIRequest{Model: "mistral-large-4"}
+	_, err = (&Adaptor{}).ConvertOpenAIRequest(nil, buildInfo(false, "https://api.mistral.ai"), nonStreamRequest)
+	require.NoError(t, err)
+	require.Nil(t, nonStreamRequest.StreamOptions)
+
+	// 客户端显式设置的 stream_options 不覆盖
+	explicit := &dto.GeneralOpenAIRequest{
+		Model:         "mistral-large-4",
+		StreamOptions: &dto.StreamOptions{IncludeUsage: false},
+	}
+	_, err = (&Adaptor{}).ConvertOpenAIRequest(nil, buildInfo(true, "https://api.mistral.ai"), explicit)
+	require.NoError(t, err)
+	require.NotNil(t, explicit.StreamOptions)
+	require.False(t, explicit.StreamOptions.IncludeUsage)
+}
+
 func TestNormalizeMistralNonStreamThinkingContent(t *testing.T) {
 	input := []byte(`{
 		"id":"response-id",
