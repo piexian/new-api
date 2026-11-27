@@ -90,7 +90,7 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 			return string(constant.EndpointTypeEmbeddings)
 		}
 	}
-	if channel != nil && channel.Type == constant.ChannelTypeGemini && strings.HasPrefix(modelName, "gemini-decision") {
+	if channel != nil && (channel.Type == constant.ChannelTypeGemini || channel.Type == constant.ChannelTypeGeminiInteractions) && strings.HasPrefix(modelName, "gemini-decision") {
 		return string(constant.EndpointTypeGeminiDecisions)
 	}
 	return normalized

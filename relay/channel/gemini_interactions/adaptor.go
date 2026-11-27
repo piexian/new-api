@@ -84,6 +84,14 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return "", fmt.Errorf("unsupported gemini interactions path: %s", requestPath)
 	}
 
+	// Decisions 不属于 Interactions 协议,沿用原生 /v1beta/decisions 端点(复用 Gemini 适配器)
+	if info.RelayMode == constant.RelayModeDecisions ||
+		(info.RelayMode == constant.RelayModeTypeSafeNative && dto.IsGeminiDecisionsModel(info.UpstreamModelName)) {
+		if info.ChannelBaseUrl == "" {
+			info.ChannelBaseUrl = baseURL
+		}
+		return (&gemini.Adaptor{}).GetRequestURL(info)
+	}
 	// 渠道级开关:OpenAI Chat 入站直传上游 OpenAI 兼容端点,不再转 Interactions
 	if info.UpstreamOpenAICompatChat() {
 		return fmt.Sprintf("%s/v1beta/openai/chat/completions", baseURL), nil
@@ -200,6 +208,13 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return openai.OpenaiHandler(c, info, resp)
 	}
 
+	// Decisions 响应解析复用 Gemini 原生实现(原生与 systemone 转换两条链路)
+	if info.RelayMode == constant.RelayModeDecisions {
+		return gemini.GeminiDecisionsHandler(c, info, resp)
+	}
+	if info.RelayMode == constant.RelayModeTypeSafeNative && dto.IsGeminiDecisionsModel(info.UpstreamModelName) {
+		return gemini.GeminiDecisionsSystemOneHandler(c, info, resp)
+	}
 	// embed 响应解析复用 Gemini 原生实现(NativeGeminiEmbeddingHandler / GeminiEmbeddingHandler)
 	if info.RelayMode == constant.RelayModeEmbeddings || isEmbeddingModelName(info.UpstreamModelName) {
 		return (&gemini.Adaptor{}).DoResponse(c, resp, info)

@@ -160,6 +160,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
+	// gemini-decision 模型是端点专属能力,只放行 /v1beta/decisions 与 /v1/systemone
+	// 两条链路,其余入站在网关层拦截,避免错误协议链造成不可读的上游 404
+	if kitdto.IsGeminiDecisionsModel(relayInfo.OriginModelName) &&
+		relayInfo.RelayMode != relayconstant.RelayModeDecisions &&
+		relayInfo.RelayMode != relayconstant.RelayModeTypeSafeNative {
+		newAPIError = types.NewErrorWithStatusCode(
+			fmt.Errorf("model %s only supports /v1beta/decisions and /v1/systemone", relayInfo.OriginModelName),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+		return
+	}
 	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.

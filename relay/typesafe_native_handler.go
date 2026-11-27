@@ -23,7 +23,7 @@ import (
 func TypeSafeNativeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 	// Gemini 渠道上的 systemone 协议仅服务 Decisions 模型:state→input 转换
-	if info.ChannelType == constant.ChannelTypeGemini {
+	if info.ChannelType == constant.ChannelTypeGemini || info.ChannelType == constant.ChannelTypeGeminiInteractions {
 		return GeminiDecisionsViaSystemOneHelper(c, info)
 	}
 	// OpenAI 渠道上的 systemone 协议转 OpenAI Decisions(state/questions 映射转换)

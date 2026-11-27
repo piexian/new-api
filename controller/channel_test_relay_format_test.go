@@ -69,6 +69,8 @@ func TestChannelTestNormalizedEndpointBuildsRelayInfo(t *testing.T) {
 		{"opencode JEV free automatic", constant.ChannelTypeOpenCode, "jev-1.13-free", "", types.RelayFormatTypeSafe},
 		{"opencode JEV explicit", constant.ChannelTypeOpenCode, "jev-1.13", "typesafe", types.RelayFormatTypeSafe},
 		{"opencode Responses free automatic", constant.ChannelTypeOpenCode, "muse-spark-1.3-contributor-free", "", types.RelayFormatOpenAIResponses},
+		{"gemini decisions on interactions", constant.ChannelTypeGeminiInteractions, "gemini-decision-1", "", types.RelayFormatGemini},
+		{"gemini decisions on gemini", constant.ChannelTypeGemini, "gemini-decision-1", "", types.RelayFormatGemini},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

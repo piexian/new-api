@@ -32,8 +32,8 @@ func GeminiDecisionsHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIE
 		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected *kitdto.GeminiDecisionsRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	// Decisions 属于 Gemini 原生端点,仅放行 Gemini 渠道
-	if info.ChannelType != constant.ChannelTypeGemini {
+	// Decisions 属于 Gemini 原生端点,放行 Gemini 与 GeminiInteractions 渠道
+	if info.ChannelType != constant.ChannelTypeGemini && info.ChannelType != constant.ChannelTypeGeminiInteractions {
 		return types.NewErrorWithStatusCode(fmt.Errorf("gemini decisions API only supports gemini channels, got channel type %d", info.ChannelType), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
@@ -121,7 +121,7 @@ func GeminiDecisionsViaSystemOneHelper(c *gin.Context, info *relaycommon.RelayIn
 		return types.NewErrorWithStatusCode(fmt.Errorf("invalid request type, expected *dto.SystemOneRequest, got %T", info.Request), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
-	if info.ChannelType != constant.ChannelTypeGemini {
+	if info.ChannelType != constant.ChannelTypeGemini && info.ChannelType != constant.ChannelTypeGeminiInteractions {
 		return types.NewErrorWithStatusCode(errors.New("the /v1/systemone endpoint on gemini channels only supports gemini decisions models"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 
